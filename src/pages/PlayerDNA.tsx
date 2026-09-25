@@ -212,7 +212,10 @@ export function PlayerDNA() {
     return (
       <div className="page">
         <div className="page-head">
-          <h1>Player DNA</h1>
+          <div>
+            <div className="eyebrow">Your fingerprint</div>
+            <h1>Player DNA</h1>
+          </div>
         </div>
         <div className="empty">Your Player DNA appears after your first analysed game. Make sure the library knows which side you played.</div>
       </div>
@@ -221,6 +224,7 @@ export function PlayerDNA() {
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Your fingerprint</div>
           <h1>Player DNA</h1>
           <p className="sub">
             {profile.name} · {profile.games} games · {profile.playerMoves} of your moves · model v{profile.version}

@@ -173,12 +173,20 @@ export function safeJson(s: string): unknown {
   }
 }
 
+/**
+ * Current Gemini models to try, best first. Google retires ids for new keys (for
+ * example gemini-2.5-flash) and the newest Flash is often overloaded, so the chain
+ * falls back to other Flash and Flash-Lite models.
+ */
+export const GEMINI_CHAIN = ['gemini-flash-latest', 'gemini-3-flash-preview', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];
+
 /** Map env config to a concrete provider/model. "Gemini" alone is not a model id. */
 export function resolveLlmConfig(env: Record<string, string | undefined>) {
   const key = env.LLM_API_KEY?.trim() || '';
   const providerRaw = (env.LLM_PROVIDER || 'google').trim();
   const provider = /google|gemini|ai\s*studio/i.test(providerRaw) ? 'google' : providerRaw.toLowerCase();
-  const modelRaw = (env.LLM_MODEL || '').trim();
-  const models = /^gemini-[\w.-]+$/i.test(modelRaw) ? [modelRaw, 'gemini-flash-latest', 'gemini-2.5-flash'] : ['gemini-flash-latest', 'gemini-2.5-flash'];
+  // Accept "gemini-3.5-flash", "models/gemini-3.5-flash" or "Gemini 3.5 Flash".
+  const modelRaw = (env.LLM_MODEL || '').trim().toLowerCase().replace(/^models\//, '').replace(/\s+/g, '-');
+  const models = /^gemini-[\w.-]+$/.test(modelRaw) ? [modelRaw, ...GEMINI_CHAIN] : GEMINI_CHAIN;
   return { key, provider, models: [...new Set(models)], configured: !!key && provider === 'google' };
 }

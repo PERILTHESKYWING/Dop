@@ -5,6 +5,7 @@ import { decodeOwnership } from '../engine/parse';
 import { signatureById, type Signature } from '../profile/signatures';
 import { positionFingerprint, similarity, type Fingerprint } from '../search/similarity';
 import type { MoveRecord, TrainingItem, TrainingKind, Weakness } from '../types';
+import { DEFAULT_MIN_LOSING_WINRATE, isBalanced } from './balance';
 
 function recordToItem(corpus: Corpus, r: MoveRecord, w: Weakness, kind: TrainingKind, expectsContext: boolean, difficulty: number): TrainingItem | null {
   const g = corpus.games.get(r.gameId);
@@ -67,6 +68,8 @@ export function decisionGap(corpus: Corpus, sig: Signature, r: MoveRecord): numb
 
 export interface GenerateOptions {
   perKind?: Partial<Record<TrainingKind, number>>;
+  /** Leave out positions where the side behind has less than this winrate (default 0.3). */
+  minLosingWinrate?: number;
 }
 
 /**
@@ -80,8 +83,10 @@ export interface GenerateOptions {
 export function generateItems(corpus: Corpus, w: Weakness, opts: GenerateOptions = {}): TrainingItem[] {
   const sig = signatureById.get(w.signature);
   const per = { original: 8, similar: 10, counterexample: 8, boundary: 6, ...opts.perKind };
-  const usable = corpus.records.filter((r) => r.loc !== PASS && r.bestLoc !== PASS);
-  const originals = w.evidence.map((e) => corpus.byId.get(e.moveId)).filter((r): r is MoveRecord => !!r);
+  const minWin = opts.minLosingWinrate ?? DEFAULT_MIN_LOSING_WINRATE;
+  const balanced = (r: MoveRecord) => isBalanced(r.winBefore, minWin);
+  const usable = corpus.records.filter((r) => r.loc !== PASS && r.bestLoc !== PASS && balanced(r));
+  const originals = w.evidence.map((e) => corpus.byId.get(e.moveId)).filter((r): r is MoveRecord => !!r && balanced(r));
   const originalIds = new Set(originals.map((r) => r.id));
   const seeds = originals.slice(0, 12).map((r) => fingerprintOf(corpus, r));
   const simToSeeds = (r: MoveRecord) => {

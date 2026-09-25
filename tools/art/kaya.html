@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kaya texture generator</title>
+    <!--
+      Procedural kaya (Torreya nucifera) board texture: warm golden wood with fine straight
+      "masame" (edge) grain, growth-ring banding, fibre streaks, slow colour drift and a soft
+      sheen. Everything is generated from a seeded PRNG, so a given seed always gives the same
+      image. Open this file in a browser to look at it (?seed=7&size=1024), or run
+      `node tools/art/render-kaya.mjs` to write public/art/kaya.webp with headless Chromium.
+    -->
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        gap: 12px;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #f3ede3;
+        color: #3b2a1a;
+        font: 14px/1.4 system-ui, sans-serif;
+      }
+      canvas {
+        width: min(88vmin, 1024px);
+        height: auto;
+        box-shadow: 0 18px 40px rgba(80, 50, 20, 0.28);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="kaya"></canvas>
+    <p><a id="dl" download="kaya.webp" href="#">Download WebP</a> · <span id="info"></span></p>
+    <script>
+      'use strict';
+
+      function mulberry32(a) {
+        return function () {
+          a |= 0;
+          a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      /** Smooth 2D value noise on a gw x gh lattice; returns values in about [-1, 1]. */
+      function noise2D(rand, gw, gh) {
+        const W = gw + 2;
+        const g = new Float32Array(W * (gh + 2));
+        for (let i = 0; i < g.length; i++) g[i] = rand() * 2 - 1;
+        return function (x, y) {
+          if (x < 0) x = 0;
+          if (y < 0) y = 0;
+          if (x > gw) x = gw;
+          if (y > gh) y = gh;
+          const xi = x | 0,
+            yi = y | 0;
+          const xf = x - xi,
+            yf = y - yi;
+          const u = xf * xf * (3 - 2 * xf),
+            v = yf * yf * (3 - 2 * yf);
+          const i = yi * W + xi;
+          const a = g[i],
+            b = g[i + 1],
+            c = g[i + W],
+            d = g[i + W + 1];
+          return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+        };
+      }
+
+      /** Smooth 1D value noise over [0, n]. */
+      function noise1D(rand, n) {
+        const g = new Float32Array(n + 2);
+        for (let i = 0; i < g.length; i++) g[i] = rand() * 2 - 1;
+        return function (x) {
+          if (x < 0) x = 0;
+          if (x > n) x = n;
+          const xi = x | 0,
+            xf = x - xi;
+          const u = xf * xf * (3 - 2 * xf);
+          return g[xi] + (g[xi + 1] - g[xi]) * u;
+        };
+      }
+
+      /**
+       * Draw the texture into `canvas`. The grain runs vertically (along y), as on a
+       * tenchi-masame board where the growth rings meet the playing surface edge-on.
+       */
+      function renderKaya(canvas, opts = {}) {
+        const N = opts.size ?? 1024;
+        const seed = opts.seed ?? 7;
+        const rand = mulberry32(seed);
+        canvas.width = N;
+        canvas.height = N;
+        const s = N / 1024; // everything below is tuned in 1024-px units
+
+        // --- growth rings along the across-grain coordinate u -------------------------
+        const SUB = 4; // profile samples per pixel
+        const U0 = Math.floor(-120 * s),
+          U1 = Math.ceil(N + 120 * s);
+        const prof = new Float32Array((U1 - U0) * SUB);
+        const ph1 = rand() * 6.283,
+          ph2 = rand() * 6.283,
+          ph3 = rand() * 6.283;
+        let u = U0;
+        const baseW = 7.4 * s;
+        while (u < U1) {
+          const f = (u - U0) / (U1 - U0);
+          // slow changes in growth rate: bands of tighter and looser rings
+          const growth = 1 + 0.4 * Math.sin(f * 6.283 * 1.6 + ph1) + 0.2 * Math.sin(f * 6.283 * 4.1 + ph2) + 0.1 * Math.sin(f * 6.283 * 9.3 + ph3);
+          const w = Math.max(2.4 * s, baseW * growth * (0.72 + 0.56 * rand()));
+          // tighter rings read a little darker (more latewood per millimetre)
+          const strength = (0.42 + 0.58 * Math.pow(rand(), 0.75)) * (1.12 - 0.18 * growth);
+          const late = 0.2 + 0.2 * rand();
+          const hair = rand() < 0.35 ? 0.25 + 0.5 * rand() : -1; // occasional faint secondary line
+          const a = Math.max(0, Math.floor((u - U0) * SUB)),
+            b = Math.min(prof.length, Math.floor((u + w - U0) * SUB));
+          for (let k = a; k < b; k++) {
+            const p = (k / SUB + U0 - u) / w;
+            let d;
+            if (p < 1 - late) {
+              d = 0.05 * (p / (1 - late)); // earlywood darkens very slowly
+            } else {
+              const t = (p - (1 - late)) / late;
+              d = 0.05 + 0.95 * Math.pow(t, 1.7); // latewood ramps up to a crisp boundary
+            }
+            if (hair > 0) {
+              const h = (p - hair) / (0.035 + 0.02 * strength);
+              d += 0.28 * Math.exp(-h * h);
+            }
+            prof[k] = d * strength;
+          }
+          u += w;
+        }
+        // box-filter to one pixel so the crisp ring boundaries antialias nicely
+        const aa = new Float32Array(prof.length);
+        for (let k = 0; k < prof.length; k++) {
+          let acc = 0;
+          for (let j = -2; j <= 1; j++) acc += prof[Math.min(prof.length - 1, Math.max(0, k + j))];
+          aa[k] = acc / SUB;
+        }
+        const ring = (uu) => {
+          const q = (uu - U0) * SUB;
+          const i = Math.max(0, Math.min(aa.length - 2, q | 0));
+          const f = q - i;
+          return aa[i] * (1 - f) + aa[i + 1] * f;
+        };
+
+        // --- noise fields --------------------------------------------------------------
+        const warpN = noise2D(rand, 10, 10);
+        const warpN2 = noise2D(rand, 26, 6);
+        const fibreA = noise2D(rand, Math.ceil(N / (1.35 * s)) + 2, Math.ceil(N / (46 * s)) + 2);
+        const fibreB = noise2D(rand, Math.ceil(N / (3.4 * s)) + 2, Math.ceil(N / (150 * s)) + 2);
+        const lowA = noise2D(rand, 4, 4);
+        const lowB = noise2D(rand, 9, 9);
+        const tint = noise2D(rand, 5, 5);
+        const bandN = noise1D(rand, Math.ceil((U1 - U0) / (70 * s)) + 2);
+        const bandN2 = noise1D(rand, Math.ceil((U1 - U0) / (23 * s)) + 2);
+        const tilt = (rand() - 0.5) * 0.012;
+
+        // palette (sRGB): pale golden earlywood, orange-brown latewood
+        const E = [229, 180, 106];
+        const L = [172, 102, 36];
+
+        const ctx = canvas.getContext('2d');
+        const img = ctx.createImageData(N, N);
+        const px = img.data;
+        for (let y = 0; y < N; y++) {
+          const fy = y / N;
+          for (let x = 0; x < N; x++) {
+            const fx = x / N;
+            // gentle waviness keeps the grain straight but alive
+            const uu =
+              x +
+              tilt * (y - N / 2) +
+              1.9 * s * warpN(fx * 10, fy * 10) +
+              0.7 * s * warpN2(fx * 26, fy * 6) +
+              0.6 * s * Math.sin(fy * 6.283 * 1.3 + fx * 2.1);
+            const bu = (uu - U0) / (70 * s);
+            const g = ring(uu);
+
+            // grain darkness plus broad bands across the grain (heart/sap drift)
+            const band = bandN(bu) * 0.6 + bandN2(bu * 3.04) * 0.4;
+            const k = Math.min(1, g * 0.7);
+            let r = E[0] + (L[0] - E[0]) * k;
+            let gg = E[1] + (L[1] - E[1]) * k;
+            let b = E[2] + (L[2] - E[2]) * k;
+
+            // fibre streaks stretched along the grain
+            const fib = fibreA(x / (1.35 * s), y / (46 * s)) * 0.6 + fibreB(x / (3.4 * s), y / (150 * s)) * 0.4;
+            // slow colour variation over the board
+            const low = lowA(fx * 4, fy * 4) * 0.65 + lowB(fx * 9, fy * 9) * 0.35;
+            const tt = tint(fx * 5, fy * 5);
+            // soft sheen: broad highlight towards the upper left, slight falloff elsewhere
+            const dx = (fx - 0.3) / 0.62,
+              dy = (fy - 0.24) / 0.56;
+            const sheen = Math.exp(-(dx * dx + dy * dy));
+
+            const lum = 1 + 0.032 * fib + 0.045 * low + 0.03 * band + 0.06 * sheen - 0.03;
+            r *= lum * (1 + 0.018 * tt);
+            gg *= lum * (1 + 0.004 * tt);
+            b *= lum * (1 - 0.03 * tt);
+            // a whisper of white in the sheen so it reads as reflected light, not just lighter wood
+            const wmix = 0.035 * sheen * sheen;
+            r += (255 - r) * wmix;
+            gg += (255 - gg) * wmix;
+            b += (250 - b) * wmix;
+
+            const o = (y * N + x) * 4;
+            px[o] = r;
+            px[o + 1] = gg;
+            px[o + 2] = b;
+            px[o + 3] = 255;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        return canvas;
+      }
+
+      /** Render and return a data URL (used by render-kaya.mjs). */
+      function exportKaya(opts = {}) {
+        const c = document.createElement('canvas');
+        renderKaya(c, opts);
+        return c.toDataURL(opts.type ?? 'image/webp', opts.quality ?? 0.8);
+      }
+      window.renderKaya = renderKaya;
+      window.exportKaya = exportKaya;
+
+      // Interactive preview when opened directly.
+      const q = new URLSearchParams(location.search);
+      if (!q.has('headless')) {
+        const size = Number(q.get('size')) || 1024;
+        const seed = Number(q.get('seed')) || 7;
+        const c = document.getElementById('kaya');
+        const t0 = performance.now();
+        renderKaya(c, { size, seed });
+        const dt = performance.now() - t0;
+        c.toBlob(
+          (blob) => {
+            document.getElementById('dl').href = URL.createObjectURL(blob);
+            document.getElementById('info').textContent = `seed ${seed} · ${size}px · ${(blob.size / 1024).toFixed(0)} KB · ${dt.toFixed(0)} ms`;
+          },
+          'image/webp',
+          0.8,
+        );
+      }
+      window.kayaReady = true;
+    </script>
+  </body>
+</html>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { saveBlindTest, submitAnswer } from '../state/actions';
 import { Board } from '../components/Board';
+import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
 import { fmtPct } from '../components/common';
 import { itemBoard } from '../lib/forge/grading';
 import { buildBlindSet } from '../lib/forge/scheduler';
@@ -23,19 +24,27 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const [started, setStarted] = useState(Date.now());
   const [cur, setCur] = useState(test);
   const [busy, setBusy] = useState(false);
+  const [explore, setExplore] = useState(false);
+  const [assistedFor, setAssistedFor] = useState<string | null>(null);
+  const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  const [view, toggleView] = useAnalysisView();
   const item = items[i];
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
+  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
+  const analysis = useAnalysis(base, explore, item?.eval);
 
   const commit = async () => {
-    if (!item || pending === null || busy) return;
+    if (!item || pending === null || busy || explore) return;
     setBusy(true);
     try {
-      const { attempt } = await submitAnswer(item, pending, Date.now() - started, 'blind', test.id);
+      const { attempt } = await submitAnswer(item, pending, Date.now() - started, 'blind', test.id, { assisted: assistedFor === item.id });
       const next: BlindTest = { ...cur, attempts: [...cur.attempts, attempt.id] };
       const done = i + 1 >= items.length;
       const saved = await saveBlindTest(done ? { ...next, finishedAt: Date.now() } : next);
       setCur(saved);
       setPending(null);
+      setExplore(false);
+      setHoverPv(null);
       setStarted(Date.now());
       if (done) onDone(saved);
       else setI(i + 1);
@@ -54,12 +63,30 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
 
   if (!item || !board) return null;
   const last = item.moves.length ? item.moves[item.moves.length - 1].loc : null;
+  const assisted = assistedFor === item.id;
   return (
     <div className="stage">
       <div className="board-wrap">
-        <Board size={item.size} stones={board.stones} lastMove={last} toPlay={item.toPlay} pending={pending} onPlay={(l) => (pending === l ? void commit() : setPending(l))} coords />
+        {explore ? (
+          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} />
+        ) : (
+          <Board size={item.size} stones={board.stones} lastMove={last} toPlay={item.toPlay} pending={pending} onPlay={(l) => (pending === l ? void commit() : setPending(l))} coords />
+        )}
       </div>
       <div className="side">
+        {explore && (
+          <AnalysisPanel
+            a={analysis}
+            view={view}
+            onToggle={toggleView}
+            onHoverPv={setHoverPv}
+            onClose={() => {
+              setExplore(false);
+              setHoverPv(null);
+            }}
+            note="Answers given after opening the analysis board are kept but do not count in the test result."
+          />
+        )}
         <div className="panel stack">
           <div className="spread">
             <h3>Blind test</h3>
@@ -72,9 +99,23 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
           </div>
           <strong>{item.toPlay === 1 ? 'Black' : 'White'} to play</strong>
           <p className="small dim">No hints and no feedback until the end. Some positions call for your usual instinct, some for the opposite.</p>
-          <button className="btn primary big" disabled={pending === null || busy} onClick={() => void commit()}>
-            {busy ? 'Saving…' : pending === null ? 'Select a move' : `Commit ${locToGtp(pending, item.size)}`}
-          </button>
+          {assisted && <p className="tiny warn">Analysis board used: this answer will not count in the result.</p>}
+          <div className="row wrap">
+            <button className="btn primary big" disabled={pending === null || busy || explore} onClick={() => void commit()}>
+              {busy ? 'Saving…' : pending === null ? 'Select a move' : `Commit ${locToGtp(pending, item.size)}`}
+            </button>
+            {!explore && (
+              <button
+                className="btn"
+                onClick={() => {
+                  setAssistedFor(item.id);
+                  setExplore(true);
+                }}
+              >
+                Analysis board
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -132,6 +173,7 @@ function Results({ test, items }: { test: BlindTest; items: TrainingItem[] }) {
               <div className="small">
                 <span className={`chip ${a.conceptCorrect ? 'good' : 'bad'}`}>{a.conceptCorrect ? 'right decision' : 'wrong decision'}</span>{' '}
                 <span className={`grade-${a.grade}`}>{a.grade}</span>
+                {a.assisted && <span className="chip warn">analysis board, not counted</span>}
               </div>
               <div className="tiny muted">
                 you {locToGtp(a.loc, it.size)} · KataGo {locToGtp(it.eval.bestLoc, it.size)} · {(a.timeMs / 1000).toFixed(1)} s
@@ -184,6 +226,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Blind tests</div>
           <h1>Do I really know this?</h1>
           <p className="sub">10–20 blind positions per weakness. No hints, no feedback until the end, scored against what your old habit would get right by default.</p>
         </div>

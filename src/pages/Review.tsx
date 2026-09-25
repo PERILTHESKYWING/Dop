@@ -3,12 +3,14 @@ import type { MoveRecord } from '../lib/types';
 import { useStore } from '../state/store';
 import { corpus, retryGame, runQueue } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
+import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
 import { fmtPct, gameTitle, Legend, WinrateGraph } from '../components/common';
 import { allPositions } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { buildContext } from '../lib/go/features';
-import { PASS } from '../lib/go/types';
+import { PASS, type Loc } from '../lib/go/types';
 import { decodeOwnership, moverView } from '../lib/engine/parse';
+import { searchedValue } from '../lib/analysis/analyzer';
 import { buildExample, predict } from '../lib/profile/doppel';
 import { signatureById } from '../lib/profile/signatures';
 import { go, href } from '../router';
@@ -26,6 +28,15 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [showOwn, setShowOwn] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
   const [showPv, setShowPv] = useState(false);
+  const [explore, setExplore] = useState(false);
+  const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  const [aView, toggleView] = useAnalysisView();
+  const exploreBase = useMemo(() => {
+    if (!game || !explore) return null;
+    const toPlay = game.moves[cur]?.color ?? (game.moves.length ? (game.moves[game.moves.length - 1].color === 1 ? 2 : 1) : 1);
+    return { size: game.size, komi: game.komi, setup: game.setup, moves: game.moves.slice(0, cur), toPlay: toPlay as 1 | 2 };
+  }, [game, cur, explore]);
+  const analysisBoard = useAnalysis(exploreBase, explore, analysis?.evals[cur]);
 
   useEffect(() => {
     if (!game) return;
@@ -42,6 +53,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (explore) return; // the analysis board has its own keys
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return;
       if (e.key === 'ArrowRight') setCur((c) => Math.min(n, c + 1));
       else if (e.key === 'ArrowLeft') setCur((c) => Math.max(0, c - 1));
@@ -54,7 +66,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [n]);
+  }, [n, explore]);
 
   const boards = useMemo(() => (game ? allPositions(game.size, game.setup, game.moves) : []), [game]);
   const records = useMemo(() => {
@@ -106,31 +118,48 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
 
   const wr = (analysis?.evals ?? []).map((e) => (e ? e.bWin : null));
   const errs = [...records.values()].filter((r) => r.isPlayer && (r.severity === 'mistake' || r.severity === 'blunder')).map((r) => r.index);
-  const view = ev ? moverView(ev.bWin, ev.bLead, toPlay) : null;
+  // After a deep analysis, the searched value (the same number the analysis board opens with).
+  const shown = ev ? searchedValue(ev) : null;
+  const view = shown ? moverView(shown.bWin, shown.bLead, toPlay) : null;
   const sigs = (rec?.errors ?? []).map((id: string) => signatureById.get(id)).filter((s) => s !== undefined);
   const linked = weaknesses.filter((w) => w.evidence.some((e) => e.moveId === rec?.id));
 
   return (
     <div className="stage">
       <div className="board-wrap">
-        <Board size={game.size} stones={board.stones} lastMove={cur > 0 ? game.moves[cur - 1].loc : null} marks={marks} ownership={own} heat={heat} coords />
+        {explore ? (
+          <AnalysisBoard a={analysisBoard} view={aView} hoverPv={hoverPv} />
+        ) : (
+          <Board size={game.size} stones={board.stones} lastMove={cur > 0 ? game.moves[cur - 1].loc : null} marks={marks} ownership={own} heat={heat} coords />
+        )}
       </div>
       <div className="side">
+        {explore && (
+          <AnalysisPanel
+            a={analysisBoard}
+            view={aView}
+            onToggle={toggleView}
+            onHoverPv={setHoverPv}
+            onClose={() => {
+              setExplore(false);
+              setHoverPv(null);
+            }}
+            closeLabel="Back to the game"
+          />
+        )}
         <div className="panel stack">
-          <div className="spread">
-            <div>
-              <h2>{gameTitle(game)}</h2>
-              <div className="tiny muted">
-                {[game.date, game.event, game.result, `komi ${game.komi}`].filter(Boolean).join(' · ')}
-              </div>
-            </div>
-            <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} style={{ maxWidth: 130 }}>
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {gameTitle(g)} {g.date ?? ''}
-                </option>
-              ))}
-            </select>
+          <div className="stack tight">
+            <h2 className="game-title">{gameTitle(game)}</h2>
+            <div className="tiny muted">{[game.date, game.event, game.result, `komi ${game.komi}`].filter(Boolean).join(' · ')}</div>
+            {games.length > 1 && (
+              <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} aria-label="Switch game" style={{ width: '100%', marginTop: 4 }}>
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {gameTitle(g)} {g.date ?? ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <WinrateGraph values={wr} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
           <div className="spread">
@@ -245,6 +274,11 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
               <button className="btn small" onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)}>
                 Find similar positions
               </button>
+              {!explore && (
+                <button className="btn small" onClick={() => setExplore(true)}>
+                  Try moves here
+                </button>
+              )}
             </div>
             <Legend />
           </div>

@@ -1,13 +1,14 @@
-import { analyzeGame, AnalysisStopped } from '../lib/analysis/pipeline';
+import { analyzeGame, AnalysisStopped, type AnalysisStore } from '../lib/analysis/pipeline';
 import { Corpus } from '../lib/corpus';
 import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
-import { BrowserEngine, detectCapabilities } from '../lib/engine/browserEngine';
-import { modelOrderFor } from '../lib/engine/models';
+import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
+import { bundledModel, modelOrderFor } from '../lib/engine/models';
 import { generateItems } from '../lib/forge/generator';
+import { balancedItems } from '../lib/forge/balance';
 import { gradeAnswer, itemBoard } from '../lib/forge/grading';
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
-import { guessPlayerName, importSgfTexts } from '../lib/games';
+import { detectPlayerColor, guessPlayerName, importSgfTexts } from '../lib/games';
 import { buildContext } from '../lib/go/features';
 import { PASS, type Loc } from '../lib/go/types';
 import { decodeOwnership, moverView, processRawOutput } from '../lib/engine/parse';
@@ -32,7 +33,11 @@ import {
   type Weakness,
 } from '../lib/types';
 import { uid } from '../lib/util/hash';
+import { decodeSgfBytes } from '../lib/util/charset';
 import { get, set, toast } from './store';
+
+const DEMO_PLAYER = 'Mira';
+const DEMO_RIVAL_ID = 'opp-demo-rival';
 
 let engine: BrowserEngine | null = null;
 let engineStarting: Promise<BrowserEngine | null> | null = null;
@@ -41,15 +46,23 @@ let corpusCache: { version: number; corpus: Corpus } | null = null;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 export const isPlayerGame = (g: GameRecord) => (g.source === 'user' || g.source === 'demo') && g.playerColor !== null;
 
+/** The loaded engine, or null when none is running (it may have been stopped after a crash). */
 export function getEngine() {
-  return engine;
+  return engine && !engine.dead ? engine : null;
+}
+
+/** Demo games count only until the user's own games have been analysed. */
+export function usesDemoData(s = get()): boolean {
+  const own = s.games.some((g) => g.source === 'user' && g.playerColor !== null && s.analyses[g.id]);
+  return !own && s.games.some((g) => g.source === 'demo');
 }
 
 /** The corpus of the studied player's analysed games (memoised per analysis version). */
 export function corpus(): Corpus {
   const s = get();
   if (corpusCache && corpusCache.version === s.corpusVersion) return corpusCache.corpus;
-  const games = s.games.filter(isPlayerGame);
+  const demo = usesDemoData(s);
+  const games = s.games.filter((g) => isPlayerGame(g) && (demo || g.source === 'user'));
   const analyses = games.map((g) => s.analyses[g.id]).filter((a): a is GameAnalysis => !!a);
   const c = new Corpus(games, analyses);
   corpusCache = { version: s.corpusVersion, corpus: c };
@@ -77,12 +90,19 @@ export async function init() {
       d.getAll('datasets'),
     ]);
     const byWeakness: Record<string, TrainingItem[]> = {};
-    for (const it of items) (byWeakness[it.weaknessId] ??= []).push(it);
+    const minWin = { ...DEFAULT_SETTINGS, ...settings }.minLosingWinrate;
+    for (const it of balancedItems(items, minWin)) (byWeakness[it.weaknessId] ??= []).push(it);
     // Interrupted analyses resume from their checkpoint.
     for (const g of games) if (g.status === 'fast' || g.status === 'deep') g.status = 'pending';
+    const merged = { ...DEFAULT_SETTINGS, ...settings };
+    // Older versions saved the demo player's name as the user's own, which blocked name detection.
+    if (merged.playerNames.length === 1 && merged.playerNames[0] === DEMO_PLAYER && !games.some((g) => g.source === 'user' && (g.black === DEMO_PLAYER || g.white === DEMO_PLAYER))) {
+      merged.playerNames = [];
+      void d.put('settings', merged);
+    }
     set({
       loaded: true,
-      settings: { ...DEFAULT_SETTINGS, ...settings },
+      settings: merged,
       games,
       analyses: Object.fromEntries(analyses.map((a) => [a.gameId, a])),
       profile: profile ?? null,
@@ -122,8 +142,64 @@ export async function saveSettings(patch: Partial<Settings>) {
 
 // ---------------------------------------------------------------- engine
 
+/*
+ * Starting KataGo has to survive whatever the device does: a network host that is
+ * blocked or stalls, a graphics driver that hangs or computes garbage, a tab that is
+ * killed while the GPU starts. The order is: the chosen/strong network on WebGPU, the
+ * built-in network on WebGPU, then the built-in network on the CPU. A GPU that failed
+ * (or took the tab down) is remembered and skipped until the user asks to retry it.
+ */
+const GPU_TRYING = 'dop.gpuTrying';
+const GPU_BROKEN = 'dop.gpuBroken';
+/** After an engine failure on the CPU: only the built-in network, on the CPU. */
+let safeMode = false;
+
+function lsGet(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+function lsSet(k: string, v: string | null) {
+  try {
+    if (v === null) localStorage.removeItem(k);
+    else localStorage.setItem(k, v);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** True when the graphics card failed before, or the tab died while it was starting KataGo. */
+export function gpuMarkedBroken(): boolean {
+  if (lsGet(GPU_TRYING)) {
+    lsSet(GPU_TRYING, null);
+    lsSet(GPU_BROKEN, String(Date.now()));
+  }
+  return !!lsGet(GPU_BROKEN);
+}
+
+const isDownloadProblem = (msg: string) => /download|no answer|stalled|HTTP \d|not a KataGo network|web page|no longer in this browser|cut off/i.test(msg);
+
+export function engineAttempts(settings: Settings, caps: Capabilities): StartAttempt[] {
+  if (safeMode) return [{ spec: bundledModel(), forceCpu: true }];
+  const gpu = caps.webgpu && !settings.forceCpu && !gpuMarkedBroken();
+  const list: StartAttempt[] = modelOrderFor(settings.modelId, gpu).map((spec) => ({ spec, forceCpu: !gpu }));
+  if (gpu) list.push({ spec: bundledModel(), forceCpu: true });
+  return list;
+}
+
+function onEngineDeath(eng: BrowserEngine, reason: string) {
+  if (engine !== eng) return;
+  engine = null;
+  if (eng.info.backend === 'webgpu') lsSet(GPU_BROKEN, String(Date.now()));
+  else safeMode = true;
+  set({ engine: { status: 'off', note: `KataGo stopped (${reason}). It restarts on its own in ${eng.info.backend === 'webgpu' ? 'CPU mode' : 'safe mode'} when needed.` } });
+}
+
 export async function startEngine(): Promise<BrowserEngine | null> {
-  if (engine) return engine;
+  if (engine && !engine.dead) return engine;
+  engine = null;
   if (engineStarting) return engineStarting;
   engineStarting = (async () => {
     set({ engine: { status: 'detecting' } });
@@ -133,16 +209,37 @@ export async function startEngine(): Promise<BrowserEngine | null> {
       set({ engine: { status: 'unsupported', error: 'This browser lacks WebAssembly or Web Workers, so KataGo cannot run here.' } });
       return null;
     }
-    const { settings } = get();
-    const order = modelOrderFor(settings.modelId, caps.webgpu && !settings.forceCpu);
+    const attempts = engineAttempts(get().settings, caps);
+    const failures: string[] = [];
+    let gpuFailed = false;
     set({ engine: { status: 'loading' } });
     try {
-      engine = await BrowserEngine.start(order, settings.forceCpu, (progress) => set((s) => ({ engine: { ...s.engine, status: 'loading', progress } })));
-      set({ engine: { status: 'ready', info: engine.info } });
-      if (engine.info.modelId !== order[0].id) toast(`Using ${engine.info.modelName}: the preferred network could not be loaded.`, 'info');
-      return engine;
-    } catch (e) {
-      set({ engine: { status: 'error', error: (e as Error).message } });
+      for (const a of attempts) {
+        const onGpu = !a.forceCpu;
+        if (onGpu && gpuFailed) continue;
+        try {
+          const eng = await BrowserEngine.load(a, (progress) => {
+            // Only the GPU start itself can take the tab down, not the download before it.
+            if (onGpu && (progress.stage === 'load' || progress.stage === 'check')) lsSet(GPU_TRYING, String(Date.now()));
+            set((s) => ({ engine: { ...s.engine, status: 'loading', progress, failures: [...failures] } }));
+          });
+          lsSet(GPU_TRYING, null);
+          eng.onDeath = (reason) => onEngineDeath(eng, reason);
+          engine = eng;
+          set({ engine: { status: 'ready', info: eng.info, evalMs: eng.evalMs, failures } });
+          if (failures.length) toast(`Using ${eng.info.modelName}${eng.info.backend === 'cpu' ? ' on the CPU' : ''}: ${attempts[0].spec.name} could not be used (details in Engine & Settings).`, 'info');
+          return eng;
+        } catch (e) {
+          const msg = (e as Error).message;
+          lsSet(GPU_TRYING, null);
+          if (onGpu && !isDownloadProblem(msg)) {
+            gpuFailed = true;
+            lsSet(GPU_BROKEN, String(Date.now()));
+          }
+          failures.push(`${a.spec.name}${onGpu ? ' (WebGPU)' : ' (CPU)'}: ${msg}`);
+        }
+      }
+      set({ engine: { status: 'error', error: failures.join('\n'), failures } });
       toast('KataGo could not start. See Engine & Settings for details.', 'error');
       return null;
     } finally {
@@ -152,11 +249,52 @@ export async function startEngine(): Promise<BrowserEngine | null> {
   return engineStarting;
 }
 
-export async function restartEngine() {
-  engine?.terminate();
+/** Stop KataGo and start it again; `safe` uses only the built-in network on the CPU. */
+export async function restartEngine(opts: { safe?: boolean } = {}) {
+  const old = engine;
   engine = null;
+  old?.terminate();
+  safeMode = !!opts.safe;
   set({ engine: { status: 'off' } });
-  await startEngine();
+  return startEngine();
+}
+
+export const inSafeMode = () => safeMode;
+
+/**
+ * Use a KataGo network file from the user's disk (for when downloads are blocked or a
+ * different network is wanted). It is stored in the browser's network cache.
+ */
+export async function loadNetworkFile(file: File) {
+  const head = new Uint8Array(await file.slice(0, 256).arrayBuffer());
+  const gz = head[0] === 0x1f && head[1] === 0x8b;
+  const bin = !gz && head.indexOf(0x0a) > 2 && head.slice(0, head.indexOf(0x0a)).every((b) => b >= 0x20 && b < 0x7f);
+  if (!gz && !bin) {
+    toast(`${file.name} is not a KataGo network file (.bin.gz or .bin).`, 'error');
+    return;
+  }
+  if (typeof caches === 'undefined') {
+    toast('This browser cannot store network files (no Cache API), so a loaded network would not be kept.', 'error');
+    return;
+  }
+  const name = file.name.replace(/[^\w.+-]/g, '_');
+  try {
+    const cache = await caches.open('doppelganger-models-v1');
+    await cache.put(cacheKeyFor({ file: name }), new Response(file, { headers: { 'content-type': 'application/octet-stream' } }));
+  } catch (e) {
+    toast(`Could not store the network: ${(e as Error).message}`, 'error');
+    return;
+  }
+  await saveSettings({ modelId: `file:${name}` });
+  toast(`Loading ${name}…`, 'info');
+  await restartEngine();
+}
+
+/** Forget that the graphics card failed and try it again. */
+export async function retryGpu() {
+  lsSet(GPU_BROKEN, null);
+  lsSet(GPU_TRYING, null);
+  await restartEngine();
 }
 
 // ---------------------------------------------------------------- import
@@ -168,7 +306,12 @@ async function readFiles(files: File[]): Promise<{ name: string; text: string }[
       toast(`${f.name} is too large to be an SGF file; skipped.`, 'error');
       continue;
     }
-    out.push({ name: f.name, text: await f.text() });
+    try {
+      // Chinese, Japanese and Korean SGFs are often GBK, Shift_JIS or EUC-KR rather than UTF-8.
+      out.push({ name: f.name, text: decodeSgfBytes(new Uint8Array(await f.arrayBuffer())) });
+    } catch (e) {
+      toast(`Could not read ${f.name}: ${(e as Error).message}`, 'error');
+    }
   }
   return out;
 }
@@ -201,26 +344,71 @@ export async function importFiles(files: File[]) {
   return { imported: fresh.length, errors };
 }
 
+/**
+ * Change some fields of some games. The analysis queue updates status and progress of the
+ * same records while it runs, so patches apply to the current state and the stored copy is
+ * written from it, never from a snapshot taken before an await.
+ */
+async function patchGames(patches: Map<string, Partial<GameRecord>>) {
+  if (!patches.size) return;
+  set((s) => ({ games: s.games.map((g) => (patches.has(g.id) ? { ...g, ...patches.get(g.id) } : g)), corpusVersion: s.corpusVersion + 1 }));
+  const d = await db();
+  for (const id of patches.keys()) {
+    const g = get().games.find((x) => x.id === id);
+    if (g) await d.put('games', g);
+  }
+}
+
 export async function setPlayerNames(names: string[]) {
   await saveSettings({ playerNames: names });
   const lower = new Set(names.map((n) => n.trim().toLowerCase()));
-  const d = await db();
-  const games = get().games.map((g) => {
-    if (g.source !== 'user') return g;
+  const patches = new Map<string, Partial<GameRecord>>();
+  for (const g of get().games) {
+    if (g.source !== 'user') continue;
     const b = lower.has(g.black.trim().toLowerCase());
     const w = lower.has(g.white.trim().toLowerCase());
-    return { ...g, playerColor: b && !w ? (1 as const) : w && !b ? (2 as const) : null };
-  });
-  for (const g of games) await d.put('games', g);
-  set((s) => ({ games, corpusVersion: s.corpusVersion + 1 }));
+    const playerColor = b && !w ? (1 as const) : w && !b ? (2 as const) : null;
+    if (playerColor !== g.playerColor) patches.set(g.id, { playerColor });
+  }
+  await patchGames(patches);
   await rebuildProfile();
 }
 
 export async function setGameColor(id: string, color: 1 | 2 | null) {
-  const games = get().games.map((g) => (g.id === id ? { ...g, playerColor: color } : g));
-  const g = games.find((x) => x.id === id);
-  if (g) await (await db()).put('games', g);
-  set((s) => ({ games, corpusVersion: s.corpusVersion + 1 }));
+  await patchGames(new Map([[id, { playerColor: color }]]));
+  scheduleRebuild();
+}
+
+/**
+ * Answer "which side were you?" for a game. With `remember`, that name becomes one of the
+ * user's names and every other game where the side is still unknown is matched to it.
+ */
+export async function chooseSide(id: string, color: 1 | 2, remember: boolean) {
+  const game = get().games.find((g) => g.id === id);
+  if (!game) return;
+  const name = (color === 1 ? game.black : game.white).trim();
+  let names = get().settings.playerNames;
+  if (remember && name && !names.some((n) => n.trim().toLowerCase() === name.toLowerCase())) {
+    names = [...names, name];
+    await saveSettings({ playerNames: names });
+  }
+  const patches = new Map<string, Partial<GameRecord>>([[id, { playerColor: color }]]);
+  if (remember)
+    for (const g of get().games) {
+      if (g.id === id || g.source !== 'user' || g.playerColor !== null) continue;
+      const c = detectPlayerColor(g, names);
+      if (c) patches.set(g.id, { playerColor: c });
+    }
+  await patchGames(patches);
+  if (patches.size > 1) toast(`Matched "${name}" in ${patches.size - 1} more game${patches.size > 2 ? 's' : ''}.`, 'ok');
+  scheduleRebuild();
+}
+
+let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+/** Rebuild the profile shortly after a burst of edits (e.g. answering several side questions). */
+function scheduleRebuild() {
+  clearTimeout(rebuildTimer);
+  rebuildTimer = setTimeout(() => void rebuildProfile(), 700);
 }
 
 export async function removeGames(ids: string[]) {
@@ -242,9 +430,8 @@ export async function loadDemo() {
   for (const a of demo.analyses) await tx.objectStore('analyses').put(a);
   await tx.done;
   const s = get();
-  if (!s.settings.playerNames.length) await saveSettings({ playerNames: [demo.player] });
   const opp: OpponentProfile = {
-    id: 'opp-demo-rival',
+    id: DEMO_RIVAL_ID,
     name: demo.rival,
     aliases: [],
     gameIds: demo.games.filter((g) => g.source === 'demo-opponent').map((g) => g.id),
@@ -260,6 +447,19 @@ export async function loadDemo() {
   await saveOpponent(opp);
   await rebuildProfile();
   toast('Demo data loaded: 12 games by "Mira" and 4 by her rival "Tessa".', 'ok');
+}
+
+/** Remove the demo player, her rival and their analyses. */
+export async function removeDemo() {
+  const s = get();
+  const ids = s.games.filter((g) => g.source === 'demo' || g.source === 'demo-opponent').map((g) => g.id);
+  if (s.opponents.some((o) => o.id === DEMO_RIVAL_ID)) {
+    await (await db()).delete('opponents', DEMO_RIVAL_ID);
+    set((st) => ({ opponents: st.opponents.filter((o) => o.id !== DEMO_RIVAL_ID) }));
+  }
+  await removeGames(ids);
+  await rebuildProfile();
+  toast('Demo data removed.', 'ok');
 }
 
 export async function resetEverything() {
@@ -290,6 +490,19 @@ export async function resetEverything() {
 // ---------------------------------------------------------------- analysis queue
 
 let stopRequested = false;
+const engineRetries = new Map<string, number>();
+
+/*
+ * The engine runs one request at a time. While someone is using the analysis board,
+ * background game analysis waits between positions so the board answers quickly.
+ */
+let interactiveUntil = 0;
+export function markInteractive(ms = 6000) {
+  interactiveUntil = Math.max(interactiveUntil, Date.now() + ms);
+}
+async function waitForInteractive() {
+  while (Date.now() < interactiveUntil && !stopRequested) await new Promise((r) => setTimeout(r, 200));
+}
 
 export function pauseQueue() {
   stopRequested = true;
@@ -300,6 +513,22 @@ export function resumeQueue() {
   set((s) => ({ queue: { ...s.queue, paused: false } }));
   void runQueue();
 }
+
+/** The analysis queue owns only these fields of a game; the rest (side, names) can change while it runs. */
+const queueFields = (g: GameRecord): Partial<GameRecord> => ({ status: g.status, error: g.error, progress: { ...g.progress } });
+
+function showQueueState(g: GameRecord) {
+  set((s) => ({ games: s.games.map((x) => (x.id === g.id ? { ...x, ...queueFields(g) } : x)) }));
+}
+
+/** Saves the queue's fields onto the current record, and nothing for a game removed meanwhile. */
+const queueStore: AnalysisStore = {
+  ...idbAnalysisStore,
+  async saveGame(g) {
+    const cur = get().games.find((x) => x.id === g.id);
+    if (cur) await idbAnalysisStore.saveGame({ ...cur, ...queueFields(g) });
+  },
+};
 
 function nextGame(): GameRecord | undefined {
   const games = get().games.filter((g) => g.status !== 'done' && g.status !== 'error' && g.status !== 'skipped');
@@ -325,17 +554,18 @@ export async function runQueue() {
       const game: GameRecord = { ...g, progress: { ...g.progress } };
       try {
         const cpu = eng.info.backend === 'cpu';
-        const analysis = await analyzeGame(game, eng, idbAnalysisStore, {
+        const analysis = await analyzeGame(game, eng, queueStore, {
           deepVisits: cpu ? Math.min(settings.deepVisits, 16) : settings.deepVisits,
           deepPerGame: game.source === 'opponent' ? Math.round(settings.deepPerGame / 3) : settings.deepPerGame,
           maxSearchMs: cpu ? 8000 : 20000,
           focusColor: game.playerColor,
           shouldStop: () => stopRequested,
-          onProgress: (pg) => set((s) => ({ games: s.games.map((x) => (x.id === pg.id ? { ...pg, progress: { ...pg.progress } } : x)) })),
+          yieldTo: waitForInteractive,
+          onProgress: showQueueState,
         });
         set((s) => ({
           analyses: { ...s.analyses, [game.id]: analysis },
-          games: s.games.map((x) => (x.id === game.id ? { ...game } : x)),
+          games: s.games.map((x) => (x.id === game.id ? { ...x, ...queueFields(game) } : x)),
           corpusVersion: s.corpusVersion + 1,
         }));
         doneSinceRebuild++;
@@ -346,14 +576,24 @@ export async function runQueue() {
       } catch (e) {
         if (e instanceof AnalysisStopped) {
           game.status = 'pending';
-          await idbAnalysisStore.saveGame(game);
-          set((s) => ({ games: s.games.map((x) => (x.id === game.id ? { ...game } : x)) }));
+          await queueStore.saveGame(game);
+          showQueueState(game);
           break;
+        }
+        // The engine crashed or hung: it restarts in a safer mode and the game resumes from its checkpoint.
+        if (isEngineFailure(e) && (engineRetries.get(game.id) ?? 0) < 2) {
+          engineRetries.set(game.id, (engineRetries.get(game.id) ?? 0) + 1);
+          game.status = 'pending';
+          await queueStore.saveGame(game);
+          showQueueState(game);
+          toast(`KataGo stopped responding, so it was restarted in a safer mode: ${(e as Error).message}`, 'info');
+          continue;
         }
         game.status = 'error';
         game.error = (e as Error).message;
-        await idbAnalysisStore.saveGame(game);
-        set((s) => ({ games: s.games.map((x) => (x.id === game.id ? { ...game } : x)), queue: { ...s.queue, lastError: game.error } }));
+        await queueStore.saveGame(game);
+        showQueueState(game);
+        set((s) => ({ queue: { ...s.queue, lastError: game.error } }));
       }
     }
   } finally {
@@ -432,7 +672,7 @@ export function rebuildProfile(): Promise<void> {
       const names = s.settings.playerNames;
       const profile: PlayerProfile = {
         id: 'me',
-        name: names[0] ?? 'You',
+        name: usesDemoData(s) ? `${DEMO_PLAYER} (demo)` : names[0] ?? 'You',
         aliases: names.slice(1),
         games: new Set(player.map((r) => r.gameId)).size,
         positions: c.records.length,
@@ -446,9 +686,10 @@ export function rebuildProfile(): Promise<void> {
 
       // Forge positions for every weakness (keep engine-made variations).
       const items: Record<string, TrainingItem[]> = {};
+      const minWin = s.settings.minLosingWinrate;
       for (const w of all) {
-        const fresh = generateItems(c, w);
-        const variations = (s.items[w.id] ?? []).filter((i) => i.modification);
+        const fresh = generateItems(c, w, { minLosingWinrate: minWin });
+        const variations = balancedItems((s.items[w.id] ?? []).filter((i) => i.modification), minWin);
         items[w.id] = [...fresh, ...variations];
         await tick();
       }
@@ -476,13 +717,16 @@ export function rebuildProfile(): Promise<void> {
 
 export async function runLlmDiscovery() {
   const s = get();
-  if (!s.settings.useLlm) return;
+  if (!s.settings.useLlm) {
+    toast('Pattern discovery is switched off in Engine & Settings.', 'info');
+    return;
+  }
   set((st) => ({ busy: { ...st.busy, llm: true } }));
   try {
     const c = corpus();
     const built = buildDiscoveryRequest(c, s.weaknesses, s.profile?.axes ?? []);
     if (!built.req.clusters.length) {
-      toast('Not enough repeated evidence yet for pattern discovery.', 'info');
+      toast('Pattern discovery needs mistakes that repeat across several analysed games. Analyse more of your games (5 or more works best) and try again.', 'info');
       return;
     }
     const resp = await discoverPatterns(built.req);
@@ -500,8 +744,14 @@ export async function runLlmDiscovery() {
   }
 }
 
-export async function refreshLlmStatus() {
-  set({ llm: await llmStatus() });
+/** Re-check the LLM; `live` makes a tiny real call so a bad key or retired models show up. */
+export async function refreshLlmStatus(live = false) {
+  set((s) => ({ busy: { ...s.busy, llmCheck: true } }));
+  try {
+    set({ llm: await llmStatus(live) });
+  } finally {
+    set((s) => ({ busy: { ...s.busy, llmCheck: false } }));
+  }
 }
 
 // ---------------------------------------------------------------- training
@@ -525,7 +775,7 @@ async function liveEval(item: TrainingItem, loc: Loc) {
   }
 }
 
-export async function submitAnswer(item: TrainingItem, loc: Loc, timeMs: number, mode: 'forge' | 'blind', sessionId: string, reason?: string) {
+export async function submitAnswer(item: TrainingItem, loc: Loc, timeMs: number, mode: 'forge' | 'blind', sessionId: string, opts: { reason?: string; assisted?: boolean } = {}) {
   const covered = item.eval.candidates?.some((c) => c.loc === loc);
   const live = covered ? null : await liveEval(item, loc);
   const g = gradeAnswer(item, loc, live);
@@ -544,16 +794,19 @@ export async function submitAnswer(item: TrainingItem, loc: Loc, timeMs: number,
     grade: g.grade,
     conceptCorrect: g.conceptCorrect,
     repeatedError: g.repeatedError,
-    reason,
+    reason: opts.reason,
+    assisted: opts.assisted || undefined,
     at: Date.now(),
   };
   const s = get();
-  const prior = s.attempts.filter((a) => a.weaknessId === item.weaknessId);
-  const m = updateMastery(s.mastery[item.weaknessId] ?? newMastery(item.weaknessId), attempt, prior);
+  const prior = s.attempts.filter((a) => a.weaknessId === item.weaknessId && !a.assisted);
+  // Answers found with the analysis board open are kept but do not move mastery.
+  const counts = mode === 'forge' && !attempt.assisted;
+  const m = counts ? updateMastery(s.mastery[item.weaknessId] ?? newMastery(item.weaknessId), attempt, prior) : null;
   const d = await db();
   await d.put('attempts', attempt);
-  if (mode === 'forge') await d.put('mastery', m);
-  set((st) => ({ attempts: [...st.attempts, attempt], mastery: mode === 'forge' ? { ...st.mastery, [item.weaknessId]: m } : st.mastery }));
+  if (m) await d.put('mastery', m);
+  set((st) => ({ attempts: [...st.attempts, attempt], mastery: m ? { ...st.mastery, [item.weaknessId]: m } : st.mastery }));
   return { attempt, grade: g };
 }
 
@@ -571,12 +824,14 @@ export async function generateVariations(weaknessId: string, count = 4) {
   const eng = await startEngine();
   if (!eng) return 0;
   const list = get().items[weaknessId] ?? [];
-  const sources = list.filter((i) => (i.kind === 'original' || i.kind === 'similar') && !i.modification).slice(0, count * 2);
+  // Some shifts tip the game past the winrate limit and are dropped, so try more sources.
+  const sources = list.filter((i) => (i.kind === 'original' || i.kind === 'similar') && !i.modification).slice(0, count * 3);
   const made: TrainingItem[] = [];
+  const minWin = get().settings.minLosingWinrate;
   for (const src of sources) {
     if (made.length >= count) break;
     try {
-      const v = await makeVariation(src, eng, Math.random, eng.info.backend === 'cpu' ? 1 : 32);
+      const v = await makeVariation(src, eng, Math.random, eng.info.backend === 'cpu' ? 1 : 32, minWin);
       if (v) made.push(v);
     } catch {
       /* skip */

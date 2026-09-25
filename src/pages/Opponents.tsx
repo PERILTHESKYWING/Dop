@@ -205,6 +205,7 @@ export function Opponents({ id }: { id?: string }) {
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Prepare</div>
           <h1>Opponent Profiles</h1>
           <p className="sub">Import a rival's games to see their openings, corner sequences, fighting style and invasion habits before you play them.</p>
         </div>

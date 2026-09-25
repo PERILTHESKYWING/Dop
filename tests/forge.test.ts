@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { gradeAnswer, gradeOf } from '../src/lib/forge/grading';
 import { buildBlindSet, newMastery, pickItem, scoreBlindTest, updateMastery } from '../src/lib/forge/scheduler';
+import { balancedItems, isBalanced } from '../src/lib/forge/balance';
+import { makeVariation } from '../src/lib/forge/variations';
+import { searchedValue } from '../src/lib/analysis/analyzer';
+import type { EngineRequest } from '../src/lib/engine/types';
+import { FakeEngine } from './helpers';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Attempt, TrainingItem, TrainingKind } from '../src/lib/types';
 
@@ -101,5 +106,60 @@ describe('Forge scheduling', () => {
     const half = set.map((i, k) => attempt(i.id, k % 2 === 0));
     const res2 = scoreBlindTest({ id: 't', weaknessId: 'w', itemIds: [], startedAt: 0, attempts: half.map((a) => a.id) }, half, items);
     expect(res2.verdict).not.toBe('learned');
+  });
+});
+
+describe('practice winrate floor', () => {
+  it('keeps positions where the side behind still has at least 30%', () => {
+    expect(isBalanced(0.5)).toBe(true);
+    expect(isBalanced(0.3)).toBe(true);
+    expect(isBalanced(0.7)).toBe(true);
+    expect(isBalanced(0.29)).toBe(false);
+    expect(isBalanced(0.71)).toBe(false);
+    expect(isBalanced(Number.NaN)).toBe(false);
+    expect(isBalanced(0.25, 0.2)).toBe(true);
+  });
+
+  it('filters stored practice items by their evaluation', () => {
+    // Black is to move, so the candidates' (mover's) winrates are Black's too.
+    const lopsided = (id: string, bWin: number) => {
+      const it = item(id);
+      return { ...it, eval: { ...it.eval, bWin, candidates: it.eval.candidates!.map((c) => ({ ...c, winrate: bWin })) } };
+    };
+    expect(balancedItems([item('even'), lopsided('black-wins', 0.85), lopsided('white-wins', 0.12)]).map((x) => x.id)).toEqual(['even']);
+  });
+
+  it('judges searched positions by the search, not the raw network', () => {
+    const base = item('sharp');
+    // The network calls it 60% for Black, but every searched move leaves Black near 20%.
+    const candidates = [
+      { loc: at('G3'), prior: 0.4, winrate: 0.2, scoreLead: -6, visits: 6 },
+      { loc: at('D6'), prior: 0.2, winrate: 0.18, scoreLead: -6.5, visits: 3 },
+      { loc: at('B8'), prior: 0.01, winrate: 0.05, scoreLead: -20 }, // the played move, not searched
+    ];
+    const sharp = { ...base, eval: { ...base.eval, bWin: 0.6, bLead: 1, candidates } };
+    expect(searchedValue(sharp.eval).bWin).toBeCloseTo((0.6 + 6 * 0.2 + 3 * 0.18) / 10, 6);
+    expect(balancedItems([sharp])).toEqual([]);
+    // Without a search, the value after the best one-ply candidate decides.
+    expect(searchedValue(base.eval).bWin).toBeCloseTo(0.62, 6);
+    expect(balancedItems([base]).map((x) => x.id)).toEqual(['sharp']);
+    const noCands = { ...base.eval, candidates: undefined };
+    expect(searchedValue(noCands)).toEqual({ bWin: 0.6, bLead: 3 });
+    // White to move: candidate values are White's, the result is Black's.
+    const w = searchedValue({ bWin: 0.4, bLead: -1, toPlay: 2, candidates: [{ loc: 0, prior: 0, winrate: 0.8, scoreLead: 5, visits: 3 }] });
+    expect(w.bWin).toBeCloseTo(1 - (0.6 + 3 * 0.8) / 4, 6);
+    expect(w.bLead).toBeCloseTo(-(1 + 3 * 5) / 4, 6);
+  });
+
+  it('drops engine variations that tip the game past the limit', async () => {
+    class Lopsided extends FakeEngine {
+      async evalRaw(req: EngineRequest, ownership: boolean) {
+        const r = await super.evalRaw(req, ownership);
+        r.value[0] = 4; // the side to move is winning ~98%
+        return r;
+      }
+    }
+    expect(await makeVariation(item('v1'), new Lopsided(), () => 0.3, 1)).toBeNull();
+    expect(await makeVariation(item('v2'), new FakeEngine(), () => 0.3, 1)).not.toBeNull();
   });
 });

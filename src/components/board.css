@@ -1,0 +1,429 @@
+/* Go board: kaya wood, slate and shell stones. Every selector starts with svg.board so these
+   rules win over older global board rules whatever the stylesheet order. Theme hooks (all
+   optional): --you, --kata, --doppel, --bad, --font. */
+
+svg.board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A full board draws its own soft shadow just outside its edges (plain gradients, no filter,
+   so it costs nothing when stones change); let it spill out of the box. */
+svg.board.bd-full {
+  overflow: visible;
+}
+svg.board .bd-drop {
+  shape-rendering: crispEdges;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------ wood */
+svg.board .bd-wood-base {
+  fill: #deb06a;
+}
+svg.board .bd-lip {
+  fill: #fff0d2;
+  opacity: 0.5;
+}
+svg.board .bd-bevel {
+  fill: none;
+  stroke-width: 0.08;
+}
+svg.board .bd-rim {
+  fill: none;
+  stroke: #5a3210;
+  stroke-opacity: 0.5;
+  stroke-width: 0.05;
+}
+
+/* ------------------------------------------------ grid */
+svg.board .bd-grid {
+  fill: none;
+  stroke: #2b1b0b;
+  stroke-width: 0.042;
+  stroke-linecap: butt;
+}
+svg.board .bd-border {
+  fill: none;
+  stroke: #24160a;
+  stroke-width: 0.07;
+  stroke-linejoin: miter;
+}
+svg.board .bd-hoshi {
+  fill: #24160a;
+}
+svg.board .bd-coords text {
+  fill: #5a3714;
+  fill-opacity: 0.8;
+  font-family: var(--display, 'Cinzel Variable', 'Cinzel', var(--serif, Georgia, serif));
+  font-size: 0.44px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums;
+  letter-spacing: 0.02px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* ------------------------------------------------ analysis overlays */
+svg.board .bd-own rect {
+  shape-rendering: crispEdges;
+}
+svg.board .bd-own-b {
+  fill: #1a1d24;
+}
+svg.board .bd-own-w {
+  fill: #fffcf4;
+}
+
+/* ------------------------------------------------ stones */
+svg.board .bd-shadows,
+svg.board .bd-stones,
+svg.board .bd-gone,
+svg.board .bd-last,
+svg.board .mark,
+svg.board .bd-ghost,
+svg.board .bd-pending {
+  pointer-events: none;
+}
+svg.board .bd-ghost-b {
+  opacity: 0.5;
+}
+svg.board .bd-ghost-w {
+  opacity: 0.78;
+}
+
+/* motion: a newly placed stone drops in and its shadow settles */
+svg.board .drop {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+svg.board .bd-st.drop,
+svg.board .bd-stripe.drop {
+  animation: bd-drop 230ms cubic-bezier(0.25, 0.75, 0.35, 1) both;
+}
+svg.board .bd-sh.drop {
+  animation: bd-shadow 230ms cubic-bezier(0.25, 0.75, 0.35, 1) both;
+}
+@keyframes bd-drop {
+  0% {
+    transform: translate(-4%, -12%) scale(1.1);
+    opacity: 0;
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes bd-shadow {
+  0% {
+    transform: translate(10%, 16%) scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+svg.board .bd-captured {
+  animation: bd-capture 300ms ease-in 70ms both;
+}
+@keyframes bd-capture {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* last move: a small ring with a soft glow that breathes a few times, then rests */
+svg.board .bd-last-ring {
+  fill: none;
+  stroke-width: 0.06;
+}
+svg.board .bd-last.on-b .bd-last-ring {
+  stroke: #fff4e0;
+}
+svg.board .bd-last.on-w .bd-last-ring {
+  stroke: #1d1712;
+  stroke-opacity: 0.85;
+}
+svg.board .bd-last-glow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  opacity: 0.6;
+  animation: bd-breathe 1.7s ease-in-out 0.2s 3 both;
+}
+@keyframes bd-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+svg.board.bd-lite .bd-last-glow {
+  animation: none;
+}
+
+/* pending (selected, not yet committed) stone */
+svg.board .bd-pending-stone {
+  opacity: 0.92;
+}
+svg.board .bd-pending-case {
+  fill: none;
+  stroke: #fffaf0;
+  stroke-opacity: 0.85;
+  stroke-width: 0.13;
+}
+svg.board .bd-pending-ring {
+  fill: none;
+  stroke: var(--you, #e8871e);
+  stroke-width: 0.07;
+  stroke-dasharray: 0.2 0.114;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: bd-spin 7s linear infinite;
+}
+svg.board .bd-pending-glow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: bd-pulse 1.1s ease-in-out infinite alternate;
+}
+@keyframes bd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bd-pulse {
+  from {
+    opacity: 0.35;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+svg.board .bd-hit {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------ marks */
+svg.board .mark circle,
+svg.board .mark rect {
+  fill: none;
+  stroke: none;
+  stroke-width: 0;
+  stroke-dasharray: none;
+}
+svg.board .mark text {
+  fill: #fff;
+  stroke: none;
+  font-family: var(--font, 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  font-size: 0.42px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke fill;
+  stroke-linejoin: round;
+}
+svg.board .mark text.mk-long {
+  font-size: 0.34px;
+  letter-spacing: -0.015px;
+}
+
+/* KataGo's move: a teal token with a pale rim */
+svg.board .mark-best .mk-halo {
+  stroke: #fffdf8;
+  stroke-opacity: 0.95;
+  stroke-width: 0.11;
+}
+svg.board .mark-best .mk-body {
+  fill: var(--kata, #1f9d8b);
+}
+svg.board .mark-best.on-b .mk-body,
+svg.board .mark-best.on-w .mk-body {
+  fill: none;
+  stroke: var(--kata, #1f9d8b);
+  stroke-width: 0.09;
+}
+svg.board .mark-best.on-w .mk-halo {
+  stroke: #0f3d37;
+  stroke-opacity: 0.35;
+  stroke-width: 0.15;
+}
+
+/* the player's move: an amber ring on a pale casing */
+svg.board .mark-played .mk-halo,
+svg.board .mark-you .mk-halo {
+  stroke: #fffdf8;
+  stroke-opacity: 0.95;
+  stroke-width: 0.2;
+}
+svg.board .mark-played .mk-body,
+svg.board .mark-you .mk-body {
+  stroke: var(--you, #e8871e);
+  stroke-width: 0.11;
+}
+svg.board .mark-played.on-b .mk-halo,
+svg.board .mark-you.on-b .mk-halo {
+  stroke: none;
+}
+svg.board .mark-played.on-w .mk-halo,
+svg.board .mark-you.on-w .mk-halo {
+  stroke: #3a2208;
+  stroke-opacity: 0.25;
+}
+svg.board .mark-played text,
+svg.board .mark-you text {
+  fill: #6b3a06;
+}
+svg.board .mark-played.on-b text,
+svg.board .mark-you.on-b text {
+  fill: #fff;
+}
+
+/* the Doppelgänger's guess: a dashed violet ring */
+svg.board .mark-doppel .mk-halo {
+  fill: #fffdf8;
+  fill-opacity: 0.8;
+  stroke: #fffdf8;
+  stroke-opacity: 0.9;
+  stroke-width: 0.16;
+}
+svg.board .mark-doppel .mk-body {
+  stroke: var(--doppel, #8a5cf6);
+  stroke-width: 0.085;
+  stroke-dasharray: 0.15 0.085;
+}
+svg.board .mark-doppel text {
+  fill: color-mix(in srgb, var(--doppel, #8a5cf6) 72%, #140829);
+}
+svg.board .mark-doppel.on-b .mk-halo {
+  fill: none;
+  stroke: none;
+}
+svg.board .mark-doppel.on-b text {
+  fill: #fff;
+}
+svg.board .mark-doppel.on-w .mk-halo {
+  fill: none;
+}
+
+/* engine candidates: numbered pale discs rimmed in teal */
+svg.board .mark-cand .mk-halo {
+  fill: #fffdf8;
+  fill-opacity: 0.93;
+}
+svg.board .mark-cand .mk-body {
+  stroke: var(--kata, #1f9d8b);
+  stroke-width: 0.055;
+}
+svg.board .mark-cand text {
+  fill: color-mix(in srgb, var(--kata, #1f9d8b) 70%, #00201c);
+  font-size: 0.38px;
+}
+svg.board .mark-cand text.mk-long {
+  font-size: 0.31px;
+}
+svg.board .mark-cand.on-b .mk-halo,
+svg.board .mark-cand.on-w .mk-halo {
+  fill: none;
+}
+svg.board .mark-cand.on-b text {
+  fill: #fff;
+  stroke: #000;
+  stroke-opacity: 0.35;
+  stroke-width: 0.06px;
+}
+
+/* principal variation: move numbers */
+svg.board .mark-pv .mk-halo {
+  fill: #fffdf8;
+  fill-opacity: 0.84;
+}
+svg.board .mark-pv .mk-body {
+  stroke: #3b2410;
+  stroke-opacity: 0.35;
+  stroke-width: 0.03;
+}
+svg.board .mark-pv text {
+  fill: #1e1812;
+  font-size: 0.38px;
+}
+svg.board .mark-pv text.mk-long {
+  font-size: 0.31px;
+}
+svg.board .mark-pv.on-b .mk-halo,
+svg.board .mark-pv.on-w .mk-halo {
+  fill: none;
+}
+svg.board .mark-pv.on-b .mk-body,
+svg.board .mark-pv.on-w .mk-body {
+  stroke: none;
+}
+svg.board .mark-pv.on-b text {
+  fill: #fbf6ec;
+}
+svg.board .mark-pv.on-w text {
+  fill: #1e1812;
+}
+
+/* evidence of a weakness: a red square */
+svg.board .mark-evidence .mk-halo {
+  stroke: #fffdf8;
+  stroke-opacity: 0.95;
+  stroke-width: 0.18;
+}
+svg.board .mark-evidence .mk-body {
+  stroke: var(--bad, #e0493b);
+  stroke-width: 0.095;
+}
+svg.board .mark-evidence.on-w .mk-halo {
+  stroke: #3a0c06;
+  stroke-opacity: 0.25;
+}
+svg.board .mark-evidence text {
+  fill: var(--bad, #e0493b);
+}
+
+/* ------------------------------------------------ reduced motion (and animate={false}) */
+@media (prefers-reduced-motion: reduce) {
+  svg.board .bd-st.drop,
+  svg.board .bd-stripe.drop,
+  svg.board .bd-sh.drop,
+  svg.board .bd-captured,
+  svg.board .bd-last-glow,
+  svg.board .bd-pending-ring,
+  svg.board .bd-pending-glow {
+    animation: none;
+  }
+  svg.board .bd-gone {
+    display: none;
+  }
+}
+svg.board.bd-still .bd-st.drop,
+svg.board.bd-still .bd-stripe.drop,
+svg.board.bd-still .bd-sh.drop,
+svg.board.bd-still .bd-captured,
+svg.board.bd-still .bd-last-glow,
+svg.board.bd-still .bd-pending-ring,
+svg.board.bd-still .bd-pending-glow {
+  animation: none;
+}
+svg.board.bd-still .bd-gone {
+  display: none;
+}
