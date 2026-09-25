@@ -38,8 +38,10 @@ const lineKey = (line: Move[]) => line.map((m) => `${m.color}${m.loc}`).join(','
 /**
  * A free-play board from any position: every move is evaluated live by KataGo (winrate,
  * score, policy heat map, territory) and refined with a short search for the top moves.
+ * `rootEval`, the stored deep analysis of the starting position, is used for that position
+ * so the board opens with the same numbers as the problem or game review.
  */
-export function useAnalysis(base: AnalysisBase | null, active: boolean) {
+export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval?: PositionEval | null) {
   const [line, setLine] = useState<Move[]>([]);
   const [cursor, setCursor] = useState(0);
   const [version, setVersion] = useState(0);
@@ -79,14 +81,29 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean) {
         const history = [...base.moves, ...played];
         const req = { size: base.size, komi: base.komi, moves: engineMoves(base.setup, history), toPlay };
         const legal = (l: Loc) => board.isLegal(l, toPlay);
+        // The starting position keeps the numbers of its stored deep analysis (the ones the
+        // problem was chosen and graded with); the network still supplies heat map and territory.
+        const stored = played.length === 0 && rootEval?.depth === 'deep' && rootEval.toPlay === toPlay && rootEval.candidates?.some((c) => c.winrate !== undefined) ? rootEval : null;
         let ev = cache.current.get(key);
         if (!ev) {
           setStatus('thinking');
           markInteractive();
           const net = processRawOutput(await eng.evalRaw(req, true), toPlay, legal, eng.postProcess);
           ev = { bWin: net.bWin, bLead: net.bLead, policy: net.policy, ownership: net.ownership ?? null, candidates: [], pv: [], searched: false };
-          cache.current.set(key, ev);
+          if (!stored) {
+            cache.current.set(key, ev);
+            setVersion((v) => v + 1);
+          }
+        }
+        if (stored) {
+          const candidates = (stored.candidates ?? [])
+            .filter((c) => c.winrate !== undefined)
+            .sort((x, y) => (y.visits ?? 0) - (x.visits ?? 0) || (y.winrate ?? 0) - (x.winrate ?? 0))
+            .slice(0, 6);
+          cache.current.set(key, { ...ev, ...searchedValue(stored), candidates, pv: stored.pv, searched: true });
           setVersion((v) => v + 1);
+          if (!cancelled) setStatus('idle');
+          return;
         }
         if (cancelled) return;
         setStatus('searching');

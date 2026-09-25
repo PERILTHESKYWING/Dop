@@ -31,7 +31,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const item = items[i];
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
-  const analysis = useAnalysis(base, explore);
+  const analysis = useAnalysis(base, explore, item?.eval);
 
   const commit = async () => {
     if (!item || pending === null || busy || explore) return;

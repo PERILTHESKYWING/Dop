@@ -10,6 +10,7 @@ import { locToGtp } from '../lib/go/coords';
 import { buildContext } from '../lib/go/features';
 import { PASS, type Loc } from '../lib/go/types';
 import { decodeOwnership, moverView } from '../lib/engine/parse';
+import { searchedValue } from '../lib/analysis/analyzer';
 import { buildExample, predict } from '../lib/profile/doppel';
 import { signatureById } from '../lib/profile/signatures';
 import { go, href } from '../router';
@@ -35,7 +36,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     const toPlay = game.moves[cur]?.color ?? (game.moves.length ? (game.moves[game.moves.length - 1].color === 1 ? 2 : 1) : 1);
     return { size: game.size, komi: game.komi, setup: game.setup, moves: game.moves.slice(0, cur), toPlay: toPlay as 1 | 2 };
   }, [game, cur, explore]);
-  const analysisBoard = useAnalysis(exploreBase, explore);
+  const analysisBoard = useAnalysis(exploreBase, explore, analysis?.evals[cur]);
 
   useEffect(() => {
     if (!game) return;
@@ -117,7 +118,9 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
 
   const wr = (analysis?.evals ?? []).map((e) => (e ? e.bWin : null));
   const errs = [...records.values()].filter((r) => r.isPlayer && (r.severity === 'mistake' || r.severity === 'blunder')).map((r) => r.index);
-  const view = ev ? moverView(ev.bWin, ev.bLead, toPlay) : null;
+  // After a deep analysis, the searched value (the same number the analysis board opens with).
+  const shown = ev ? searchedValue(ev) : null;
+  const view = shown ? moverView(shown.bWin, shown.bLead, toPlay) : null;
   const sigs = (rec?.errors ?? []).map((id: string) => signatureById.get(id)).filter((s) => s !== undefined);
   const linked = weaknesses.filter((w) => w.evidence.some((e) => e.moveId === rec?.id));
 
@@ -145,20 +148,18 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           />
         )}
         <div className="panel stack">
-          <div className="spread">
-            <div>
-              <h2>{gameTitle(game)}</h2>
-              <div className="tiny muted">
-                {[game.date, game.event, game.result, `komi ${game.komi}`].filter(Boolean).join(' · ')}
-              </div>
-            </div>
-            <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} style={{ maxWidth: 130 }}>
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {gameTitle(g)} {g.date ?? ''}
-                </option>
-              ))}
-            </select>
+          <div className="stack tight">
+            <h2 className="game-title">{gameTitle(game)}</h2>
+            <div className="tiny muted">{[game.date, game.event, game.result, `komi ${game.komi}`].filter(Boolean).join(' · ')}</div>
+            {games.length > 1 && (
+              <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} aria-label="Switch game" style={{ width: '100%', marginTop: 4 }}>
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {gameTitle(g)} {g.date ?? ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <WinrateGraph values={wr} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
           <div className="spread">

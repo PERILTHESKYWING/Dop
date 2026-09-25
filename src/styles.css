@@ -1144,6 +1144,10 @@ details summary {
 .notes li {
   margin: 4px 0;
 }
+.game-title {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 .field-label {
   font-size: 11px;
   font-weight: 650;

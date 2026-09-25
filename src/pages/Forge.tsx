@@ -140,7 +140,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const [view, toggleView] = useAnalysisView();
   const predicted = usePrediction(item);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
-  const analysis = useAnalysis(base, explore);
+  const analysis = useAnalysis(base, explore, item?.eval);
 
   const next = useCallback(() => {
     if (!weakness) return;

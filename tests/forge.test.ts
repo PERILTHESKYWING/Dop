@@ -121,9 +121,10 @@ describe('practice winrate floor', () => {
   });
 
   it('filters stored practice items by their evaluation', () => {
+    // Black is to move, so the candidates' (mover's) winrates are Black's too.
     const lopsided = (id: string, bWin: number) => {
       const it = item(id);
-      return { ...it, eval: { ...it.eval, bWin } };
+      return { ...it, eval: { ...it.eval, bWin, candidates: it.eval.candidates!.map((c) => ({ ...c, winrate: bWin })) } };
     };
     expect(balancedItems([item('even'), lopsided('black-wins', 0.85), lopsided('white-wins', 0.12)]).map((x) => x.id)).toEqual(['even']);
   });
@@ -139,8 +140,11 @@ describe('practice winrate floor', () => {
     const sharp = { ...base, eval: { ...base.eval, bWin: 0.6, bLead: 1, candidates } };
     expect(searchedValue(sharp.eval).bWin).toBeCloseTo((0.6 + 6 * 0.2 + 3 * 0.18) / 10, 6);
     expect(balancedItems([sharp])).toEqual([]);
-    // Without search visits the network value decides.
+    // Without a search, the value after the best one-ply candidate decides.
+    expect(searchedValue(base.eval).bWin).toBeCloseTo(0.62, 6);
     expect(balancedItems([base]).map((x) => x.id)).toEqual(['sharp']);
+    const noCands = { ...base.eval, candidates: undefined };
+    expect(searchedValue(noCands)).toEqual({ bWin: 0.6, bLead: 3 });
     // White to move: candidate values are White's, the result is Black's.
     const w = searchedValue({ bWin: 0.4, bLead: -1, toPlay: 2, candidates: [{ loc: 0, prior: 0, winrate: 0.8, scoreLead: 5, visits: 3 }] });
     expect(w.bWin).toBeCloseTo(1 - (0.6 + 3 * 0.8) / 4, 6);
