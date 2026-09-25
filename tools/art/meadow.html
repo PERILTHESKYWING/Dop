@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meadow Sunrise Generator</title>
+<style>
+  html, body { margin: 0; background: #17141f; color: #d9d4e6; font: 13px/1.45 system-ui, sans-serif; }
+  #info { padding: 8px 14px; }
+  #out { display: block; max-width: 100vw; height: auto; margin: 0 auto; }
+</style>
+</head>
+<body>
+<div id="info">DOPPELGÄNGER meadow generator: rendering preview…</div>
+<canvas id="out"></canvas>
+<script>
+'use strict';
+/*
+ * Procedural sunrise-meadow painting for the DOPPELGÄNGER UI.
+ * Everything is generated from a seeded PRNG + gradient noise; no external assets.
+ * API (used by render-meadow.mjs):
+ *   MeadowArt.render(preset, width, height, overrides) -> HTMLCanvasElement (opaque painting)
+ *   MeadowArt.renderClouds(width, height, overrides)   -> HTMLCanvasElement (transparent, x-tileable)
+ *   MeadowArt.finalize(canvas, width, height, kind)     -> resized copy ('scene' also gets film grain)
+ *   MeadowArt.encode(canvas, mime, maxBytes, qMax, qMin) -> { dataURL, quality, bytes } (best quality under maxBytes)
+ * Open this file directly (optionally ?preset=tall&w=540&h=960) for an interactive preview.
+ */
+const MeadowArt = (() => {
+
+// ------------------------------------------------------------------ math
+const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+const mix = (a, b, t) => a + (b - a) * t;
+const smoothstep = (e0, e1, x) => { let t = (x - e0) / (e1 - e0); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+const TAU = Math.PI * 2;
+const sq = (x) => x * x;
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) { // approx standard normal
+  return (rng() + rng() + rng() + rng() - 2) * 1.732;
+}
+function hash2(x, y, s) {
+  let h = (Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1) ^ Math.imul(s | 0, 0x9e3779b1)) | 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+const GX = new Float32Array(256), GY = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const a = (i + 0.5) / 256 * TAU; GX[i] = Math.cos(a); GY[i] = Math.sin(a); }
+
+// Classic gradient (Perlin) noise, range ~[-1, 1].
+function perlin(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const a = hash2(xi, yi, s) & 255, b = hash2(xi + 1, yi, s) & 255;
+  const c = hash2(xi, yi + 1, s) & 255, d = hash2(xi + 1, yi + 1, s) & 255;
+  const n00 = GX[a] * xf + GY[a] * yf, n10 = GX[b] * (xf - 1) + GY[b] * yf;
+  const n01 = GX[c] * xf + GY[c] * (yf - 1), n11 = GX[d] * (xf - 1) + GY[d] * (yf - 1);
+  const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10), v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+  const x0 = n00 + u * (n10 - n00), x1 = n01 + u * (n11 - n01);
+  return (x0 + v * (x1 - x0)) * 1.4142;
+}
+// Same, periodic in x with integer period P.
+function perlinP(x, y, s, P) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const x0 = ((xi % P) + P) % P, x1 = (x0 + 1) % P;
+  const a = hash2(x0, yi, s) & 255, b = hash2(x1, yi, s) & 255;
+  const c = hash2(x0, yi + 1, s) & 255, d = hash2(x1, yi + 1, s) & 255;
+  const n00 = GX[a] * xf + GY[a] * yf, n10 = GX[b] * (xf - 1) + GY[b] * yf;
+  const n01 = GX[c] * xf + GY[c] * (yf - 1), n11 = GX[d] * (xf - 1) + GY[d] * (yf - 1);
+  const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10), v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+  const x0v = n00 + u * (n10 - n00), x1v = n01 + u * (n11 - n01);
+  return (x0v + v * (x1v - x0v)) * 1.4142;
+}
+const RC = Math.cos(0.62), RS = Math.sin(0.62);
+// fBm with per-octave rotation; `oct` may be fractional (level of detail).
+function fbm(x, y, oct, s, gain) {
+  let sum = 0, amp = 1, norm = 0;
+  const n = Math.ceil(oct);
+  for (let i = 0; i < n; i++) {
+    let w = amp;
+    if (i === n - 1 && oct < n) w *= oct - (n - 1);
+    sum += w * perlin(x, y, s + i * 131);
+    norm += amp;
+    const nx = (x * RC - y * RS) * 2.03 + 17.13, ny = (x * RS + y * RC) * 2.03 - 5.71;
+    x = nx; y = ny; amp *= gain;
+  }
+  return sum / norm;
+}
+// Periodic fBm (period P cells at octave 0, lacunarity exactly 2).
+function fbmP(x, y, oct, s, gain, P) {
+  let sum = 0, amp = 1, norm = 0, f = 1;
+  for (let i = 0; i < oct; i++) {
+    sum += amp * perlinP(x * f, y * f + i * 7.31, s + i * 131, P * f);
+    norm += amp; amp *= gain; f *= 2;
+  }
+  return sum / norm;
+}
+// 1D periodic noise helper on a circle (for angular patterns)
+function angNoise(theta, freq, s) {
+  const P = freq; // integer cells around the circle
+  return perlinP(theta / TAU * P, 0.5, s, P);
+}
+
+// ------------------------------------------------------------------ colour
+function s2l(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+function l2s(c) { return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; }
+function hexLin(h) {
+  const n = parseInt(h.replace('#', ''), 16);
+  return [s2l(((n >> 16) & 255) / 255), s2l(((n >> 8) & 255) / 255), s2l((n & 255) / 255)];
+}
+function linToOklab(r, g, b) {
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+          1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+          0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+}
+function oklabToLin(L, a, b) {
+  const l = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s = L - 0.0894841775 * a - 1.2914855480 * b;
+  const l3 = l * l * l, m3 = m * m * m, s3 = s * s * s;
+  return [4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+          -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+          -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3];
+}
+// Colour ramp LUT, interpolated in OKLab and softened (no Mach bands at stops).
+function makeRamp(stops, n = 1024, soft = 14) {
+  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
+  const labs = stops.map(s => { const c = hexLin(s[1]); const k = s[2] === undefined ? 1 : s[2]; return [s[0], linToOklab(c[0] * k, c[1] * k, c[2] * k)]; });
+  const t0 = labs[0][0], t1 = labs[labs.length - 1][0];
+  for (let i = 0; i < n; i++) {
+    const t = t0 + (t1 - t0) * i / (n - 1);
+    let k = 0; while (k < labs.length - 2 && t > labs[k + 1][0]) k++;
+    const A = labs[k], C = labs[k + 1];
+    const f = clamp((t - A[0]) / (C[0] - A[0]), 0, 1);
+    const lin = oklabToLin(mix(A[1][0], C[1][0], f), mix(A[1][1], C[1][1], f), mix(A[1][2], C[1][2], f));
+    r[i] = Math.max(0, lin[0]); g[i] = Math.max(0, lin[1]); b[i] = Math.max(0, lin[2]);
+  }
+  if (soft > 0) for (const ch of [r, g, b]) blur1(ch, n, soft, 3);
+  return { n, r, g, b, t0, t1, k: (n - 1) / (t1 - t0) };
+}
+function blur1(a, n, rad, passes) {
+  const tmp = new Float32Array(n);
+  for (let p = 0; p < passes; p++) {
+    let acc = 0; const inv = 1 / (2 * rad + 1);
+    for (let k = -rad; k <= rad; k++) acc += a[clamp(k, 0, n - 1)];
+    for (let i = 0; i < n; i++) {
+      tmp[i] = acc * inv;
+      acc += a[Math.min(n - 1, i + rad + 1)] - a[Math.max(0, i - rad)];
+    }
+    a.set(tmp);
+  }
+}
+function rampIdx(R, t) { const i = ((t - R.t0) * R.k) | 0; return i < 0 ? 0 : i >= R.n ? R.n - 1 : i; }
+function css(r, g, b, a) { // linear -> css rgb string
+  const R = Math.round(clamp(l2s(r), 0, 1) * 255), G = Math.round(clamp(l2s(g), 0, 1) * 255), B = Math.round(clamp(l2s(b), 0, 1) * 255);
+  return a === undefined ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${a.toFixed(3)})`;
+}
+
+// ------------------------------------------------------------------ buffers
+function blurH(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const o = y * w; let acc = 0;
+    for (let k = -r; k <= r; k++) acc += src[o + clamp(k, 0, w - 1)];
+    for (let x = 0; x < w; x++) {
+      dst[o + x] = acc * inv;
+      const xa = x + r + 1, xs = x - r;
+      acc += src[o + (xa < w ? xa : w - 1)] - src[o + (xs > 0 ? xs : 0)];
+    }
+  }
+}
+function blurV(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let x = 0; x < w; x++) {
+    let acc = 0;
+    for (let k = -r; k <= r; k++) acc += src[clamp(k, 0, h - 1) * w + x];
+    for (let y = 0; y < h; y++) {
+      dst[y * w + x] = acc * inv;
+      const ya = y + r + 1, ys = y - r;
+      acc += src[(ya < h ? ya : h - 1) * w + x] - src[(ys > 0 ? ys : 0) * w + x];
+    }
+  }
+}
+function blur(buf, w, h, r, passes = 3) {
+  r = Math.round(r); if (r < 1) return buf;
+  const tmp = new Float32Array(buf.length);
+  for (let p = 0; p < passes; p++) { blurH(buf, tmp, w, h, r); blurV(tmp, buf, w, h, r); }
+  return buf;
+}
+function downsample(src, w, h, f) {
+  const w2 = Math.ceil(w / f), h2 = Math.ceil(h / f), out = new Float32Array(w2 * h2);
+  for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) {
+    let s = 0, c = 0;
+    for (let j = 0; j < f; j++) { const yy = y * f + j; if (yy >= h) break;
+      for (let i = 0; i < f; i++) { const xx = x * f + i; if (xx >= w) break; s += src[yy * w + xx]; c++; } }
+    out[y * w2 + x] = s / c;
+  }
+  return { buf: out, w: w2, h: h2 };
+}
+function bilin(buf, w, h, x, y) {
+  if (x < 0) x = 0; else if (x > w - 1.001) x = w - 1.001;
+  if (y < 0) y = 0; else if (y > h - 1.001) y = h - 1.001;
+  const xi = x | 0, yi = y | 0, fx = x - xi, fy = y - yi, i = yi * w + xi;
+  const a = buf[i] + (buf[i + 1] - buf[i]) * fx;
+  const b = buf[i + w] + (buf[i + w + 1] - buf[i + w]) * fx;
+  return a + (b - a) * fy;
+}
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  return c;
+}
+function ctx2d(c) { return c.getContext('2d', { willReadFrequently: true }); }
+
+// ------------------------------------------------------------------ palettes
+function palettes() {
+  return {
+    skyWarm: makeRamp([[0.00, '#fff0b4'], [0.04, '#ffd064'], [0.10, '#ffa234'], [0.22, '#f96c24'], [0.38, '#e2432a'], [0.56, '#ba2b3b'], [0.78, '#8c234f'], [1.00, '#591d52']]),
+    skyCool: makeRamp([[0.00, '#ffd8b0'], [0.035, '#fcae9a'], [0.08, '#ec96ac'], [0.16, '#b68ccc'], [0.28, '#8886d4'], [0.46, '#6479cc'], [0.70, '#4a60be'], [1.00, '#3346a4']]),
+    ambCool: makeRamp([[0.00, '#c88c98'], [0.10, '#a47eac'], [0.30, '#7b70ac'], [0.60, '#5a5c9e'], [1.00, '#3e4488']]),
+    ambWarm: makeRamp([[0.00, '#e0703e'], [0.18, '#c4404a'], [0.45, '#9c2c4c'], [1.00, '#6c1e48']]),
+    // light reaching the clouds, by distance from the sun (scene units)
+    cloudSun: makeRamp([[0.00, '#fff3c8', 3.6], [0.08, '#ffd068', 2.6], [0.25, '#ffa040', 2.0], [0.50, '#ff7c3a', 1.75], [0.85, '#ff7342', 1.5], [1.30, '#ff6c5a', 1.3], [1.80, '#f0708e', 1.1]]),
+    groundLit: makeRamp([[0.000, '#eae89c'], [0.008, '#cde26c'], [0.025, '#a8d64a'], [0.060, '#84c838'], [0.120, '#5caa2a'], [0.220, '#408a22'], [0.340, '#2f701a'], [0.520, '#215612']]),
+    groundShade: makeRamp([[0.000, '#b4b88a'], [0.010, '#86a85a'], [0.040, '#5a8a38'], [0.100, '#386a26'], [0.250, '#224e1a'], [0.520, '#12360d']]),
+  };
+}
+
+// ------------------------------------------------------------------ presets
+const PRESETS = {
+  landscape: {
+    seed: 20260925, unit: 'h', unitScale: 1,
+    horizon: 0.585, sunX: 0.292, sunAlt: 0.075, sunR: 0.012,
+    treeX: 0.405, treeDrop: 0.006, treeH: 0.215, treeW: 0.32,
+    shadowToX: 0.56, calmRight: 1, grassDensity: 1.35, rowSpacing: 0.36,
+  },
+  tall: {
+    seed: 20260925, unit: 'h', unitScale: 0.76,
+    horizon: 0.6, sunX: 0.33, sunAlt: 0.075, sunR: 0.012,
+    treeX: 0.565, treeDrop: 0.006, treeH: 0.215, treeW: 0.32,
+    shadowToX: 0.75, calmRight: 0, grassDensity: 1.35, rowSpacing: 0.36,
+  },
+};
+
+function makeScene(W, H, name, over) {
+  const P = Object.assign({}, PRESETS[name], over || {});
+  const U = (P.unit === 'w' ? W : H) * P.unitScale;
+  const S = { P, W, H, U, seed: P.seed };
+  S.hz = P.horizon * H;
+  S.sunX = P.sunX * W; S.sunY = S.hz - P.sunAlt * U; S.sunR = P.sunR * U;
+  S.tree = { x: P.treeX * W, base: S.hz + P.treeDrop * U, h: P.treeH * U, w: P.treeW * U };
+  S.vpx = S.sunX; // grass rows converge towards the sun
+  S.pal = palettes();
+  return S;
+}
+
+// ------------------------------------------------------------------ sky
+function skyWarmWeight(S, x, y, tS) {
+  const wob = 0.07 * perlin(x / S.U * 1.1, y / S.U * 1.1, S.seed + 11);
+  return 1 - smoothstep(-0.14, 0.5 - 0.24 * tS, (x - S.sunX) / S.W + wob);
+}
+function paintSky(S, R, G, B) {
+  const { W, H, U, hz, sunX, sunY, sunR } = S;
+  const Lw = S.pal.skyWarm, Lc = S.pal.skyCool;
+  const n1 = Lw.n - 1;
+  const seed = S.seed + 11;
+  for (let y = 0; y < H; y++) {
+    const tS = clamp((hz - y) / hz, 0, 1);
+    const li = (tS * n1) | 0;
+    const e = Math.max(0, (hz - y) / U);
+    const hg = Math.exp(-e / 0.022) + 0.3 * Math.exp(-e / 0.08);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const wl = skyWarmWeight(S, x, y, tS);
+      let r = Lc.r[li] + (Lw.r[li] - Lc.r[li]) * wl;
+      let g = Lc.g[li] + (Lw.g[li] - Lc.g[li]) * wl;
+      let b = Lc.b[li] + (Lw.b[li] - Lc.b[li]) * wl;
+      const lv = 1 + 0.06 * perlin(x / U * 2.2 + 5.1, y / U * 2.2, seed + 1);
+      r *= lv; g *= lv; b *= lv;
+      const hx = Math.exp(-Math.abs(x - sunX) / (0.38 * W));
+      const hgi = hg * (0.22 + 1.2 * hx);
+      r += hgi * 0.95; g += hgi * 0.58; b += hgi * 0.26;
+      const dx = (x - sunX) / U, dy = (y - sunY) / U;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const a1 = Math.exp(-d / 0.009), a2 = Math.exp(-d / 0.03), a3 = Math.exp(-d / 0.09);
+      r += 9.0 * a1 + 2.6 * a2 + 1.1 * a3;
+      g += 7.5 * a1 + 1.3 * a2 + 0.42 * a3;
+      b += 4.5 * a1 + 0.35 * a2 + 0.08 * a3;
+      const dd = d * U;
+      if (dd < sunR + 2) {
+        const k = clamp(sunR + 0.5 - dd, 0, 1);
+        r += 60 * k; g += 56 * k; b += 46 * k;
+      }
+      R[i] = r; G[i] = g; B[i] = b;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ clouds
+function billow(x, y, oct, s, gain) {
+  let sum = 0, amp = 1, norm = 0;
+  const n = Math.ceil(oct);
+  for (let i = 0; i < n; i++) {
+    let w = amp;
+    if (i === n - 1 && oct < n) w *= oct - (n - 1);
+    sum += w * Math.abs(perlin(x, y, s + i * 131)) + (amp - w) * 0.25;
+    norm += amp;
+    const nx = (x * RC - y * RS) * 2.03 + 17.13, ny = (x * RS + y * RC) * 2.03 - 5.71;
+    x = nx; y = ny; amp *= gain;
+  }
+  let a2 = amp; for (let i = n; i < 6; i++) { sum += a2 * 0.25; norm += a2; a2 *= gain; }
+  return sum / norm;
+}
+function cloudCoverage(S, x, y) {
+  const { W, U, hz, sunX, sunY } = S;
+  const u = x / W, tS = clamp((hz - y) / hz, 0, 1);
+  const dx = (x - sunX) / U, dy = (y - sunY) / U, d = Math.sqrt(dx * dx + dy * dy);
+  const cr = S.P.calmRight ? 1 : 0;
+  const ur = (x - sunX) / W; // distance to the right of the sun, in widths
+  let c = -0.06;
+  c += 0.27 * smoothstep(0.35, 0.9, tS) * (1 - smoothstep(0.1, 0.45, ur) * (0.25 + 0.45 * cr));   // fiery deck overhead, sun side
+  c += 0.17 * Math.exp(-sq((ur - 0.5) / 0.22)) * Math.exp(-sq((tS - 0.22) / 0.12));               // lit bank, right, mid-low
+  c += 0.08 * Math.exp(-sq((tS - 0.1) / 0.06));                                                   // low streaks
+  c -= 0.42 * Math.exp(-sq(d / 0.17));                                                            // clear around the sun
+  c -= 0.30 * smoothstep(0.07, 0.0, tS);                                                          // thin at the horizon
+  return c;
+}
+function cloudDensity(S) {
+  const { W, H, U, hz } = S;
+  const D = new Float32Array(W * H), Hf = new Float32Array(W * H);
+  const s = S.seed + 101;
+  const hzI = Math.min(H, Math.ceil(hz));
+  for (let y = 0; y < hzI; y++) {
+    const e = (hz - y) / U;
+    const ez = e + 0.03;
+    const pz = 1 / ez;
+    const foot = 1 / (ez * ez * U);
+    const fq = 1.5;
+    const octB = clamp(1 + Math.log2(0.3 / (foot * fq)), 1, 4);
+    const octD = clamp(1 + Math.log2(0.3 / (foot * fq * 4)), 0, 4);
+    const fade = smoothstep(0.0, 0.035, e);
+    for (let x = 0; x < W; x++) {
+      const px = (x - W * 0.5) / U * pz;
+      let qx = px * 0.62 * fq, qz = pz * fq;
+      const wx = fbm(qx * 0.35 + 3.1, qz * 0.35 - 1.7, 2, s + 1, 0.5);
+      const wz = fbm(qx * 0.35 - 7.3, qz * 0.35 + 4.2, 2, s + 2, 0.5);
+      qx += 0.7 * wx; qz += 0.5 * wz;
+      const base = fbm(qx, qz, octB, s + 3, 0.56);
+      const det = billow(qx * 3.2, qz * 3.2, octD, s + 4, 0.5);
+      const c = cloudCoverage(S, x, y);
+      let v = (base + c - 0.05) * 3.4 + (det - 0.25) * 1.6;
+      Hf[y * W + x] = v;
+      v = v <= 0 ? 0 : v >= 1 ? 1 : v;
+      D[y * W + x] = v * v * (3 - 2 * v) * fade;
+    }
+  }
+  D.Hf = Hf;
+  return D;
+}
+// high, thin wisps (cirrus) that catch the light well above the main deck
+function cirrusDensity(S, x, y) {
+  const { W, U, hz, sunX, sunY } = S;
+  const e = (hz - y) / U;
+  if (e <= 0.03) return 0;
+  const tS = clamp((hz - y) / hz, 0, 1), ur = (x - sunX) / W;
+  let cov = smoothstep(0.3, 0.6, tS) * smoothstep(0.02, 0.2, ur) * (1 - 0.5 * smoothstep(0.85, 1, tS));
+  const d = Math.hypot((x - sunX) / U, (y - sunY) / U);
+  cov *= 1 - Math.exp(-sq(d / 0.25));
+  if (cov < 0.01) return 0;
+  const s = S.seed + 151;
+  const ez = e + 0.06, pz = 1 / ez, px = (x - W * 0.5) / U * pz;
+  const foot = 1 / (ez * ez * U);
+  const oct = clamp(1 + Math.log2(0.3 / (foot * 5)), 0, 4);
+  if (oct <= 0) return 0;
+  const wv = fbm(px * 0.5, pz * 0.9, 3, s, 0.5);
+  const n = fbm(px * 0.3 + wv * 0.9, pz * 5.0 + wv * 1.1, oct, s + 1, 0.6);
+  const ridge = Math.max(0, 1 - Math.abs(n) * 6.5);
+  const patch = smoothstep(0.0, 0.4, fbm(px * 0.6 + 7.7, pz * 1.4, 3, s + 2, 0.55) + 0.05);
+  const seg = smoothstep(-0.15, 0.3, perlin(px * 1.6, pz * 2.5, s + 3));
+  return ridge * ridge * patch * seg * cov;
+}
+function cloudTransmittance(S, D) {
+  const f = 2, { W, H, U, sunX, sunY } = S;
+  const ds = downsample(D, W, H, f), Dh = ds.buf, w = ds.w, h = ds.h;
+  const T = new Float32Array(w * h);
+  const sx = sunX / f, sy = sunY / f;
+  const step = 0.01 * U / f, steps = 10, kappa = 0.14;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (Dh[i] <= 0.0005) { T[i] = 1; continue; }
+    let lx = sx - x, ly = sy - y; const L = Math.hypot(lx, ly) + 1e-6; lx /= L; ly /= L;
+    const n = Math.min(steps, Math.floor(L / step));
+    let acc = 0;
+    for (let k = 1; k <= n; k++) acc += bilin(Dh, w, h, x + lx * step * k, y + ly * step * k);
+    T[i] = Math.exp(-acc * kappa);
+  }
+  return { T, w, h };
+}
+function compositeClouds(S, R, G, B, D, TT) {
+  const { W, H, U, hz, sunX, sunY } = S;
+  const pal = S.pal, cs = pal.cloudSun, aw = pal.ambWarm, ac = pal.ambCool;
+  const alphaOut = new Float32Array(W * H);
+  const hzI = Math.min(H, Math.ceil(hz));
+  const Hf = D.Hf;
+  for (let y = 0; y < hzI; y++) {
+    const tS = clamp((hz - y) / hz, 0, 1);
+    const li = (tS * (aw.n - 1)) | 0;
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x, dv = D[i];
+      const ci0 = cirrusDensity(S, x, y);
+      if (ci0 > 0.002) {
+        const dd0 = Math.hypot((x - sunX) / U, (y - sunY) / U), k0 = rampIdx(cs, dd0 * 0.8);
+        const a0 = ci0 * 0.4;
+        R[i] = R[i] * (1 - a0) + cs.r[k0] * 0.75 * a0;
+        G[i] = G[i] * (1 - a0) + cs.g[k0] * 0.75 * a0;
+        B[i] = B[i] * (1 - a0) + (cs.b[k0] * 0.75 + 0.12) * a0;
+      }
+      if (dv <= 0.001) continue;
+      const a = 1 - Math.exp(-dv * 3.2);
+      const T = bilin(TT.T, TT.w, TT.h, x / 2, y / 2);
+      const dx = (x - sunX) / U, dy = (y - sunY) / U, d = Math.sqrt(dx * dx + dy * dy);
+      const ci = rampIdx(cs, d);
+      const wl = skyWarmWeight(S, x, y, tS);
+      const ar = ac.r[li] + (aw.r[li] - ac.r[li]) * wl;
+      const ag = ac.g[li] + (aw.g[li] - ac.g[li]) * wl;
+      const ab = ac.b[li] + (aw.b[li] - ac.b[li]) * wl;
+      const phase = 0.85 + 1.2 * Math.exp(-d / 0.2) + 3.0 * Math.exp(-d / 0.05);
+      const thin = Math.exp(-dv * 2.0);
+      // relief: light the sun-facing flank of every billow (gradient of the unclamped field)
+      const xa = x > 1 ? i - 2 : i, xb = x < W - 2 ? i + 2 : i, ya = y > 1 ? i - 2 * W : i, yb = y < hzI - 2 ? i + 2 * W : i;
+      const gx = (Hf[xb] - Hf[xa]) * U / 4, gy = (Hf[yb] - Hf[ya]) * U / 4;
+      const ll = Math.max(1e-6, d * U);
+      const bump = clamp(0.5 - 0.011 * Math.min(1, (hz - y) / U / 0.25 + 0.15) * (gx * (sunX - x) + gy * (sunY - y)) / ll, 0.0, 1.7);
+      const lit = Math.pow(T, 1.2) * phase * (0.45 + 0.55 * thin) * (0.3 + 0.7 * bump) + thin * (1 - thin) * 4 * Math.exp(-d / 0.12) * 1.6;
+      const shade = (1.0 - 0.5 * dv) * (0.7 + 0.35 * bump);
+      const cr = ar * shade + cs.r[ci] * lit, cg = ag * shade + cs.g[ci] * lit, cb = ab * shade + cs.b[ci] * lit;
+      R[i] = R[i] * (1 - a) + cr * a;
+      G[i] = G[i] * (1 - a) + cg * a;
+      B[i] = B[i] * (1 - a) + cb * a;
+      alphaOut[i] = a;
+    }
+  }
+  return alphaOut;
+}
+
+// ------------------------------------------------------------------ ground
+function shadowAt(S, x, y) {
+  // Soft wedge from the tree base towards the viewer, fanning to the right.
+  const T = S.tree;
+  if (y <= T.base - 2) return 0;
+  const t = Math.max(0, (y - T.base) / (S.H - T.base));
+  const endX = S.P.shadowToX * S.W;
+  const cxs = T.x + (endX - T.x) * Math.pow(t, 1.1);
+  const half = T.w * (0.26 + 0.9 * t);
+  const n = perlin(x / S.U * 16, y / S.U * 5, S.seed + 77) * 0.2;
+  const q = Math.abs(x - cxs) / half + n;
+  const edge = 1 - smoothstep(0.4, 1.0, q);
+  const along = Math.exp(-t / 0.75) * smoothstep(-0.004, 0.008, t);
+  return edge * along;
+}
+// Axis-aligned fBm with per-axis footprint filtering: when only the horizontal frequency aliases
+// (distant ground seen at a grazing angle) the octave is stretched sideways instead of dropped.
+function fbmA(x, y, fx, fy, oct, s, gain) {
+  let sum = 0, amp = 1, norm = 0, f = 1;
+  for (let i = 0; i < oct; i++) {
+    norm += amp;
+    const cy = fy * f;
+    if (cy < 0.4) {
+      const cx = fx * f;
+      let sx = 1, a = amp * (cy > 0.25 ? (0.4 - cy) / 0.15 : 1);
+      if (cx > 0.4) { sx = 0.4 / cx; a *= Math.sqrt(sx); }
+      sum += a * perlin(x * f * sx + i * 17.3, y * f + i * 5.1, s + i * 131);
+    }
+    amp *= gain; f *= 2;
+  }
+  return sum / norm;
+}
+// warm back-light soaking through the grass on the sun side of the meadow
+function meadowSun(S, x, g) {
+  const hx = (x - S.sunX) / S.W;
+  return Math.exp(-sq(hx / 0.26)) * (0.3 + 0.7 * Math.exp(-g / 0.14));
+}
+// large-scale light/colour field of the meadow, shared by the ground shader and the blades
+function meadowLit(S, x, X, lz, fX, fL) {
+  const s = S.seed + 201;
+  const octP = clamp(1 + Math.log2(0.3 / Math.max(0.09 * fX, 1.6 * fL)), 0, 3);
+  const p = octP > 0 ? fbm(X * 0.09, lz * 1.6, octP, s, 0.55) : 0;
+  const octB = clamp(1 + Math.log2(0.3 / Math.max(0.02 * fX, 2.6 * fL)), 0, 2);
+  const band = octB > 0 ? fbm(X * 0.02 + 3.3, lz * 2.6, octB, s + 5, 0.5) : 0;
+  const hx = (x - S.sunX) / S.W;
+  const toward = Math.exp(-sq(hx / 0.3));
+  const q = p + 0.6 * band + 0.18 * toward - 0.08 * smoothstep(0.1, 0.6, hx) - 0.05;
+  return { p, w: smoothstep(-0.35, 0.3, q) };
+}
+function paintGround(S, R, G, B) {
+  const { W, H, U, hz, sunX, vpx } = S;
+  const GL = S.pal.groundLit, GS = S.pal.groundShade;
+  const s = S.seed + 201;
+  const y0 = Math.max(0, Math.floor(hz));
+  const rowSp = S.P.rowSpacing;
+  for (let y = y0; y < H; y++) {
+    const g = (y - hz) / U;
+    const gz = Math.max(g, 0) + 0.003;
+    const Z = 1 / gz, lz = Math.log(Z);
+    const fL = Z / U;
+    const gi = rampIdx(GL, g), si = rampIdx(GS, g);
+    const haze = Math.exp(-g / 0.006);
+    const sheenY = Math.exp(-g / 0.05);
+    const under = smoothstep(0.03, 0.12, g);
+    const texOn = smoothstep(0.002, 0.03, g);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const X = (x - vpx) / U * Z;
+      const fX = fL * Math.sqrt(1 + X * X);
+      const hx = (x - sunX) / W;
+      const ml = meadowLit(S, x, X, lz, fX, fL), p = ml.p, wLit = ml.w;
+      let r = GS.r[si] + (GL.r[gi] - GS.r[si]) * wLit;
+      let gg = GS.g[si] + (GL.g[gi] - GS.g[si]) * wLit;
+      let b = GS.b[si] + (GL.b[gi] - GS.b[si]) * wLit;
+      let lum = 1;
+      lum *= 1 + 0.55 * fbmA(X * 7, lz * 1.1, 7 * fX, 1.1 * fL, 6, s + 7, 0.64) * texOn;
+      lum *= 1 + 0.3 * fbmA(X * 40, lz * 5, 40 * fX, 5 * fL, 3, s + 8, 0.6) * texOn;
+      const rowF = fX / rowSp;
+      const rowVis = (1 - smoothstep(0.1, 0.28, rowF)) * (1 - 0.5 * smoothstep(0.16, 0.4, g));
+      if (rowVis > 0.01) {
+        const wob = 0.2 * perlin(X * 0.3, lz * 2.2, S.seed + 210);
+        lum *= 1 + 0.42 * rowVis * Math.cos(TAU * (X / rowSp + wob));
+      }
+      lum *= 1 - 0.5 * under;
+      r *= lum * (1 + 0.18 * Math.max(0, p)) * (1 - 0.25 * under); gg *= lum; b *= lum * (1 - 0.2 * Math.max(0, p)) * (1 - 0.1 * under);
+      const ms = meadowSun(S, x, g);
+      r *= 1 + 0.55 * ms; gg *= 1 + 0.22 * ms; b *= 1 - 0.15 * ms;
+      const sheen = sheenY * Math.exp(-sq(hx / 0.2)) * (1 - 0.85 * under);
+      r += sheen * 1.1; gg += sheen * 0.85; b += sheen * 0.28;
+      // haze: warm under the sun, lilac-cool to the right
+      const cool = smoothstep(0.1, 0.55, hx);
+      const hk = clamp(haze * (0.3 + 0.7 * Math.exp(-Math.abs(hx) / 0.22)), 0, 1) * 0.7;
+      r = mix(r, mix(1.1, 0.78, cool), hk); gg = mix(gg, mix(0.8, 0.6, cool), hk); b = mix(b, mix(0.42, 0.62, cool), hk);
+      const sh = shadowAt(S, x, y);
+      if (sh > 0) { r *= 1 - 0.86 * sh; gg *= 1 - 0.66 * sh; b *= 1 - 0.4 * sh; }
+      R[i] = r; G[i] = gg; B[i] = b;
+    }
+  }
+}
+function paintTreeline(S, R, G, B) {
+  const { W, H, U, hz, sunX } = S;
+  const s = S.seed + 303;
+  for (let x = 0; x < W; x++) {
+    const u = x / U;
+    let hgt = 0.0012 + 0.0016 * Math.max(0, perlin(u * 14, 0.3, s));
+    const bump = Math.max(0, perlin(u * 3.2, 2.9, s + 2) - 0.05);
+    hgt += 0.015 * bump * (0.55 + 0.45 * Math.max(0, perlin(u * 40, 1.1, s + 3)));
+    const hpx = hgt * U;
+    const glare = Math.exp(-Math.abs(x - sunX) / (0.16 * W));
+    const opacity = 0.72 * (1 - glare) * (0.7 + 0.3 * smoothstep(0.5, 0.9, x / W));
+    if (opacity < 0.01) continue;
+    const yTop = Math.floor(hz - hpx - 1), yBot = Math.ceil(hz + 1);
+    for (let y = Math.max(0, yTop); y < Math.min(H, yBot); y++) {
+      const cov = clamp(y - (hz - hpx) + 0.5, 0, 1);
+      if (cov <= 0) continue;
+      const i = y * W + x, k = cov * opacity;
+      R[i] = mix(R[i], R[i] * 0.48, k); G[i] = mix(G[i], G[i] * 0.5, k); B[i] = mix(B[i], B[i] * 0.66, k);
+    }
+  }
+}
+function horizonMist(S, R, G, B) {
+  const { W, H, U, hz, sunX } = S;
+  const band = 0.03 * U;
+  for (let y = Math.max(0, Math.floor(hz - band)); y < Math.min(H, Math.ceil(hz + band)); y++) {
+    const m = Math.exp(-Math.abs(y - hz) / (0.006 * U));
+    for (let x = 0; x < W; x++) {
+      const glare = Math.exp(-Math.abs(x - sunX) / (0.3 * W));
+      const k = m * (0.2 + 0.5 * glare);
+      const i = y * W + x, lvl = 0.55 + 0.9 * glare;
+      R[i] = mix(R[i], 1.15 * lvl, k); G[i] = mix(G[i], 0.82 * lvl, k); B[i] = mix(B[i], 0.5 * lvl, k);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ tree
+function buildTree(S, rng) {
+  const T = S.tree, h = T.h;
+  const cx = T.x, cy = T.base - h * 0.55;
+  const rx = T.w * 0.5, ry = h * 0.41;
+  const crownBottom = T.base - h * 0.14;
+  const lumps = [];
+  for (let k = 0; k < 11; k++) lumps.push({ f: 2 + Math.floor(rng() * 9), ph: rng() * TAU, a: 0.012 + rng() * 0.035 });
+  const env = (px, py) => {
+    const u = (px - cx) / rx, v = (py - cy) / ry;
+    const ang = Math.atan2(v, u);
+    let rr = 1; for (const L of lumps) rr += L.a * Math.cos(L.f * ang + L.ph);
+    const flat = v > 0 ? 1 + 0.55 * v : 1;
+    return Math.hypot(u, v * flat) / rr;
+  };
+  const pts = [];
+  let guard = 0;
+  while (pts.length < 900 && guard++ < 60000) {
+    const px = cx + (rng() * 2 - 1) * rx, py = cy + (rng() * 2 - 1) * ry;
+    if (py > crownBottom) continue;
+    if (env(px, py) < 1) pts.push({ x: px, y: py });
+  }
+  const nodes = [{ x: T.x, y: T.base + h * 0.02, p: -1 }];
+  const Dstep = h * 0.018, di = h * 0.24, dk = h * 0.04;
+  let lean = (rng() - 0.5) * 0.06;
+  while (nodes[nodes.length - 1].y > T.base - h * 0.22) {
+    const last = nodes[nodes.length - 1];
+    lean += (rng() - 0.5) * 0.05;
+    nodes.push({ x: last.x + Math.sin(lean) * Dstep, y: last.y - Math.cos(lean) * Dstep, p: nodes.length - 1 });
+  }
+  const trunkTop = nodes.length - 1;
+  for (let it = 0; it < 220 && pts.length; it++) {
+    const nN = nodes.length;
+    const ax = new Float32Array(nN), ay = new Float32Array(nN), cnt = new Int32Array(nN);
+    for (const p of pts) {
+      let best = -1, bd = di * di;
+      for (let n = 0; n < nN; n++) {
+        const dx = p.x - nodes[n].x, dy = p.y - nodes[n].y, dd = dx * dx + dy * dy;
+        if (dd < bd) { bd = dd; best = n; }
+      }
+      if (best >= 0) { const L = Math.sqrt(bd) + 1e-6; ax[best] += (p.x - nodes[best].x) / L; ay[best] += (p.y - nodes[best].y) / L; cnt[best]++; }
+    }
+    const fresh = [];
+    for (let n = 0; n < nN; n++) {
+      if (!cnt[n]) continue;
+      let dx = ax[n] / cnt[n], dy = ay[n] / cnt[n] - 0.08;
+      dx += (rng() - 0.5) * 0.3; dy += (rng() - 0.5) * 0.3;
+      const L = Math.hypot(dx, dy) + 1e-6;
+      const nn = { x: nodes[n].x + dx / L * Dstep, y: nodes[n].y + dy / L * Dstep, p: n };
+      nodes.push(nn); fresh.push(nn);
+    }
+    if (!fresh.length) break;
+    for (let k = pts.length - 1; k >= 0; k--) {
+      for (const f of fresh) { if (sq(pts[k].x - f.x) + sq(pts[k].y - f.y) < dk * dk) { pts.splice(k, 1); break; } }
+    }
+  }
+  const kids = new Int32Array(nodes.length);
+  for (let n = 1; n < nodes.length; n++) kids[nodes[n].p]++;
+  const acc = new Float64Array(nodes.length);
+  const r0 = h * 0.0024, ex = 2.2;
+  for (let n = nodes.length - 1; n >= 0; n--) {
+    if (!kids[n]) acc[n] = Math.pow(r0, ex);
+    nodes[n].r = Math.pow(acc[n], 1 / ex);
+    if (nodes[n].p >= 0) acc[nodes[n].p] += acc[n];
+  }
+  for (let n = 0; n <= trunkTop; n++) nodes[n].r = clamp(nodes[n].r, h * 0.03, h * (0.04 - 0.008 * n / trunkTop));
+  for (let n = 0; n < nodes.length; n++) nodes[n].tip = !kids[n];
+  return { nodes, cx, cy, rx, ry, env, crownBottom, trunkTop };
+}
+function drawTree(S, ctx) {
+  const rng = mulberry32(S.seed + 404);
+  const tr = buildTree(S, rng);
+  const { nodes, cx, cy, rx, ry, env, crownBottom } = tr;
+  const T = S.tree, h = T.h;
+  let ldx = S.sunX - cx, ldy = S.sunY - cy; const lL = Math.hypot(ldx, ldy); ldx /= lL; ldy /= lL;
+  // --- foliage clumps distributed through the crown volume
+  const clumps = [];
+  let guard = 0;
+  while (clumps.length < 470 && guard++ < 60000) {
+    const px = cx + (rng() * 2 - 1) * rx, py = cy + (rng() * 2 - 1) * ry;
+    if (py > crownBottom + h * 0.03) continue;
+    const q = env(px, py); if (q >= 1) continue;
+    const zmax = Math.sqrt(Math.max(0, 1 - q * q));
+    const z = (rng() * 2 - 1) * zmax;
+    const s3 = Math.sqrt(q * q + z * z);
+    if (s3 < 0.55 && rng() < 0.4) continue;
+    const outer = s3 > 0.82;
+    const rc = h * (outer ? 0.026 + 0.022 * rng() : 0.04 + 0.03 * rng());
+    clumps.push({ x: px, y: py, z, r: rc, s3 });
+  }
+  clumps.sort((a, b) => a.z - b.z);
+  const dark = hexLin('#0d1d0a'), body = hexLin('#274818'), top = hexLin('#58822b'), trans = hexLin('#b5d04a'), rim = hexLin('#ffe08c');
+  const leaf = h * 0.0055;
+  const shadeAt = (lx, ly, lzv, nx, ny, jitter, s3) => {
+    // blend of crown normal and local clump normal
+    let Nx = (lx - cx) / rx, Ny = (ly - cy) / ry, Nz = lzv;
+    let L = Math.hypot(Nx, Ny, Nz) || 1; Nx /= L; Ny /= L; Nz /= L;
+    const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    let mx = Nx * 0.6 + nx * 0.4, my = Ny * 0.6 + ny * 0.4, mz = Nz * 0.6 + nz * 0.4;
+    L = Math.hypot(mx, my, mz) || 1; mx /= L; my /= L; mz /= L;
+    const sky = 0.5 + 0.5 * (-my);
+    const ao = 0.5 + 0.5 * clamp(s3, 0, 1);
+    let lum = (0.28 + 0.62 * sky) * ao * (0.8 + 0.2 * Math.max(0, mz)) + jitter;
+    lum = clamp(lum, 0, 1.2);
+    const edge = Math.sqrt(Math.max(0, 1 - mz * mz));
+    const sd = Math.max(0, (mx * ldx + my * ldy) / (edge + 1e-3));
+    const trn = sd * sd * edge * edge * edge * clamp(s3 * 1.1, 0, 1);
+    let r, g, b;
+    if (lum < 0.5) { const t = lum / 0.5; r = mix(dark[0], body[0], t); g = mix(dark[1], body[1], t); b = mix(dark[2], body[2], t); }
+    else { const t = (lum - 0.5) / 0.7; r = mix(body[0], top[0], t); g = mix(body[1], top[1], t); b = mix(body[2], top[2], t); }
+    const t3 = trn * trn;
+    return [r + trans[0] * trn * 0.85 + rim[0] * t3 * 0.8, g + trans[1] * trn * 0.85 + rim[1] * t3 * 0.8, b + trans[2] * trn * 0.85 + rim[2] * t3 * 0.8];
+  };
+  const drawClump = (c) => {
+    const count = Math.round(sq(c.r / leaf) * 1.9);
+    for (let k = 0; k < count; k++) {
+      const ang = rng() * TAU, rad = Math.pow(rng(), 0.6) * c.r;
+      const ox = Math.cos(ang) * rad, oy = Math.sin(ang) * rad * 0.85;
+      const col = shadeAt(c.x + ox, c.y + oy, c.z, ox / c.r, oy / c.r, 0.16 * (rng() - 0.5), c.s3);
+      ctx.fillStyle = css(col[0], col[1], col[2]);
+      const sz = leaf * (0.6 + 0.8 * rng());
+      ctx.beginPath(); ctx.ellipse(c.x + ox, c.y + oy, sz, sz * (0.45 + 0.35 * rng()), rng() * Math.PI, 0, TAU); ctx.fill();
+    }
+  };
+  // back half of the crown
+  let k0 = 0;
+  for (; k0 < clumps.length && clumps[k0].z < -0.15; k0++) drawClump(clumps[k0]);
+  // branches in between (visible through gaps and below the crown)
+  const bark = css(0.034, 0.03, 0.027);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = bark;
+  for (let n = tr.trunkTop + 1; n < nodes.length; n++) {
+    const a = nodes[n], p = nodes[a.p];
+    ctx.lineWidth = Math.max(0.6, a.r * 2.0);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(a.x, a.y); ctx.stroke();
+  }
+  // trunk: smooth tapered outline with a root flare
+  const ttop = nodes[tr.trunkTop];
+  const flare = (yy) => 1 + 1.0 * Math.exp(-Math.max(0, T.base - yy) / (0.02 * h));
+  const Lp = [], Rp = [];
+  const samples = 30;
+  for (let k = 0; k <= samples; k++) {
+    const yy = T.base - (k / samples) * (T.base - ttop.y);
+    let j = 0; while (j < tr.trunkTop - 1 && nodes[j + 1].y > yy) j++;
+    const a = nodes[j], b = nodes[j + 1];
+    const f = clamp((a.y - yy) / (a.y - b.y || 1), 0, 1);
+    const xx = mix(a.x, b.x, f), rr = mix(a.r, b.r, f) * flare(yy);
+    Lp.push([xx - rr, yy]); Rp.push([xx + rr * 1.04, yy]);
+  }
+  ctx.fillStyle = bark;
+  ctx.beginPath();
+  ctx.moveTo(Lp[0][0] - h * 0.012, T.base + h * 0.006);
+  for (let k = 0; k < Lp.length; k++) ctx.lineTo(Lp[k][0], Lp[k][1]);
+  ctx.lineTo(ttop.x, ttop.y - ttop.r);
+  for (let k = Rp.length - 1; k >= 0; k--) ctx.lineTo(Rp[k][0], Rp[k][1]);
+  ctx.lineTo(Rp[0][0] + h * 0.014, T.base + h * 0.006);
+  ctx.closePath(); ctx.fill();
+  // warm rim on the sun side of the trunk
+  ctx.strokeStyle = css(0.32, 0.25, 0.1, 0.45); ctx.lineWidth = Math.max(0.5, h * 0.004);
+  ctx.beginPath(); ctx.moveTo(Lp[2][0] + h * 0.002, Lp[2][1]);
+  for (let k = 3; k < Lp.length; k++) ctx.lineTo(Lp[k][0] + h * 0.002, Lp[k][1]);
+  ctx.stroke();
+  // contact shade and a fringe of grass hiding the foot of the trunk
+  ctx.fillStyle = css(0.05, 0.08, 0.02, 0.35);
+  ctx.beginPath(); ctx.ellipse(T.x + h * 0.03, T.base + h * 0.004, h * 0.14, h * 0.009, 0, 0, TAU); ctx.fill();
+  const GLr = S.pal.groundLit, gi0 = rampIdx(GLr, 0.01);
+  for (let k = 0; k < 140; k++) {
+    const bx = T.x + (rng() - 0.5) * h * 0.3 * (0.4 + 0.6 * rng()), by = T.base + h * (0.002 + rng() * 0.01);
+    const hh = h * (0.005 + 0.011 * rng());
+    const lean = (rng() - 0.5) * 0.8;
+    const v = 0.22 + 0.35 * rng();
+    ctx.strokeStyle = css(GLr.r[gi0] * v * 0.8, GLr.g[gi0] * v, GLr.b[gi0] * v * 0.8);
+    ctx.lineWidth = Math.max(0.6, h * 0.0028);
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(bx + lean * hh * 0.3, by - hh * 0.6, bx + lean * hh, by - hh); ctx.stroke();
+  }
+  // front of the crown
+  for (; k0 < clumps.length; k0++) drawClump(clumps[k0]);
+  return tr;
+}
+
+// ------------------------------------------------------------------ grass blades
+// Blades grow in fanned tufts; tufts cluster along drill rows that converge on the sun.
+function drawGrass(S, ctx) {
+  const { W, H, U, hz, sunX, vpx } = S;
+  const rng = mulberry32(S.seed + 505);
+  const s = S.seed + 707;
+  const GL = S.pal.groundLit, GS = S.pal.groundShade;
+  const yStart = hz + 0.016 * U, yEnd = H + 0.06 * U;
+  const dens = S.P.grassDensity;
+  const rowSp = S.P.rowSpacing;
+  const hi = hexLin('#c4e85a'), gold = hexLin('#f2de6e');
+  let y = yStart, count = 0;
+  // point on the quadratic (x0,y0)-(x1,y1)-(x2,y2) at parameter t
+  const qx = (x0, x1, x2, t) => { const u = 1 - t; return u * u * x0 + 2 * u * t * x1 + t * t * x2; };
+  const blade = (bx, by, hgt, ang, bend, w, r, gg, b, fadeIn, shk, toSun, lit) => {
+    const tx = bx + Math.sin(ang + bend) * hgt, ty = by - Math.cos(ang + bend) * hgt * (1 - 0.15 * Math.abs(bend));
+    const cx = bx + Math.sin(ang) * hgt * 0.5, cy = by - Math.cos(ang) * hgt * 0.55;
+    const lx0 = bx - w / 2, rx0 = bx + w / 2, lcx = cx - w * 0.3, rcx = cx + w * 0.3;
+    // dark body; the base is a shallow V so stacked blades never show flat horizontal cut-offs
+    ctx.globalAlpha = fadeIn;
+    ctx.fillStyle = css(r * 0.52 * shk, gg * 0.56 * shk, b * 0.62 * shk);
+    ctx.beginPath();
+    ctx.moveTo(lx0, by);
+    ctx.quadraticCurveTo(lcx, cy, tx, ty);
+    ctx.quadraticCurveTo(rcx, cy, rx0, by);
+    ctx.lineTo(bx, by + w * 0.9);
+    ctx.closePath(); ctx.fill();
+    // lighter upper blade with a pointed lower boundary (reads as the leaf folding out of shade)
+    const t0 = 0.36 + 0.18 * rng(), tm = t0 - 0.14;
+    const qLx = qx(lx0, lcx, tx, t0), qLy = qx(by, cy, ty, t0), qRx = qx(rx0, rcx, tx, t0);
+    const mX = qx(bx, cx, tx, tm), mY = qx(by, cy, ty, tm);
+    ctx.globalAlpha = fadeIn * 0.9;
+    ctx.fillStyle = css(r * 1.05 * shk, gg * 1.02 * shk, b * 0.92 * shk);
+    ctx.beginPath();
+    ctx.moveTo(mX, mY);
+    ctx.lineTo(qLx, qLy);
+    ctx.quadraticCurveTo(mix(lcx, tx, t0), mix(cy, ty, t0), tx, ty);
+    ctx.quadraticCurveTo(mix(rcx, tx, t0), mix(cy, ty, t0), qRx, qLy);
+    ctx.closePath(); ctx.fill();
+    // the half facing the sun glows a little (folded leaf: one lit side, one shaded side)
+    if (w > 1.6) {
+      const sideR = bx < S.sunX ? rng() < 0.7 : rng() < 0.3;
+      const ex0 = sideR ? rx0 : lx0, ecx = sideR ? rcx : lcx, t1 = t0 + 0.06;
+      const m2X = qx(bx, cx, tx, t0), m2Y = qx(by, cy, ty, t0);
+      ctx.globalAlpha = fadeIn * (0.35 + 0.3 * toSun);
+      ctx.fillStyle = css(r * 1.35 * shk, gg * 1.22 * shk, b * 0.95 * shk);
+      ctx.beginPath();
+      ctx.moveTo(m2X, m2Y);
+      ctx.quadraticCurveTo(mix(cx, tx, t0), mix(cy, ty, t0), tx, ty);
+      ctx.quadraticCurveTo(mix(ecx, tx, t1), mix(cy, ty, t1), qx(ex0, ecx, tx, t1), qx(by, cy, ty, t1));
+      ctx.closePath(); ctx.fill();
+    }
+    if (lit > 0.55 && rng() < 0.04 + 0.22 * toSun) {
+      const k2 = (0.4 + 0.6 * rng()) * shk;
+      ctx.globalAlpha = fadeIn * (0.18 + 0.32 * toSun + 0.12 * rng());
+      ctx.strokeStyle = css(mix(hi[0], gold[0], toSun) * k2, mix(hi[1], gold[1], toSun) * k2, mix(hi[2], gold[2], toSun) * k2);
+      ctx.lineWidth = Math.max(0.5, w * 0.18);
+      const side = rng() < 0.5 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(mix(bx, cx, 0.7) + side * w * 0.22, mix(by, cy, 0.7));
+      ctx.quadraticCurveTo(cx + side * w * 0.15, cy, tx, ty);
+      ctx.stroke();
+    }
+    count++;
+  };
+  while (y < yEnd) {
+    const g = (y - hz) / U;
+    const bh = g * U * 0.19;
+    const bw = Math.max(0.75, bh / 14);
+    const dy = Math.max(0.5, bh * 0.09) / dens;
+    const perRow = Math.ceil(W / (bw * 2.3));
+    const fadeIn = smoothstep(0.016, 0.07, g);
+    const Z = 1 / g, lz = Math.log(Z), fL = Z / U;
+    const gi = rampIdx(GL, g), si = rampIdx(GS, g);
+    const rowPx = rowSp / fL;                      // row spacing in px at the vanishing column
+    const rowK = smoothstep(4, 14, rowPx);          // rows only where they are resolvable
+    let k = 0;
+    while (k < perRow) {
+      const bx0 = rng() * W, by = y + rng() * dy;
+      const X = (bx0 - vpx) / U * Z;
+      // accept preferentially on the row crests
+      const rowC = 0.5 + 0.5 * Math.cos(TAU * (X / rowSp + 0.2 * perlin(X * 0.3, lz * 2.2, S.seed + 210)));
+      if (rng() > 1 - rowK * (1 - rowC * rowC) * 0.55) { k++; continue; }
+      const fX = fL * Math.sqrt(1 + X * X);
+      const ml = meadowLit(S, bx0, X, lz, fX, fL);
+      const clump = fbm(X * 1.3, lz * 3.2, 2, s, 0.5);
+      const sh = shadowAt(S, bx0, by);
+      const shk = 1 - 0.7 * sh;
+      const toSun = Math.exp(-sq(((bx0 - sunX) / W) / 0.26));
+      const tuftLit = clamp(ml.w + 0.5 * (rng() - 0.5) + 0.25 * clump, 0, 1);
+      const tuftV = 0.62 + 0.55 * rng();
+      const tuftH = bh * (0.55 + 0.7 * rng() ** 1.4) * (0.7 + 0.6 * smoothstep(-0.35, 0.35, clump));
+      const tuftLean = gauss(rng) * 0.1 + 0.2 * perlin(X * 0.4, lz * 2, s + 3);
+      const n = 2 + Math.floor(rng() * 5);
+      for (let j = 0; j < n && k < perRow; j++, k++) {
+        const bx = bx0 + (rng() - 0.5) * bw * 1.6;
+        const spread = (j - (n - 1) / 2) / Math.max(1, n - 1);
+        const ang = tuftLean + spread * (0.35 + 0.35 * rng()) + gauss(rng) * 0.08;
+        const bend = spread * 0.3 * rng() + gauss(rng) * 0.2;
+        const hgt = tuftH * (0.55 + 0.5 * rng()) * (1 - 0.25 * Math.abs(spread));
+        const t = clamp(tuftLit + 0.3 * (rng() - 0.5), 0, 1);
+        const v = tuftV * (0.85 + 0.3 * rng());
+        let r = mix(GS.r[si], GL.r[gi], t) * v, gg = mix(GS.g[si], GL.g[gi], t) * v, b = mix(GS.b[si], GL.b[gi], t) * v;
+        const ms = meadowSun(S, bx, g) * (0.7 + 0.6 * rng()) * (1 - sh);
+        r *= 1 + 0.6 * ms; gg *= 1 + 0.25 * ms; b *= 1 - 0.2 * ms;
+        r *= 1 - 0.25 * sh; b *= 1 + 0.35 * sh;
+        blade(bx, by, hgt, ang, bend, bw * (0.55 + 0.8 * rng()), r, gg, b, fadeIn, shk, toSun, t);
+      }
+    }
+    y += dy;
+  }
+  ctx.globalAlpha = 1;
+  return count;
+}
+
+// composite an sRGB canvas layer into the linear HDR buffers
+function compositeLayer(S, R, G, B, canvas, alphaOut, texture) {
+  const { W, H, U } = S;
+  const d = ctx2d(canvas).getImageData(0, 0, W, H).data;
+  const lut = new Float32Array(256); for (let i = 0; i < 256; i++) lut[i] = s2l(i / 255);
+  const kx = 1 / (0.0011 * U), ky = 1 / (0.011 * U);
+  for (let y = 0, i = 0, j = 0; y < H; y++) for (let x = 0; x < W; x++, i++, j += 4) {
+    const a = d[j + 3]; if (!a) continue;
+    const al = a / 255;
+    const m = texture ? 1 + 0.2 * perlin(x * kx, y * ky, S.seed + 808) : 1;
+    R[i] = R[i] * (1 - al) + lut[d[j]] * m * al;
+    G[i] = G[i] * (1 - al) + lut[d[j + 1]] * m * al;
+    B[i] = B[i] * (1 - al) + lut[d[j + 2]] * m * al;
+    if (alphaOut) alphaOut[i] = Math.max(alphaOut[i], al);
+  }
+}
+
+// ------------------------------------------------------------------ light: front glow, rays, bloom
+function frontGlow(S, R, G, B, treeA) {
+  const { W, H, U, hz, sunX, sunY } = S;
+  for (let y = 0; y < H; y++) {
+    const below = Math.max(0, (y - hz) / U);
+    const fall0 = Math.exp(-below / 0.035);
+    // back-lit grass: a broad fan of warm translucency opening from the sun towards the viewer
+    const pathW = 0.1 + 0.9 * below, pathK = smoothstep(0.0, 0.03, below) * (0.5 + 0.5 * Math.exp(-below / 0.16));
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const shd = y > S.tree.base ? shadowAt(S, x, y) : 0;
+      if (pathK > 0) {
+        const k = pathK * Math.exp(-sq((x - sunX) / U / pathW)) * (1 - 0.9 * shd) * (1 - treeA[i]) * 0.9;
+        R[i] *= 1 + 1.6 * k; G[i] *= 1 + 0.85 * k; B[i] *= 1 + 0.1 * k;
+      }
+      const fall = fall0 * (1 - 0.6 * treeA[i]) * (1 - 0.85 * shd);
+      const dx = (x - sunX) / U, dy = (y - sunY) / U;
+      const d = Math.sqrt(dx * dx + dy * dy * 1.3);
+      const g1 = Math.exp(-d / 0.18) * fall, g2 = Math.exp(-d / 0.55) * fall;
+      R[i] += g1 * 0.5 + g2 * 0.14;
+      G[i] += g1 * 0.22 + g2 * 0.055;
+      B[i] += g1 * 0.05 + g2 * 0.025;
+    }
+  }
+}
+function godRays(S, R, G, B, occ, treeA) {
+  const f = 2, { W, H, U, hz, sunX, sunY } = S;
+  const w = Math.ceil(W / f), h = Math.ceil(H / f);
+  const src = new Float32Array(w * h);
+  const sx = sunX / f, sy = sunY / f;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const X = Math.min(W - 1, x * f), Y = Math.min(H - 1, y * f);
+    const open = 1 - occ[Y * W + X];
+    const d = Math.hypot((X - sunX) / U, (Y - sunY) / U);
+    src[y * w + x] = open * (Math.exp(-d / 0.09) + 0.25 * Math.exp(-d / 0.3));
+  }
+  const out = new Float32Array(w * h);
+  const N = 96, decay = 0.985, dens = 0.97;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let px = x, py = y;
+    const ddx = (x - sx) / N * dens, ddy = (y - sy) / N * dens;
+    let acc = 0, ill = 1;
+    for (let k = 0; k < N; k++) {
+      px -= ddx; py -= ddy;
+      acc += bilin(src, w, h, px, py) * ill;
+      ill *= decay;
+    }
+    out[y * w + x] = acc / N;
+  }
+  const s = S.seed + 606;
+  for (let y = 0; y < H; y++) {
+    const below = Math.max(0, (y - hz) / U);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const fall = Math.exp(-below / (0.05 + 0.1 * Math.exp(-sq((x - sunX) / W / 0.18)))) * (y > S.tree.base ? 1 - 0.85 * shadowAt(S, x, y) : 1);
+      const th = Math.atan2(y - sunY, x - sunX);
+      const n = 0.5 * angNoise(th, 7, s) + 0.4 * angNoise(th, 17, s + 1) + 0.3 * angNoise(th, 41, s + 2) + 0.18 * angNoise(th, 97, s + 3) + 0.07 * angNoise(th, 211, s + 4);
+      const p = clamp(n * 1.6 + 0.15, 0, 1.5);
+      const pat = 0.12 + p * p * 1.2;
+      const v = bilin(out, w, h, x / f, y / f) * pat * fall * 4.2 * (1 - 0.96 * treeA[i]);
+      // shafts redden with distance from the sun (longer, dustier light path)
+      const red = smoothstep(0.06, 0.5, Math.hypot((x - sunX) / U, (y - sunY) / U));
+      R[i] += v; G[i] += v * (0.58 - 0.25 * red); B[i] += v * (0.18 - 0.08 * red);
+    }
+  }
+}
+function bloom(S, R, G, B) {
+  const { W, H } = S, f = 4;
+  // luminance threshold that keeps the source hue (per-channel thresholds turn orange glare red)
+  const kf = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) { const L = 0.2126 * R[i] + 0.7152 * G[i] + 0.0722 * B[i]; kf[i] = L > 1.2 ? (L - 1.2) / L : 0; }
+  const chans = [R, G, B].map(c => { const o = new Float32Array(W * H); for (let i = 0; i < W * H; i++) o[i] = c[i] * kf[i]; return downsample(o, W, H, f); });
+  const w = chans[0].w, h = chans[0].h;
+  const radii = [[2, 0.3], [6, 0.25], [16, 0.2], [44, 0.12]];
+  const accs = chans.map(() => new Float32Array(w * h));
+  for (let c = 0; c < 3; c++) {
+    for (const [r, wt] of radii) {
+      const b = Float32Array.from(chans[c].buf);
+      blur(b, w, h, Math.max(1, Math.round(r * S.U / 1440)), 3);
+      const A = accs[c]; for (let i = 0; i < w * h; i++) A[i] += b[i] * wt;
+    }
+  }
+  const out = [R, G, B];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, lx = (x + 0.5) / f - 0.5, ly = (y + 0.5) / f - 0.5;
+    for (let c = 0; c < 3; c++) out[c][i] += bilin(accs[c], w, h, lx, ly);
+  }
+}
+
+// ------------------------------------------------------------------ tone map & output
+function finish(S, R, G, B, canvas, opts) {
+  const { W, H } = S;
+  const ctx = ctx2d(canvas);
+  const img = ctx.createImageData(W, H), d = img.data;
+  const LUTN = 4096, lut = new Float32Array(LUTN + 1);
+  for (let i = 0; i <= LUTN; i++) { const v = l2s(i / LUTN); lut[i] = mix(v, v * v * (3 - 2 * v), 0.12) * 255; }
+  const rng = mulberry32(S.seed + 999);
+  const exposure = opts.exposure || 1, sat = opts.saturation || 1.12;
+  const tone = (x) => { const t = 0.7; return x <= t ? x : t + (1 - t) * (1 - Math.exp(-(x - t) / (1 - t))); };
+  const cxv = W * 0.5, cyv = H * 0.5, vr = Math.hypot(cxv, cyv);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    let r = R[i] * exposure, g = G[i] * exposure, b = B[i] * exposure;
+    const vd = Math.hypot((x - cxv) / vr, (y - cyv) / vr * 1.1);
+    const vig = 1 - 0.3 * smoothstep(0.45, 1.1, vd);
+    r *= vig; g *= vig; b *= vig;
+    r = tone(r); g = tone(g); b = tone(b);
+    const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = clamp(l + (r - l) * sat, 0, 1); g = clamp(l + (g - l) * sat, 0, 1); b = clamp(l + (b - l) * sat, 0, 1);
+    const sr = lut[(r * LUTN) | 0], sg = lut[(g * LUTN) | 0], sb = lut[(b * LUTN) | 0];
+    const dn = rng() + rng() - 1; // triangular dither, shared by the channels so it does not add chroma noise
+    const j = i * 4;
+    d[j] = clamp(Math.round(sr + dn), 0, 255);
+    d[j + 1] = clamp(Math.round(sg + dn), 0, 255);
+    d[j + 2] = clamp(Math.round(sb + dn), 0, 255);
+    d[j + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// ------------------------------------------------------------------ output finishing
+function addGrain(src, amount, seed) {
+  const w = src.width, h = src.height;
+  const c = makeCanvas(w, h), x = ctx2d(c);
+  x.drawImage(src, 0, 0);
+  const img = x.getImageData(0, 0, w, h), d = img.data;
+  const rng = mulberry32(seed);
+  for (let j = 0; j < d.length; j += 4) {
+    const l = (d[j] * 0.3 + d[j + 1] * 0.59 + d[j + 2] * 0.11) / 255;
+    const k = amount * (1 - Math.abs(l * 2 - 1) * 0.65);
+    const n = (rng() + rng() - 1) * k;
+    d[j] = clamp(Math.round(d[j] + n), 0, 255); d[j + 1] = clamp(Math.round(d[j + 1] + n), 0, 255); d[j + 2] = clamp(Math.round(d[j + 2] + n), 0, 255);
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+function finalize(src, w, h, kind) {
+  let c = (src.width === w && src.height === h) ? src : resize(src, w, h);
+  if (kind === 'scene') c = addGrain(c, 2.4, 4242 + w);
+  return c;
+}
+
+// Horizontally tileable, mostly transparent strip of warm-lit wisps to drift over the sky.
+function renderClouds(W, H, over) {
+  const P = Object.assign({ seed: 20260925, cells: 4, alpha: 0.56 }, over || {});
+  const s = P.seed + 900, cells = P.cells;
+  const kx = cells / W, ky = kx * 4.2;              // wisps are long and thin
+  const D = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const v = y / H;
+    const env = smoothstep(0.05, 0.38, v) * (1 - smoothstep(0.62, 0.95, v));
+    for (let x = 0; x < W; x++) {
+      const nx = x * kx, ny = y * ky;
+      const shear = fbmP(nx * 1.0, ny * 0.5 + 3.1, 3, s + 1, 0.5, cells) * 0.45;   // gentle sideways sweep
+      const n = fbmP(nx + shear, ny + 0.15 * shear, 5, s + 3, 0.52, cells);
+      const big = fbmP(nx + 0.37, ny * 0.3 + 4.4, 2, s + 4, 0.5, cells);             // where the wisps gather
+      let t = (n + 0.7 * big + 0.3 * env - 0.24) * 3.0;
+      t = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+      D[y * W + x] = t * env;
+    }
+  }
+  const c = makeCanvas(W, H), ctx = ctx2d(c);
+  const img = ctx.createImageData(W, H), d = img.data;
+  const lit = hexLin('#ffeadf'), gold = hexLin('#ffe0c4'), shade = hexLin('#e4b0cc');
+  const dy = Math.max(2, Math.round(H / 160));
+  const fill = [Math.round(l2s(mix(shade[0], lit[0], 0.5)) * 255), Math.round(l2s(mix(shade[1], lit[1], 0.5)) * 255), Math.round(l2s(mix(shade[2], lit[2], 0.5)) * 255)];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, a = D[i], j = i * 4;
+    if (a <= 0.004) { d[j] = fill[0]; d[j + 1] = fill[1]; d[j + 2] = fill[2]; d[j + 3] = 0; continue; }
+    const below = y + dy < H ? D[i + dy * W] : 0, above = y - dy >= 0 ? D[i - dy * W] : 0;
+    const l = clamp(0.6 + (a - below) * 2.4 - (a - above) * 0.9, 0, 1);      // undersides catch the low sun
+    const warm = 0.5 + 0.5 * Math.sin((x / W) * TAU * 2 + 1.3);              // slow gold/peach drift (tiles)
+    const r = mix(shade[0], mix(lit[0], gold[0], warm), l), g = mix(shade[1], mix(lit[1], gold[1], warm), l), b = mix(shade[2], mix(lit[2], gold[2], warm), l);
+    d[j] = Math.round(clamp(l2s(r), 0, 1) * 255); d[j + 1] = Math.round(clamp(l2s(g), 0, 1) * 255); d[j + 2] = Math.round(clamp(l2s(b), 0, 1) * 255);
+    d[j + 3] = Math.round(clamp(a * P.alpha * (0.8 + 0.2 * l), 0, 1) * 255);
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+// ------------------------------------------------------------------ main render
+function render(name, W, H, over, opts) {
+  opts = opts || {};
+  const t0 = performance.now(), times = {};
+  const mark = (k) => { times[k] = Math.round(performance.now() - t0); };
+  const S = makeScene(W, H, name, over);
+  const N = W * H;
+  const R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N);
+  paintSky(S, R, G, B); mark('sky');
+  const D = cloudDensity(S); mark('cloudD');
+  const TT = cloudTransmittance(S, D); mark('cloudT');
+  const occ = compositeClouds(S, R, G, B, D, TT); mark('clouds');
+  paintTreeline(S, R, G, B);
+  paintGround(S, R, G, B);
+  horizonMist(S, R, G, B); mark('ground');
+  for (let y = Math.max(0, Math.floor(S.hz)); y < H; y++) for (let x = 0; x < W; x++) occ[y * W + x] = 1;
+  const treeC = makeCanvas(W, H); drawTree(S, ctx2d(treeC)); mark('treeDraw');
+  const treeA = new Float32Array(N);
+  compositeLayer(S, R, G, B, treeC, treeA);
+  for (let i = 0; i < N; i++) if (treeA[i] > occ[i]) occ[i] = treeA[i];
+  mark('tree');
+  const grassC = makeCanvas(W, H); const nBlades = drawGrass(S, ctx2d(grassC)); mark('grassDraw');
+  compositeLayer(S, R, G, B, grassC, null, true); mark('grass');
+  frontGlow(S, R, G, B, treeA); mark('glow');
+  godRays(S, R, G, B, occ, treeA); mark('rays');
+  bloom(S, R, G, B); mark('bloom');
+  const out = makeCanvas(W, H);
+  finish(S, R, G, B, out, opts); mark('finish');
+  out.stats = { times, nBlades };
+  return out;
+}
+
+// ------------------------------------------------------------------ encode
+function dataURLBytes(u) { const b64 = u.slice(u.indexOf(',') + 1); return Math.floor(b64.length * 3 / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); }
+function encode(canvas, mime, maxBytes, qMax = 0.92, qMin = 0.4) {
+  if (mime === 'image/png') { const u = canvas.toDataURL('image/png'); return { dataURL: u, quality: 1, bytes: dataURLBytes(u) }; }
+  let lo = qMin, hi = qMax, best = null;
+  let u = canvas.toDataURL(mime, hi);
+  if (!maxBytes || dataURLBytes(u) <= maxBytes) return { dataURL: u, quality: hi, bytes: dataURLBytes(u) };
+  for (let it = 0; it < 7; it++) {
+    const q = (lo + hi) / 2; u = canvas.toDataURL(mime, q);
+    const b = dataURLBytes(u);
+    if (b <= maxBytes) { best = { dataURL: u, quality: q, bytes: b }; lo = q; } else hi = q;
+  }
+  if (!best) { u = canvas.toDataURL(mime, qMin); best = { dataURL: u, quality: qMin, bytes: dataURLBytes(u) }; }
+  return best;
+}
+function resize(src, w, h) {
+  // progressive halving for a clean downscale
+  let c = src;
+  while (c.width / 2 >= w * 1.0001 && c.height / 2 >= h * 1.0001) {
+    const n = makeCanvas(Math.round(c.width / 2), Math.round(c.height / 2));
+    const x = ctx2d(n); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(c, 0, 0, n.width, n.height); c = n;
+  }
+  if (c.width !== w || c.height !== h) {
+    const n = makeCanvas(w, h); const x = ctx2d(n); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(c, 0, 0, w, h); c = n;
+  }
+  return c;
+}
+
+return { render, renderClouds, finalize, encode, resize, PRESETS, _internal: { perlin, fbm, fbmP, makeRamp } };
+})();
+window.MeadowArt = MeadowArt;
+
+// Interactive preview when the page is opened directly.
+if (!/[?&]noauto/.test(location.search)) {
+  setTimeout(() => {
+    const q = new URLSearchParams(location.search);
+    const preset = q.get('preset') || 'landscape';
+    const w = +(q.get('w') || (preset === 'tall' ? 540 : 1280)), h = +(q.get('h') || (preset === 'tall' ? 960 : 720));
+    const c = MeadowArt.render(preset, w, h);
+    const out = document.getElementById('out');
+    out.width = w; out.height = h; out.getContext('2d').drawImage(c, 0, 0);
+    document.getElementById('info').textContent = `DOPPELGÄNGER meadow generator: ${preset} ${w}×${h} rendered in ${c.stats.times.finish} ms`;
+  }, 30);
+}
+</script>
+</body>
+</html>

@@ -36,9 +36,6 @@
   --serif: 'Cormorant Garamond Variable', 'Cormorant Garamond', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Songti SC', 'STSong', serif;
   --display: 'Cinzel Variable', 'Cinzel', 'Trajan Pro', var(--serif);
   --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  /* Where the sun sits in the background painting (drives the rays and glow). */
-  --sun-x: 29%;
-  --sun-y: 57%;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   color-scheme: light;
@@ -117,12 +114,31 @@ p {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  container-type: size;
   background: linear-gradient(180deg, #53468f 0%, #b85a7b 24%, #f08a5d 44%, #ffcf7a 55%, #a7cf62 60%, #4f9b3f 78%, #2f7a2e 100%);
+}
+/* The painting's box, sized and placed as `background-size: cover` would place it
+ * (anchored at 38% 60%), so the glow, rays and clouds line up with the painted sun
+ * at every window shape. --sun-x/--sun-y are the sun's position in the painting
+ * (PRESETS in tools/art/meadow.html). The vw/vh lines are for browsers without
+ * container units. */
+.scenery-art {
+  position: absolute;
+  width: max(100vw, 177.78vh);
+  width: max(100cqw, 177.78cqh);
+  height: max(100vh, 56.25vw);
+  height: max(100cqh, 56.25cqw);
+  left: calc((100vw - max(100vw, 177.78vh)) * 0.38);
+  left: calc((100cqw - max(100cqw, 177.78cqh)) * 0.38);
+  top: calc((100vh - max(100vh, 56.25vw)) * 0.6);
+  top: calc((100cqh - max(100cqh, 56.25cqw)) * 0.6);
+  --sun-x: 29.2%;
+  --sun-y: 51%;
 }
 .scenery-img {
   position: absolute;
   inset: 0;
-  background: url('/art/meadow.webp') 38% 60% / cover no-repeat;
+  background: url('/art/meadow.webp') 0 0 / 100% 100% no-repeat;
   animation: fade-in 1.2s var(--ease) both;
 }
 @media (max-width: 1500px) and (max-resolution: 1.5dppx) {
@@ -130,22 +146,41 @@ p {
     background-image: url('/art/meadow-1280.webp');
   }
 }
+/* Portrait windows and phones get the portrait painting (9:16), anchored at 50% 60%. */
 @media (max-aspect-ratio: 4/5) {
+  .scenery-art {
+    width: max(100vw, 56.25vh);
+    width: max(100cqw, 56.25cqh);
+    height: max(100vh, 177.78vw);
+    height: max(100cqh, 177.78cqw);
+    left: calc((100vw - max(100vw, 56.25vh)) * 0.5);
+    left: calc((100cqw - max(100cqw, 56.25cqh)) * 0.5);
+    top: calc((100vh - max(100vh, 177.78vw)) * 0.6);
+    top: calc((100cqh - max(100cqh, 177.78cqw)) * 0.6);
+    --sun-x: 33%;
+    --sun-y: 54.3%;
+  }
   .scenery-img {
     background-image: url('/art/meadow-tall.webp');
-    background-position: 50% 60%;
   }
 }
+/* Two copies of the cloud strip (2560×720, tiles sideways) drift one tile to the left
+ * and loop. Its width follows its height so the wisps keep their shape. */
 .scenery-clouds {
   position: absolute;
   top: 0;
   left: 0;
-  width: 200%;
-  height: 58%;
+  height: 50%;
+  aspect-ratio: 5120 / 720;
   background: url('/art/clouds.webp') 0 0 / 50% 100% repeat-x;
   opacity: 0.7;
   animation: drift 260s linear infinite;
   will-change: transform;
+}
+@media (max-aspect-ratio: 4/5) {
+  .scenery-clouds {
+    height: 38%;
+  }
 }
 .scenery-rays {
   position: absolute;

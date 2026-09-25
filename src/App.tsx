@@ -50,11 +50,13 @@ function Scenery() {
   );
   return (
     <div className="scenery" aria-hidden>
-      <div className="scenery-img" />
-      <div className="scenery-glow" />
-      <div className="scenery-rays" />
-      <div className="scenery-rays two" />
-      <div className="scenery-clouds" />
+      <div className="scenery-art">
+        <div className="scenery-img" />
+        <div className="scenery-glow" />
+        <div className="scenery-rays" />
+        <div className="scenery-rays two" />
+        <div className="scenery-clouds" />
+      </div>
       {motes.map((style, i) => (
         <span key={i} className="mote" style={style} />
       ))}

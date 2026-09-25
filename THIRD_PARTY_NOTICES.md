@@ -35,6 +35,11 @@ Bundled from the `@fontsource-variable` npm packages. The full licence texts shi
 - **Cormorant Garamond**, Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant)
 - **Cinzel**, Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
 
+### Artwork (original, no third-party images)
+The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) and the board's wood texture
+(`public/art/kaya.webp`) were generated procedurally for this project by the scripts in `tools/art/`. They
+contain no photographs or other third-party images, so no third-party licence applies.
+
 ### JavaScript dependencies (bundled into the site)
 - **React** and **React DOM** (MIT), Meta Platforms, Inc. and affiliates.
 - **zustand** (MIT), Paul Henschel and contributors.
