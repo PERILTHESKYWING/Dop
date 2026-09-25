@@ -17,14 +17,25 @@ piece is an optional LLM proxy.
 | Page | What it does |
 | --- | --- |
 | **Dashboard** | First-run checks (WebGPU, WASM, KataGo network, LLM), analysed games/positions, biggest and improving weakness, Player DNA, weakness map, training history. |
-| **Game Library** | Drag in many SGFs. Resumable background analysis queue: a fast network pass over every position, then deep searches on the positions that matter. |
-| **Game Review** | Board, winrate graph, your move vs KataGo, candidates, PV, policy heatmap, ownership, detected decision errors, "find similar". |
+| **Game Library** | Drag in many SGFs, in any common encoding (UTF-8, GBK/GB18030, Big5, Shift_JIS, EUC-KR). Asks which side you played when the player names don't say. Resumable background analysis queue: a fast network pass over every position, then deep searches on the positions that matter. |
+| **Game Review** | Board, winrate graph, your move vs KataGo, candidates, PV, policy heatmap, ownership, detected decision errors, "find similar". **Try moves here** opens the analysis board at any move. |
 | **Player DNA** | Fingerprint on 11 axes, each weakness with its evidence positions and confidence, and the Doppelgänger model: your likely move vs KataGo's. |
-| **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. |
-| **Blind Tests** | "Do I really know this?": 10–20 blind positions per weakness, scored against what the old habit would get right by default. |
+| **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. The analysis board is one tap away. |
+| **Blind Tests** | "Do I really know this?": 10–20 blind positions per weakness, scored against what the old habit would get right by default. The analysis board is available here too. |
 | **Position Search** | Positions like this one across your games: board, game/move, your move, KataGo's move, evaluation difference and the associated weakness. |
 | **Opponent Profiles** | Openings, corner sequences, fighting, invasion and strategy tendencies from a rival's SGFs. |
-| **Engine & Settings** | Network choice, WebGPU/CPU, visits, LLM status, the model lab, storage. |
+| **Engine & Settings** | Network choice (or load a network file), WebGPU/CPU, safe mode, visits, LLM connection test, the practice winrate floor, appearance, the model lab, storage. |
+
+### The analysis board
+In Forge, Blind Tests and Game Review you can open a live analysis board at any time: play moves for either
+side, undo and redo, and see KataGo's winrate, score lead, candidate moves with their lines, the policy
+heatmap and territory update after every move. Opening it before you answer marks that answer as assisted:
+it is recorded, but it does not count toward mastery or blind-test scores.
+
+### Practice positions stay playable
+Forge, blind tests and engine-made variations only use positions where the side that is behind still has at
+least 30% to win, so there is always a real decision to make. The limit can be set from 10% to 45% in
+Engine & Settings.
 
 ### How weaknesses are found (numbers never come from the LLM)
 Each move is classified into decision contexts ("the opponent just played a probe next to your safe group",
@@ -52,8 +63,14 @@ KataGo runs in a Web Worker as WebAssembly compiled from
 uses WebGPU when available and falls back to an Eigen CPU backend. Networks are downloaded on first use and
 cached in the Cache API; they are never committed.
 
-- Automatic choice: with WebGPU, `kata1-b28c512nbt` (strongest) with `kata1-b18c384nbt` as fallback, then the
-  small g170 nets. Without WebGPU, the small nets only, since big nets on CPU take minutes per position.
+- Automatic choice: with WebGPU, `kata1-b18c384nbt`; without WebGPU, the built-in `g170e-b10c128`, which ships in
+  `public/models/` so analysis works even where downloads are blocked. `kata1-b28c512nbt` (strongest, 260 MB)
+  is opt-in.
+- If a network fails to download, load or pass a quick health check, the next one is tried, ending with the
+  built-in network on the CPU. A graphics card that crashes is remembered and skipped until you retry it.
+  Stalled downloads time out, and a cut-off file or an HTML error page is detected instead of cached.
+- **Load a network file** in Engine & Settings accepts a `.bin.gz` downloaded by hand from katagotraining.org.
+- Analysis of your games pauses while you use the analysis board, so the board answers first.
 - kata1 networks are fetched through the same-origin path `/katago-models/…`, which `vercel.json` (and the Vite
   dev proxy) rewrites to `media.katagotraining.org`; the direct URL is tried next.
 - Every stored evaluation records engine build, network, network version and visits.
@@ -71,7 +88,7 @@ npm test           # unit tests
 npm run build      # production build in dist/
 ```
 
-Click **Load demo** on the first-run screen to explore with a fictional player ("Mira") whose games were
+Click **Explore the demo first** on the first-run screen to explore with a fictional player ("Mira") whose games were
 played and analysed by the real engine (`npm run demo:generate` rebuilds them).
 
 ## Deploy (Vercel)
@@ -81,9 +98,12 @@ played and analysed by the real engine (`npm run demo:generate` rebuilds them).
 2. Optional LLM: in **Project Settings → Environment Variables** add
    - `LLM_API_KEY`: your Google AI Studio key
    - `LLM_PROVIDER`: `Google AI Studio`
-   - `LLM_MODEL`: `Gemini` (uses a current Gemini Flash model) or an exact id such as `gemini-2.5-flash`
+   - `LLM_MODEL`: `Gemini` or an exact id. `Gemini` tries `gemini-flash-latest`, then
+     `gemini-3-flash-preview`, `gemini-flash-lite-latest` and `gemini-3.1-flash-lite`, skipping models that are
+     busy or retired.
 
-   Redeploy after adding them. The key is read only by the serverless function (`api/llm.ts`) and sent to
+   Redeploy after adding them, then press **Test connection** in Engine & Settings: it makes one tiny real
+   call and shows which model answered, or the exact error. The key is read only by the serverless function (`api/llm.ts`) and sent to
    Google in a request header; it is never included in the client bundle or returned by the API. Do not
    prefix these variables with `VITE_`. For local development put them in `.env` (git-ignored); see
    `.env.example`.

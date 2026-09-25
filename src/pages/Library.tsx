@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { corpus, importFiles, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
 import { DropZone, gameTitle } from '../components/common';
+import { EngineNotice, SideChooser } from '../components/Notices';
 import { go } from '../router';
 import type { GameRecord } from '../lib/types';
 
@@ -13,8 +14,8 @@ function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
         <span className="chip bad" title={g.error}>
           failed
         </span>
-        <button className="btn small ghost" onClick={(e) => (e.stopPropagation(), void retryGame(g.id))}>
-          retry
+        <button className="btn small" onClick={(e) => (e.stopPropagation(), void retryGame(g.id))} title={g.error}>
+          Retry
         </button>
       </span>
     );
@@ -47,15 +48,15 @@ export function Library() {
     .filter((g) => (filter === 'all' ? true : filter === 'mine' ? g.source === 'user' || g.source === 'demo' : g.source === 'opponent' || g.source === 'demo-opponent'))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.importedAt - a.importedAt);
   const pending = games.filter((g) => g.status !== 'done' && g.status !== 'error' && g.status !== 'skipped').length;
-  const unknownColor = games.filter((g) => g.source === 'user' && g.playerColor === null).length;
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Your games</div>
           <h1>Game Library</h1>
           <p className="sub">
-            {games.length} games · {pending ? `${pending} waiting for analysis` : 'all analysed'}
+            {games.length} game{games.length === 1 ? '' : 's'} · {pending ? `${pending} waiting for analysis` : 'all analysed'}
           </p>
         </div>
         <div className="row">
@@ -65,8 +66,8 @@ export function Library() {
             </button>
           ) : (
             pending > 0 && (
-              <button className="btn" onClick={resumeQueue}>
-                Resume analysis
+              <button className="btn primary" onClick={resumeQueue}>
+                Analyse {pending} game{pending > 1 ? 's' : ''}
               </button>
             )
           )}
@@ -77,15 +78,10 @@ export function Library() {
           </select>
         </div>
       </div>
+      <EngineNotice />
+      <SideChooser limit={6} />
       <DropZone compact onFiles={(f) => void importFiles(f)} />
-      {unknownColor > 0 && (
-        <div className="callout" style={{ marginTop: 12 }}>
-          <span className="small">
-            {unknownColor} game{unknownColor > 1 ? 's do' : ' does'} not say which side you played. Click the side in the "You" column, or set your player names in Engine & Settings.
-          </span>
-        </div>
-      )}
-      <div className="panel" style={{ marginTop: 12, padding: 0 }}>
+      <div className="panel" style={{ marginTop: 14, padding: '6px 8px' }}>
         {shown.length ? (
           <table className="data">
             <thead>

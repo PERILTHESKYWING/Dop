@@ -118,7 +118,8 @@ export function buildBlindSet(items: TrainingItem[], attempts: Attempt[], size =
 }
 
 export function scoreBlindTest(test: BlindTest, attempts: Attempt[], items: TrainingItem[]): NonNullable<BlindTest['result']> {
-  const mine = attempts.filter((a) => test.attempts.includes(a.id));
+  // Answers given after opening the analysis board do not count.
+  const mine = attempts.filter((a) => test.attempts.includes(a.id) && !a.assisted);
   const n = mine.length || 1;
   const concept = mine.filter((a) => a.conceptCorrect).length;
   const good = mine.filter((a) => a.grade === 'excellent' || a.grade === 'good').length;

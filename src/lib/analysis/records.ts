@@ -2,6 +2,7 @@ import { allPositions, type Board } from '../go/board';
 import { buildContext, moveFeatures, type PositionContext } from '../go/features';
 import { PASS, type Loc } from '../go/types';
 import { decodeOwnership, moverView } from '../engine/parse';
+import { searchedValue } from './analyzer';
 import { classifyMove } from '../profile/signatures';
 import type { GameAnalysis, GameRecord, MoveRecord, PositionEval, Severity } from '../types';
 
@@ -85,6 +86,7 @@ export function computeMoveRecords(game: GameRecord, analysis: GameAnalysis | nu
     const ctx = buildContext(boards[i], own);
     const lastOpp = i > 0 && game.moves[i - 1].color !== m.color ? game.moves[i - 1].loc : null;
     const mv = moverView(before.bWin, before.bLead, m.color);
+    const searched = searchedValue(before);
     const f = moveFeatures(ctx, m.loc, loss.bestLoc, m.color, lastOpp, i + 1, mv.lead);
     const rank = before.policy.findIndex((p) => p.loc === m.loc);
     const playedIsBest = m.loc === loss.bestLoc;
@@ -101,7 +103,7 @@ export function computeMoveRecords(game: GameRecord, analysis: GameAnalysis | nu
       playedRank: rank >= 0 ? rank + 1 : 99,
       winrateLoss: loss.winrateLoss,
       scoreLoss: loss.scoreLoss,
-      winBefore: mv.win,
+      winBefore: moverView(searched.bWin, searched.bLead, m.color).win,
       depth: loss.depth,
       severity: severityOf(loss.scoreLoss, loss.winrateLoss, playedIsBest),
       features: f,

@@ -45,10 +45,20 @@ export interface AppState {
   hardExamples: { gameId: string; index: number; pBest: number }[];
 
   caps: Capabilities | null;
-  engine: { status: EngineStatus; info?: EngineInfo; progress?: LoadProgress; error?: string };
+  engine: {
+    status: EngineStatus;
+    info?: EngineInfo;
+    progress?: LoadProgress;
+    error?: string;
+    /** Milliseconds per network evaluation on this device. */
+    evalMs?: number;
+    /** Networks/backends that were tried and failed before the one in use. */
+    failures?: string[];
+    note?: string;
+  };
   llm: LlmStatus | null;
   queue: { running: boolean; paused: boolean; currentGameId?: string; lastError?: string };
-  busy: { profile: boolean; llm: boolean; lab: boolean; labStage?: string; labProgress?: number };
+  busy: { profile: boolean; llm: boolean; llmCheck?: boolean; lab: boolean; labStage?: string; labProgress?: number };
   corpusVersion: number;
   toasts: Toast[];
 }

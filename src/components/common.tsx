@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { Board, cropAround, type Mark } from './Board';
+import { Icon } from './Icons';
 import type { GameRecord, MoveRecord } from '../lib/types';
 import { replay } from '../lib/go/board';
 import { PASS } from '../lib/go/types';
@@ -21,7 +22,8 @@ export function DropZone({ onFiles, label, compact }: { onFiles: (f: File[]) => 
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        const files = [...e.dataTransfer.files].filter((f) => /\.sgf$/i.test(f.name) || f.type === '' || f.type.startsWith('text'));
+        // Any file: the SGF parser decides, and phones often give SGFs odd names or types.
+        const files = [...e.dataTransfer.files];
         if (files.length) onFiles(files);
       }}
       role="button"
@@ -29,13 +31,14 @@ export function DropZone({ onFiles, label, compact }: { onFiles: (f: File[]) => 
     >
       {label ?? (
         <>
-          <strong>Drop SGF files here</strong> <span className="muted">or click to choose (many at once is fine)</span>
+          {!compact && <Icon name="upload" className="dz-icon" />}
+          <strong>Drop your SGF files here</strong> <span className="muted">or tap to choose them (many at once is fine)</span>
         </>
       )}
+      {/* No accept filter: iOS and many Android pickers grey out .sgf files when one is set. */}
       <input
         ref={input}
         type="file"
-        accept=".sgf,application/x-go-sgf,text/plain"
         multiple
         hidden
         onChange={(e) => {

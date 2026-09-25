@@ -1,8 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { queueDeepPositions, rebuildProfile, refreshLlmStatus, resetEverything, restartEngine, saveSettings, setPlayerNames, startEngine, trainLabModel } from '../state/actions';
+import {
+  gpuMarkedBroken,
+  inSafeMode,
+  loadNetworkFile,
+  queueDeepPositions,
+  rebuildProfile,
+  refreshLlmStatus,
+  removeDemo,
+  resetEverything,
+  restartEngine,
+  retryGpu,
+  saveSettings,
+  setPlayerNames,
+  startEngine,
+  trainLabModel,
+} from '../state/actions';
 import { fmtPct } from '../components/common';
-import { MODELS } from '../lib/engine/models';
+import { Icon } from '../components/Icons';
+import { customModel, modelById, MODELS } from '../lib/engine/models';
 import { storageEstimate } from '../lib/db/db';
 
 const mb = (n: number) => `${(n / 1_048_576).toFixed(n > 1e8 ? 0 : 1)} MB`;
@@ -22,64 +38,107 @@ function EngineSection() {
   const settings = useStore((s) => s.settings);
   const caps = useStore((s) => s.caps);
   const engine = useStore((s) => s.engine);
+  const fileInput = useRef<HTMLInputElement>(null);
   const p = engine.progress;
+  const gpuBroken = gpuMarkedBroken();
+  const safe = inSafeMode();
+  const custom = customModel(settings.modelId);
   return (
     <div className="panel stack">
-      <h3>KataGo engine</h3>
-      <Check ok={caps ? caps.webgpu : null} label="WebGPU" detail={caps?.webgpu ? caps.webgpuAdapter || 'available' : caps ? 'not available, using CPU (WASM)' : undefined} />
-      <Check ok={caps ? caps.wasm : null} label="WebAssembly" />
-      <Check ok={caps ? caps.workers : null} label="Web Workers" />
-      <Check ok={caps ? caps.indexedDB : null} label="IndexedDB storage" />
-      <Check ok={caps ? caps.cacheApi : null} label="Network cache" detail={caps && !caps.cacheApi ? 'networks re-download each visit' : undefined} />
-      <div className="divider" />
-      <div className="kv small">
-        <dt>Status</dt>
-        <dd className={engine.status === 'error' || engine.status === 'unsupported' ? 'bad' : engine.status === 'ready' ? 'good' : ''}>{engine.status}</dd>
-        {engine.info && (
-          <>
-            <dt>Network</dt>
-            <dd>{engine.info.modelName}</dd>
-            <dt>Backend</dt>
-            <dd>{engine.info.backend === 'webgpu' ? 'WebGPU' : 'CPU (WASM)'}</dd>
-            <dt>Build</dt>
-            <dd className="mono">{engine.info.engine}</dd>
-          </>
-        )}
-        {engine.error && (
-          <>
-            <dt>Error</dt>
-            <dd className="bad">{engine.error}</dd>
-          </>
-        )}
+      <div className="spread">
+        <h3 className="with-icon">
+          <Icon name="cpu" style={{ width: 16, height: 16 }} /> KataGo engine
+        </h3>
+        <span className={`chip ${engine.status === 'ready' ? 'good' : engine.status === 'error' || engine.status === 'unsupported' ? 'bad' : ''}`}>
+          {engine.status === 'ready' ? 'ready' : engine.status === 'off' ? 'starts when needed' : engine.status}
+        </span>
       </div>
-      {engine.status === 'loading' && p && (
-        <div>
+      {engine.info && engine.status === 'ready' && (
+        <div className="engine-now">
+          <strong>{engine.info.modelName}</strong>
+          <span className="small dim">
+            {engine.info.backend === 'webgpu' ? 'on the graphics card (WebGPU)' : 'on the CPU'}
+            {engine.evalMs ? ` · about ${engine.evalMs} ms per position` : ''}
+          </span>
+        </div>
+      )}
+      {engine.status === 'loading' && (
+        <div className="stack tight">
           <div className="tiny muted">
-            {p.stage === 'download' ? `Downloading ${p.modelId}` : p.stage === 'cache' ? 'Reading cached network' : 'Loading network'}
-            {p.total > 0 && ` · ${mb(p.loaded)} / ${mb(p.total)}`}
+            {p?.stage === 'download'
+              ? `Downloading ${p.modelId}${p.source ? ` from ${p.source}` : ''}${p.total > 0 ? ` · ${mb(p.loaded)} / ${mb(p.total)}` : ` · ${mb(p.loaded)}`}`
+              : p?.stage === 'cache'
+                ? 'Reading the network saved in this browser'
+                : p?.stage === 'check'
+                  ? 'Testing the network on this device'
+                  : 'Loading the network'}
           </div>
-          <div className="progress">
-            <span style={{ width: `${p.total ? (p.loaded / p.total) * 100 : 30}%` }} />
+          <div className={`progress ${p?.stage === 'download' && p.total ? '' : 'indeterminate'}`}>
+            <span style={{ width: p?.stage === 'download' && p.total ? `${(p.loaded / p.total) * 100}%` : undefined }} />
           </div>
         </div>
       )}
-      <label className="stack small">
-        Network
+      {engine.status === 'error' && <div className="callout bad small" style={{ whiteSpace: 'pre-wrap' }}>{engine.error}</div>}
+      {engine.note && <div className="callout small">{engine.note}</div>}
+      {engine.status === 'ready' && engine.failures && engine.failures.length > 0 && (
+        <details className="small">
+          <summary>Tried first, but could not use ({engine.failures.length})</summary>
+          <pre className="tiny muted" style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{engine.failures.join('\n')}</pre>
+        </details>
+      )}
+      {gpuBroken && caps?.webgpu && (
+        <div className="callout small">
+          The graphics card failed to run KataGo last time, so the CPU is used.{' '}
+          <button className="btn small" onClick={() => void retryGpu()}>
+            Try the graphics card again
+          </button>
+        </div>
+      )}
+      {safe && (
+        <div className="callout small">
+          Safe mode: the built-in network on the CPU.{' '}
+          <button className="btn small" onClick={() => void restartEngine()}>
+            Leave safe mode
+          </button>
+        </div>
+      )}
+
+      <div className="divider" />
+      <label className="stack tight small">
+        <span className="field-label">Network</span>
         <select value={settings.modelId} onChange={(e) => void saveSettings({ modelId: e.target.value })}>
-          <option value="auto">Automatic: strongest that runs well here</option>
+          <option value="auto">Automatic: the strong network with WebGPU, the built-in one on the CPU</option>
+          {custom && <option value={custom.id}>{custom.name}</option>}
           {MODELS.map((m) => (
             <option key={m.id} value={m.id} disabled={!!m.incompatible}>
-              {m.name} · ~{m.approxMB} MB{m.incompatible ? ' (not supported)' : m.gpuOnly ? ' (WebGPU recommended)' : ''}
+              {m.name} · {m.approxMB} MB{m.incompatible ? ' (not supported)' : m.gpuOnly ? ' (needs WebGPU)' : ''}
             </option>
           ))}
         </select>
       </label>
+      <p className="tiny muted">{(modelById(settings.modelId) ?? null)?.note ?? 'Picks kata1 b18c384nbt when WebGPU works and the built-in g170e b10c128 otherwise. The built-in network ships with the site, so analysis works even when downloads are blocked.'}</p>
+      <div className="row wrap">
+        <button className="btn small" onClick={() => fileInput.current?.click()}>
+          <Icon name="upload" /> Load a network file…
+        </button>
+        <span className="tiny muted">A .bin.gz from katagotraining.org, for when downloads are blocked here.</span>
+        <input
+          ref={fileInput}
+          type="file"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) void loadNetworkFile(f);
+          }}
+        />
+      </div>
       <label className="row small">
-        <input type="checkbox" checked={settings.forceCpu} onChange={(e) => void saveSettings({ forceCpu: e.target.checked })} /> Force CPU backend
+        <input type="checkbox" checked={settings.forceCpu} onChange={(e) => void saveSettings({ forceCpu: e.target.checked })} /> Always use the CPU
       </label>
       <div className="row wrap">
-        <label className="stack small">
-          Deep analysis visits
+        <label className="stack tight small">
+          <span className="field-label">Deep analysis visits</span>
           <select value={settings.deepVisits} onChange={(e) => void saveSettings({ deepVisits: Number(e.target.value) })}>
             {[16, 32, 64, 128, 256, 512].map((v) => (
               <option key={v} value={v}>
@@ -88,8 +147,8 @@ function EngineSection() {
             ))}
           </select>
         </label>
-        <label className="stack small">
-          Deep positions per game
+        <label className="stack tight small">
+          <span className="field-label">Deep positions per game</span>
           <select value={settings.deepPerGame} onChange={(e) => void saveSettings({ deepPerGame: Number(e.target.value) })}>
             {[8, 16, 24, 40, 60].map((v) => (
               <option key={v} value={v}>
@@ -102,12 +161,25 @@ function EngineSection() {
       <label className="row small">
         <input type="checkbox" checked={settings.autoAnalyze} onChange={(e) => void saveSettings({ autoAnalyze: e.target.checked })} /> Analyse imported games automatically
       </label>
-      <div className="row">
-        <button className="btn primary" onClick={() => void (engine.status === 'ready' || engine.status === 'error' ? restartEngine() : startEngine())}>
-          {engine.status === 'ready' || engine.status === 'error' ? 'Apply and restart engine' : 'Start engine'}
+      <div className="row wrap">
+        <button className="btn primary" onClick={() => void (engine.status === 'off' || engine.status === 'unsupported' ? startEngine() : restartEngine())}>
+          {engine.status === 'off' ? 'Start KataGo' : 'Apply and restart KataGo'}
+        </button>
+        <button className="btn" onClick={() => void restartEngine({ safe: true })} title="Built-in network on the CPU">
+          Safe mode
         </button>
       </div>
-      <p className="tiny muted">Networks are downloaded from katagotraining.org on first use and cached in this browser. Every analysis stores the engine, network, version and visits used.</p>
+      <details className="small">
+        <summary>This device</summary>
+        <div className="stack tight" style={{ marginTop: 8 }}>
+          <Check ok={caps ? caps.webgpu : null} label="WebGPU" detail={caps?.webgpu ? caps.webgpuAdapter || 'available' : caps ? 'not available, the CPU is used' : undefined} />
+          <Check ok={caps ? caps.wasm : null} label="WebAssembly" />
+          <Check ok={caps ? caps.workers : null} label="Web Workers" />
+          <Check ok={caps ? caps.indexedDB : null} label="Storage (IndexedDB)" />
+          <Check ok={caps ? caps.cacheApi : null} label="Network cache" detail={caps && !caps.cacheApi ? 'networks download again each visit' : undefined} />
+          {engine.info && <Check ok={true} label="Engine build" detail={engine.info.engine} />}
+        </div>
+      </details>
       <details className="small">
         <summary>Available networks</summary>
         <table className="data">
@@ -132,24 +204,79 @@ function PlayerSection() {
   return (
     <div className="panel stack">
       <h3>You</h3>
-      <label className="stack small">
-        Your names in SGF files (comma-separated)
-        <input value={names} onChange={(e) => setNames(e.target.value)} placeholder="e.g. mira, Mira K." />
+      <label className="stack tight small">
+        <span className="field-label">Your names in SGF files (comma-separated)</span>
+        <input value={names} onChange={(e) => setNames(e.target.value)} placeholder="e.g. 1kuyoo, 一子道长青" />
       </label>
+      <p className="tiny muted">Games where one of these names played are matched to you automatically. You can also pick your side game by game in the Game Library.</p>
       <div className="row">
         <button
           className="btn"
           onClick={() =>
             void setPlayerNames(
               names
-                .split(',')
+                .split(/[,，、]/)
                 .map((x) => x.trim())
                 .filter(Boolean),
             )
           }
         >
-          Save and re-detect sides
+          Save and match my games
         </button>
+      </div>
+    </div>
+  );
+}
+
+function PracticeSection() {
+  const settings = useStore((s) => s.settings);
+  const [v, setV] = useState(settings.minLosingWinrate);
+  useEffect(() => setV(settings.minLosingWinrate), [settings.minLosingWinrate]);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  return (
+    <div className="panel stack">
+      <h3>Practice positions</h3>
+      <label className="stack tight small">
+        <span className="spread">
+          <span className="field-label">The side that is behind keeps at least</span>
+          <strong className="mono">{Math.round(v * 100)}%</strong>
+        </span>
+        <input
+          type="range"
+          min={0.1}
+          max={0.45}
+          step={0.05}
+          value={v}
+          onChange={(e) => {
+            const x = Number(e.target.value);
+            setV(x);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => void saveSettings({ minLosingWinrate: x }).then(() => rebuildProfile()), 500);
+          }}
+        />
+      </label>
+      <p className="tiny muted">Forge, blind tests and engine variations only use positions that are still a game. Lopsided positions, where almost any move wins or loses, are left out.</p>
+    </div>
+  );
+}
+
+function AppearanceSection() {
+  const settings = useStore((s) => s.settings);
+  const opts: { v: typeof settings.effects; label: string; hint: string }[] = [
+    { v: 'auto', label: 'Automatic', hint: 'full effects on capable devices' },
+    { v: 'full', label: 'Full', hint: 'moving light, clouds and glass' },
+    { v: 'light', label: 'Light', hint: 'still background, fastest' },
+  ];
+  return (
+    <div className="panel stack">
+      <h3>Appearance</h3>
+      <div className="segmented">
+        {opts.map((o) => (
+          <button key={o.v} className={settings.effects === o.v ? 'on' : ''} onClick={() => void saveSettings({ effects: o.v })}>
+            <strong>{o.label}</strong>
+            <span>{o.hint}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -158,22 +285,58 @@ function PlayerSection() {
 function LlmSection() {
   const settings = useStore((s) => s.settings);
   const llm = useStore((s) => s.llm);
+  const checking = useStore((s) => s.busy.llmCheck);
+  const test = llm?.test;
   return (
     <div className="panel stack">
-      <h3>Pattern discovery (LLM)</h3>
-      <Check ok={llm ? llm.available : null} label="Language model" detail={llm ? (llm.available ? llm.model : llm.configured ? llm.error ?? 'unavailable' : 'not configured') : undefined} />
-      <label className="row small">
-        <input type="checkbox" checked={settings.useLlm} onChange={(e) => void saveSettings({ useLlm: e.target.checked })} /> Use it to describe patterns
-      </label>
-      <p className="tiny muted">
-        The model only names and groups patterns in compressed evidence that KataGo already measured. It never produces numbers, and everything works without it. The API key stays on the server
-        (LLM_API_KEY); it is never sent to this page.
-      </p>
-      <div className="row">
-        <button className="btn small" onClick={() => void refreshLlmStatus()}>
-          Check again
-        </button>
+      <div className="spread">
+        <h3>Pattern discovery (LLM)</h3>
+        <span className={`chip ${llm?.available ? 'good' : llm?.configured ? 'bad' : ''}`}>{llm ? (llm.available ? 'connected' : llm.configured ? 'not answering' : 'off') : 'checking'}</span>
       </div>
+      {llm && !llm.configured && (
+        <div className="callout small">
+          {llm.error?.includes('LLM_API_KEY') ? (
+            <>
+              Not set up. In Vercel, open your project, then <strong>Settings → Environment Variables</strong>, add <span className="mono">LLM_API_KEY</span> (your Google AI Studio key) and redeploy.
+              Everything else works without it.
+            </>
+          ) : (
+            llm.error
+          )}
+        </div>
+      )}
+      {test && (
+        <div className={`callout small ${test.ok ? 'good' : 'bad'}`}>
+          {test.ok ? (
+            <>
+              Working: <strong>{test.model}</strong> answered in {((test.ms ?? 0) / 1000).toFixed(1)} s.
+            </>
+          ) : (
+            <>
+              The test call failed.
+              <ul className="notes">
+                {test.errors.slice(-4).map((e, i) => (
+                  <li key={i} className="tiny">
+                    {e}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+      {llm?.models && llm.models.length > 0 && <p className="tiny muted">Models tried in order: {llm.models.join(' → ')}. Busy or retired models are skipped automatically.</p>}
+      <div className="row wrap">
+        <button className="btn" disabled={checking} onClick={() => void refreshLlmStatus(true)}>
+          {checking ? 'Testing…' : 'Test connection'}
+        </button>
+        <label className="row small">
+          <input type="checkbox" checked={settings.useLlm} onChange={(e) => void saveSettings({ useLlm: e.target.checked })} /> Use it to describe patterns
+        </label>
+      </div>
+      <p className="tiny muted">
+        The model only names and groups patterns in evidence KataGo already measured; it never produces numbers. The API key stays on the server and is never sent to this page.
+      </p>
     </div>
   );
 }
@@ -247,6 +410,7 @@ function LabSection() {
 function StorageSection() {
   const [est, setEst] = useState<{ usage: number; quota: number } | null>(null);
   const counts = { g: useStore((s) => s.games.length), a: useStore((s) => s.attempts.length) };
+  const hasDemo = useStore((s) => s.games.some((g) => g.source === 'demo'));
   useEffect(() => {
     void storageEstimate().then(setEst);
   }, [counts.g, counts.a]);
@@ -263,6 +427,11 @@ function StorageSection() {
         <button className="btn small" onClick={() => void rebuildProfile()}>
           Rebuild profile
         </button>
+        {hasDemo && (
+          <button className="btn small" onClick={() => void removeDemo()}>
+            Remove demo data
+          </button>
+        )}
         <button
           className="btn small ghost bad"
           onClick={() => {
@@ -284,17 +453,21 @@ export function Settings() {
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Setup</div>
           <h1>Engine & Settings</h1>
+          <p className="sub">KataGo, your player names, practice limits and the optional language model.</p>
         </div>
       </div>
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="stack">
           <EngineSection />
           <PlayerSection />
+          <PracticeSection />
         </div>
         <div className="stack">
-          <LabSection />
           <LlmSection />
+          <AppearanceSection />
+          <LabSection />
           <StorageSection />
         </div>
       </div>

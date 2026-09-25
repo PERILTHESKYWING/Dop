@@ -77,6 +77,29 @@ export interface DeepOptions {
 }
 
 /**
+ * A position's value once KataGo has searched it: the network's own value mixed with its
+ * searched candidates' values, weighted by visits, as KataGo's search averages them. The
+ * network alone is optimistic for the side to move, sometimes by several points in sharp
+ * positions, so on its own it can call a lost position even. Falls back to the network
+ * value when there was no search.
+ */
+export function searchedValue(e: { bWin: number; bLead: number; toPlay: Color; candidates?: Candidate[] }): { bWin: number; bLead: number } {
+  const root = moverView(e.bWin, e.bLead, e.toPlay);
+  let win = root.win;
+  let lead = root.lead;
+  let n = 1;
+  for (const c of e.candidates ?? []) {
+    if (!c.visits || c.winrate === undefined || c.scoreLead === undefined) continue;
+    win += c.visits * c.winrate;
+    lead += c.visits * c.scoreLead;
+    n += c.visits;
+  }
+  if (n === 1) return { bWin: e.bWin, bLead: e.bLead };
+  const v = moverView(win / n, lead / n, e.toPlay);
+  return { bWin: v.win, bLead: v.lead };
+}
+
+/**
  * Deep pass: a search for the best move and PV, then a one-ply evaluation after each
  * candidate (and the played move) so every candidate has a comparable winrate and
  * score for the side to move.

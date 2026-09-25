@@ -50,6 +50,7 @@ export function Search({ query }: { query: URLSearchParams }) {
       <div className="page">
         <div className="page-head">
           <div>
+            <div className="eyebrow">Search</div>
             <h1>Position Search</h1>
             <p className="sub">Pick a position to find the ones most like it across your games. You can also use "Find similar" from any move in Game Review.</p>
           </div>
@@ -86,6 +87,7 @@ export function Search({ query }: { query: URLSearchParams }) {
     <div className="page">
       <div className="page-head">
         <div>
+          <div className="eyebrow">Search</div>
           <h1>Positions like this one</h1>
           <p className="sub">Similarity combines the local shape around the last move, the kind of decision (distance, safety, phase) and the whole-board layout.</p>
         </div>

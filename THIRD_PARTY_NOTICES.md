@@ -21,6 +21,20 @@ The compiled engine statically links:
 - **half** (MIT) and other small headers vendored by KataGo, listed in `LICENSE-KataGo.txt`.
 - The **Emscripten** runtime (MIT / University of Illinois NCSA).
 
+### Built-in KataGo network (MIT)
+`public/models/g170e-b10c128-s1141046784-d204142634.bin.gz` is the 10-block network from KataGo's g170 run.
+It is taken from `cpp/tests/models/` of the KataGo source tree as included in katago-webgpu at the commit
+above, where it falls under the same MIT licence ("all other content in this repo", see
+`public/engine/LICENSE-KataGo.txt`). It ships with the site so analysis works when network downloads are
+blocked, and it is the default on the CPU.
+
+### Fonts (SIL Open Font License 1.1)
+Bundled from the `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
+
+- **Inter**, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+- **Cormorant Garamond**, Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant)
+- **Cinzel**, Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
+
 ### JavaScript dependencies (bundled into the site)
 - **React** and **React DOM** (MIT), Meta Platforms, Inc. and affiliates.
 - **zustand** (MIT), Paul Henschel and contributors.
@@ -30,13 +44,15 @@ Build-time tools (Vite, TypeScript, Vitest, tsx) are not shipped to users.
 
 ## Downloaded at runtime (not included)
 
-Neural network weights are **not** bundled. The browser downloads one on first use and caches it locally.
+Apart from the built-in network above, network weights are **not** bundled. The browser downloads them on
+first use and caches them locally.
 
 - **kata1 networks** (`kata1-b28c512nbt-…`, `kata1-b18c384nbt-…`) from
   [katagotraining.org](https://katagotraining.org/networks/). These are produced by the KataGo distributed
   training project; see https://katagotraining.org/network_license/ for their licence terms.
-- **g170 networks** (`g170e-b10c128-…`, `g170-b6c96-…`) are small test networks included in the
-  katago-webgpu repository under its MIT licence, fetched from jsDelivr or raw.githubusercontent.com.
+- **g170-b6c96**, a tiny test network included in the katago-webgpu repository under its MIT licence,
+  fetched from jsDelivr or raw.githubusercontent.com when chosen.
+- A network file the user loads from their own computer stays in that browser's cache.
 
 ## Demo data
 

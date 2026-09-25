@@ -143,6 +143,7 @@ export interface MoveRecord {
   /** Losses from the mover's perspective (>= 0). */
   winrateLoss: number;
   scoreLoss: number;
+  /** The mover's winrate before the move (after KataGo's search when there was one). */
   winBefore: number;
   depth: 'fast' | 'deep';
   severity: Severity;
@@ -272,6 +273,8 @@ export interface Attempt {
   /** Did the move repeat the weakness's specific error? */
   repeatedError: boolean;
   reason?: string;
+  /** The analysis board was opened before answering: kept, but not counted in mastery or blind scores. */
+  assisted?: boolean;
   at: number;
 }
 
@@ -315,6 +318,10 @@ export interface Settings {
   autoAnalyze: boolean;
   useLlm: boolean;
   onboarded: boolean;
+  /** Practice positions keep the side that is behind at this winrate or better (0.3 = 30%). */
+  minLosingWinrate: number;
+  /** Background animation and glass blur: auto = light on slower devices. */
+  effects: 'auto' | 'full' | 'light';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -328,4 +335,6 @@ export const DEFAULT_SETTINGS: Settings = {
   autoAnalyze: true,
   useLlm: true,
   onboarded: false,
+  minLosingWinrate: 0.3,
+  effects: 'auto',
 };

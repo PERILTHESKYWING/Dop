@@ -24,6 +24,8 @@ export interface PipelineOptions {
   shouldStop?: () => boolean;
   /** Save progress every N positions (resumable analysis). */
   checkpointEvery?: number;
+  /** Awaited before each engine request, so interactive use (the analysis board) goes first. */
+  yieldTo?: () => Promise<void>;
 }
 
 export class AnalysisStopped extends Error {}
@@ -114,6 +116,7 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   let since = 0;
   for (let i = 0; i <= n; i++) {
     if (analysis.evals[i]) continue;
+    await opts.yieldTo?.();
     stop();
     const spec = specAt(game, boards, i);
     const key = positionKey(spec, engine.info.modelId);
@@ -142,6 +145,7 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
 
   for (const i of analysis.deepTargets) {
     if (analysis.evals[i]?.depth === 'deep') continue;
+    await opts.yieldTo?.();
     stop();
     const spec = specAt(game, boards, i);
     const played: Loc = game.moves[i]?.loc ?? PASS;

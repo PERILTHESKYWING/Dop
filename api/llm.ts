@@ -1,5 +1,6 @@
 /**
- * Vercel serverless function: POST /api/llm (pattern discovery), GET /api/llm (status).
+ * Vercel serverless function: POST /api/llm (pattern discovery), GET /api/llm (status),
+ * GET /api/llm?test=1 (a live check through the model chain).
  * LLM_API_KEY, LLM_MODEL and LLM_PROVIDER are read from the server environment only.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -22,7 +23,8 @@ async function readBody(req: IncomingMessage & { body?: unknown }): Promise<stri
 
 export default async function handler(req: IncomingMessage & { body?: unknown }, res: ServerResponse) {
   const body = req.method === 'POST' ? await readBody(req) : undefined;
-  const result = await handleLlmRequest(req.method ?? 'GET', body, process.env, fetch as never);
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const result = await handleLlmRequest(req.method ?? 'GET', body, process.env, fetch as never, Object.fromEntries(url.searchParams));
   res.statusCode = result.status;
   res.setHeader('content-type', 'application/json');
   res.setHeader('cache-control', 'no-store');

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { addReason, generateVariations, submitAnswer } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
+import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
 import { fmtPct } from '../components/common';
 import { itemBoard, lastOpponentMove, type GradeResult } from '../lib/forge/grading';
 import { newMastery, pickItem, pickWeakness } from '../lib/forge/scheduler';
@@ -133,7 +134,13 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const [started, setStarted] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [varBusy, setVarBusy] = useState(false);
+  const [explore, setExplore] = useState(false);
+  const [assistedFor, setAssistedFor] = useState<string | null>(null);
+  const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  const [view, toggleView] = useAnalysisView();
   const predicted = usePrediction(item);
+  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
+  const analysis = useAnalysis(base, explore);
 
   const next = useCallback(() => {
     if (!weakness) return;
@@ -142,6 +149,8 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
     setItem(pickItem(itemsByW[weakness.id] ?? [], history, lvl));
     setPending(null);
     setResult(null);
+    setExplore(false);
+    setHoverPv(null);
     setStarted(Date.now());
   }, [weakness, itemsByW]);
 
@@ -154,15 +163,22 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
     if (!item || pending === null || result || busy) return;
     setBusy(true);
     try {
-      const r = await submitAnswer(item, pending, Date.now() - started, 'forge', sessionId);
+      const r = await submitAnswer(item, pending, Date.now() - started, 'forge', sessionId, { assisted: assistedFor === item.id });
       setResult(r);
     } finally {
       setBusy(false);
     }
-  }, [item, pending, result, busy, started, sessionId]);
+  }, [item, pending, result, busy, started, sessionId, assistedFor]);
+
+  const openAnalysis = () => {
+    // Seeing KataGo's answer before committing makes the attempt "assisted".
+    if (item && !result) setAssistedFor(item.id);
+    setExplore(true);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (explore) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         if (result) next();
@@ -171,7 +187,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [commit, next, result]);
+  }, [commit, next, result, explore]);
 
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
   const session = attempts.filter((a) => a.sessionId === sessionId);
@@ -180,7 +196,10 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
     return (
       <div className="page">
         <div className="page-head">
-          <h1>Forge</h1>
+          <div>
+            <div className="eyebrow">Training</div>
+            <h1>Forge</h1>
+          </div>
         </div>
         <div className="empty">
           Forge trains your recurring weaknesses. None are confirmed yet: analyse more of your games, or <a href={href('dashboard')}>load the demo data</a>.
@@ -190,7 +209,20 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   if (!weakness || !item || !board)
     return (
       <div className="page">
-        <div className="empty">No training positions for this weakness yet.</div>
+        <div className="empty stack" style={{ justifyItems: 'center' }}>
+          <span>
+            No training positions for {weakness ? <strong>{weakness.llm?.title ?? weakness.title}</strong> : 'this weakness'} yet. Practice only uses positions where the side that is behind still has at least{' '}
+            {Math.round(useStore.getState().settings.minLosingWinrate * 100)}% to win, so decided games give fewer positions.
+          </span>
+          <span className="row wrap" style={{ justifyContent: 'center' }}>
+            <a className="btn small" href={href('settings')}>
+              Change the limit
+            </a>
+            <a className="btn small" href={href('library')}>
+              Add more games
+            </a>
+          </span>
+        </div>
       </div>
     );
 
@@ -202,9 +234,13 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   }
   const last = item.moves.length ? item.moves[item.moves.length - 1].loc : null;
 
+  const assisted = assistedFor === item.id;
   return (
     <div className="stage">
       <div className="board-wrap">
+        {explore ? (
+          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} />
+        ) : (
         <Board
           size={item.size}
           stones={result && result.attempt.loc !== PASS ? withStone(board, result.attempt.loc, item.toPlay) : board.stones}
@@ -215,8 +251,23 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
           marks={marks}
           coords
         />
+        )}
       </div>
       <div className="side">
+        {explore && (
+          <AnalysisPanel
+            a={analysis}
+            view={view}
+            onToggle={toggleView}
+            onHoverPv={setHoverPv}
+            onClose={() => {
+              setExplore(false);
+              setHoverPv(null);
+            }}
+            closeLabel={result ? 'Back to the result' : 'Back to the problem'}
+            note={assisted && !result ? 'You opened the analysis board, so your answer to this position will not count toward mastery.' : undefined}
+          />
+        )}
         <div className="panel stack">
           <div className="spread">
             <h3>Forge</h3>
@@ -244,8 +295,9 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                 <span className="chip">{item.kind === 'original' ? 'from your game' : 'blind position'}</span>
               </div>
               <p className="small dim">Find the best move. Tap a point to select it, tap again (or press Enter) to commit.</p>
-              <div className="row">
-                <button className="btn primary big" disabled={pending === null || busy} onClick={() => void commit()}>
+              {assisted && <p className="tiny warn">Analysis board used: this answer will not count toward mastery.</p>}
+              <div className="row wrap">
+                <button className="btn primary big" disabled={pending === null || busy || explore} onClick={() => void commit()}>
                   {busy ? 'Checking…' : pending === null ? 'Select a move' : `Commit ${locToGtp(pending, item.size)}`}
                 </button>
                 {pending !== null && (
@@ -253,14 +305,27 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                     Clear
                   </button>
                 )}
+                {!explore && (
+                  <button className="btn" onClick={openAnalysis} title="Try moves with live KataGo winrates and heat map">
+                    Analysis board
+                  </button>
+                )}
               </div>
             </>
           ) : (
             <>
               <Reveal item={item} grade={result.grade} attempt={result.attempt} predicted={predicted} />
-              <button className="btn primary big" onClick={next}>
-                Next position <span className="kbd">Enter</span>
-              </button>
+              {result.attempt.assisted && <p className="tiny warn">Answered with the analysis board open: not counted toward mastery.</p>}
+              <div className="row wrap">
+                <button className="btn primary big" onClick={next}>
+                  Next position <span className="kbd">Enter</span>
+                </button>
+                {!explore && (
+                  <button className="btn" onClick={openAnalysis}>
+                    Explore on the analysis board
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>

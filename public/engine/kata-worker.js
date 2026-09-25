@@ -15,6 +15,10 @@ const CACHE_NAME = 'doppelganger-models-v1';
 const MAX_MOVES = 1024;
 const PV_CAP = 24;
 const ROOT_CAP = 32;
+/** Give up on a URL that sends no response headers for this long. */
+const CONNECT_MS = 20000;
+/** Give up on a download that sends no bytes for this long. */
+const STALL_MS = 25000;
 
 let M = null;
 let size = 19;
@@ -44,64 +48,134 @@ async function openCache() {
   }
 }
 
-/** Download a model with progress, trying each URL in turn. Cached under a stable key. */
-async function fetchModel(id, cacheKey, urls) {
+async function cachedBytes(cacheKey) {
   const cache = await openCache();
-  if (cache) {
+  if (!cache) return null;
+  try {
     const hit = await cache.match(cacheKey);
-    if (hit) {
+    return hit ? new Uint8Array(await hit.arrayBuffer()) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function putCached(cacheKey, bytes) {
+  const cache = await openCache();
+  if (!cache) return;
+  try {
+    await cache.put(cacheKey, new Response(bytes, { headers: { 'content-type': 'application/octet-stream' } }));
+  } catch (_) {
+    /* quota: keep going without caching */
+  }
+}
+
+async function dropCached(cacheKey) {
+  const cache = await openCache();
+  if (!cache) return;
+  try {
+    await cache.delete(cacheKey);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/** gzip network file, or an uncompressed .bin network (starts with its name on one line). */
+function networkKind(bytes) {
+  if (bytes.length > 1000 && bytes[0] === 0x1f && bytes[1] === 0x8b) return 'gz';
+  if (bytes.length > 100000) {
+    let i = 0;
+    while (i < 200 && bytes[i] >= 0x20 && bytes[i] < 0x7f) i++;
+    if (i >= 3 && bytes[i] === 0x0a) return 'bin';
+  }
+  return null;
+}
+
+/** Download one URL with progress. Aborts when the server goes quiet. */
+async function download(url, id) {
+  const ctrl = new AbortController();
+  let why = 'connect';
+  let timer = setTimeout(() => ctrl.abort(), CONNECT_MS);
+  const rearm = () => {
+    clearTimeout(timer);
+    why = 'stall';
+    timer = setTimeout(() => ctrl.abort(), STALL_MS);
+  };
+  try {
+    const res = await fetch(url, { mode: 'cors', signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const type = res.headers.get('content-type') || '';
+    if (type.includes('text/html')) throw new Error('got a web page instead of a network file');
+    const total = Number(res.headers.get('content-length')) || 0;
+    const encoded = !!(res.headers.get('content-encoding') || '').replace(/identity/i, '');
+    rearm();
+    let bytes;
+    if (res.body && res.body.getReader) {
+      const reader = res.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      let lastPost = 0;
+      post({ type: 'progress', id, stage: 'download', loaded: 0, total, url });
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        rearm();
+        chunks.push(value);
+        loaded += value.length;
+        const now = Date.now();
+        if (now - lastPost > 150) {
+          lastPost = now;
+          post({ type: 'progress', id, stage: 'download', loaded, total, url });
+        }
+      }
+      bytes = new Uint8Array(loaded);
+      let off = 0;
+      for (const c of chunks) {
+        bytes.set(c, off);
+        off += c.length;
+      }
+    } else {
+      bytes = new Uint8Array(await res.arrayBuffer());
+    }
+    // A connection that closes early looks like a normal end of stream.
+    if (total && !encoded && bytes.length < total * 0.97) throw new Error(`download cut off at ${Math.round(bytes.length / 1e6)} of ${Math.round(total / 1e6)} MB`);
+    if (!networkKind(bytes)) throw new Error('the file is not a KataGo network');
+    return bytes;
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new Error(why === 'connect' ? `no answer within ${CONNECT_MS / 1000} s` : `download stalled (no data for ${STALL_MS / 1000} s)`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The network bytes: from the browser cache, else from the first URL that works. */
+async function fetchModel(id, cacheKey, urls, skipCache) {
+  if (!skipCache) {
+    const hit = await cachedBytes(cacheKey);
+    if (hit && networkKind(hit)) {
       post({ type: 'progress', id, stage: 'cache', loaded: 1, total: 1 });
-      return new Uint8Array(await hit.arrayBuffer());
+      return { bytes: hit, fromCache: true };
     }
   }
   const errors = [];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { mode: 'cors' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const type = res.headers.get('content-type') || '';
-      if (type.includes('text/html')) throw new Error('got an HTML page instead of a network file');
-      const total = Number(res.headers.get('content-length')) || 0;
-      let bytes;
-      if (res.body && res.body.getReader) {
-        const reader = res.body.getReader();
-        const chunks = [];
-        let loaded = 0;
-        let lastPost = 0;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          loaded += value.length;
-          const now = Date.now();
-          if (now - lastPost > 150) {
-            lastPost = now;
-            post({ type: 'progress', id, stage: 'download', loaded, total, url });
-          }
-        }
-        bytes = new Uint8Array(loaded);
-        let off = 0;
-        for (const c of chunks) {
-          bytes.set(c, off);
-          off += c.length;
-        }
-      } else {
-        bytes = new Uint8Array(await res.arrayBuffer());
-      }
-      if (bytes.length < 1000 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw new Error('not a gzip network file');
-      if (cache) {
-        try {
-          await cache.put(cacheKey, new Response(bytes, { headers: { 'content-type': 'application/octet-stream' } }));
-        } catch (_) {
-          /* quota: keep going without caching */
-        }
-      }
-      return bytes;
+      return { bytes: await download(url, id), fromCache: false, url };
     } catch (e) {
-      errors.push(`${url}: ${e && e.message ? e.message : e}`);
+      errors.push(`${shortUrl(url)}: ${e && e.message ? e.message : e}`);
+      post({ type: 'log', text: `network download failed: ${errors[errors.length - 1]}` });
     }
   }
-  throw new Error('could not download network. ' + errors.join(' | '));
+  throw new Error(urls.length ? 'could not download the network. ' + errors.join(' | ') : 'the network file is no longer in this browser; load it again');
+}
+
+function shortUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.host === self.location.host ? u.pathname : u.host;
+  } catch (_) {
+    return url;
+  }
 }
 
 function allocBuffers() {
@@ -127,13 +201,14 @@ function allocBuffers() {
   };
 }
 
-let modelBytesSource = null; // { id, cacheKey, urls } for reloading on board-size change
+let modelSource = null; // { id, cacheKey, urls } for reloading on board-size change
 
 async function loadNet(bytes, boardSize) {
-  M.FS.writeFile('/model.bin.gz', bytes);
-  const ok = await M.ccall('kgeLoad', 'number', ['string', 'number'], ['/model.bin.gz', boardSize], { async: true });
+  const path = networkKind(bytes) === 'bin' ? '/model.bin' : '/model.bin.gz';
+  M.FS.writeFile(path, bytes);
+  const ok = await M.ccall('kgeLoad', 'number', ['string', 'number'], [path, boardSize], { async: true });
   try {
-    M.FS.unlink('/model.bin.gz');
+    M.FS.unlink(path);
   } catch (_) {
     /* ignore */
   }
@@ -150,24 +225,41 @@ async function loadNet(bytes, boardSize) {
 async function init(msg) {
   await ensureModule();
   if (msg.forceCpu) M.ccall('kgeSetForceCpu', null, ['number'], [1]);
-  const bytes = await fetchModel(msg.id, msg.cacheKey, msg.urls);
-  post({ type: 'progress', id: msg.id, stage: 'load', loaded: 0, total: 0 });
-  await loadNet(bytes, msg.boardSize || 19);
-  modelBytesSource = { id: msg.id, cacheKey: msg.cacheKey, urls: msg.urls };
+  const boardSize = msg.boardSize || 19;
+  const modelId = msg.modelId;
+  let got = await fetchModel(modelId, msg.cacheKey, msg.urls, false);
+  post({ type: 'progress', id: modelId, stage: 'load', loaded: 0, total: 0 });
+  try {
+    await loadNet(got.bytes, boardSize);
+  } catch (e) {
+    // A damaged cached copy: forget it and download a fresh one once.
+    if (!got.fromCache || !msg.urls.length) {
+      if (got.fromCache) await dropCached(msg.cacheKey);
+      throw e;
+    }
+    await dropCached(msg.cacheKey);
+    got = await fetchModel(modelId, msg.cacheKey, msg.urls, true);
+    post({ type: 'progress', id: modelId, stage: 'load', loaded: 0, total: 0 });
+    await loadNet(got.bytes, boardSize);
+  }
+  // Only networks that actually loaded are kept, so a cut-off download is never reused.
+  if (!got.fromCache) await putCached(msg.cacheKey, got.bytes);
+  modelSource = { id: modelId, cacheKey: msg.cacheKey, urls: msg.urls };
   loadedModelKey = msg.cacheKey;
   return {
     backend: M.ccall('kgeBackendIsGpu', 'number', [], []) ? 'webgpu' : 'cpu',
     modelVersion: M.ccall('kgeModelVersion', 'number', [], []),
     postProcess,
     modelKey: loadedModelKey,
+    source: got.fromCache ? 'cache' : got.url,
   };
 }
 
 async function ensureSize(boardSize) {
   if (boardSize === size) return;
-  const src = modelBytesSource;
-  const bytes = await fetchModel(src.id, src.cacheKey, src.urls);
-  await loadNet(bytes, boardSize);
+  const src = modelSource;
+  const got = await fetchModel(src.id, src.cacheKey, src.urls, false);
+  await loadNet(got.bytes, boardSize);
 }
 
 function writeMoves(moves) {
@@ -245,7 +337,10 @@ async function handle(msg) {
     } else if (type === 'search') post({ id, ok: true, result: (await search(msg)).result });
     else throw new Error('unknown request ' + type);
   } catch (e) {
-    post({ id, ok: false, error: String((e && e.message) || e) });
+    const text = String((e && e.message) || e);
+    // After a WebAssembly trap or abort the module cannot be used again.
+    const fatal = e instanceof WebAssembly.RuntimeError || /Aborted\(|unreachable|out of bounds|out of memory|device (was )?lost/i.test(text);
+    post({ id, ok: false, error: text, fatal });
   }
 }
 

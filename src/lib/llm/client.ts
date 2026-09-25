@@ -7,21 +7,38 @@ import { betaSurvival, mean } from '../util/stats';
 import { fingerprintOf } from '../forge/generator';
 import { similarity } from '../search/similarity';
 
+export interface LlmTest {
+  ok: boolean;
+  model?: string;
+  ms?: number;
+  errors: string[];
+}
+
 export interface LlmStatus {
   available: boolean;
   configured: boolean;
   model?: string;
+  models?: string[];
   error?: string;
+  /** Result of a live call through the model chain, when one was made. */
+  test?: LlmTest;
 }
 
-export async function llmStatus(): Promise<LlmStatus> {
+/** Server status; with `live`, the server also makes a tiny real call to prove the key and models work. */
+export async function llmStatus(live = false): Promise<LlmStatus> {
   try {
-    const res = await fetch('/api/llm', { method: 'GET', headers: { accept: 'application/json' } });
-    if (!res.ok) return { available: false, configured: false, error: `HTTP ${res.status}` };
+    const res = await fetch(live ? '/api/llm?test=1' : '/api/llm', { method: 'GET', headers: { accept: 'application/json' } });
+    if (!res.ok) return { available: false, configured: false, error: `the /api/llm function answered HTTP ${res.status}` };
     const type = res.headers.get('content-type') ?? '';
-    if (!type.includes('json')) return { available: false, configured: false, error: 'no API on this host' };
-    const j = (await res.json()) as { configured: boolean; model?: string };
-    return { available: !!j.configured, configured: !!j.configured, model: j.model, error: j.configured ? undefined : 'not configured on the server' };
+    if (!type.includes('json')) return { available: false, configured: false, error: 'this host has no /api/llm function (static hosting)' };
+    const j = (await res.json()) as { configured: boolean; model?: string; models?: string[]; test?: LlmTest };
+    const available = !!j.configured && (j.test ? j.test.ok : true);
+    const error = !j.configured
+      ? 'LLM_API_KEY is not set on the server'
+      : j.test && !j.test.ok
+        ? j.test.errors[j.test.errors.length - 1] ?? 'the live check failed'
+        : undefined;
+    return { available, configured: !!j.configured, model: j.test?.model ?? j.model, models: j.models, test: j.test, error };
   } catch (e) {
     return { available: false, configured: false, error: (e as Error).message };
   }
@@ -194,8 +211,13 @@ export function buildDiscoveryRequest(corpus: Corpus, weaknesses: Weakness[], ax
 
 export async function discoverPatterns(req: DiscoveryRequest): Promise<DiscoveryResponse> {
   const res = await fetch('/api/llm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) });
-  const j = (await res.json().catch(() => ({}))) as DiscoveryResponse & { error?: string };
-  if (!res.ok) throw new Error(j.error || `LLM request failed (HTTP ${res.status})`);
+  const type = res.headers.get('content-type') ?? '';
+  if (!type.includes('json')) throw new Error('this host has no /api/llm function');
+  const j = (await res.json().catch(() => ({}))) as DiscoveryResponse & { error?: string; details?: string[] };
+  if (!res.ok) {
+    const detail = j.details?.length ? ` (${j.details[j.details.length - 1]})` : '';
+    throw new Error((j.error || `LLM request failed (HTTP ${res.status})`) + detail);
+  }
   return j;
 }
 
