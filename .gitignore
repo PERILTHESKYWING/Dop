@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.vercel/
+.engine-build/
+public/demo/part-*.json
+*.log
+coverage/
+.DS_Store

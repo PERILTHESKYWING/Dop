@@ -1,0 +1,97 @@
+diff --git a/cpp/kataeval/kataeval.cpp b/cpp/kataeval/kataeval.cpp
+index 703702e..9627f05 100644
+--- a/cpp/kataeval/kataeval.cpp
++++ b/cpp/kataeval/kataeval.cpp
+@@ -88,6 +88,8 @@ struct SNode {
+   int virtualLoss = 0;             // transient, for batched divergence
+   bool expanded = false;
+ };
++struct RootStat { int move; int visits; float winrate; float prior; };
++std::vector<RootStat> gRootStats;  // DOPPELGANGER PATCH: last kgeSearch root children
+ void freeTree(SNode* n) { if(!n) return; for(SNode* c : n->children) freeTree(c); delete n; }
+ 
+ // White-perspective utility from win/loss/noResult logits: pWin - pLoss in [-1,1].
+@@ -148,6 +150,30 @@ KATAEVAL_EXPORT const char* kgeError(void) { return gErr.c_str(); }
+ KATAEVAL_EXPORT int kgeBoardSize(void) { return gXLen; }
+ KATAEVAL_EXPORT int kgeModelVersion(void) { return gModelVersion; }
+ 
++// DOPPELGANGER PATCH: root children of the last kgeSearch, most visited first.
++// winrates are for the side to move at the root. Returns the number written.
++KATAEVAL_EXPORT int kgeRootStats(int* movesOut, int* visitsOut, float* winratesOut, float* priorsOut, int cap) {
++  int n = std::min(cap, (int)gRootStats.size());
++  for(int i = 0; i < n; i++) {
++    movesOut[i] = gRootStats[i].move; visitsOut[i] = gRootStats[i].visits;
++    winratesOut[i] = gRootStats[i].winrate; priorsOut[i] = gRootStats[i].prior;
++  }
++  return n;
++}
++
++// DOPPELGANGER PATCH: the model's output post-processing constants, so the caller
++// can scale raw scores/ownership exactly as KataGo's NNEvaluator does.
++// out[0..3] = {outputScaleMultiplier, scoreMeanMultiplier, leadMultiplier, scoreStdevMultiplier}
++KATAEVAL_EXPORT int kgePostProcessParams(float* out) {
++  if(gModel == nullptr) { gErr = "not loaded"; return 0; }
++  const ModelDesc& d = NeuralNet::getModelDesc(gModel);
++  out[0] = d.postProcessParams.outputScaleMultiplier;
++  out[1] = (float)d.postProcessParams.scoreMeanMultiplier;
++  out[2] = (float)d.postProcessParams.leadMultiplier;
++  out[3] = (float)d.postProcessParams.scoreStdevMultiplier;
++  return 1;
++}
++
+ // Opt into fp16 for the threaded engine (call BEFORE the first eval/search). Default
+ // off; only safe on fp16-stable nets (g170 overflow to garbage). See WEBGPU_STATUS.
+ KATAEVAL_EXPORT void kgeSetFp16(int v) { gWantFp16 = (v != 0); }
+@@ -227,6 +253,8 @@ static int evalBoardHist(const Board& board, const BoardHistory& hist, Player ne
+   valueOut[2] = output.whiteNoResultProb;
+   valueOut[3] = output.whiteScoreMean;
+   valueOut[4] = output.whiteLead;
++  // DOPPELGANGER PATCH: ownerOut is caller-owned; ~NNOutput would delete[] it.
++  output.whiteOwnerMap = nullptr;
+   return 1;
+ }
+ 
+@@ -266,6 +294,13 @@ static int evalBatch(const std::vector<const Board*>& boards,
+     valueOut[i*5+2] = outs[i].whiteNoResultProb;
+     valueOut[i*5+3] = outs[i].whiteScoreMean;
+     valueOut[i*5+4] = outs[i].whiteLead;
++    // DOPPELGANGER PATCH: raw backend values are from the side to move; convert to
++    // white's perspective, which whiteUtil() and the search backup assume.
++    if(plas[i] == P_BLACK) {
++      std::swap(valueOut[i*5+0], valueOut[i*5+1]);
++      valueOut[i*5+3] = -valueOut[i*5+3];
++      valueOut[i*5+4] = -valueOut[i*5+4];
++    }
+   }
+   return 1;
+ }
+@@ -583,6 +618,16 @@ KATAEVAL_EXPORT int kgeSearch(const int* moveLocs, const int* moveCols, int numM
+       pvLen++; node = node->children[bi];
+     }
+     if(pvLenOut) *pvLenOut = pvLen;
++    // DOPPELGANGER PATCH: keep root child stats for kgeRootStats.
++    gRootStats.clear();
++    for(size_t i = 0; i < root->children.size(); i++) {
++      SNode* c = root->children[i];
++      if(!c || c->visits <= 0) continue;
++      double cw = c->valueSumWhite / c->visits;
++      double cu = (rootPla == P_WHITE) ? cw : -cw;
++      gRootStats.push_back({root->childMoves[i], c->visits, (float)((cu + 1.0) * 0.5), root->childPriors[i]});
++    }
++    std::sort(gRootStats.begin(), gRootStats.end(), [](const RootStat& a, const RootStat& b){ return a.visits > b.visits; });
+     freeTree(root);
+     return 1;
+   } catch(const std::exception& e) {
+diff --git a/cpp/kataeval/kataeval.h b/cpp/kataeval/kataeval.h
+index 37e0d13..e8bbe52 100644
+--- a/cpp/kataeval/kataeval.h
++++ b/cpp/kataeval/kataeval.h
+@@ -118,6 +118,8 @@ void kgeSetStrength(int maxVisits, float chosenMoveTemp, float policyTemp);
+ const char* kgeError(void);       // last error message ("" if none)
+ int kgeBoardSize(void);           // configured board size
+ int kgeModelVersion(void);        // loaded model's version
++int kgeRootStats(int* movesOut, int* visitsOut, float* winratesOut, float* priorsOut, int cap);  // DOPPELGANGER PATCH
++int kgePostProcessParams(float* out);  // DOPPELGANGER PATCH
+ 
+ #ifdef __cplusplus
+ }
