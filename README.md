@@ -1,2 +1,102 @@
-# Dop
-Katago personal trainer
+# DOPPELGÄNGER
+
+A local-first training lab that studies **one** Go player. Import your SGF games; KataGo analyses them in your
+browser; DOPPELGÄNGER learns how you actually decide, finds the decisions you get wrong again and again, and
+trains exactly those with blind positions until the numbers show the habit has changed.
+
+```
+your SGFs → KataGo analysis → position features → recurring-decision statistics (+ optional LLM naming)
+  → player fingerprint & weaknesses → Forge training → blind tests → updated model → harder training
+```
+
+Everything (games, analyses, profile, training history) stays in your browser's IndexedDB. The only server
+piece is an optional LLM proxy.
+
+## What is in it
+
+| Page | What it does |
+| --- | --- |
+| **Dashboard** | First-run checks (WebGPU, WASM, KataGo network, LLM), analysed games/positions, biggest and improving weakness, Player DNA, weakness map, training history. |
+| **Game Library** | Drag in many SGFs. Resumable background analysis queue: a fast network pass over every position, then deep searches on the positions that matter. |
+| **Game Review** | Board, winrate graph, your move vs KataGo, candidates, PV, policy heatmap, ownership, detected decision errors, "find similar". |
+| **Player DNA** | Fingerprint on 11 axes, each weakness with its evidence positions and confidence, and the Doppelgänger model: your likely move vs KataGo's. |
+| **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. |
+| **Blind Tests** | "Do I really know this?": 10–20 blind positions per weakness, scored against what the old habit would get right by default. |
+| **Position Search** | Positions like this one across your games: board, game/move, your move, KataGo's move, evaluation difference and the associated weakness. |
+| **Opponent Profiles** | Openings, corner sequences, fighting, invasion and strategy tendencies from a rival's SGFs. |
+| **Engine & Settings** | Network choice, WebGPU/CPU, visits, LLM status, the model lab, storage. |
+
+### How weaknesses are found (numbers never come from the LLM)
+Each move is classified into decision contexts ("the opponent just played a probe next to your safe group",
+"there is a small weak group of yours", …) and whether it made that decision's typical error, with KataGo's
+loss as the judge. A weakness needs at least 3 errors in 2+ games and a Bayesian confidence ≥ 75% that your
+error rate in that context is above your own median rate. The LLM, if configured, only names and groups
+patterns in compressed, representative evidence; every pattern it returns must cite real evidence ids or it
+is discarded, and its confidence is capped by the statistics.
+
+### The Doppelgänger model
+A conditional-logit model over KataGo's top policy moves plus your move, with 21 interpretable features,
+initialised to KataGo's policy and trained on your games (held out by game). It predicts the move *you* would
+play, and its weights read as habits ("extends small weak stones", "answers locally"). It is a behavioural
+model, not a claim to simulate you perfectly.
+
+### Model lab
+A small pattern model is trained in a Web Worker on your KataGo data, benchmarked against KataGo's choices,
+and the positions it gets most wrong are queued for deeper analysis. Datasets and model versions are kept.
+It is far weaker than KataGo and never presented otherwise.
+
+## Engine
+
+KataGo runs in a Web Worker as WebAssembly compiled from
+[saigo-online/katago-webgpu](https://github.com/saigo-online/katago-webgpu) (`public/engine/`). The same binary
+uses WebGPU when available and falls back to an Eigen CPU backend. Networks are downloaded on first use and
+cached in the Cache API; they are never committed.
+
+- Automatic choice: with WebGPU, `kata1-b28c512nbt` (strongest) with `kata1-b18c384nbt` as fallback, then the
+  small g170 nets. Without WebGPU, the small nets only, since big nets on CPU take minutes per position.
+- kata1 networks are fetched through the same-origin path `/katago-models/…`, which `vercel.json` (and the Vite
+  dev proxy) rewrites to `media.katagotraining.org`; the direct URL is tried next.
+- Every stored evaluation records engine build, network, network version and visits.
+- Human-style policy (`humanPolicy`) needs KataGo's human SL network, whose metadata encoder this WebGPU build
+  cannot load yet; the network is listed as unsupported and the field stays empty.
+
+Rebuild the engine with `engine/build-engine.sh` (needs emsdk and Eigen headers).
+
+## Run locally
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm test           # unit tests
+npm run build      # production build in dist/
+```
+
+Click **Load demo** on the first-run screen to explore with a fictional player ("Mira") whose games were
+played and analysed by the real engine (`npm run demo:generate` rebuilds them).
+
+## Deploy (Vercel)
+
+1. Import the repository in Vercel. The framework preset is Vite; `vercel.json` sets the build, the SPA
+   fallback, the network download rewrite, and the `/api/llm` function.
+2. Optional LLM: in **Project Settings → Environment Variables** add
+   - `LLM_API_KEY`: your Google AI Studio key
+   - `LLM_PROVIDER`: `Google AI Studio`
+   - `LLM_MODEL`: `Gemini` (uses a current Gemini Flash model) or an exact id such as `gemini-2.5-flash`
+
+   Redeploy after adding them. The key is read only by the serverless function (`api/llm.ts`) and sent to
+   Google in a request header; it is never included in the client bundle or returned by the API. Do not
+   prefix these variables with `VITE_`. For local development put them in `.env` (git-ignored); see
+   `.env.example`.
+3. Without these variables everything works; pattern names come from the built-in statistical signatures.
+
+Any static host works for the site itself. Without the `/katago-models` rewrite the kata1 networks need
+CORS from katagotraining.org; the small networks work anywhere.
+
+## Browser support
+
+Chrome/Edge 113+ (WebGPU), Safari 18+/Firefox with WebGPU enabled; other modern browsers use the CPU
+backend. Unsupported browsers, missing networks, bad SGFs and LLM failures are reported in the UI and the
+rest of the app keeps working.
+
+## Licences
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
