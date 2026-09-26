@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type Mark } from './Board';
 import { fmtPct } from './common';
+import { DoppelLine, useCopy } from './Doppel';
 import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, lineOf, useLiveAnalysis, type ShownCandidate } from './Live';
 import { searchedValue } from '../lib/analysis/analyzer';
 import { topPolicy } from '../lib/engine/parse';
+import { predictForPosition } from '../lib/profile/doppel';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { engineKomi } from '../lib/go/rules';
@@ -91,7 +93,7 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
   );
   const live = useLiveAnalysis(active ? target : null, active);
   const snap = live.snap;
-  const stored = played.length === 0 && rootEval && rootEval.toPlay === toPlay ? rootEval : null;
+  const stored = base && played.length === 0 && rootEval && rootEval.toPlay === toPlay ? rootEval : null;
 
   let ev: LiveEval | null = null;
   if (snap && (!stored || snap.visits > stored.visits)) {
@@ -266,6 +268,7 @@ export function AnalysisPanel({
   closeLabel = 'Back to the problem',
   onHoverPv,
   note,
+  copyColor,
 }: {
   a: AnalysisState;
   view: AnalysisView;
@@ -274,9 +277,22 @@ export function AnalysisPanel({
   closeLabel?: string;
   onHoverPv?: (pv: Loc[] | null) => void;
   note?: string;
+  /** The studied player's colour: on their turns the panel shows what their copy expects. */
+  copyColor?: Color | null;
 }) {
   const ev = a.eval;
   const size = a.base?.size ?? 19;
+  const copy = useCopy();
+  const copyTurn = !!copy.model && !!a.base && !!a.board && !!ev?.policy && copyColor === a.toPlay;
+  const guess = useMemo(
+    () =>
+      copyTurn
+        ? predictForPosition(copy.model, { size, setup: a.base!.setup, history: [...a.base!.moves, ...a.played], toPlay: a.toPlay, policy: ev!.policy!, board: a.board! })
+        : [],
+    // The network's policy for a position does not change while the search runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [copyTurn, copy.model, a.board, a.toPlay, !!ev?.policy],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -314,6 +330,7 @@ export function AnalysisPanel({
       {ev && ev.shown.length > 0 && (
         <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={8} />
       )}
+      {guess.length > 0 && <DoppelLine predictions={guess} size={size} who={copy.who} />}
 
       {a.line.length > 0 && (
         <div className="stack tight">

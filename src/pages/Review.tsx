@@ -9,13 +9,13 @@ import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, l
 import { fmtPct, gameTitle, Legend, WinrateGraph } from '../components/common';
 import { allPositions } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
-import { buildContext } from '../lib/go/features';
 import { engineKomi, isTerritoryScoring } from '../lib/go/rules';
 import { PASS, type Loc } from '../lib/go/types';
 import { decodeOwnership, moverView } from '../lib/engine/parse';
 import { searchedValue } from '../lib/analysis/analyzer';
 import type { SearchSnapshot } from '../lib/engine/mcts';
-import { buildExample, predict } from '../lib/profile/doppel';
+import { predictForPosition } from '../lib/profile/doppel';
+import { DoppelLine, useCopy } from '../components/Doppel';
 import { signatureById } from '../lib/profile/signatures';
 import { go, href } from '../router';
 
@@ -24,7 +24,7 @@ const KOMI_CHOICES = [7.5, 7, 6.5, 5.5, 3.75, 0.5, 0];
 export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const games = useStore((s) => s.games);
   const analyses = useStore((s) => s.analyses);
-  const doppel = useStore((s) => s.doppel);
+  const copy = useCopy();
   const version = useStore((s) => s.corpusVersion);
   const weaknesses = useStore((s) => s.weaknesses);
   const game = games.find((g) => g.id === gameId) ?? games.find((g) => g.source === 'user' || g.source === 'demo');
@@ -137,14 +137,11 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const value = useLive ? { bWin: snap!.bWin, bLead: snap!.bLead } : ev ? searchedValue(ev) : null;
   const visits = useLive ? snap!.visits : ev?.visits ?? 0;
 
-  // Doppelgänger prediction for the studied player's turns.
-  let dop: { loc: number; p: number }[] = [];
-  if (doppel && ev && game.playerColor === toPlay) {
-    const ctx = buildContext(board, decodeOwnership(ev.ownership));
-    const prev = cur > 0 ? game.moves[cur - 1] : null;
-    const ex = buildExample(ctx, ev.policy, toPlay, prev && prev.color !== toPlay ? prev.loc : null, null);
-    if (ex) dop = predict(doppel, ex);
-  }
+  // What the player's copy expects on the studied player's turns.
+  const dop =
+    copy.model && ev && game.playerColor === toPlay
+      ? predictForPosition(copy.model, { size: game.size, setup: game.setup, history: game.moves.slice(0, cur), toPlay, policy: ev.policy, ownership: ev.ownership, board })
+      : [];
 
   const marks: Mark[] = [];
   const candidates = !hoverPv && !showPolicy ? candidateMarks(shown) : null;
@@ -197,6 +194,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             view={aView}
             onToggle={toggleView}
             onHoverPv={setHoverPv}
+            copyColor={game.playerColor}
             onClose={() => {
               setExplore(false);
               setHoverPv(null);
@@ -331,9 +329,9 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
                 </dd>
                 {dop[0] && (
                   <>
-                    <dt>Doppelgänger</dt>
-                    <dd className="doppel">
-                      {locToGtp(dop[0].loc, game.size)} <span className="dim">· {fmtPct(dop[0].p)} likely for you</span>
+                    <dt>{copy.who}</dt>
+                    <dd>
+                      <DoppelLine predictions={dop} size={game.size} who="" played={next?.loc} compact />
                     </dd>
                   </>
                 )}

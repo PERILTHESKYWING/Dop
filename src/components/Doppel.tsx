@@ -84,7 +84,7 @@ export function DoppelLine({
   const playedP = played != null && played !== PASS ? predictions.find((p) => p.loc === played)?.p : undefined;
   return (
     <div className={`small ${className ?? ''}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6 }}>
-      <span className="muted">{who}:</span>
+      {who && <span className="muted">{who}:</span>}
       <strong className="doppel">{locToGtp(top.loc, size)}</strong>
       <span className="dim">· {fmtPct(top.p)} likely</span>
       {!compact && rest.length > 0 && (

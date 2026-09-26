@@ -8,6 +8,7 @@ import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
 import { BrandMark, Icon } from '../components/Icons';
 import { evaluateFast, toPlayAt } from '../lib/analysis/analyzer';
 import { replay } from '../lib/go/board';
+import { engineKomi } from '../lib/go/rules';
 import { locToGtp } from '../lib/go/coords';
 import { other, PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import {
@@ -789,7 +790,8 @@ function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
     return {
       id: gameIds++,
       size: source.size,
-      komi: source.komi,
+      // As KataGo is given it (territory rules add half a point, see go/rules.ts).
+      komi: engineKomi(source.komi, source.rules),
       setup: source.setup,
       prefix: source.moves.slice(0, n),
       moves: [],

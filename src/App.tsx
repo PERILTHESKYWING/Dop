@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type CSSProperties } from 'react';
+import { Component, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react';
 import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
@@ -201,7 +201,7 @@ export function App() {
         <main className="main">
           {loaded ? (
             <div key={current + '/' + route.params.join('/')} className="route">
-              {page}
+              <PageGuard>{page}</PageGuard>
             </div>
           ) : (
             <div className="boot">
@@ -214,4 +214,29 @@ export function App() {
       <Toasts />
     </div>
   );
+}
+
+/** A page that fails to draw shows what went wrong instead of blanking the whole app. */
+class PageGuard extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="panel stack">
+        <h2>This page ran into a problem</h2>
+        <p className="dim small">{this.state.error.message}</p>
+        <div className="row">
+          <button className="btn" onClick={() => this.setState({ error: null })}>
+            Try again
+          </button>
+          <a className="btn" href={href('dashboard')}>
+            Back to the dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
 }

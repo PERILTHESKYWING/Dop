@@ -11,6 +11,7 @@ import { buildContext } from '../lib/go/features';
 import { locToGtp } from '../lib/go/coords';
 import { decodeOwnership } from '../lib/engine/parse';
 import { buildExample, predict } from '../lib/profile/doppel';
+import { useCopy } from '../components/Doppel';
 import { signatureById } from '../lib/profile/signatures';
 import { PASS, type Loc } from '../lib/go/types';
 import type { Attempt, TrainingItem, TrainingKind, Weakness } from '../lib/types';
@@ -27,7 +28,7 @@ export const KIND_TEXT: Record<TrainingKind, { label: string; explain: string }>
 const REASONS = ['Looked urgent', 'Biggest point', 'Safety first', 'Attack', 'Shape', 'Instinct'];
 
 export function usePrediction(item: TrainingItem | null) {
-  const doppel = useStore((s) => s.doppel);
+  const doppel = useCopy().model;
   return useMemo(() => {
     if (!item || !doppel) return null;
     const ctx = buildContext(itemBoard(item), decodeOwnership(item.eval.ownership));
@@ -57,7 +58,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
         <dd className="kata">{locToGtp(grade.bestLoc, item.size)}</dd>
         {predicted && (
           <>
-            <dt>Doppelgänger</dt>
+            <dt>Your copy</dt>
             <dd className="doppel">
               expected {locToGtp(predicted.loc, item.size)} ({fmtPct(predicted.p)})
               {predicted.loc === attempt.loc ? ' · you played to type' : ' · you broke your pattern'}
@@ -280,6 +281,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
             view={view}
             onToggle={toggleView}
             onHoverPv={setHoverPv}
+            copyColor={item?.toPlay}
             onClose={() => {
               setExplore(false);
               setHoverPv(null);

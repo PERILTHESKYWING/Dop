@@ -81,6 +81,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
             view={view}
             onToggle={toggleView}
             onHoverPv={setHoverPv}
+            copyColor={item?.toPlay}
             onClose={() => {
               setExplore(false);
               setHoverPv(null);

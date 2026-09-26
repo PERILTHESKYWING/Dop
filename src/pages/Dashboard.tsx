@@ -8,6 +8,7 @@ import { useCopy } from '../components/Doppel';
 import { go, href } from '../router';
 import { AXES, AXIS_LABEL } from '../lib/profile/fingerprint';
 import { describeWeights } from '../lib/profile/doppel';
+import { practiceItems } from '../lib/forge/worth';
 import type { Phase, Weakness } from '../lib/types';
 import { modelOrderFor } from '../lib/engine/models';
 
@@ -228,7 +229,10 @@ function WeaknessMap() {
 
 function WeaknessCard({ w, label }: { w: Weakness; label: string }) {
   const m = useStore((s) => s.mastery[w.id]);
-  const items = useStore((s) => s.items[w.id]?.length ?? 0);
+  const stored = useStore((s) => s.items[w.id]);
+  const minWin = useStore((s) => s.settings.minLosingWinrate);
+  // Only positions Forge will actually ask (worth drilling, not lopsided).
+  const items = useMemo(() => practiceItems(stored ?? [], minWin).length, [stored, minWin]);
   return (
     <div className="panel accent stack">
       <div className="spread">
