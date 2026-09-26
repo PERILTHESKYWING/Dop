@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { LevelPanel, usePlayerTargets } from '../components/Level';
+import { usesDemoData } from '../state/actions';
+import { rankLabel } from '../lib/level/ranks';
 import { useStore } from '../state/store';
 import { corpus, rebuildProfile, runLlmDiscovery } from '../state/actions';
 import { Bar, fmtPct, MoveThumb } from '../components/common';
@@ -141,6 +144,27 @@ function DoppelSection() {
   );
 }
 
+function PlayerLevelPanel() {
+  const targets = usePlayerTargets();
+  return <LevelPanel targets={targets} who={usesDemoData() ? "the demo player's" : 'your'} auto />;
+}
+
+/** How this weakness compares with players of the same level. */
+function PeerChip({ peer }: { peer: NonNullable<Weakness['peer']> }) {
+  const r = peer.ratio;
+  const text =
+    r >= 1.4
+      ? `${r.toFixed(1)}× as often as ${rankLabel(peer.rank)} players`
+      : r <= 0.75
+        ? `less often than most ${rankLabel(peer.rank)} players`
+        : `about as often as ${rankLabel(peer.rank)} players`;
+  return (
+    <span className={`chip ${r >= 1.4 ? 'bad' : r <= 0.75 ? 'good' : ''}`} title={`You: ${fmtPct(peer.playerRate)} of ${peer.opportunities} such decisions. Players around ${rankLabel(peer.rank)}: ${fmtPct(peer.peerRate)} (network-pass counts, so these differ a little from the numbers above).`}>
+      {text}
+    </span>
+  );
+}
+
 function WeaknessDetail({ w }: { w: Weakness }) {
   const games = useStore((s) => s.games);
   const [open, setOpen] = useState(false);
@@ -172,6 +196,7 @@ function WeaknessDetail({ w }: { w: Weakness }) {
         </span>
         <span className="chip">{w.games} games</span>
         <span className="chip">confidence {fmtPct(w.confidence)}</span>
+        {w.peer && <PeerChip peer={w.peer} />}
         <span className="chip">−{w.totalScoreLoss.toFixed(0)} pts total</span>
         {w.trend.older + w.trend.newer > 0 && (
           <span className={`chip ${w.trend.newer < w.trend.older ? 'good' : 'bad'}`}>
@@ -243,6 +268,11 @@ export function PlayerDNA() {
             {busy.llm ? 'Discovering…' : 'Discover patterns with LLM'}
           </button>
         </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 12 }}>
+        <h3 style={{ marginBottom: 8 }}>Level</h3>
+        <PlayerLevelPanel />
       </div>
 
       <div className="grid cols-2">

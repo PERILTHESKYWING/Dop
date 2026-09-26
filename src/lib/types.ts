@@ -81,6 +81,8 @@ export interface PositionEval {
   analyzedAt: number;
   /** Human-like policy (only with a compatible human SL model). */
   humanPolicy?: PolicyEntry[];
+  /** The network's own first look (before any search), kept for level estimation. */
+  net?: { bWin: number; bLead: number };
 }
 
 export interface GameAnalysis {
@@ -192,6 +194,8 @@ export interface Weakness {
   llm?: { title: string; description: string; confidence: number; trainingFocus?: string; model: string };
   /** Trend of the error rate across the game history (older half vs newer half). */
   trend: { older: number; newer: number };
+  /** How the player compares with players of their level on this decision (see level/peers). */
+  peer?: { rank: number; peerRate: number; playerRate: number; ratio: number; opportunities: number };
   status: 'active' | 'improving' | 'resolved';
   discoveredAt: number;
   updatedAt: number;
@@ -318,6 +322,8 @@ export interface OpponentProfile {
   createdAt: number;
   updatedAt: number;
   stats?: import('./opponents/profile').OpponentStats;
+  /** A copy of this player's move choices, learned from their analysed games. */
+  copy?: import('./profile/doppel').DoppelModel;
 }
 
 export interface Settings {

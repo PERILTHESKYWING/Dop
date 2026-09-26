@@ -11,15 +11,18 @@ import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/schedule
 import { makeVariation } from '../lib/forge/variations';
 import { detectPlayerColor, guessPlayerName, importSgfTexts } from '../lib/games';
 import { buildContext } from '../lib/go/features';
-import { PASS, type Loc } from '../lib/go/types';
+import { PASS, type Color, type Loc } from '../lib/go/types';
+import { allPositions, type Board } from '../lib/go/board';
 import { decodeOwnership } from '../lib/engine/parse';
 import { ANALYSIS_VERSION, engineMoves, searchedEval } from '../lib/analysis/analyzer';
 import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
 import { engineKomi, standardKomi } from '../lib/go/rules';
 import { buildDiscoveryRequest, discoverPatterns, llmStatus, mergePatterns } from '../lib/llm/client';
-import { buildExample, trainDoppel, type DoppelExample } from '../lib/profile/doppel';
+import { buildExample, trainDoppel, type DoppelExample, type DoppelModel } from '../lib/profile/doppel';
 import { computeFingerprint } from '../lib/profile/fingerprint';
 import { detectWeaknesses } from '../lib/profile/weaknesses';
+import { weaknessPriority, withPeers } from '../lib/level/peers';
+import { levelCalibration, levelOf } from './level';
 import { buildOpponentStats } from '../lib/opponents/profile';
 import type { LabRequest } from '../lib/lab/lab.worker';
 import type { DatasetMeta, LiteModelRecord } from '../lib/lab/model';
@@ -171,7 +174,7 @@ export async function init() {
   if (s.settings.autoAnalyze && s.games.some((g) => g.status === 'pending')) void runQueue();
 }
 
-const sortWeaknesses = (ws: Weakness[]) => [...ws].sort((a, b) => b.totalScoreLoss * b.confidence - a.totalScoreLoss * a.confidence);
+const sortWeaknesses = (ws: Weakness[]) => [...ws].sort((a, b) => weaknessPriority(b) - weaknessPriority(a));
 
 export async function saveSettings(patch: Partial<Settings>) {
   const settings = { ...get().settings, ...patch };
@@ -663,6 +666,8 @@ export async function runQueue() {
           corpusVersion: s.corpusVersion + 1,
         }));
         doneSinceRebuild++;
+        // An imported player's statistics and copy follow their analysed games.
+        if (game.source === 'opponent') for (const o of get().opponents.filter((x) => x.gameIds.includes(game.id))) await saveOpponent(o);
         if (doneSinceRebuild >= (next.stage === 'fast' ? 6 : 3)) {
           doneSinceRebuild = 0;
           await rebuildProfile();
@@ -774,21 +779,13 @@ export function rebuildProfile(): Promise<void> {
       const weaknesses = detectWeaknesses(c.records, { gameOrder: c.gameOrder(), previous: s.weaknesses });
       // Keep LLM-discovered weaknesses whose evidence still exists.
       const llmOnly = s.weaknesses.filter((w) => w.signature.startsWith('llm-') && w.evidence.every((e) => c.byId.has(e.moveId)));
-      const all = sortWeaknesses([...weaknesses, ...llmOnly]);
+      // Compare with players of the same level, so unusual weaknesses are trained first.
+      await levelCalibration();
+      const level = levelOf(c.gameOrder().map((id) => c.games.get(id)!).filter((g) => g.playerColor !== null).map((g) => ({ game: g, color: g.playerColor! })));
+      const all = sortWeaknesses(withPeers([...weaknesses, ...llmOnly], level));
 
       // Doppelgänger training data.
-      const examples: DoppelExample[] = [];
-      let n = 0;
-      for (const r of player) {
-        const g = c.games.get(r.gameId)!;
-        const e = c.analyses.get(r.gameId)?.evals[r.index];
-        if (!e) continue;
-        const ctx = buildContext(c.boards(r.gameId)[r.index], decodeOwnership(e.ownership));
-        const prev = r.index > 0 ? g.moves[r.index - 1] : null;
-        const ex = buildExample(ctx, e.policy, r.color, prev && prev.color !== r.color ? prev.loc : null, r.loc, r.gameId);
-        if (ex) examples.push(ex);
-        if (++n % 150 === 0) await tick();
-      }
+      const examples = await copyExamples(player, (id) => c.games.get(id), (id) => c.analyses.get(id), (id) => c.boards(id));
       const version = (s.doppel?.version ?? 0) + 1;
       const doppel = examples.length >= 30 ? trainDoppel(examples, { version }) : s.doppel;
 
@@ -991,11 +988,64 @@ export async function saveBlindTest(t: BlindTest) {
 
 // ---------------------------------------------------------------- opponents
 
+/** Copy training examples from the moves in `moves` (one side's moves in analysed games). */
+async function copyExamples(
+  moves: readonly { gameId: string; index: number; color: Color; loc: Loc }[],
+  gameOf: (id: string) => GameRecord | undefined,
+  analysisOf: (id: string) => GameAnalysis | undefined,
+  boardsOf: (id: string) => Board[],
+): Promise<DoppelExample[]> {
+  const examples: DoppelExample[] = [];
+  let n = 0;
+  for (const r of moves) {
+    const g = gameOf(r.gameId);
+    const e = analysisOf(r.gameId)?.evals[r.index];
+    if (!g || !e || r.loc === PASS) continue;
+    const ctx = buildContext(boardsOf(r.gameId)[r.index], decodeOwnership(e.ownership));
+    const prev = r.index > 0 ? g.moves[r.index - 1] : null;
+    const ex = buildExample(ctx, e.policy, r.color, prev && prev.color !== r.color ? prev.loc : null, r.loc, r.gameId);
+    if (ex) examples.push(ex);
+    if (++n % 150 === 0) await tick();
+  }
+  return examples;
+}
+
+/** A copy of an imported player, learned from their analysed games (null until 30 moves). */
+async function opponentCopy(o: OpponentProfile, games: GameRecord[], analyses: Record<string, GameAnalysis>): Promise<DoppelModel | undefined> {
+  const names = new Set([o.name, ...o.aliases].map((x) => x.trim().toLowerCase()));
+  const moves: { gameId: string; index: number; color: Color; loc: Loc }[] = [];
+  const boards = new Map<string, Board[]>();
+  for (const g of games) {
+    if (!analyses[g.id]) continue;
+    const color: Color | null = names.has(g.black.trim().toLowerCase()) ? 1 : names.has(g.white.trim().toLowerCase()) ? 2 : null;
+    if (!color) continue;
+    g.moves.forEach((m, index) => m.color === color && moves.push({ gameId: g.id, index, color, loc: m.loc }));
+  }
+  const byId = new Map(games.map((g) => [g.id, g]));
+  const examples = await copyExamples(
+    moves,
+    (id) => byId.get(id),
+    (id) => analyses[id],
+    (id) => {
+      let b = boards.get(id);
+      if (!b) {
+        const g = byId.get(id)!;
+        b = allPositions(g.size, g.setup, g.moves);
+        boards.set(id, b);
+      }
+      return b;
+    },
+  );
+  if (examples.length < 30) return undefined;
+  return trainDoppel(examples, { version: (o.copy?.version ?? 0) + 1 });
+}
+
 export async function saveOpponent(o: OpponentProfile) {
   const s = get();
   const games = s.games.filter((g) => o.gameIds.includes(g.id));
   const analyses = new Map(Object.entries(s.analyses));
-  const next = { ...o, stats: buildOpponentStats(o.name, o.aliases, games, analyses), updatedAt: Date.now() };
+  const copy = await opponentCopy(o, games, s.analyses).catch(() => undefined);
+  const next = { ...o, stats: buildOpponentStats(o.name, o.aliases, games, analyses), copy: copy ?? o.copy, updatedAt: Date.now() };
   await (await db()).put('opponents', next);
   set((st) => ({ opponents: [...st.opponents.filter((x) => x.id !== o.id), next] }));
   return next;

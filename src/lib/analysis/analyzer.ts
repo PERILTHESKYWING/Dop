@@ -142,8 +142,12 @@ export function searchedEval(fast: PositionEval, snap: SearchSnapshot, opts: { p
   const played = opts.played !== undefined ? snap.candidates.find((c) => c.loc === opts.played) : undefined;
   if (played && !cands.includes(played)) cands.push(played);
   const best = snap.candidates[0];
+  // Keep the network's first look (level estimation is calibrated on it). A position that
+  // was already searched carries it along, or has lost it if it was searched before this field.
+  const net = fast.net ?? (fast.searched ? undefined : { bWin: fast.bWin, bLead: fast.bLead });
   return {
     ...fast,
+    ...(net ? { net } : {}),
     bWin: round(snap.bWin),
     bLead: round(snap.bLead, 2),
     candidates: cands.map(toCandidate),

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AskPanel } from '../components/Ask';
 import type { MoveRecord } from '../lib/types';
 import { useStore } from '../state/store';
 import { commitLiveAnalysis, corpus, retryGame, runQueue, setGameKomi } from '../state/actions';
@@ -371,6 +372,31 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             </div>
             <Legend />
           </div>
+        )}
+
+        {!explore && (
+          <AskPanel
+            positionKey={`${game.id}|${cur}`}
+            hasPlayed={!!next && next.loc !== PASS}
+            facts={() =>
+              value
+                ? {
+                    board,
+                    komi: engineKomi(game.komi, game.rules),
+                    moveNumber: cur + 1,
+                    toPlay,
+                    lastMove: cur > 0 ? game.moves[cur - 1].loc : null,
+                    bWin: value.bWin,
+                    bLead: value.bLead,
+                    visits,
+                    candidates: shown,
+                    ownership: useLive && snap?.ownership ? snap.ownership : decodeOwnership(ev?.ownership),
+                    played: next && rec ? { loc: next.loc, winrateLoss: rec.winrateLoss, scoreLoss: rec.scoreLoss, bestLoc: rec.bestLoc } : null,
+                  }
+                : null
+            }
+            base={() => ({ size: game.size, komi: engineKomi(game.komi, game.rules), setup: game.setup, moves: game.moves.slice(0, cur), toPlay, board })}
+          />
         )}
 
         <div className="panel">

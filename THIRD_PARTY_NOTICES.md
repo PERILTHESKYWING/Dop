@@ -40,6 +40,12 @@ The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) a
 (`public/art/kaya.webp`) were generated procedurally for this project by the scripts in `tools/art/`. They
 contain no photographs or other third-party images, so no third-party licence applies.
 
+### Rank calibration statistics
+`public/level/calibration.json` holds statistics (averages, spreads and counts per rank) computed by
+`scripts/rank-corpus.ts` and `scripts/rank-fit.ts` from a random sample of games in the Fox Go dataset
+(https://github.com/featurecat/go-dataset, distributed under GPL-3.0). No game records from the dataset are
+included in this repository or the site.
+
 ### JavaScript dependencies (bundled into the site)
 - **React** and **React DOM** (MIT), Meta Platforms, Inc. and affiliates.
 - **zustand** (MIT), Paul Henschel and contributors.

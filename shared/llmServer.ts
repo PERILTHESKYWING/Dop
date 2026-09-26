@@ -6,6 +6,7 @@
  * 503 "high demand", so every request walks a chain of models, retries overloads
  * with a short backoff, and stops at a total time budget that fits the function limit.
  */
+import { ASK_SYSTEM, buildAskPrompt, parseAskReply, unsupportedFigures, validAskRequest, type AskRequest, type AskResponse } from './ask.js';
 import { buildUserPrompt, resolveLlmConfig, safeJson, SYSTEM_PROMPT, validatePatterns, type DiscoveryRequest, type DiscoveryResponse } from './llm.js';
 
 export interface LlmHttpResult {
@@ -158,7 +159,9 @@ export async function handleLlmRequest(
   if (method !== 'POST') return { status: 405, body: { error: 'method not allowed' } };
   if (!cfg.configured) return { status: 503, body: { error: 'The LLM is not configured on the server: set LLM_API_KEY in the host environment variables and redeploy.' } };
   if (!rawBody || rawBody.length > MAX_BODY) return { status: 413, body: { error: 'request too large or empty' } };
-  const req = safeJson(rawBody) as DiscoveryRequest | null;
+  const parsed = safeJson(rawBody) as { task?: string } | null;
+  if (parsed?.task === 'ask-position') return handleAsk(parsed, env, fetchImpl, opts);
+  const req = parsed as DiscoveryRequest | null;
   if (!req || req.task !== 'discover-patterns' || !Array.isArray(req.clusters) || !req.player) {
     return { status: 400, body: { error: 'invalid request' } };
   }
@@ -178,4 +181,41 @@ export async function handleLlmRequest(
   const { patterns, rejected } = validatePatterns(r.text, req);
   const body: DiscoveryResponse = { patterns, model: r.model ?? 'gemini', rejected };
   return { status: 200, body };
+}
+
+/**
+ * A question about a position (see shared/ask.ts). An answer citing figures that are not
+ * in KataGo's facts is sent back once for correction; what remains is reported as
+ * unsupported so the page can flag it.
+ */
+async function handleAsk(raw: unknown, env: Record<string, string | undefined>, fetchImpl: FetchLike, opts: CallOptions): Promise<LlmHttpResult> {
+  if (!validAskRequest(raw)) return { status: 400, body: { error: 'invalid request' } };
+  const req: AskRequest = { ...raw, history: (raw.history ?? []).slice(-4), probes: (raw.probes ?? []).slice(0, 3) };
+  const now = opts.now ?? Date.now;
+  const start = now();
+  const budget = opts.budgetMs ?? 52_000;
+  const call = (correction?: string[]) =>
+    generateJson({ system: ASK_SYSTEM, user: buildAskPrompt(req, correction), maxOutputTokens: 2048 }, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, budget - (now() - start)) });
+  let r = await call();
+  let reply = r.ok && r.text ? parseAskReply(r.text, !!req.final, req.facts.size) : null;
+  if (!reply || !r.ok) {
+    const overloaded = r.errors.some((e) => /HTTP (429|503)/.test(e));
+    return { status: 502, body: { error: overloaded ? 'Google says its Gemini models are overloaded right now. Try again in a minute.' : 'The Gemini call failed.', details: r.errors } };
+  }
+  if (reply.probes) return { status: 200, body: { probes: reply.probes, model: r.model } satisfies AskResponse };
+  let answer = reply.answer!;
+  let bad = unsupportedFigures(answer, req.facts, req.probes, req.question);
+  if (bad.length && budget - (now() - start) > 12_000) {
+    const r2 = await call(bad);
+    const reply2 = r2.ok && r2.text ? parseAskReply(r2.text, true, req.facts.size) : null;
+    if (reply2?.answer) {
+      const bad2 = unsupportedFigures(reply2.answer, req.facts, req.probes, req.question);
+      if (bad2.length <= bad.length) {
+        answer = reply2.answer;
+        bad = bad2;
+        r = r2;
+      }
+    }
+  }
+  return { status: 200, body: { answer, unsupported: bad.length ? bad : undefined, model: r.model } satisfies AskResponse };
 }
