@@ -22,6 +22,8 @@ import { fmtPct } from '../components/common';
 import { Icon } from '../components/Icons';
 import { customModel, modelById, MODELS } from '../lib/engine/models';
 import { storageEstimate } from '../lib/db/db';
+import { DEFAULT_THEME, THEMES, type ThemeId } from '../lib/themes';
+import { switchTheme } from '../components/Scenery';
 
 const mb = (n: number) => `${(n / 1_048_576).toFixed(n > 1e8 ? 0 : 1)} MB`;
 
@@ -191,16 +193,18 @@ function EngineSection() {
       </details>
       <details className="small">
         <summary>Available networks</summary>
-        <table className="data">
-          <tbody>
-            {MODELS.map((m) => (
-              <tr key={m.id}>
-                <td>{m.name}</td>
-                <td className="small muted">{m.incompatible ?? m.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table className="data">
+            <tbody>
+              {MODELS.map((m) => (
+                <tr key={m.id}>
+                  <td>{m.name}</td>
+                  <td className="small muted">{m.incompatible ?? m.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </details>
     </div>
   );
@@ -271,14 +275,52 @@ function PracticeSection() {
 
 function AppearanceSection() {
   const settings = useStore((s) => s.settings);
+  const theme = settings.theme ?? DEFAULT_THEME;
+  const [pending, setPending] = useState<ThemeId | null>(null);
   const opts: { v: typeof settings.effects; label: string; hint: string }[] = [
     { v: 'auto', label: 'Automatic', hint: 'full effects on capable devices' },
     { v: 'full', label: 'Full', hint: 'moving light, clouds and glass' },
     { v: 'light', label: 'Light', hint: 'still background, fastest' },
   ];
+  const pick = async (id: ThemeId) => {
+    if (id === theme || pending) return;
+    setPending(id);
+    try {
+      await switchTheme(id);
+    } finally {
+      setPending(null);
+    }
+  };
   return (
     <div className="panel stack">
       <h3>Appearance</h3>
+      <div className="theme-cards" role="radiogroup" aria-label="Background theme">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={theme === t.id}
+            className={`theme-card${theme === t.id ? ' on' : ''}${pending === t.id ? ' busy' : ''}`}
+            onClick={() => void pick(t.id)}
+          >
+            <span className="theme-thumb">
+              <img src={`/art/${t.id}/thumb.webp`} alt="" width={480} height={270} loading="lazy" decoding="async" />
+              {theme === t.id && (
+                <span className="theme-check">
+                  <Icon name="check" />
+                </span>
+              )}
+            </span>
+            <span className="theme-name">
+              {t.name}
+              {t.dark && <span className="theme-tag">dark</span>}
+            </span>
+            <span className="theme-desc">{t.description}</span>
+          </button>
+        ))}
+      </div>
+      <div className="field-label">Motion and effects</div>
       <div className="segmented">
         {opts.map((o) => (
           <button key={o.v} className={settings.effects === o.v ? 'on' : ''} onClick={() => void saveSettings({ effects: o.v })}>
@@ -374,30 +416,32 @@ function LabSection() {
         </div>
       )}
       {models.length > 0 && (
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Version</th>
-              <th>Positions</th>
-              <th>Agrees with KataGo</th>
-              <th>Top 5</th>
-              <th>Baseline</th>
-            </tr>
-          </thead>
-          <tbody>
-            {models.map((m) => (
-              <tr key={m.id}>
-                <td className="mono">v{m.version}</td>
-                <td className="mono small">{m.trainPositions}</td>
-                <td className="mono">{fmtPct(m.benchmark.top1, 1)}</td>
-                <td className="mono small">{fmtPct(m.benchmark.top5, 1)}</td>
-                <td className="mono small muted" title="Nearest-to-last-move heuristic / uniform guess">
-                  {fmtPct(m.benchmark.baselines.nearLastTop1, 1)} / {fmtPct(m.benchmark.baselines.uniformTop1, 1)}
-                </td>
+        <div className="table-scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Positions</th>
+                <th>Agrees with KataGo</th>
+                <th>Top 5</th>
+                <th>Baseline</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.id}>
+                  <td className="mono">v{m.version}</td>
+                  <td className="mono small">{m.trainPositions}</td>
+                  <td className="mono">{fmtPct(m.benchmark.top1, 1)}</td>
+                  <td className="mono small">{fmtPct(m.benchmark.top5, 1)}</td>
+                  <td className="mono small muted" title="Nearest-to-last-move heuristic / uniform guess">
+                    {fmtPct(m.benchmark.baselines.nearLastTop1, 1)} / {fmtPct(m.benchmark.baselines.uniformTop1, 1)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {datasets.length > 0 && (
         <div className="tiny muted">

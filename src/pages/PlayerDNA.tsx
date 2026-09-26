@@ -34,7 +34,7 @@ function Radar({ axes }: { axes: AxisStats[] }) {
         const [x, y] = pt(i, 1.14);
         const anchor = Math.abs(x - cx) < 8 ? 'middle' : x > cx ? 'start' : 'end';
         return (
-          <text key={a.axis} x={x} y={y} fill="var(--text-2)" fontSize={9.5} textAnchor={anchor} dominantBaseline="middle">
+          <text key={a.axis} x={x} y={y} fill="var(--ink-2)" fontSize={9.5} textAnchor={anchor} dominantBaseline="middle">
             {a.label}
           </text>
         );

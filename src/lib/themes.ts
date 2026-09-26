@@ -16,7 +16,7 @@ export interface ThemeInfo {
 export const THEMES: ThemeInfo[] = [
   { id: 'sunrise', name: 'Sunrise meadow', description: 'Morning light over a meadow and a lone tree.', dark: false },
   { id: 'sakura', name: 'Sakura dusk', description: 'Cherry blossoms at dusk, petals drifting past.', dark: false },
-  { id: 'mist', name: 'Misty peaks', description: 'Ink-wash mountains with slow-moving fog.', dark: false },
+  { id: 'mist', name: 'Misty peaks', description: 'Blue ridges at first light, fog drifting through the valleys.', dark: false },
   { id: 'aurora', name: 'Aurora night', description: 'Northern lights over snowy peaks, stars turning.', dark: true },
 ];
 
@@ -25,3 +25,13 @@ export const THEME_PREF = 'dop.theme';
 
 export const isThemeId = (v: unknown): v is ThemeId => THEMES.some((t) => t.id === v);
 export const themeInfo = (id: ThemeId) => THEMES.find((t) => t.id === id) ?? THEMES[0];
+
+/** The theme this browser showed last (App keeps it in localStorage), for the first paint. */
+export function storedTheme(): ThemeId | null {
+  try {
+    const v = localStorage.getItem(THEME_PREF);
+    return isThemeId(v) ? v : null;
+  } catch {
+    return null;
+  }
+}

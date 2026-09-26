@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora Night Generator</title>
+<style>
+  html, body { margin: 0; background: #101216; color: #e2e0da; font: 13px/1.45 system-ui, sans-serif; }
+  #info { padding: 8px 14px; }
+  #out { display: block; max-width: 100vw; height: auto; margin: 0 auto; }
+</style>
+</head>
+<body>
+<div id="info">DOPPELGÄNGER aurora night generator: rendering preview…</div>
+<canvas id="out"></canvas>
+<script src="artkit.js"></script>
+<script>
+'use strict';
+/*
+ * Procedural "Aurora night" painting: curtains of northern lights over a snowy range, stars and the
+ * Milky Way, a still lake that mirrors it all, a cabin with a lit window on the far shore, and snowy
+ * spruce in the foreground. The aurora is built by splatting vertical light columns along folded
+ * curves (the folds overlap and brighten, as real curtains do); its rays converge towards the zenith.
+ * Seeded and deterministic; no external assets.
+ * API (used by render-theme.mjs):
+ *   ThemeArt.render(preset, width, height) -> opaque canvas   (presets: landscape, tall)
+ *   ThemeArt.strip(name, width, height)    -> canvas for the CSS animation: 'light-a', 'light-b'
+ *       (and '-tall' variants) are the aurora light alone, on black, with the rays in another phase;
+ *       the page screens them over the painting and cross-fades them so the curtains ripple.
+ *   ThemeArt.jobs                          -> what render-theme.mjs writes to public/art/aurora/
+ * Open this file directly (optionally ?preset=tall&w=540&h=960 or ?strip=light-a&w=1280&h=720) to preview.
+ */
+const ThemeArt = (() => {
+const K = ArtKit;
+const { clamp, mix, smoothstep, TAU, sq, mulberry32, gauss, perlin, fbm, fbm1, ridged, hexLin, blur, makeCanvas, ctx2d, makeImage, alphaOf } = K;
+
+// ------------------------------------------------------------------ presets
+// x as a fraction of the width, y of the height, sizes in U (the scene unit, ~ the height).
+const PRESETS = {
+  landscape: {
+    seed: 9051, unitScale: 1,
+    hz: 0.745,
+    moon: [0.87, 0.13, 0.013],
+    milky: [[0.02, 0.8], [0.4, -0.1], 0.085],
+    // curtain base curves (lower edge), h: height in U, b: brightness, rays: striation frequency
+    curtains: [
+      { pts: [[-0.12, 0.55], [0.06, 0.47], [0.22, 0.4], [0.36, 0.37], [0.47, 0.4], [0.43, 0.45], [0.52, 0.5], [0.66, 0.46], [0.8, 0.38], [0.95, 0.31], [1.12, 0.27]], h: 0.32, b: 0.95, rays: 150, seed: 11, pink: 0.5 },
+      { pts: [[0.12, 0.3], [0.3, 0.23], [0.5, 0.22], [0.68, 0.17], [0.86, 0.12], [1.1, 0.1]], h: 0.2, b: 0.26, rays: 110, seed: 23, pink: 0 },
+      { pts: [[0.5, 0.68], [0.7, 0.655], [0.85, 0.635], [1.1, 0.62]], h: 0.12, b: 0.34, rays: 200, seed: 37, pink: 0 },
+    ],
+    // the snowy range: a heightfield seen in perspective (see paintTerrain); peaks: [x, gain, width]
+    terrain: { amp: 0.36, base: 0.3, f: 1, haze: 0.9, peaks: [[0.2, 0.9, 0.09], [0.42, 0.35, 0.07], [0.64, 0.55, 0.07], [0.84, 1.0, 0.08], [0.53, -0.25, 0.05]] },
+    hills: { y: 0.752, amp: 0.028, freq: 3.2, sharp: 0.2, jag: 0.003, trees: 0.011, peaks: [[0.08, 1.4, 0.08], [0.93, 1.1, 0.08], [0.45, -0.5, 0.1]] },
+    bank: [0.84, 0.93, 0.86],
+    front: [[0.025, 0.46, 0.0], [0.075, 0.3, 0.01], [0.118, 0.19, 0], [0.885, 0.27, 0], [0.94, 0.5, -0.01], [0.99, 0.37, 0]],
+    cabin: [0.705, 0.02],
+  },
+  tall: {
+    seed: 9051, unitScale: 0.6,
+    hz: 0.7,
+    moon: [0.8, 0.09, 0.018],
+    milky: [[0.0, 0.62], [0.55, -0.05], 0.11],
+    curtains: [
+      { pts: [[-0.15, 0.56], [0.1, 0.49], [0.3, 0.42], [0.5, 0.4], [0.62, 0.43], [0.55, 0.47], [0.7, 0.5], [0.9, 0.44], [1.15, 0.36]], h: 0.36, b: 0.95, rays: 150, seed: 11, pink: 0.5 },
+      { pts: [[-0.15, 0.3], [0.2, 0.25], [0.5, 0.22], [0.8, 0.16], [1.15, 0.14]], h: 0.22, b: 0.26, rays: 110, seed: 23, pink: 0 },
+      { pts: [[0.3, 0.6], [0.6, 0.585], [1.15, 0.57]], h: 0.1, b: 0.3, rays: 200, seed: 37, pink: 0 },
+    ],
+    terrain: { amp: 0.36, base: 0.3, f: 1, haze: 0.9, peaks: [[0.25, 1.0, 0.16], [0.78, 0.8, 0.14], [0.55, -0.2, 0.08]] },
+    hills: { y: 0.706, amp: 0.035, freq: 3, sharp: 0.2, jag: 0.004, trees: 0.016, peaks: [[0.05, 1.4, 0.12], [0.95, 1.2, 0.12], [0.5, -0.4, 0.15]] },
+    bank: [0.8, 0.88, 0.83],
+    front: [[0.05, 0.5, 0.0], [0.16, 0.3, 0.01], [0.9, 0.34, 0], [1.0, 0.56, -0.01]],
+    cabin: [0.66, 0.03],
+  },
+};
+
+function makeScene(name, W, H, opts) {
+  const P = PRESETS[name];
+  const U = H * P.unitScale;
+  return { P, W, H, U, seed: P.seed, name, img: makeImage(W, H), hz: P.hz * H, light: !!(opts && opts.light), phase: (opts && opts.phase) || 0 };
+}
+
+// ------------------------------------------------------------------ palette (linear light)
+const SKY = [[0, '#02040c'], [0.35, '#050b1f'], [0.7, '#0a1834'], [0.9, '#10243f'], [1, '#163048']];
+const AUR_G = [0.1, 1.0, 0.42], AUR_T = [0.04, 0.55, 0.62], AUR_V = [0.32, 0.1, 0.75], AUR_P = [0.95, 0.16, 0.55];
+const SNOW_LIT = hexLin('#b9cdef'), SNOW_SH = hexLin('#3b5580'), ROCK = hexLin('#0c1426');
+const NIGHT = 0.13; // how bright moonlit snow is
+const TREE = [0.003, 0.0055, 0.01];
+
+// ------------------------------------------------------------------ sky
+function paintSky(S) {
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  if (S.light) return;
+  const stops = SKY.map(([t, h]) => [t, hexLin(h)]);
+  for (let y = 0; y < Math.ceil(hz) + 2; y++) {
+    const t = clamp(y / hz, 0, 1);
+    let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+    const f = smoothstep(stops[k][0], stops[k + 1][0], t), A = stops[k][1], C = stops[k + 1][1];
+    const br = mix(A[0], C[0], f), bg = mix(A[1], C[1], f), bb = mix(A[2], C[2], f);
+    const e = Math.max(0, (hz - y) / U);
+    const air = Math.exp(-e / 0.05);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const lv = 1 + 0.06 * perlin(x / U * 1.5, y / U * 1.5, S.seed + 21);
+      R[i] = br * lv + air * 0.006; G[i] = bg * lv + air * 0.02; B[i] = bb * lv + air * 0.016;
+    }
+  }
+}
+function milkyWay(S) {
+  if (S.light) return;
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  const [[ax, ay], [bx, by], wd] = S.P.milky;
+  const Ax = ax * W, Ay = ay * H, Bx = bx * W, By = by * H;
+  const dx = Bx - Ax, dy = By - Ay, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+  for (let y = 0; y < hz; y++) for (let x = 0; x < W; x++) {
+    const d = ((x - Ax) * nx + (y - Ay) * ny) / U, along = ((x - Ax) * dx + (y - Ay) * dy) / len / U;
+    const band = Math.exp(-sq(d / wd));
+    if (band < 0.01) continue;
+    const u = x / U, v = y / U;
+    const cloud = 0.5 + 0.5 * fbm(u * 5, v * 5, 5, S.seed + 31, 0.55);
+    const dust = smoothstep(0.05, 0.55, fbm(along * 4 + 3, d * 14, 4, S.seed + 32, 0.5)) * Math.exp(-sq(d / (wd * 0.45)));
+    const lum = band * (0.35 + 0.9 * cloud) * (1 - 0.5 * dust) * smoothstep(0, 0.12 * U, hz - y) * 0.022;
+    const i = y * W + x;
+    R[i] += lum * 1.05; G[i] += lum * 0.98; B[i] += lum * 1.1;
+  }
+}
+function stars(S) {
+  if (S.light) return;
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  const rng = mulberry32(S.seed + 41);
+  const [[ax, ay], [bx, by], wd] = S.P.milky;
+  const Ax = ax * W, Ay = ay * H, dx = bx * W - Ax, dy = by * H - Ay, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+  const px = U / 1440;
+  const N = Math.round(W * hz / 700);
+  const splat = (x, y, rad, r, g, b) => {
+    const k = Math.ceil(rad * 2.5);
+    for (let yy = Math.max(0, Math.floor(y - k)); yy <= Math.min(H - 1, Math.ceil(y + k)); yy++)
+      for (let xx = Math.max(0, Math.floor(x - k)); xx <= Math.min(W - 1, Math.ceil(x + k)); xx++) {
+        const w = Math.exp(-(sq(xx - x) + sq(yy - y)) / (2 * rad * rad));
+        const i = yy * W + xx; R[i] += r * w; G[i] += g * w; B[i] += b * w;
+      }
+  };
+  for (let n = 0; n < N * 1.6; n++) {
+    const x = rng() * W, y = rng() * hz;
+    const d = ((x - Ax) * nx + (y - Ay) * ny) / U;
+    const inBand = Math.exp(-sq(d / wd));
+    if (n >= N && rng() > inBand) continue;
+    const m = Math.pow(rng(), 7);
+    let lum = (0.025 + 2.4 * m) * smoothstep(0, 0.1 * U, hz - y) * (n >= N ? 0.5 : 1);
+    const rad = (0.45 + 0.5 * Math.sqrt(m)) * Math.max(0.6, px);
+    const temp = rng();
+    const tr = temp < 0.2 ? 1.25 : temp > 0.75 ? 0.82 : 1, tb = temp < 0.2 ? 0.7 : temp > 0.75 ? 1.25 : 1;
+    lum /= rad * rad * TAU / Math.max(0.36, px * px) * 0.35;
+    splat(x, y, rad, lum * tr, lum, lum * tb);
+  }
+}
+function moon(S) {
+  if (S.light) return;
+  const { W, H, U } = S, { R, G, B } = S.img;
+  const [mx, my, mr] = S.P.moon, cx = mx * W, cy = my * H, r = mr * U;
+  const sx = cx - r * 0.42, sy = cy - r * 0.18, sr = r * 0.92; // the shadow disc makes the crescent
+  const x0 = Math.max(0, Math.floor(cx - 0.3 * U)), x1 = Math.min(W, Math.ceil(cx + 0.3 * U));
+  const y0 = Math.max(0, Math.floor(cy - 0.3 * U)), y1 = Math.min(H, Math.ceil(cy + 0.3 * U));
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const i = y * W + x, d = Math.hypot(x - cx, y - cy);
+    const halo = Math.exp(-d / (0.05 * U)) * 0.05 + Math.exp(-d / (0.012 * U)) * 0.1;
+    R[i] += halo * 0.9; G[i] += halo * 0.95; B[i] += halo * 1.1;
+    const disc = clamp(r + 0.5 - d, 0, 1), shadow = clamp(sr + 0.5 - Math.hypot(x - sx, y - sy), 0, 1);
+    const lit = disc * (1 - shadow);
+    if (lit > 0) {
+      const tex = 1 - 0.12 * smoothstep(0, 0.5, fbm(x / r * 1.4, y / r * 1.4, 3, S.seed + 51, 0.5));
+      R[i] += lit * 3.2 * tex; G[i] += lit * 3.0 * tex; B[i] += lit * 2.6 * tex;
+    }
+    // earthshine on the dark part
+    const dark = disc * shadow;
+    R[i] += dark * 0.012; G[i] += dark * 0.016; B[i] += dark * 0.024;
+  }
+}
+
+// ------------------------------------------------------------------ aurora
+function catmull(pts, perSeg) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    for (let k = 0; k < perSeg; k++) {
+      const t = k / perSeg, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map(j => 0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function auroraLight(S) {
+  const { W, H, U, hz } = S;
+  const AR = new Float32Array(W * H), AG = new Float32Array(W * H), AB = new Float32Array(W * H);
+  const add = (x, y, r, g, b) => {
+    const xi = Math.floor(x), fx = x - xi, yi = Math.round(y);
+    if (yi < 0 || yi >= H || xi < 0 || xi >= W - 1) return;
+    const i = yi * W + xi, w0 = 1 - fx;
+    AR[i] += r * w0; AG[i] += g * w0; AB[i] += b * w0;
+    AR[i + 1] += r * fx; AG[i + 1] += g * fx; AB[i + 1] += b * fx;
+  };
+  const ph = S.phase;
+  for (const C of S.P.curtains) {
+    const poly = catmull(C.pts.map(([x, y]) => [x * W, y * H]), 48);
+    const cum = [0];
+    for (let i = 1; i < poly.length; i++) cum.push(cum[i - 1] + Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1]));
+    const L = cum[cum.length - 1], step = 0.5;
+    let seg = 0;
+    for (let s = 0; s < L; s += step) {
+      while (seg < poly.length - 2 && cum[seg + 1] < s) seg++;
+      const f = (s - cum[seg]) / Math.max(1e-6, cum[seg + 1] - cum[seg]);
+      const u0 = s / U;
+      // small kinks and waves along the lower edge
+      const px = mix(poly[seg][0], poly[seg + 1][0], f) + 0.004 * U * fbm1(u0 * 9 + C.seed, 2, S.seed + C.seed + 5, 0.5);
+      const py = mix(poly[seg][1], poly[seg + 1][1], f) + 0.012 * U * fbm1(u0 * 5 + ph * 0.2, 3, S.seed + C.seed + 6, 0.5);
+      if (px < -0.3 * U || px > W + 0.3 * U) continue;
+      const u = s / U;
+      const act = 0.5 + 0.5 * fbm1(u * 2.6 + C.seed * 3.7 + ph * 0.35, 3, S.seed + C.seed, 0.5);
+      const on = smoothstep(0.25, 0.72, act);
+      const rays = Math.pow(0.5 + 0.5 * fbm1(u * C.rays + ph * 7.3, 3, S.seed + C.seed + 1 + ph * 17, 0.6), 2.2);
+      const fine = 0.75 + 0.25 * perlin(u * C.rays * 3.1, 0.5 + ph, S.seed + C.seed + 2);
+      const b = C.b * (0.06 + 0.94 * on) * (0.2 + 1.8 * rays) * fine * step;
+      if (b < 0.002) continue;
+      const Hc = C.h * U * (0.5 + 0.7 * act) * (0.85 + 0.3 * rays);
+      const tilt = (0.5 - px / W) * 0.28;
+      const pinkK = C.pink * smoothstep(0.55, 0.8, act);
+      const rimL = 0.012 * U;
+      for (let h = 0; h < Hc; h += 1) {
+        const y = py - h;
+        if (y < 0) break;
+        const fh = h / Hc;
+        const rim = Math.exp(-h / rimL);
+        const I = b * (0.9 * rim + 0.55 * Math.exp(-fh * 2.4)) * smoothstep(0, 3, h) * (1 - smoothstep(0.55, 1, fh));
+        if (I < 1e-5) continue;
+        const v1 = smoothstep(0.18, 0.55, fh), v2 = smoothstep(0.45, 0.95, fh);
+        let r = mix(mix(AUR_G[0], AUR_T[0], v1), AUR_V[0], v2);
+        let g = mix(mix(AUR_G[1], AUR_T[1], v1), AUR_V[1], v2);
+        let bl = mix(mix(AUR_G[2], AUR_T[2], v1), AUR_V[2], v2);
+        // a whitish lower edge, pink in the most active folds
+        const low = Math.exp(-h / (0.004 * U));
+        r += low * (0.25 + pinkK * AUR_P[0]); g += low * (0.25 - pinkK * 0.2); bl += low * (0.2 + pinkK * AUR_P[2]);
+        add(px + h * tilt, y, r * I, g * I, bl * I);
+      }
+    }
+  }
+  for (const A of [AR, AG, AB]) blur(A, W, H, Math.max(1, Math.round(0.0007 * U)), 2, Math.max(1, Math.round(0.002 * U)));
+  // the glow the curtains throw into the air around them
+  const glow = [AR, AG, AB].map(A => { const g = Float32Array.from(A); blur(g, W, H, Math.round(0.03 * U), 3); return g; });
+  for (let c = 0; c < 3; c++) { const A = [AR, AG, AB][c], g = glow[c]; for (let i = 0; i < W * H; i++) A[i] += g[i] * 0.7; }
+  // nothing below the horizon: the lake mirrors what is above
+  for (let y = Math.ceil(hz); y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; AR[i] = AG[i] = AB[i] = 0; }
+  return { AR, AG, AB };
+}
+function addAurora(S, A) {
+  const { R, G, B } = S.img;
+  const k = 0.55;
+  for (let i = 0; i < R.length; i++) { R[i] += A.AR[i] * k; G[i] += A.AG[i] * k; B[i] += A.AB[i] * k; }
+}
+
+// ------------------------------------------------------------------ mountains
+function ridgeTop(S, L, li) {
+  const { W, H, U } = S;
+  const top = new Float32Array(W);
+  const s = S.seed + 101 * li;
+  const off = li * 13.7 + 4;
+  for (let x = 0; x < W; x++) {
+    const u = x / U * L.freq + off, fx = x / W;
+    const soft = 0.5 + 0.55 * fbm1(u, 4, s, 0.5);
+    const sharp = ridged(u, 0.5 + li, 5, s + 7, 0.5) * 1.15;
+    const macro = 0.55 + 0.9 * (0.5 + 0.5 * fbm1(u * 0.3 + 3, 2, s + 5, 0.5));
+    let g = 1;
+    if (L.peaks) for (const [px, pg, pw] of L.peaks) g += pg * Math.exp(-sq((fx - px) / pw));
+    let h = L.amp * U * mix(soft, sharp, L.sharp) * macro * Math.max(0.05, g);
+    h += L.jag * U * fbm1(u * 11, 4, s + 3, 0.55);
+    top[x] = L.y * H - h;
+  }
+  return top;
+}
+function coniferPath(ctx, x, yb, h, w, rng) {
+  const tiers = Math.max(3, Math.round(h / Math.max(1.6, w * 0.22)));
+  const lean = (rng() - 0.5) * 0.06 * h;
+  ctx.moveTo(x + lean, yb - h);
+  const R = [], Lp = [];
+  for (let k = 1; k <= tiers; k++) {
+    const f = k / tiers, yy = yb - h + f * h * 0.94, cx = x + lean * (1 - f);
+    const ww = w * (0.12 + 0.88 * Math.pow(f, 0.9));
+    R.push([cx + ww * (0.8 + 0.3 * rng()), yy + h * 0.02], [cx + ww * 0.3, yy - h * 0.015]);
+    Lp.push([cx - ww * (0.8 + 0.3 * rng()), yy + h * 0.02], [cx - ww * 0.3, yy - h * 0.015]);
+  }
+  for (const p of R) ctx.lineTo(p[0], p[1]);
+  ctx.lineTo(x + w * 0.08, yb + h * 0.2); ctx.lineTo(x - w * 0.08, yb + h * 0.2);
+  for (let k = Lp.length - 1; k >= 0; k--) ctx.lineTo(Lp[k][0], Lp[k][1]);
+  ctx.closePath();
+}
+function crestTrees(S, ctx, size, top, seed, x0, x1) {
+  const { W, U } = S;
+  const rng = mulberry32(seed);
+  ctx.beginPath();
+  let x = x0 - size;
+  while (x < x1 + size) {
+    const xi = clamp(Math.round(x), 0, W - 1);
+    const grove = 0.5 + 0.5 * fbm1(x / U * 2.4, 3, seed + 9, 0.5);
+    const dens = smoothstep(0.25, 0.55, grove);
+    if (rng() < 0.08 + 0.92 * dens) {
+      const h = size * (0.45 + 0.75 * rng()) * (0.5 + 0.65 * dens);
+      coniferPath(ctx, x, top[xi] + h * 0.3, h, h * (0.24 + 0.1 * rng()), rng);
+    }
+    x += size * (0.13 + 0.22 * rng());
+  }
+  ctx.fill();
+}
+// The snowy range, rendered like a voxel landscape: for every column of pixels the heightfield is
+// marched from the far shore outwards, each sample drawn above what is already there (front to
+// back), lit by the moon, with snow on the gentler slopes and haze with distance.
+function paintTerrain(S) {
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  const T = S.P.terrain, F = T.f * U, z0 = 1, z1 = 3.4, cam = 0.02;
+  const s = S.seed + 1300;
+  const env = (sx) => { let g = T.base; for (const [px, pg, pw] of T.peaks) g += pg * Math.exp(-sq((sx / W - px) / pw)); return Math.max(0.02, g); };
+  const envX = new Float32Array(W + 2);
+  const height = (xw, z) => {
+    const sx = W / 2 + xw * F / 2;
+    const e = env(sx) * smoothstep(z0, z0 + 0.7, z);
+    const r = ridged(xw * 1.8 + 11, z * 1.8, 7, s, 0.47);
+    const m = 0.5 + 0.5 * fbm(xw * 0.9, z * 0.9, 3, s + 1, 0.5);
+    return e * T.amp * (0.25 + 1.0 * Math.pow(r, 1.5)) * (0.75 + 0.5 * m);
+  };
+  const Lx = 0.72, Ly = 0.55, Lz = -0.3, Ln = Math.hypot(Lx, Ly, Lz);
+  const lx = Lx / Ln, ly = Ly / Ln, lz = Lz / Ln;
+  const haze = hexLin('#10233d');
+  const sky = [Float32Array.from(R), Float32Array.from(G), Float32Array.from(B)];
+  const top = new Float32Array(W);
+  for (let x = 0; x < W; x++) {
+    let yb = Math.ceil(hz) + 1;   // rows below yb are already covered
+    let z = z0, topY = hz + 1;
+    while (z < z1 && yb > 0) {
+      const xw = (x - W / 2) / F * z;
+      const h = height(xw, z);
+      const sy = hz - (h - cam) / z * F;
+      const yr = Math.max(0, Math.round(sy));
+      if (yr < yb) {
+        const eps = 0.0025 * z;
+        const hx = (height(xw + eps, z) - height(xw - eps, z)) / (2 * eps);
+        const hzv = (height(xw, z + eps) - h) / eps;
+        const nl = Math.hypot(hx, 1, hzv), nx = -hx / nl, ny = 1 / nl, nz = -hzv / nl;
+        const dif = Math.max(0, nx * lx + ny * ly + nz * lz);
+        const amb = 0.3 + 0.7 * ny;
+        const hn = h / (T.amp * env(W / 2 + xw * F / 2));
+        const snowAmt = smoothstep(0.52, 0.72, ny + 0.28 * smoothstep(0.05, 0.4, hn) + 0.12 * fbm(xw * 30, z * 30, 3, s + 2, 0.5));
+        const sl = NIGHT * (0.07 + 1.15 * dif);
+        let r = mix(ROCK[0] * (0.35 + 0.9 * dif), SNOW_LIT[0] * sl, snowAmt) + amb * 0.002;
+        let g = mix(ROCK[1] * (0.35 + 0.9 * dif), SNOW_LIT[1] * sl, snowAmt) + amb * (0.004 + 0.012 * snowAmt);
+        let b = mix(ROCK[2] * (0.35 + 0.9 * dif), SNOW_LIT[2] * sl, snowAmt) + amb * (0.006 + 0.008 * snowAmt);
+        const hk = clamp((1 - Math.exp(-(z - z0) * T.haze)) * 0.7, 0, 0.85);
+        r = mix(r, haze[0], hk); g = mix(g, haze[1], hk); b = mix(b, haze[2], hk);
+        for (let y = yr; y < yb; y++) {
+          const i = y * W + x;
+          const mist = 0.55 * smoothstep(hz - 0.035 * U, hz, y);
+          R[i] = mix(r, haze[0], mist); G[i] = mix(g, haze[1], mist); B[i] = mix(b, haze[2], mist);
+        }
+        yb = yr; topY = sy;
+      }
+      z += 0.002 * z;
+    }
+    top[x] = topY;
+    // antialias the silhouette: the top pixel is only partly covered
+    const yt = Math.round(topY);
+    if (yt >= 0 && yt < hz) {
+      const cov = clamp(yt + 0.5 - topY, 0, 1), i = yt * W + x;
+      R[i] = mix(sky[0][i], R[i], cov); G[i] = mix(sky[1][i], G[i], cov); B[i] = mix(sky[2][i], B[i], cov);
+    }
+  }
+  if (S.light) for (let x = 0; x < W; x++) for (let y = Math.max(0, Math.round(top[x])); y <= hz; y++) { const i = y * W + x; R[i] = G[i] = B[i] = 0; }
+}
+function paintRange(S, L, li, top) {
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  const mask = makeCanvas(W, H), ctx = ctx2d(mask);
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.moveTo(0, hz + 3);
+  for (let x = 0; x < W; x++) ctx.lineTo(x + 0.5, top[x]);
+  ctx.lineTo(W, hz + 3); ctx.closePath(); ctx.fill();
+  if (L.trees) crestTrees(S, ctx, L.trees * U, top, S.seed + 700 + li, 0, W);
+  if (S.P.cabin) drawCabin(S, ctx, top);
+  const A = alphaOf(mask);
+  let yMin = H; for (let x = 0; x < W; x++) yMin = Math.min(yMin, top[x]);
+  yMin = Math.max(0, Math.floor(yMin - (L.trees || 0) * 2 * U) - 2);
+  const yEnd = Math.min(H, Math.ceil(hz) + 3);
+  const s = S.seed + 300 + li * 23;
+  const e = 1.5 / U;
+  const haze = hexLin('#132842');
+  const slopeS = new Float32Array(W), slopeL = new Float32Array(W);
+  const dS = Math.max(2, Math.round(0.004 * U)), dL = Math.round(0.03 * U);
+  for (let x = 0; x < W; x++) {
+    slopeS[x] = (top[Math.min(W - 1, x + dS)] - top[Math.max(0, x - dS)]) / (2 * dS);
+    slopeL[x] = (top[Math.min(W - 1, x + dL)] - top[Math.max(0, x - dL)]) / (2 * dL);
+  }
+  for (let y = yMin; y < yEnd; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, a = A[i];
+    if (a <= 0) continue;
+    if (S.light) { R[i] *= 1 - a; G[i] *= 1 - a; B[i] *= 1 - a; continue; }
+    let r, g, b;
+    const dy = Math.max(0, y - top[x]) / U;
+    {
+      const tex = 1 + 0.25 * fbm(x / U * 50, y / U * 50, 3, s + 5, 0.5);
+      r = TREE[0] * 1.6 * tex; g = TREE[1] * 1.6 * tex; b = TREE[2] * 1.6 * tex;
+      // faint green rim from the sky along the tops
+      const rr = Math.max(1, Math.round(0.0012 * U));
+      const open = y - rr >= 0 ? 1 - A[(y - rr) * W + x] : 1;
+      g += open * 0.035; b += open * 0.022; r += open * 0.006;
+    }
+    R[i] = mix(R[i], r, a); G[i] = mix(G[i], g, a); B[i] = mix(B[i], b, a);
+  }
+  return A;
+}
+// A log cabin on the far shore, one window lit.
+function drawCabin(S, ctx, top) {
+  const { W, U, hz } = S;
+  const [cx, cs] = S.P.cabin, x = cx * W, w = cs * U, h = w * 0.55, y = hz + 0.001 * U;
+  ctx.beginPath();
+  ctx.rect(x - w / 2, y - h, w, h);
+  ctx.moveTo(x - w * 0.62, y - h + 1); ctx.lineTo(x, y - h - w * 0.42); ctx.lineTo(x + w * 0.62, y - h + 1); ctx.closePath();
+  ctx.rect(x + w * 0.2, y - h - w * 0.36, w * 0.09, w * 0.22);
+  ctx.fill();
+  S.cabinWin = [[x - w * 0.22, y - h * 0.62, w * 0.16, h * 0.34], [x + w * 0.1, y - h * 0.62, w * 0.16, h * 0.34]];
+}
+function cabinLight(S) {
+  if (S.light || !S.cabinWin) return;
+  const { W, H, U } = S, { R, G, B } = S.img;
+  const warm = [1.0, 0.52, 0.16];
+  for (const [wx, wy, ww, wh] of S.cabinWin) {
+    for (let y = Math.floor(wy); y < Math.ceil(wy + wh); y++) for (let x = Math.floor(wx); x < Math.ceil(wx + ww); x++) {
+      const cov = clamp(Math.min(x + 1 - wx, wx + ww - x, 1), 0, 1) * clamp(Math.min(y + 1 - wy, wy + wh - y, 1), 0, 1);
+      const i = y * W + x, k = 2.6 * cov;
+      R[i] = mix(R[i], warm[0] * k, cov); G[i] = mix(G[i], warm[1] * k, cov); B[i] = mix(B[i], warm[2] * k, cov);
+    }
+  }
+  const [wx, wy, ww, wh] = S.cabinWin[0];
+  const cx = wx + ww * 1.6, cy = wy + wh / 2, rr = 0.06 * U;
+  for (let y = Math.max(0, Math.floor(cy - rr)); y < Math.min(H, cy + rr); y++) for (let x = Math.max(0, Math.floor(cx - rr * 1.5)); x < Math.min(W, cx + rr * 1.5); x++) {
+    const d = Math.hypot((x - cx) / 1.4, y - cy) / U;
+    const k = Math.exp(-d / 0.01) * 0.05 + Math.exp(-d / 0.03) * 0.012;
+    const i = y * W + x;
+    R[i] += warm[0] * k; G[i] += warm[1] * k; B[i] += warm[2] * k;
+  }
+}
+
+// ------------------------------------------------------------------ lake
+function bankY(S, x) {
+  const { W, H, U } = S, [l, m, r] = S.P.bank, fx = x / W;
+  const base = fx < 0.5 ? mix(l, m, smoothstep(0, 0.5, fx)) : mix(m, r, smoothstep(0.5, 1, fx));
+  return base * H + 0.012 * U * fbm1(x / U * 3, 4, S.seed + 81, 0.5);
+}
+function paintLake(S) {
+  const { W, H, U, hz } = S, { R, G, B } = S.img;
+  const src = [Float32Array.from(R), Float32Array.from(G), Float32Array.from(B)];
+  const deep = S.light ? [0, 0, 0] : hexLin('#040a16');
+  const y0 = Math.floor(hz);
+  for (let y = y0; y < H; y++) {
+    const dz = (y - hz) / U;
+    const refl = mix(0.72, 0.45, smoothstep(0, 0.2, dz));
+    for (let x = 0; x < W; x++) {
+      if (y > bankY(S, x) + 0.03 * U) continue;
+      const u = x / U;
+      const n = fbm(u * 2.2, dz * 90 / (0.3 + dz * 6), 3, S.seed + 91, 0.5);
+      const disp = (0.001 + 0.03 * dz) * U * n;
+      const my = clamp(2 * hz - y + disp * 0.3, 0, hz - 1), mx = clamp(x + disp, 0, W - 1);
+      const i = y * W + x;
+      const j = Math.round(my) * W + Math.round(mx);
+      const streak = 1 - 0.28 * smoothstep(0.1, 0.5, fbm(u * 1.2, dz * 160 / (0.3 + dz * 4), 3, S.seed + 92, 0.5));
+      const k = refl * streak;
+      R[i] = mix(deep[0], src[0][j], k); G[i] = mix(deep[1], src[1][j], k); B[i] = mix(deep[2], src[2][j], k);
+    }
+  }
+  // a thin line of mist on the far shore
+  if (!S.light) for (let y = Math.max(0, Math.floor(hz - 0.02 * U)); y < Math.min(H, hz + 0.02 * U); y++) for (let x = 0; x < W; x++) {
+    const d = Math.abs(y - hz) / U;
+    const k = Math.exp(-sq(d / 0.008)) * (0.5 + 0.5 * fbm(x / U * 4, y / U * 20, 3, S.seed + 93, 0.5)) * 0.5;
+    const i = y * W + x;
+    R[i] = mix(R[i], 0.02, k * 0.5); G[i] = mix(G[i], 0.05, k * 0.5); B[i] = mix(B[i], 0.07, k * 0.5);
+  }
+}
+
+// ------------------------------------------------------------------ snowy bank and spruce
+function sprayClump(ctx, x, y, rx, ry, ang, rng) {
+  const n = 9, ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let k = 0; k <= n; k++) {
+    const a = k / n * TAU, rr = 0.7 + 0.45 * rng();
+    const px = Math.cos(a) * rx * rr, py = Math.sin(a) * ry * rr * (Math.sin(a) > 0 ? 1.25 : 0.8);
+    const X = x + px * ca - py * sa, Y = y + px * sa + py * ca;
+    if (k === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+  }
+  ctx.closePath();
+}
+function drawBranch(S, ctx, tx, ty, side, len, f, rng) {
+  const droop = len * (-0.05 + 0.42 * f) * (0.7 + 0.6 * rng());
+  const ex = tx + side * len, ey = ty + droop - len * 0.05 * rng();
+  const mx = tx + side * len * 0.5, my = ty + droop * (0.75 + 0.3 * rng());
+  const pt = (t) => { const it = 1 - t; return [it * it * tx + 2 * it * t * mx + t * t * ex, it * it * ty + 2 * it * t * my + t * t * ey]; };
+  ctx.lineWidth = Math.max(0.8, len * 0.035);
+  ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+  const nC = Math.max(4, Math.round(len / S.U * 320));
+  ctx.beginPath();
+  for (let j = 0; j < nC; j++) {
+    const t = 0.12 + 0.88 * (j + rng() * 0.8) / nC;
+    const [px, py] = pt(t), [qx, qy] = pt(Math.min(1, t + 0.02));
+    const ang = Math.atan2(qy - py, qx - px);
+    const rx = len * (0.15 + 0.08 * rng()) * (1.1 - 0.45 * t), ry = len * (0.08 + 0.06 * rng()) * (1.15 - 0.45 * t);
+    sprayClump(ctx, px, py + ry * 0.55, rx, ry, ang, rng);
+  }
+  ctx.fill();
+  const n = Math.round(8 + len / S.U * 1100);
+  ctx.lineWidth = Math.max(0.55, len * 0.012);
+  ctx.beginPath();
+  for (let j = 0; j < n; j++) {
+    const t = 0.1 + 0.9 * rng();
+    const [px, py] = pt(t);
+    const nl = len * (0.05 + 0.12 * rng()) * (1.15 - 0.6 * t) * (0.7 + 0.6 * f);
+    const a = Math.PI / 2 + side * (-0.7 + 1.0 * rng());
+    const y0 = py + len * (0.07 + 0.06 * rng()) * (1.1 - 0.4 * t);
+    ctx.moveTo(px, y0); ctx.lineTo(px + Math.cos(a) * nl, y0 + Math.sin(a) * nl);
+  }
+  ctx.moveTo(ex, ey); ctx.lineTo(ex + side * len * 0.08, ey - len * 0.03);
+  ctx.stroke();
+}
+function drawSpruce(S, ctx, x0, y0, h, lean, seed) {
+  const rng = mulberry32(seed);
+  const topX = x0 + lean * h, topY = y0 - h;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.2, h * 0.016);
+  ctx.beginPath(); ctx.moveTo(x0, y0 + h * 0.05); ctx.lineTo(topX, topY + h * 0.03); ctx.stroke();
+  let f = 0.03;
+  while (f < 0.97) {
+    const ty = topY + f * h, tx = mix(topX, x0, f);
+    const reach = h * 0.23 * (0.08 + 0.92 * Math.pow(f, 0.75)) * (0.7 + 0.55 * rng());
+    for (const side of [-1, 1]) {
+      if (f > 0.2 && rng() < 0.08) continue;
+      drawBranch(S, ctx, tx, ty + (rng() - 0.5) * h * 0.01, side, reach * (0.75 + 0.4 * rng()), f, rng);
+    }
+    if (f > 0.15 && rng() < 0.7) {
+      const side = rng() < 0.5 ? -1 : 1, g = f + 0.02;
+      drawBranch(S, ctx, mix(topX, x0, g), topY + g * h, side, reach * (0.35 + 0.3 * rng()), g, rng);
+    }
+    f += (0.017 + 0.022 * rng()) * (0.6 + 0.8 * f);
+  }
+  ctx.lineWidth = Math.max(0.8, h * 0.006);
+  ctx.beginPath(); ctx.moveTo(topX, topY + h * 0.04); ctx.lineTo(topX + lean * h * 0.02, topY - h * 0.02); ctx.stroke();
+}
+function paintBank(S) {
+  const { W, H, U } = S, { R, G, B } = S.img;
+  const s = S.seed + 600;
+  const mx = S.P.moon[0] * W;
+  for (let x = 0; x < W; x++) {
+    const top = bankY(S, x), tp = top - 1;
+    const slope = (bankY(S, x + 2) - bankY(S, x - 2)) / 4;
+    for (let y = Math.max(0, Math.floor(tp)); y < H; y++) {
+      const cov = clamp(y - top + 1, 0, 1);
+      if (cov <= 0) continue;
+      const i = y * W + x;
+      if (S.light) { R[i] *= 1 - cov; G[i] *= 1 - cov; B[i] *= 1 - cov; continue; }
+      const u = x / U, v = y / U, dy = (y - top) / U;
+      // drifts: soft ridges lit from the moon's side
+      const dr = fbm(u * 1.3, v * 5, 3, s, 0.45), dr2 = fbm(u * 1.3 + 0.01, v * 5, 3, s, 0.45);
+      const lit = clamp(0.5 + (dr2 - dr) * 18 * clamp((mx - x) / (0.3 * U), -1, 1) - slope * 0.6, 0, 1);
+      const sl = NIGHT * 0.7 * (0.55 + 0.45 * lit) * (0.9 + 0.1 * Math.exp(-dy / 0.02));
+      const lk = 0.35 + 0.4 * lit;
+      let r = mix(SNOW_SH[0] * NIGHT * 0.45, SNOW_LIT[0] * sl, lk), g = mix(SNOW_SH[1] * NIGHT * 0.45, SNOW_LIT[1] * sl, lk), b = mix(SNOW_SH[2] * NIGHT * 0.45, SNOW_LIT[2] * sl, lk);
+      g += 0.006; b += 0.004;
+      // darker towards the bottom of the picture
+      const fade = 1 - 0.45 * smoothstep(0, 0.15, dy);
+      r *= fade; g *= fade; b *= fade;
+      R[i] = mix(R[i], r, cov); G[i] = mix(G[i], g, cov); B[i] = mix(B[i], b, cov);
+    }
+  }
+  if (S.light) return;
+  // sparkles in the snow
+  const rng = mulberry32(s + 5);
+  const n = Math.round(W * H / 2600);
+  for (let k = 0; k < n; k++) {
+    const x = Math.floor(rng() * W), y = Math.floor(bankY(S, x) + rng() * (H - bankY(S, x)));
+    if (y >= H) continue;
+    const i = y * W + x, m = Math.pow(rng(), 4) * 0.6;
+    R[i] += m * 0.8; G[i] += m * 0.9; B[i] += m;
+  }
+}
+function paintTrees(S) {
+  const { W, H, U } = S, { R, G, B } = S.img;
+  const mask = makeCanvas(W, H), ctx = ctx2d(mask);
+  ctx.fillStyle = ctx.strokeStyle = '#000';
+  S.P.front.forEach(([fx, fh, lean], k) => {
+    const x = fx * W;
+    drawSpruce(S, ctx, x, bankY(S, x) + fh * U * 0.06, fh * U, lean, S.seed + 900 + k * 17);
+  });
+  // small trees along the bank next to the big ones
+  const rng = mulberry32(S.seed + 950);
+  ctx.beginPath();
+  for (const [x0, x1] of [[0, 0.2], [0.8, 1]]) for (let x = x0 * W; x < x1 * W; x += U * (0.008 + 0.01 * rng())) {
+    const hh = U * (0.02 + 0.05 * rng());
+    coniferPath(ctx, x, bankY(S, x) + hh * 0.2, hh, hh * 0.3, rng);
+  }
+  ctx.fill();
+  const A = alphaOf(mask);
+  const rr = Math.max(1, Math.round(0.0018 * U));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, a = A[i];
+    if (a <= 0) continue;
+    if (S.light) { R[i] *= 1 - a; G[i] *= 1 - a; B[i] *= 1 - a; continue; }
+    let r = TREE[0], g = TREE[1], b = TREE[2];
+    // snow resting on the tops of the branches
+    const above = y - rr >= 0 ? A[(y - rr) * W + x] : 0;
+    const cap = a * (1 - above) * smoothstep(-0.05, 0.3, perlin(x / U * 140, y / U * 140, S.seed + 961));
+    if (cap > 0) { const k = cap * NIGHT * 0.75; r += SNOW_LIT[0] * k; g += SNOW_LIT[1] * k + 0.008 * cap; b += SNOW_LIT[2] * k; }
+    R[i] = mix(R[i], r, a); G[i] = mix(G[i], g, a); B[i] = mix(B[i], b, a);
+  }
+}
+
+// ------------------------------------------------------------------ main render
+function build(name, W, H, opts) {
+  const t0 = performance.now(), times = {};
+  const mark = (k) => { times[k] = Math.round(performance.now() - t0); };
+  const S = makeScene(name, W, H, opts);
+  paintSky(S); milkyWay(S); stars(S); mark('sky');
+  const A = auroraLight(S); addAurora(S, A); mark('aurora');
+  moon(S);
+  paintTerrain(S); mark('terrain');
+  paintRange(S, S.P.hills, 1, ridgeTop(S, S.P.hills, 1));
+  cabinLight(S); mark('ranges');
+  paintLake(S); mark('lake');
+  paintBank(S); paintTrees(S); mark('front');
+  return { S, times, mark };
+}
+const FINISH = { exposure: 1.0, saturation: 1.12, vignette: 0.3, vignetteTint: [1, 1, 0.9], knee: 0.62, contrast: 0.06 };
+function render(name, W, H) {
+  const { S, times, mark } = build(name, W, H);
+  K.bloom(S.img, S.U, { threshold: 0.7, amount: 0.8 });
+  const out = K.finish(S.img, S.seed, FINISH);
+  mark('finish');
+  out.stats = { times };
+  return out;
+}
+
+// ------------------------------------------------------------------ strips for the CSS animation
+// The aurora light alone on black (screened over the painting), rays in another phase.
+function strip(name, W, H) {
+  const m = /^light-([ab])(-tall)?$/.exec(name);
+  if (!m) throw new Error('unknown strip ' + name);
+  const { S } = build(m[2] ? 'tall' : 'landscape', W, H, { light: true, phase: m[1] === 'a' ? 1 : 2 });
+  return K.finish(S.img, S.seed, { ...FINISH, vignette: 0 });
+}
+
+const jobs = {
+  landscape: {
+    kind: 'scene', preset: 'landscape', w: 2560, h: 1440, grain: 1.4,
+    outputs: [
+      { file: 'aurora.webp', maxBytes: 440_000, qMax: 1 },
+      { file: 'aurora-1280.webp', w: 1280, h: 720, maxBytes: 155_000, qMax: 1 },
+      { file: 'thumb.webp', w: 480, h: 270, maxBytes: 26_000, kind: 'thumb', qMax: 1 },
+    ],
+  },
+  tall: { kind: 'scene', preset: 'tall', w: 1080, h: 1920, grain: 1.4, outputs: [{ file: 'aurora-tall.webp', maxBytes: 310_000, qMax: 1 }] },
+  lightA: { kind: 'strip', strip: 'light-a', w: 1280, h: 720, outputs: [{ file: 'light-a.webp', maxBytes: 60_000, qMax: 1 }] },
+  lightB: { kind: 'strip', strip: 'light-b', w: 1280, h: 720, outputs: [{ file: 'light-b.webp', maxBytes: 60_000, qMax: 1 }] },
+  lightATall: { kind: 'strip', strip: 'light-a-tall', w: 540, h: 960, outputs: [{ file: 'light-a-tall.webp', maxBytes: 40_000, qMax: 1 }] },
+  lightBTall: { kind: 'strip', strip: 'light-b-tall', w: 540, h: 960, outputs: [{ file: 'light-b-tall.webp', maxBytes: 40_000, qMax: 1 }] },
+};
+
+return { render, strip, jobs, PRESETS };
+})();
+window.ThemeArt = ThemeArt;
+ArtKit.preview(ThemeArt, { title: 'DOPPELGÄNGER aurora night generator' });
+</script>
+</body>
+</html>

@@ -169,18 +169,20 @@ function Profile({ o }: { o: OpponentProfile }) {
             </div>
           )}
           <div className="panel" style={{ padding: 0 }}>
-            <table className="data">
-              <tbody>
-                {games.map((g) => (
-                  <tr key={g.id} className="click" onClick={() => go(`review/${g.id}`)}>
-                    <td>{gameTitle(g)}</td>
-                    <td className="small dim">{g.date ?? ''}</td>
-                    <td className="small">{g.result ?? ''}</td>
-                    <td className="small muted">{g.status === 'done' ? 'analysed' : g.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="data">
+                <tbody>
+                  {games.map((g) => (
+                    <tr key={g.id} className="click" onClick={() => go(`review/${g.id}`)}>
+                      <td>{gameTitle(g)}</td>
+                      <td className="small dim">{g.date ?? ''}</td>
+                      <td className="small">{g.result ?? ''}</td>
+                      <td className="small muted">{g.status === 'done' ? 'analysed' : g.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

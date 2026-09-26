@@ -1,0 +1,412 @@
+/* DOPPELGÄNGER brand motion: the loader (BrandLoader) and the inline spinner (BrandSpinner).
+ *
+ * The mark itself is static SVG (BrandMark in components/Icons.tsx). The loader animates only transform,
+ * opacity and stroke-dashoffset. The pre-JS splash in index.html runs a copy of the loader rules below (same
+ * 2.2 s loop, same keyframes, same first-paint colours) so the hand-over from splash to React does not jump.
+ * After changing them, run `node tools/brand/sync-splash.mjs` to refresh that copy.
+ */
+
+/* splash:begin (tools/brand/sync-splash.mjs copies everything down to splash:end into index.html) */
+
+/* ------------------------------------------------ first-paint colours, per theme */
+:root,
+[data-theme='sunrise'] {
+  --bl-bg: radial-gradient(130% 90% at 50% 34%, #fff4e2 0%, #ffdcb8 46%, #f7c39c 100%);
+  --bl-ink: #6b4a33;
+}
+[data-theme='sakura'] {
+  --bl-bg: radial-gradient(130% 90% at 50% 34%, #fdebf1 0%, #f1c9da 46%, #cf9dbd 100%);
+  --bl-ink: #6f4459;
+}
+[data-theme='mist'] {
+  --bl-bg: radial-gradient(130% 90% at 50% 34%, #f4f6fb 0%, #d9dfea 48%, #b3bed3 100%);
+  --bl-ink: #3c4863;
+}
+[data-theme='aurora'] {
+  --bl-bg: radial-gradient(130% 90% at 50% 34%, #1d2c5c 0%, #0f1a3e 48%, #070c22 100%);
+  --bl-ink: #cdd8f6;
+}
+
+/* ------------------------------------------------ loader */
+.brand-loader {
+  --bl-period: 2.2s;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  width: 100%;
+  height: 100%;
+  min-height: calc(var(--bl-size, 112px) + 80px);
+  color: var(--bl-ink);
+  text-align: center;
+  pointer-events: none;
+}
+.brand-loader.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: auto;
+  background: var(--bl-bg);
+  pointer-events: auto;
+}
+.bl-mark {
+  width: var(--bl-size, 112px);
+  height: var(--bl-size, 112px);
+  overflow: visible;
+  filter: drop-shadow(0 10px 18px rgba(120, 50, 20, 0.18));
+}
+[data-theme='aurora'] .bl-mark {
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
+}
+.bl-label {
+  font: 500 13px/1.3 var(--font, system-ui, sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* Everything that moves turns around its own box. */
+.bl-orbit {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+}
+.bl-drift,
+.bl-self,
+.bl-lens,
+.bl-cut,
+.bl-glow,
+.bl-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bl-arc {
+  stroke-dasharray: 100 110;
+  stroke-dashoffset: 0;
+}
+.bl-shine,
+.bl-ripple {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bl-orbit,
+  .bl-self,
+  .bl-drift,
+  .bl-lens,
+  .bl-cut,
+  .bl-glow,
+  .bl-arc,
+  .bl-shine,
+  .bl-ripple,
+  .bl-label {
+    animation-duration: var(--bl-period);
+    animation-iteration-count: infinite;
+    animation-delay: var(--bl-delay, 0s);
+    animation-fill-mode: both;
+  }
+  .bl-orbit {
+    animation-name: bl-orbit;
+  }
+  .bl-self {
+    animation-name: bl-self;
+  }
+  .bl-drift.bl-black {
+    animation-name: bl-drift-black;
+  }
+  .bl-drift.bl-white {
+    animation-name: bl-drift-white;
+  }
+  .bl-lens,
+  .bl-cut {
+    animation-name: bl-lens;
+  }
+  .bl-glow {
+    animation-name: bl-glow;
+  }
+  .bl-arc {
+    animation-name: bl-arc;
+  }
+  .bl-shine {
+    animation-name: bl-shine;
+  }
+  .bl-ripple {
+    animation-name: bl-ripple;
+  }
+  .bl-label {
+    animation-name: bl-label;
+  }
+}
+
+/* 0-40%: the stones spiral in from opposite sides and merge. 40-80%: the mark holds, the lens flares and a
+ * sheen passes. 80-100%: they spiral apart and fade, and the loop starts again. */
+@keyframes bl-orbit {
+  0% {
+    transform: rotate(-240deg);
+    animation-timing-function: cubic-bezier(0.25, 0.55, 0.3, 1);
+  }
+  38%,
+  80% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.5);
+  }
+  100% {
+    transform: rotate(120deg);
+  }
+}
+/* Counter-turns each stone so its highlight stays up and to the left while it orbits. */
+@keyframes bl-self {
+  0% {
+    transform: rotate(240deg);
+    animation-timing-function: cubic-bezier(0.25, 0.55, 0.3, 1);
+  }
+  38%,
+  80% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.5);
+  }
+  100% {
+    transform: rotate(-120deg);
+  }
+}
+/* The stones keep their distance while they swing round, then close in and settle with a small bump. */
+@keyframes bl-drift-black {
+  0% {
+    transform: translate(-12px, 12px) scale(0.55);
+    opacity: 0;
+    animation-timing-function: ease-out;
+  }
+  12% {
+    transform: translate(-11px, 11px) scale(0.8);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.35, 1);
+  }
+  35% {
+    transform: translate(0.9px, -0.9px) scale(1.03);
+    animation-timing-function: ease-in-out;
+  }
+  43%,
+  80% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  /* part first, then fade, so the white stone never goes see-through over the black one */
+  90% {
+    transform: translate(-8px, 8px) scale(0.8);
+    opacity: 0.9;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translate(-12px, 12px) scale(0.55);
+    opacity: 0;
+  }
+}
+@keyframes bl-drift-white {
+  0% {
+    transform: translate(12px, -12px) scale(0.55);
+    opacity: 0;
+    animation-timing-function: ease-out;
+  }
+  12% {
+    transform: translate(11px, -11px) scale(0.8);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.35, 1);
+  }
+  35% {
+    transform: translate(-0.9px, 0.9px) scale(1.03);
+    animation-timing-function: ease-in-out;
+  }
+  43%,
+  80% {
+    transform: none;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  /* part first, then fade, so the white stone never goes see-through over the black one */
+  90% {
+    transform: translate(8px, -8px) scale(0.8);
+    opacity: 0.9;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translate(12px, -12px) scale(0.55);
+    opacity: 0;
+  }
+}
+@keyframes bl-lens {
+  0%,
+  33% {
+    transform: scale(0.2);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.3, 1.5, 0.5, 1);
+  }
+  44% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  78% {
+    transform: scale(1);
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+  86%,
+  100% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+@keyframes bl-glow {
+  0%,
+  32% {
+    transform: scale(0.6);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  46% {
+    transform: scale(1.08);
+    opacity: 1;
+    animation-timing-function: ease-in-out;
+  }
+  66% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  82% {
+    transform: scale(1);
+    opacity: 0.55;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+/* The orbit halves draw in from the mirror axis, then their tails chase them out. */
+@keyframes bl-arc {
+  0%,
+  12% {
+    stroke-dashoffset: 105;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+  }
+  52%,
+  78% {
+    stroke-dashoffset: 0;
+    animation-timing-function: cubic-bezier(0.6, 0, 0.6, 1);
+  }
+  100% {
+    stroke-dashoffset: -105;
+  }
+}
+@keyframes bl-shine {
+  0%,
+  50% {
+    transform: translateX(-40px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+  }
+  53% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  73%,
+  100% {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+/* The moment they merge, a ring spreads out like a stone set down on the board. */
+@keyframes bl-ripple {
+  0%,
+  37% {
+    transform: scale(0.7);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.15, 0.6, 0.3, 1);
+  }
+  40% {
+    opacity: 0.5;
+  }
+  58%,
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+@keyframes bl-label {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* Reduced motion: the mark stays put; only its glow breathes (opacity only), so it still reads as busy.
+ * !important because styles.css cuts every animation to 0.01 ms under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .bl-glow {
+    animation: bl-breathe 2.4s ease-in-out infinite !important;
+  }
+}
+@keyframes bl-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* splash:end */
+
+/* ------------------------------------------------ spinner */
+.brand-spinner {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.15em;
+  overflow: visible;
+}
+.bs-orbit,
+.bs-pair {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+.bs-black {
+  fill: #1c1b21;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 0.8;
+}
+.bs-white {
+  fill: #fffaf3;
+  stroke: rgba(70, 45, 25, 0.35);
+  stroke-width: 0.8;
+}
+.btn.primary .brand-spinner {
+  --brand-spinner-color: currentColor;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bs-orbit {
+    animation: bs-turn 0.9s linear infinite;
+  }
+  .bs-pair {
+    animation: bs-pair 1.8s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-spinner {
+    animation: bl-breathe 1.6s ease-in-out infinite !important;
+  }
+}
+@keyframes bs-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes bs-pair {
+  to {
+    transform: rotate(-360deg);
+  }
+}

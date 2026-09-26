@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Misty Peaks Generator</title>
+<style>
+  html, body { margin: 0; background: #202224; color: #e2e0da; font: 13px/1.45 system-ui, sans-serif; }
+  #info { padding: 8px 14px; }
+  #out { display: block; max-width: 100vw; height: auto; margin: 0 auto; }
+</style>
+</head>
+<body>
+<div id="info">DOPPELGÄNGER misty peaks generator: rendering preview…</div>
+<canvas id="out"></canvas>
+<script src="artkit.js"></script>
+<script>
+'use strict';
+/*
+ * Procedural "Misty peaks" painting: ranges of blue ridges at first light, one behind the other,
+ * fog filling the valleys, a low sun behind the far peaks, spruce forest framing the view.
+ * Aerial perspective does most of the work: every ridge is the same dark body colour seen through
+ * more or less fog, and the fog is warm towards the sun and cool away from it.
+ * Seeded and deterministic; no external assets.
+ * API (used by render-theme.mjs):
+ *   ThemeArt.render(preset, width, height) -> opaque canvas   (presets: landscape, tall)
+ *   ThemeArt.strip(name, width, height)    -> transparent canvas for the CSS animation ('fog')
+ *   ThemeArt.jobs                          -> what render-theme.mjs writes to public/art/mist/
+ * Open this file directly (optionally ?preset=tall&w=540&h=960 or ?strip=fog&w=1024&h=256) to preview.
+ */
+const ThemeArt = (() => {
+const K = ArtKit;
+const { clamp, mix, smoothstep, TAU, sq, mulberry32, gauss, perlin, fbm, fbm1, ridged, hexLin, blur, makeCanvas, ctx2d, makeImage, alphaOf } = K;
+
+// ------------------------------------------------------------------ presets
+// x as a fraction of the width, y of the height, sizes in U (the scene unit, ~ the height).
+// Layers from far to near. T: how much of the ridge's own colour survives the haze (1 = none).
+// peaks: [x, gain, width] bumps that shape the skyline; trees: size of the spruce on the crest.
+const PRESETS = {
+  landscape: {
+    seed: 4127, unitScale: 1,
+    sun: [0.64, 0.405, 0.016],
+    layers: [
+      { y: 0.49, amp: 0.1, freq: 1.7, sharp: 0.9, jag: 0.01, T: 0.26, fade: 0.5, fadeLen: 0.1, fog: 0.5, rim: 0.6, peaks: [[0.2, 0.9, 0.1], [0.45, 0.6, 0.06], [0.86, 1.1, 0.09], [0.64, -0.4, 0.05]] },
+      { y: 0.535, amp: 0.09, freq: 2.1, sharp: 0.75, jag: 0.008, T: 0.34, fade: 0.55, fadeLen: 0.09, fog: 0.55, rim: 0.7, peaks: [[0.07, 0.6, 0.08], [0.33, 0.5, 0.07], [0.73, 0.6, 0.06]] },
+      { y: 0.585, amp: 0.08, freq: 2.5, sharp: 0.55, jag: 0.006, T: 0.43, fade: 0.55, fadeLen: 0.08, fog: 0.6, rim: 1.0, trees: 0.004, peaks: [[0.52, 0.5, 0.07], [0.95, 0.7, 0.06]] },
+      { y: 0.64, amp: 0.075, freq: 2.9, sharp: 0.4, jag: 0.005, T: 0.53, fade: 0.5, fadeLen: 0.075, fog: 0.62, rim: 0.9, trees: 0.006, peaks: [[0.22, 0.6, 0.07], [0.6, 0.3, 0.05]] },
+      { y: 0.7, amp: 0.07, freq: 2.8, sharp: 0.3, jag: 0.004, T: 0.63, fade: 0.45, fadeLen: 0.07, fog: 0.6, rim: 0.8, trees: 0.009, peaks: [[0.4, 0.6, 0.08], [0.8, 0.5, 0.06]] },
+      { y: 0.77, amp: 0.07, freq: 2.4, sharp: 0.2, jag: 0.004, T: 0.78, fade: 0.36, fadeLen: 0.065, fog: 0.55, rim: 0.7, trees: 0.014, peaks: [[0.1, 0.7, 0.07], [0.62, 0.4, 0.07]] },
+      { y: 0.86, amp: 0.065, freq: 2.1, sharp: 0.15, jag: 0.004, T: 0.9, fade: 0.26, fadeLen: 0.06, fog: 0.36, rim: 0.6, trees: 0.021, peaks: [[0.3, 0.6, 0.08], [0.78, 0.8, 0.07]] },
+      { y: 0.985, amp: 0.05, freq: 1.8, sharp: 0.1, jag: 0.003, T: 1, fade: 0.1, fadeLen: 0.06, fog: 0, rim: 0.5, trees: 0.04, peaks: [[0.0, 3.0, 0.13], [1.0, 3.9, 0.13], [0.5, -0.3, 0.2]] },
+    ],
+    // big spruce in front: [x, height, lean]
+    front: [[0.025, 0.4, 0.01], [0.075, 0.27, -0.02], [0.115, 0.17, 0.0], [0.855, 0.24, 0.01], [0.905, 0.42, -0.01], [0.955, 0.52, 0.0], [0.99, 0.36, 0.02]],
+    rays: 1,
+  },
+  tall: {
+    seed: 4127, unitScale: 0.6,
+    sun: [0.63, 0.33, 0.026],
+    layers: [
+      { y: 0.415, amp: 0.13, freq: 1.5, sharp: 0.9, jag: 0.012, T: 0.26, fade: 0.5, fadeLen: 0.12, fog: 0.5, rim: 0.6, peaks: [[0.18, 0.9, 0.18], [0.9, 1.0, 0.16], [0.63, -0.4, 0.08]] },
+      { y: 0.47, amp: 0.12, freq: 1.9, sharp: 0.75, jag: 0.01, T: 0.34, fade: 0.55, fadeLen: 0.11, fog: 0.55, rim: 0.7, peaks: [[0.05, 0.7, 0.14], [0.4, 0.5, 0.12]] },
+      { y: 0.53, amp: 0.11, freq: 2.2, sharp: 0.55, jag: 0.008, T: 0.43, fade: 0.55, fadeLen: 0.1, fog: 0.6, rim: 1.0, trees: 0.006, peaks: [[0.75, 0.6, 0.14]] },
+      { y: 0.6, amp: 0.1, freq: 2.5, sharp: 0.4, jag: 0.006, T: 0.53, fade: 0.5, fadeLen: 0.1, fog: 0.62, rim: 0.9, trees: 0.009, peaks: [[0.2, 0.6, 0.14]] },
+      { y: 0.67, amp: 0.1, freq: 2.4, sharp: 0.3, jag: 0.005, T: 0.63, fade: 0.45, fadeLen: 0.09, fog: 0.6, rim: 0.8, trees: 0.013, peaks: [[0.6, 0.6, 0.15]] },
+      { y: 0.745, amp: 0.09, freq: 2.2, sharp: 0.2, jag: 0.005, T: 0.74, fade: 0.4, fadeLen: 0.085, fog: 0.55, rim: 0.7, trees: 0.02, peaks: [[0.1, 0.8, 0.14]] },
+      { y: 0.835, amp: 0.09, freq: 2.0, sharp: 0.15, jag: 0.005, T: 0.86, fade: 0.32, fadeLen: 0.08, fog: 0.45, rim: 0.6, trees: 0.03, peaks: [[0.85, 0.9, 0.14]] },
+      { y: 1.02, amp: 0.06, freq: 1.7, sharp: 0.1, jag: 0.004, T: 1, fade: 0.1, fadeLen: 0.06, fog: 0, rim: 0.5, trees: 0.05, peaks: [[0.0, 3.2, 0.22], [1.0, 2.2, 0.2], [0.5, -0.6, 0.3]] },
+    ],
+    front: [[0.045, 0.52, 0.01], [0.15, 0.32, -0.02], [0.23, 0.18, 0.0], [0.87, 0.24, 0.0], [0.95, 0.4, -0.01], [1.01, 0.6, 0.01]],
+    rays: 1,
+  },
+};
+
+function makeScene(name, W, H) {
+  const P = PRESETS[name];
+  const U = H * P.unitScale;
+  const [sx, sy, sr] = P.sun;
+  return { P, W, H, U, seed: P.seed, name, img: makeImage(W, H), sunX: sx * W, sunY: sy * H, sunR: sr * U };
+}
+
+// ------------------------------------------------------------------ light and air
+const FOG_COOL = hexLin('#bac6dc'), FOG_WARM = hexLin('#f5d3b2'), FOG_HI = hexLin('#fff0da');
+const BODY_FAR = hexLin('#4b5c86'), BODY_NEAR = hexLin('#111a2b');
+// Colour of the air between the viewer and a point: warm and bright towards the sun.
+function fogCol(S, x, y, out) {
+  const dx = (x - S.sunX) / S.U, dy = (y - S.sunY) / S.U;
+  const d = Math.sqrt(dx * dx + dy * dy * 2.4);
+  const w = Math.exp(-d / 0.42), g = Math.exp(-d / 0.11);
+  const low = 1 - 0.16 * smoothstep(0.45 * S.H, S.H, y);
+  out[0] = (mix(FOG_COOL[0], FOG_WARM[0], w) + FOG_HI[0] * g * 0.75) * low;
+  out[1] = (mix(FOG_COOL[1], FOG_WARM[1], w) + FOG_HI[1] * g * 0.75) * low;
+  out[2] = (mix(FOG_COOL[2], FOG_WARM[2], w) + FOG_HI[2] * g * 0.75) * low;
+  return out;
+}
+
+const SKY = [[0, '#5a7096'], [0.24, '#8599bb'], [0.38, '#b9c0d3'], [0.47, '#e2d5d0'], [0.56, '#f1d6bd'], [1, '#f1d6bd']];
+function paintSky(S) {
+  const { W, H, U, sunX, sunY, sunR } = S, { R, G, B } = S.img;
+  const stops = SKY.map(([t, h]) => [t * S.P.layers[0].y / 0.49, hexLin(h)]);
+  for (let y = 0; y < H; y++) {
+    const t = y / H;
+    let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+    const f = smoothstep(stops[k][0], stops[k + 1][0], t), A = stops[k][1], C = stops[k + 1][1];
+    const br = mix(A[0], C[0], f), bg = mix(A[1], C[1], f), bb = mix(A[2], C[2], f);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const dx = (x - sunX) / U, dy = (y - sunY) / U, d = Math.sqrt(dx * dx + dy * dy);
+      // broad warm glow, flattened along the horizon
+      const dh = Math.sqrt(dx * dx * 0.55 + dy * dy * 2.2);
+      const warm = Math.exp(-dh / 0.28) * 0.55;
+      let r = br + warm * 0.95, g = bg + warm * 0.62, b = bb + warm * 0.3;
+      const lv = 1 + 0.035 * perlin(x / U * 1.4 + 2.3, y / U * 2.2, S.seed + 21);
+      r *= lv; g *= lv; b *= lv;
+      const a1 = Math.exp(-d / 0.01), a2 = Math.exp(-d / 0.04), a3 = Math.exp(-d / 0.13);
+      r += 2.2 * a1 + 0.85 * a2 + 0.4 * a3;
+      g += 2.0 * a1 + 0.65 * a2 + 0.25 * a3;
+      b += 1.5 * a1 + 0.38 * a2 + 0.11 * a3;
+      const dd = d * U;
+      if (dd < sunR + 2) {
+        const kk = clamp(sunR + 0.5 - dd, 0, 1), limb = 1 - 0.3 * sq(dd / sunR);
+        r += 22 * kk * limb; g += 20 * kk * limb; b += 15 * kk * limb;
+      }
+      R[i] = r; G[i] = g; B[i] = b;
+    }
+  }
+  // thin high cloud: long streaks, lit from below near the sun
+  const c1 = hexLin('#f7cfae'), c2 = hexLin('#9eaac4'), c3 = hexLin('#6d7fa3');
+  for (let y = 0; y < Math.floor(0.46 * H); y++) {
+    const t = y / (S.P.layers[0].y * H);
+    const band = Math.exp(-sq((t - 0.3) / 0.14)) + 0.7 * Math.exp(-sq((t - 0.62) / 0.1));
+    if (band < 0.02) continue;
+    for (let x = 0; x < W; x++) {
+      const u = x / U, v = y / U;
+      const n = fbm(u * 1.1 + 0.3 * perlin(u * 0.4, v * 3, S.seed + 40), v * 11, 5, S.seed + 41, 0.55);
+      const dens = clamp(smoothstep(0.02, 0.42, n) * band, 0, 1) * 0.62;
+      if (dens < 0.004) continue;
+      const i = y * W + x;
+      const dx = (x - sunX) / U, dy = (y - sunY) / U;
+      const lit = Math.exp(-Math.sqrt(dx * dx * 0.7 + dy * dy * 3) / 0.3);
+      const edge = smoothstep(0.02, 0.3, n);
+      const cr = mix(mix(c3[0], c2[0], edge), c1[0] * 1.4, lit), cg = mix(mix(c3[1], c2[1], edge), c1[1] * 1.4, lit), cb = mix(mix(c3[2], c2[2], edge), c1[2] * 1.4, lit);
+      R[i] = mix(R[i], cr, dens); G[i] = mix(G[i], cg, dens); B[i] = mix(B[i], cb, dens);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ ridges
+function ridgeTop(S, L, li) {
+  const { W, H, U } = S;
+  const top = new Float32Array(W);
+  const s = S.seed + 101 * li;
+  const off = li * 13.7;
+  for (let x = 0; x < W; x++) {
+    const u = x / U * L.freq + off, fx = x / W;
+    const soft = 0.5 + 0.55 * fbm1(u, 4, s, 0.5);
+    const sharp = ridged(u, 0.5 + li, 5, s + 7, 0.5) * 1.15;
+    const macro = 0.55 + 0.9 * (0.5 + 0.5 * fbm1(u * 0.3 + 3, 2, s + 5, 0.5));
+    let g = 1;
+    if (L.peaks) for (const [px, pg, pw] of L.peaks) g += pg * Math.exp(-sq((fx - px) / pw));
+    let h = L.amp * U * mix(soft, sharp, L.sharp) * macro * Math.max(0.05, g);
+    h += L.jag * U * fbm1(u * 11, 4, s + 3, 0.55);
+    top[x] = L.y * H - h;
+  }
+  return top;
+}
+
+// Spruce silhouettes: a jagged outline for small, distant trees.
+function coniferPath(ctx, x, yb, h, w, rng) {
+  const tiers = Math.max(3, Math.round(h / Math.max(1.6, w * 0.22)));
+  const lean = (rng() - 0.5) * 0.06 * h;
+  ctx.moveTo(x + lean, yb - h);
+  const R = [], Lp = [];
+  for (let k = 1; k <= tiers; k++) {
+    const f = k / tiers, yy = yb - h + f * h * 0.94, cx = x + lean * (1 - f);
+    const ww = w * (0.12 + 0.88 * Math.pow(f, 0.9));
+    R.push([cx + ww * (0.8 + 0.3 * rng()), yy + h * 0.02], [cx + ww * 0.3, yy - h * 0.015]);
+    Lp.push([cx - ww * (0.8 + 0.3 * rng()), yy + h * 0.02], [cx - ww * 0.3, yy - h * 0.015]);
+  }
+  for (const p of R) ctx.lineTo(p[0], p[1]);
+  ctx.lineTo(x + w * 0.08, yb + h * 0.2); ctx.lineTo(x - w * 0.08, yb + h * 0.2);
+  for (let k = Lp.length - 1; k >= 0; k--) ctx.lineTo(Lp[k][0], Lp[k][1]);
+  ctx.closePath();
+}
+function crestTrees(S, ctx, L, li, top) {
+  const { W, U } = S;
+  const rng = mulberry32(S.seed + 700 + li * 11);
+  const size = L.trees * U;
+  ctx.beginPath();
+  let x = -size;
+  while (x < W + size) {
+    const xi = clamp(Math.round(x), 0, W - 1);
+    // groves and clearings along the crest
+    const grove = 0.5 + 0.5 * fbm1(x / U * 2.4 + li * 3.1, 3, S.seed + 720 + li, 0.5);
+    const dens = smoothstep(0.28, 0.58, grove);
+    if (rng() < 0.08 + 0.92 * dens) {
+      const h = size * (0.45 + 0.75 * rng()) * (0.5 + 0.65 * dens);
+      coniferPath(ctx, x, top[xi] + h * 0.3, h, h * (0.24 + 0.1 * rng()), rng);
+    }
+    x += size * (0.13 + 0.22 * rng());
+  }
+  ctx.fill();
+}
+
+// A detailed spruce for the foreground: trunk, tiers of drooping branches built from ragged
+// clumps of foliage, needle fringes hanging from them, and a few shorter shoots in between.
+function sprayClump(ctx, x, y, rx, ry, ang, rng) {
+  const n = 9;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let k = 0; k <= n; k++) {
+    const a = k / n * TAU, rr = 0.7 + 0.45 * rng();
+    const px = Math.cos(a) * rx * rr, py = Math.sin(a) * ry * rr * (Math.sin(a) > 0 ? 1.25 : 0.8);
+    const X = x + px * ca - py * sa, Y = y + px * sa + py * ca;
+    if (k === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+  }
+  ctx.closePath();
+}
+function drawBranch(S, ctx, tx, ty, side, len, f, rng) {
+  // spine: level or slightly raised near the top, drooping below, the tip turning up again
+  const droop = len * (-0.05 + 0.42 * f) * (0.7 + 0.6 * rng());
+  const ex = tx + side * len, ey = ty + droop - len * 0.05 * rng();
+  const mx = tx + side * len * 0.5, my = ty + droop * (0.75 + 0.3 * rng());
+  const pt = (t) => { const it = 1 - t; return [it * it * tx + 2 * it * t * mx + t * t * ex, it * it * ty + 2 * it * t * my + t * t * ey]; };
+  ctx.lineWidth = Math.max(0.8, len * 0.035);
+  ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+  const nC = Math.max(4, Math.round(len / S.U * 320));
+  ctx.beginPath();
+  for (let j = 0; j < nC; j++) {
+    const t = 0.12 + 0.88 * (j + rng() * 0.8) / nC;
+    const [px, py] = pt(t), [qx, qy] = pt(Math.min(1, t + 0.02));
+    const ang = Math.atan2(qy - py, qx - px);
+    const rx = len * (0.15 + 0.08 * rng()) * (1.1 - 0.45 * t), ry = len * (0.08 + 0.06 * rng()) * (1.15 - 0.45 * t);
+    sprayClump(ctx, px, py + ry * 0.55, rx, ry, ang, rng);
+  }
+  ctx.fill();
+  // needles and small hanging twigs under the clumps
+  const n = Math.round(8 + len / S.U * 1100);
+  ctx.lineWidth = Math.max(0.55, len * 0.012);
+  ctx.beginPath();
+  for (let j = 0; j < n; j++) {
+    const t = 0.1 + 0.9 * rng();
+    const [px, py] = pt(t);
+    const nl = len * (0.05 + 0.12 * rng()) * (1.15 - 0.6 * t) * (0.7 + 0.6 * f);
+    const a = Math.PI / 2 + side * (-0.7 + 1.0 * rng());
+    const y0 = py + len * (0.07 + 0.06 * rng()) * (1.1 - 0.4 * t);
+    ctx.moveTo(px, y0); ctx.lineTo(px + Math.cos(a) * nl, y0 + Math.sin(a) * nl);
+  }
+  // a few needles along the top edge, and the tip
+  for (let j = 0; j < n * 0.35; j++) {
+    const t = 0.2 + 0.8 * rng();
+    const [px, py] = pt(t);
+    const nl = len * (0.03 + 0.05 * rng());
+    ctx.moveTo(px, py - len * 0.02); ctx.lineTo(px + side * nl * 0.8, py - len * 0.02 - nl * 0.7);
+  }
+  ctx.moveTo(ex, ey); ctx.lineTo(ex + side * len * 0.08, ey - len * 0.03);
+  ctx.stroke();
+}
+function drawSpruce(S, ctx, x0, y0, h, lean, seed) {
+  const rng = mulberry32(seed);
+  const topX = x0 + lean * h, topY = y0 - h;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1.2, h * 0.016);
+  ctx.beginPath(); ctx.moveTo(x0, y0 + h * 0.05); ctx.lineTo(topX, topY + h * 0.03); ctx.stroke();
+  let f = 0.03;
+  while (f < 0.97) {
+    const ty = topY + f * h, tx = mix(topX, x0, f);
+    const reach = h * 0.23 * (0.08 + 0.92 * Math.pow(f, 0.75)) * (0.7 + 0.55 * rng());
+    for (const side of [-1, 1]) {
+      if (f > 0.2 && rng() < 0.08) continue;
+      drawBranch(S, ctx, tx, ty + (rng() - 0.5) * h * 0.01, side, reach * (0.75 + 0.4 * rng()), f, rng);
+    }
+    // a shorter shoot between the whorls
+    if (f > 0.15 && rng() < 0.7) {
+      const side = rng() < 0.5 ? -1 : 1, g = f + 0.02;
+      drawBranch(S, ctx, mix(topX, x0, g), topY + g * h, side, reach * (0.35 + 0.3 * rng()), g, rng);
+    }
+    f += (0.017 + 0.022 * rng()) * (0.6 + 0.8 * f);
+  }
+  // the leader
+  ctx.lineWidth = Math.max(0.8, h * 0.006);
+  ctx.beginPath(); ctx.moveTo(topX, topY + h * 0.04); ctx.lineTo(topX + lean * h * 0.02, topY - h * 0.02); ctx.stroke();
+}
+
+function paintLayer(S, L, li, top, nextTop) {
+  const { W, H, U, sunX, sunY } = S, { R, G, B } = S.img;
+  const mask = makeCanvas(W, H), ctx = ctx2d(mask);
+  ctx.fillStyle = ctx.strokeStyle = '#000';
+  ctx.beginPath(); ctx.moveTo(0, H + 2);
+  for (let x = 0; x < W; x++) ctx.lineTo(x + 0.5, top[x]);
+  ctx.lineTo(W, H + 2); ctx.closePath(); ctx.fill();
+  if (L.trees) crestTrees(S, ctx, L, li, top);
+  if (L.front) L.front.forEach(([fx, fh, lean], k) => {
+    const x = fx * W, xi = clamp(Math.round(x), 0, W - 1);
+    drawSpruce(S, ctx, x, top[xi] + fh * U * 0.08, fh * U, lean, S.seed + 900 + k * 17);
+  });
+  const A = alphaOf(mask);
+  let yMin = H; for (let x = 0; x < W; x++) yMin = Math.min(yMin, top[x]);
+  yMin = Math.max(0, Math.floor(yMin - (L.front ? 0.6 * U : (L.trees || 0) * 2.2 * U)) - 2);
+  let yEnd = H;
+  if (nextTop) { let m = 0; for (let x = 0; x < W; x++) m = Math.max(m, nextTop[x]); yEnd = Math.min(H, Math.ceil(m) + 2); }
+  const t = li / (S.P.layers.length - 1);
+  const body = [mix(BODY_FAR[0], BODY_NEAR[0], t), mix(BODY_FAR[1], BODY_NEAR[1], t), BODY_FAR[2] * (1 - t) + BODY_NEAR[2] * t];
+  const s = S.seed + 300 + li * 23;
+  const fc = [0, 0, 0], rimCol = hexLin('#ffd6a0');
+  const rr = Math.max(1, Math.round(0.0016 * U));
+  for (let y = yMin; y < yEnd; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, a = A[i];
+    if (a <= 0) continue;
+    const u = x / U, v = y / U;
+    const dy = Math.max(0, y - top[x]) / U;
+    // spurs running down from the crest, forest texture on the nearer ranges
+    const spur = fbm(u * 5 + dy * 2.5, v * 2.2, 4, s, 0.5);
+    const canopy = fbm(u * 60, v * 75, 3, s + 1, 0.5);
+    const shade = 1 + 0.2 * spur + (0.1 + 0.25 * t) * canopy * smoothstep(0, 0.01, dy);
+    fogCol(S, x, y, fc);
+    let T = L.T * (1 - L.fade * smoothstep(0, L.fadeLen * (0.7 + 0.6 * (0.5 + 0.5 * spur)), dy));
+    let r = mix(fc[0], body[0] * shade, T), g = mix(fc[1], body[1] * shade, T), b = mix(fc[2], body[2] * shade, T);
+    // backlit rim: inside the shape, next to open air in the direction of the sun
+    const ddx = sunX - x, ddy = sunY - y, dl = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+    const ox = clamp(Math.round(x + ddx / dl * rr), 0, W - 1), oy = clamp(Math.round(y + ddy / dl * rr), 0, H - 1);
+    const open = 1 - A[oy * W + ox];
+    if (open > 0) {
+      const near = Math.exp(-dl / U / 0.3) + 0.15 * Math.exp(-dl / U / 0.9);
+      const k = open * L.rim * near * 1.6;
+      r += rimCol[0] * k; g += rimCol[1] * k; b += rimCol[2] * k;
+    }
+    R[i] = mix(R[i], r, a); G[i] = mix(G[i], g, a); B[i] = mix(B[i], b, a);
+  }
+}
+
+// Fog lying in the valley at the foot of a range, in front of it.
+function valleyFog(S, L, li, top, nextTop) {
+  if (!L.fog) return;
+  const { W, H, U } = S, { R, G, B } = S.img;
+  const s = S.seed + 500 + li * 29;
+  let yEnd = H;
+  if (nextTop) { let m = 0; for (let x = 0; x < W; x++) m = Math.max(m, nextTop[x]); yEnd = Math.min(H, Math.ceil(m) + 2); }
+  const line = new Float32Array(W);
+  let yMin = H;
+  for (let x = 0; x < W; x++) {
+    line[x] = L.y * H - L.amp * U * 0.55 + 0.035 * U * fbm1(x / U * 1.6 + li * 4, 3, s, 0.5);
+    yMin = Math.min(yMin, line[x]);
+  }
+  const thick = 0.07 * U;
+  const fc = [0, 0, 0];
+  for (let y = Math.max(0, Math.floor(yMin)); y < yEnd; y++) for (let x = 0; x < W; x++) {
+    const base = smoothstep(line[x], line[x] + thick, y);
+    if (base <= 0) continue;
+    const u = x / U, v = y / U;
+    const n = fbm(u * 2.4 + 0.4 * perlin(u, v * 4, s + 2), v * 8, 5, s + 1, 0.55);
+    const d = clamp(base * L.fog * (0.45 + 1.1 * (n + 0.2)), 0, 0.97);
+    if (d <= 0.002) continue;
+    const i = y * W + x;
+    fogCol(S, x, y, fc);
+    const lift = 1.02 + 0.12 * n;
+    R[i] = mix(R[i], fc[0] * lift, d); G[i] = mix(G[i], fc[1] * lift, d); B[i] = mix(B[i], fc[2] * lift, d);
+  }
+}
+
+// Soft shafts of light fanning down from the sun through the haze.
+function sunRays(S, amount) {
+  const { W, H, U, sunX, sunY } = S, { R, G, B } = S.img;
+  const col = hexLin('#ffe2b8');
+  for (let y = Math.floor(sunY); y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = (x - sunX) / U, dy = (y - sunY) / U, d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 0.02) continue;
+    const th = Math.atan2(dy, dx);
+    const p = smoothstep(-0.1, 0.55, fbm1(th * 6, 3, S.seed + 61, 0.6)) * (0.6 + 0.4 * smoothstep(-0.3, 0.4, fbm1(th * 19, 2, S.seed + 62, 0.5)));
+    const k = amount * 0.16 * p * Math.exp(-d / 0.38) * smoothstep(0.02, 0.12, d) * smoothstep(0, 0.1, dy);
+    const i = y * W + x;
+    R[i] += col[0] * k; G[i] += col[1] * k; B[i] += col[2] * k;
+  }
+}
+
+// ------------------------------------------------------------------ main render
+function render(name, W, H) {
+  const t0 = performance.now(), times = {};
+  const mark = (k) => { times[k] = Math.round(performance.now() - t0); };
+  const S = makeScene(name, W, H);
+  paintSky(S); mark('sky');
+  const L = S.P.layers;
+  const tops = L.map((layer, li) => ridgeTop(S, layer, li));
+  L.forEach((layer, li) => {
+    const next = li < L.length - 1 ? tops[li + 1] : null;
+    const lay = li === L.length - 1 ? { ...layer, front: S.P.front } : layer;
+    paintLayer(S, lay, li, tops[li], next);
+    valleyFog(S, layer, li, tops[li], next);
+    if (li === 2 && S.P.rays) sunRays(S, S.P.rays);
+    mark('layer' + li);
+  });
+  K.bloom(S.img, S.U, { threshold: 1.0, amount: 0.9 });
+  mark('bloom');
+  const out = K.finish(S.img, S.seed, { exposure: 1.0, saturation: 1.1, vignette: 0.26, vignetteTint: [1, 0.95, 0.85], knee: 0.72, contrast: 0.1, vcx: S.P.sun[0], vcy: 0.5 });
+  mark('finish');
+  out.stats = { times };
+  return out;
+}
+
+// ------------------------------------------------------------------ strips for the CSS animation
+// 'fog': two bands of pale mist, one above the other, each tiling sideways.
+function fogStrip(W, H) {
+  const A = new Float32Array(W * H), R = new Float32Array(W * H), G = new Float32Array(W * H), B = new Float32Array(W * H);
+  const cells = 5, col = hexLin('#e6e2e4');
+  const half = H / 2;
+  for (let y = 0; y < H; y++) {
+    const band = y < half ? 0 : 1, v = (y % half) / half;
+    const env = Math.exp(-sq((v - 0.55) / 0.26)) * smoothstep(0, 0.12, v) * (1 - smoothstep(0.9, 1, v));
+    for (let x = 0; x < W; x++) {
+      const nx = x / W * cells, ny = v * 2.2 + band * 11;
+      const n = K.fbmP(nx, ny, 4, 4127 + 40 + band * 9, 0.5, cells);
+      const i = y * W + x;
+      A[i] = clamp((n + 0.18) * 1.7, 0, 1) * env * 0.92;
+      R[i] = col[0]; G[i] = col[1]; B[i] = col[2];
+    }
+  }
+  return K.finishRGBA(W, H, R, G, B, A, 9, false);
+}
+function strip(name, W, H) {
+  if (name === 'fog') return fogStrip(W, H);
+  throw new Error('unknown strip ' + name);
+}
+
+const jobs = {
+  landscape: {
+    kind: 'scene', preset: 'landscape', w: 2560, h: 1440, grain: 1.4,
+    outputs: [
+      { file: 'mist.webp', maxBytes: 440_000, qMax: 1 },
+      { file: 'mist-1280.webp', w: 1280, h: 720, maxBytes: 155_000, qMax: 1 },
+      { file: 'thumb.webp', w: 480, h: 270, maxBytes: 26_000, kind: 'thumb', qMax: 1 },
+    ],
+  },
+  tall: { kind: 'scene', preset: 'tall', w: 1080, h: 1920, grain: 1.4, outputs: [{ file: 'mist-tall.webp', maxBytes: 310_000, qMax: 1 }] },
+  fog: { kind: 'strip', strip: 'fog', w: 768, h: 192, outputs: [{ file: 'fog.webp', maxBytes: 40_000 }] },
+};
+
+return { render, strip, jobs, PRESETS };
+})();
+window.ThemeArt = ThemeArt;
+ArtKit.preview(ThemeArt, { title: 'DOPPELGÄNGER misty peaks generator' });
+</script>
+</body>
+</html>

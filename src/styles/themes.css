@@ -1,0 +1,279 @@
+/* Colours of each theme: overrides of the :root tokens in styles.css. The theme id is set as
+ * data-theme on <html> and on .app (App.tsx); `sunrise` is the :root default. Keep the token names:
+ * other stylesheets use them, and every page must stay readable in the dark `aurora` theme. */
+
+/* ------------------------------------------------ sakura dusk: plum ink, blossom-pink accent */
+:root[data-theme='sakura'],
+[data-theme='sakura'] {
+  --ink: #2e1f2c;
+  --ink-2: #5e4459;
+  --muted: #8e7489;
+  --line: rgba(130, 70, 110, 0.14);
+  --line-2: rgba(130, 70, 110, 0.26);
+  --glass: rgba(255, 248, 251, 0.74);
+  --glass-2: rgba(255, 251, 253, 0.9);
+  --glass-edge: rgba(255, 255, 255, 0.82);
+  --glass-shadow: 0 1px 1px rgba(80, 20, 60, 0.04), 0 12px 32px -10px rgba(90, 30, 70, 0.2), 0 30px 70px -30px rgba(120, 40, 90, 0.22);
+  --sunrise: linear-gradient(135deg, #ffb59a 0%, #f27aa0 48%, #b5549f 100%);
+  --sunrise-soft: linear-gradient(135deg, rgba(255, 181, 154, 0.22), rgba(181, 84, 159, 0.16));
+  --accent: #e2588a;
+  --accent-ink: #c2457a;
+  --accent-rgb: 242 122 160;
+  --accent-edge-rgb: 226 100 150;
+  --accent-glow-rgb: 200 70 130;
+  --accent-end-rgb: 181 84 159;
+  --accent-border: linear-gradient(135deg, rgba(255, 181, 154, 0.9), rgba(181, 84, 159, 0.8));
+  --on-accent-shadow: rgba(120, 30, 80, 0.35);
+  --selection: rgba(242, 122, 160, 0.3);
+  --row-hover: rgba(242, 150, 180, 0.14);
+  --row-selected: rgba(242, 150, 180, 0.12);
+  --glass-rgb: 255 248 251;
+  --tint-rgb: 130 70 110;
+  --button-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 242, 247, 0.85));
+  --button-edge: rgba(170, 90, 130, 0.22);
+  --dash-edge: rgba(210, 110, 150, 0.35);
+  --drop-edge: rgba(226, 110, 150, 0.45);
+  --drop-over: rgba(255, 240, 246, 0.85);
+  --graph-ink: #3a2334;
+  --graph-area: rgba(58, 35, 52, 0.1);
+  --page-bg: #e8c3d3;
+}
+
+/* ------------------------------------------------ misty peaks: slate ink, dawn-blue accent */
+:root[data-theme='mist'],
+[data-theme='mist'] {
+  --ink: #1c2433;
+  --ink-2: #445066;
+  --muted: #6f7a8e;
+  --line: rgba(40, 56, 90, 0.13);
+  --line-2: rgba(40, 56, 90, 0.24);
+  --glass: rgba(246, 248, 252, 0.74);
+  --glass-2: rgba(250, 251, 254, 0.9);
+  --glass-edge: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 1px 1px rgba(20, 30, 60, 0.04), 0 12px 32px -10px rgba(20, 34, 70, 0.2), 0 30px 70px -30px rgba(30, 44, 90, 0.22);
+  --sunrise: linear-gradient(135deg, #f4b48a 0%, #cf7690 46%, #5a6cb4 100%);
+  --sunrise-soft: linear-gradient(135deg, rgba(244, 180, 138, 0.2), rgba(90, 108, 180, 0.16));
+  --accent: #4f68b6;
+  --accent-ink: #3c55a2;
+  --accent-rgb: 90 108 180;
+  --accent-edge-rgb: 104 124 196;
+  --accent-glow-rgb: 50 70 140;
+  --accent-end-rgb: 90 108 180;
+  --accent-border: linear-gradient(135deg, rgba(244, 180, 138, 0.9), rgba(90, 108, 180, 0.8));
+  --on-accent-shadow: rgba(30, 40, 90, 0.35);
+  --selection: rgba(90, 108, 180, 0.25);
+  --row-hover: rgba(60, 80, 130, 0.07);
+  --row-selected: rgba(90, 108, 180, 0.1);
+  --glass-rgb: 246 248 252;
+  --tint-rgb: 40 56 90;
+  --button-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 244, 250, 0.88));
+  --button-edge: rgba(40, 56, 90, 0.18);
+  --dash-edge: rgba(70, 90, 140, 0.3);
+  --drop-edge: rgba(90, 108, 180, 0.4);
+  --drop-over: rgba(240, 244, 252, 0.88);
+  --graph-ink: #1f2838;
+  --graph-area: rgba(31, 40, 56, 0.1);
+  --page-bg: #c9d0de;
+}
+
+/* ------------------------------------------------ aurora night: dark glass, light text */
+:root[data-theme='aurora'],
+[data-theme='aurora'] {
+  color-scheme: dark;
+  --ink: #eaf0fa;
+  --ink-2: #bcc7da;
+  --muted: #8b99b1;
+  --line: rgba(160, 190, 240, 0.13);
+  --line-2: rgba(160, 190, 240, 0.24);
+  --glass: rgba(12, 18, 34, 0.64);
+  --glass-2: rgba(16, 24, 44, 0.88);
+  --glass-edge: rgba(150, 190, 255, 0.15);
+  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 12px 32px -10px rgba(0, 0, 0, 0.5), 0 30px 70px -30px rgba(0, 20, 40, 0.6);
+  --blur: saturate(140%) blur(22px);
+  --sunrise: linear-gradient(135deg, #1fb99b 0%, #2a8fd0 50%, #7457e8 100%);
+  --sunrise-soft: linear-gradient(135deg, rgba(95, 230, 190, 0.16), rgba(139, 108, 255, 0.16));
+  --you: #ffa94d;
+  --you-soft: rgba(255, 169, 77, 0.16);
+  --kata: #3fd8bf;
+  --kata-soft: rgba(63, 216, 191, 0.14);
+  --doppel: #ab90ff;
+  --doppel-soft: rgba(171, 144, 255, 0.17);
+  --bad: #ff6f61;
+  --bad-soft: rgba(255, 111, 97, 0.15);
+  --good: #4fd68a;
+  --good-soft: rgba(79, 214, 138, 0.15);
+  --warn: #f2b33d;
+  --warn-soft: rgba(242, 179, 61, 0.15);
+  --you-ink: #ffbf73;
+  --bad-ink: #ff948a;
+  --good-ink: #7ce3a8;
+  --warn-ink: #f6c56a;
+  --warn-text: #f6c56a;
+  --accent: #52e0c6;
+  --accent-ink: #7eebd6;
+  --accent-rgb: 82 224 198;
+  --accent-edge-rgb: 90 220 210;
+  --accent-glow-rgb: 30 170 190;
+  --accent-end-rgb: 116 87 232;
+  --accent-border: linear-gradient(135deg, rgba(95, 230, 190, 0.75), rgba(139, 108, 255, 0.75));
+  --on-accent-shadow: rgba(5, 30, 50, 0.45);
+  --selection: rgba(82, 224, 198, 0.3);
+  --row-hover: rgba(120, 200, 255, 0.08);
+  --row-selected: rgba(82, 224, 198, 0.1);
+  --surface-rgb: 42 56 88;
+  --glass-rgb: 14 21 38;
+  --tint-rgb: 160 190 240;
+  --button-bg: linear-gradient(180deg, rgba(50, 66, 102, 0.92), rgba(33, 45, 73, 0.92));
+  --button-edge: rgba(150, 190, 255, 0.2);
+  --button-hi: rgba(255, 255, 255, 0.08);
+  --dash-edge: rgba(120, 200, 230, 0.3);
+  --drop-edge: rgba(110, 220, 210, 0.4);
+  --drop-over: rgba(30, 48, 76, 0.85);
+  --graph-ink: #d4e3f7;
+  --graph-area: rgba(200, 225, 255, 0.12);
+  --page-bg: #070b18;
+}
+/* Accent-coloured shadows follow each theme's accent. */
+:root[data-theme='sakura'],
+[data-theme='sakura'],
+:root[data-theme='mist'],
+[data-theme='mist'],
+:root[data-theme='aurora'],
+[data-theme='aurora'] {
+  --glow-nav: rgb(var(--accent-glow-rgb) / 0.35);
+  --glow-panel: rgb(var(--accent-glow-rgb) / 0.3);
+  --glow-btn: rgb(var(--accent-glow-rgb) / 0.45);
+  --glow-pulse: rgb(var(--accent-rgb) / 0.85);
+}
+/* The board is kaya wood in every theme: its marks keep the colours they were drawn for. */
+[data-theme='aurora'] svg.board {
+  --you: #e2800f;
+  --kata: #138f7c;
+  --doppel: #7446f0;
+  --bad: #d8453a;
+}
+
+/* ------------------------------------------------ light effects in every theme */
+.fx-light[data-theme] {
+  --blur: none;
+  --glass: rgb(var(--glass-rgb) / 0.9);
+}
+
+/* ------------------------------------------------ switching themes (Scenery.switchTheme) */
+:root.theme-swap::view-transition-old(root),
+:root.theme-swap::view-transition-new(root) {
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ------------------------------------------------ theme picker (Settings → Appearance) */
+.theme-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.theme-card {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 6px 6px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgb(var(--surface-rgb) / 0.5);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    border-color 0.2s,
+    background 0.2s;
+}
+.theme-card:hover {
+  transform: translateY(-2px);
+  background: rgb(var(--surface-rgb) / 0.8);
+  box-shadow: 0 12px 24px -14px rgb(var(--accent-glow-rgb) / 0.5);
+}
+.theme-card.on {
+  border-color: rgb(var(--accent-rgb) / 0.75);
+  background: rgb(var(--surface-rgb) / 0.9);
+  box-shadow:
+    0 0 0 2px rgb(var(--accent-rgb) / 0.3),
+    0 12px 26px -14px rgb(var(--accent-end-rgb) / 0.55);
+}
+.theme-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 5px;
+  border-radius: 11px;
+  overflow: hidden;
+  background: rgb(var(--tint-rgb) / 0.12);
+  box-shadow: 0 0 0 1px rgb(var(--tint-rgb) / 0.1) inset;
+}
+.theme-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.7s var(--ease);
+}
+.theme-card:hover .theme-thumb img {
+  transform: scale(1.06);
+}
+.theme-check {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--sunrise);
+  box-shadow: 0 3px 8px -2px rgba(0, 0, 0, 0.35);
+  animation: pop 0.4s var(--spring) both;
+}
+.theme-check svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+}
+/* the painting of the chosen theme is loading */
+.theme-card.busy .theme-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.45), transparent 70%);
+  animation: shimmer 1.1s infinite;
+  transform: translateX(-100%);
+}
+.theme-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.theme-tag {
+  padding: 0 6px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  border: 1px solid var(--line-2);
+}
+.theme-desc {
+  padding: 0 4px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}

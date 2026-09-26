@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useStore } from '../state/store';
 import { chooseSide, removeDemo, restartEngine, usesDemoData } from '../state/actions';
 import { gameTitle } from './common';
+import { Icon } from './Icons';
+import { href } from '../router';
 
 /** "Which side did you play?" for games whose SGF doesn't say (no player name matched). */
 export function SideChooser({ limit = 4 }: { limit?: number }) {
@@ -93,9 +95,13 @@ export function DemoNotice() {
   if (!hasDemo) return null;
   const showing = usesDemoData();
   const own = games.some((g) => g.source === 'user');
+  // A slim strip (styled in pages/dashboard.css): what is shown, and the two ways out of the demo.
   return (
-    <div className="banner info">
-      <div className="grow stack tight">
+    <div className="banner info demo-strip">
+      <span className="demo-strip-ico" aria-hidden>
+        <Icon name="stones" />
+      </span>
+      <div className="grow">
         <strong>{showing ? 'You are looking at the demo player, Mira' : 'Demo games are hidden from your profile'}</strong>
         <span className="small dim">
           {showing
@@ -105,9 +111,16 @@ export function DemoNotice() {
             : 'Your profile, weaknesses and training now come from your own games only.'}
         </span>
       </div>
-      <button className="btn" onClick={() => void removeDemo()}>
-        Remove demo data
-      </button>
+      <div className="demo-strip-actions">
+        {showing && !own && (
+          <a className="btn small" href={href('library')}>
+            <Icon name="upload" /> Import yours
+          </a>
+        )}
+        <button className="btn small ghost" onClick={() => void removeDemo()}>
+          Remove demo data
+        </button>
+      </div>
     </div>
   );
 }

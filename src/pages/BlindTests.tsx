@@ -250,71 +250,75 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
         </div>
       ) : (
         <div className="panel" style={{ padding: 0 }}>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Weakness</th>
-                <th>Positions</th>
-                <th>Last result</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {weaknesses.map((w) => {
-                const last = done.find((t) => t.weaknessId === w.id);
-                const n = (practice[w.id] ?? []).length;
-                return (
-                  <tr key={w.id} className={w.id === weakness?.id ? 'selected' : ''}>
-                    <td>
-                      <div>{w.llm?.title ?? w.title}</div>
-                      <div className="tiny muted">{w.category}</div>
-                    </td>
-                    <td className="mono small">{n}</td>
-                    <td>
-                      {last?.result ? (
-                        <span className={`chip ${VERDICT[last.result.verdict].tone}`}>
-                          {VERDICT[last.result.verdict].text} · {fmtPct(last.result.conceptAccuracy)}
-                        </span>
-                      ) : (
-                        <span className="muted small">never tested</span>
-                      )}
-                    </td>
-                    <td className="row">
-                      <button className="btn small primary" disabled={n < 6} onClick={() => void start(w.id)}>
-                        Start test
-                      </button>
-                      <button className="btn small ghost" onClick={() => go(`forge/${w.id}`)}>
-                        Train
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Weakness</th>
+                  <th>Positions</th>
+                  <th>Last result</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {weaknesses.map((w) => {
+                  const last = done.find((t) => t.weaknessId === w.id);
+                  const n = (practice[w.id] ?? []).length;
+                  return (
+                    <tr key={w.id} className={w.id === weakness?.id ? 'selected' : ''}>
+                      <td>
+                        <div>{w.llm?.title ?? w.title}</div>
+                        <div className="tiny muted">{w.category}</div>
+                      </td>
+                      <td className="mono small">{n}</td>
+                      <td>
+                        {last?.result ? (
+                          <span className={`chip ${VERDICT[last.result.verdict].tone}`}>
+                            {VERDICT[last.result.verdict].text} · {fmtPct(last.result.conceptAccuracy)}
+                          </span>
+                        ) : (
+                          <span className="muted small">never tested</span>
+                        )}
+                      </td>
+                      <td className="row">
+                        <button className="btn small primary" disabled={n < 6} onClick={() => void start(w.id)}>
+                          Start test
+                        </button>
+                        <button className="btn small ghost" onClick={() => go(`forge/${w.id}`)}>
+                          Train
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       {done.length > 0 && (
         <>
           <h3 style={{ margin: '24px 0 8px' }}>History</h3>
           <div className="panel" style={{ padding: 0 }}>
-            <table className="data">
-              <tbody>
-                {done.slice(0, 20).map((t) => {
-                  const w = weaknesses.find((x) => x.id === t.weaknessId);
-                  return (
-                    <tr key={t.id} className="click" onClick={() => setFinished({ test: t, items: allItems.filter((x) => t.itemIds.includes(x.id)) })}>
-                      <td className="small dim">{new Date(t.startedAt).toLocaleDateString()}</td>
-                      <td>{w?.llm?.title ?? w?.title ?? 'Removed weakness'}</td>
-                      <td>
-                        <span className={`chip ${VERDICT[t.result!.verdict].tone}`}>{VERDICT[t.result!.verdict].text}</span>
-                      </td>
-                      <td className="mono small">{fmtPct(t.result!.conceptAccuracy)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="data">
+                <tbody>
+                  {done.slice(0, 20).map((t) => {
+                    const w = weaknesses.find((x) => x.id === t.weaknessId);
+                    return (
+                      <tr key={t.id} className="click" onClick={() => setFinished({ test: t, items: allItems.filter((x) => t.itemIds.includes(x.id)) })}>
+                        <td className="small dim">{new Date(t.startedAt).toLocaleDateString()}</td>
+                        <td>{w?.llm?.title ?? w?.title ?? 'Removed weakness'}</td>
+                        <td>
+                          <span className={`chip ${VERDICT[t.result!.verdict].tone}`}>{VERDICT[t.result!.verdict].text}</span>
+                        </td>
+                        <td className="mono small">{fmtPct(t.result!.conceptAccuracy)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
