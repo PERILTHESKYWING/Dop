@@ -1,0 +1,363 @@
+/* Home Trainer page: the network training on the user's own GPU. Tokens come from styles.css. */
+
+.trn-page .panel + .panel {
+  margin-top: 0;
+}
+.trn-page .panel.stack {
+  align-content: start;
+}
+.trn-page .grow {
+  flex: 1 1 auto;
+}
+.trn-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------ setup */
+.trn-setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.trn-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 12px;
+  line-height: 1.5;
+}
+.trn-bullets {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  line-height: 1.5;
+}
+.trn-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------ top row */
+.trn-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.trn-hero {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  overflow: hidden;
+}
+.trn-hero::before {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 60%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--accent-glow-rgb) / 0.28), transparent 65%);
+  pointer-events: none;
+  transition: transform 1.2s var(--ease), opacity 1.2s;
+  opacity: 0.6;
+}
+.trn-hero.pop::before {
+  transform: scale(1.5);
+  opacity: 1;
+}
+.trn-hero-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.trn-elo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.trn-elo-num {
+  font-family: var(--display);
+  font-size: clamp(44px, 7vw, 72px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.trn-hero.pop .trn-elo-num {
+  animation: trn-pop 0.9s var(--spring);
+}
+@keyframes trn-pop {
+  40% {
+    transform: scale(1.08);
+  }
+}
+.trn-elo-unit {
+  font-size: 18px;
+  color: var(--muted);
+}
+.trn-hero-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  font-size: 14px;
+}
+.trn-delta {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.trn-delta.up {
+  color: var(--good-ink);
+  background: var(--good-soft);
+}
+.trn-delta.down {
+  color: var(--bad-ink);
+  background: var(--bad-soft);
+}
+.trn-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.trn-fact {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(var(--tint-rgb) / 0.06);
+}
+.trn-fact strong {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.trn-fact span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.trn-next {
+  color: var(--ink-2);
+}
+.trn-activity .progress.trn-indeterminate > span {
+  width: 30%;
+  animation: trn-slide 1.6s ease-in-out infinite;
+}
+@keyframes trn-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+.trn-log {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgb(var(--tint-rgb) / 0.08);
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ------------------------------------------------ chart */
+.trn-chart {
+  position: relative;
+}
+.trn-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
+.trn-chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.trn-chart .axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.trn-chart .ref {
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  opacity: 0.55;
+}
+.trn-chart .ref-label {
+  fill: var(--ink-2);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: rgb(var(--surface-rgb) / 0.85);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.trn-chart .band {
+  fill: var(--graph-area);
+  opacity: 0.55;
+}
+.trn-chart .area {
+  fill: var(--graph-area);
+  opacity: 0.5;
+}
+.trn-chart .line {
+  fill: none;
+  stroke: var(--graph-ink);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.trn-chart .pt {
+  fill: var(--graph-ink);
+  stroke: var(--page-bg);
+  stroke-width: 2;
+}
+.trn-chart .pt.last {
+  fill: var(--accent);
+  animation: trn-glow 2.4s ease-in-out infinite;
+}
+@keyframes trn-glow {
+  50% {
+    stroke-width: 6;
+    stroke: rgb(var(--accent-glow-rgb) / 0.35);
+  }
+}
+.trn-chart .cross {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+.trn-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  max-width: 280px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  font-size: 12.5px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.trn-axis-note {
+  text-align: center;
+}
+
+/* ------------------------------------------------ bottom row */
+.trn-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.trn-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.trn-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.trn-form select {
+  font: inherit;
+  padding: 7px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--ink);
+  min-width: 0;
+}
+.trn-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 16px;
+  align-items: start;
+}
+.trn-game-board .board {
+  width: 100%;
+  max-height: calc(100vh - 120px);
+  aspect-ratio: 1;
+}
+.trn-milestones ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.trn-milestones li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  opacity: 0.62;
+}
+.trn-milestones li.done {
+  opacity: 1;
+}
+.trn-check {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+.trn-milestones li.done .trn-check {
+  background: var(--good);
+  border-color: var(--good);
+  color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .trn-bottom,
+  .trn-game {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 860px) {
+  .trn-top,
+  .trn-setup {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trn-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trn-chart .pt.last,
+  .trn-activity .progress.trn-indeterminate > span,
+  .trn-hero.pop .trn-elo-num {
+    animation: none;
+  }
+}

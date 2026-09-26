@@ -9,3 +9,5 @@ public/demo/part-*.json
 *.log
 coverage/
 .DS_Store
+public/downloads/
+__pycache__/

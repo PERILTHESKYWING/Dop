@@ -24,6 +24,7 @@ piece is an optional LLM proxy.
 | **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. The analysis board is one tap away. |
 | **Blind Tests** | "Do I really know this?": 10–20 blind positions per weakness, scored against what the old habit would get right by default. The analysis board is available here too. |
 | **Position Search** | Positions like this one across your games: board, game/move, your move, KataGo's move, evaluation difference and the associated weakness. |
+| **Home Trainer** | A Go network that trains itself from scratch on your own GPU with KataGo's self-play pipeline (the `trainer/` program, downloaded from this page). Shows its Elo climbing generation by generation, milestones, what it is doing now, and lets you play the newest network (or any kept older one) at any time. |
 | **Opponent Profiles** | Openings, corner sequences, fighting, invasion and strategy tendencies from a rival's SGFs. |
 | **Engine & Settings** | Network choice (or load a network file), WebGPU/CPU, safe mode, visits, LLM connection test, the practice winrate floor, appearance, the model lab, storage. |
 
@@ -91,12 +92,22 @@ cached in the Cache API; they are never committed.
 
 Rebuild the engine with `engine/build-engine.sh` (needs emsdk and Eigen headers).
 
+## Home Trainer (your own GPU)
+
+`trainer/` is a small Python program that runs KataGo's own self-play training loop on the user's PC:
+native self-play on the GPU, shuffle, PyTorch training, export, then rating matches against earlier
+generations and a fixed reference network. It serves its status, rating history and a play endpoint on
+`http://127.0.0.1:7474`, which the Home Trainer page reads straight from the browser; nothing goes through
+Vercel. `npm run build` packs it into `public/downloads/dop-trainer.zip` (with a double-click
+`Start-Trainer.bat` for Windows). See [trainer/README.md](trainer/README.md).
+
 ## Run locally
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests
+npm run trainer:test  # Python tests for the Home Trainer program
 npm run build      # production build in dist/
 ```
 

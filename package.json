@@ -5,13 +5,15 @@
   "type": "module",
   "description": "DOPPELGÄNGER: a local-first personal Go training lab built on KataGo.",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node tools/trainer/pack.mjs && vite",
+    "build": "node tools/trainer/pack.mjs && tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
-    "demo:generate": "tsx scripts/generate-demo.ts"
+    "demo:generate": "tsx scripts/generate-demo.ts",
+    "trainer:pack": "node tools/trainer/pack.mjs",
+    "trainer:test": "cd trainer && python3 -m unittest discover -s tests"
   },
   "engines": {
     "node": ">=20"

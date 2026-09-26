@@ -20,6 +20,7 @@ import { Forge } from './pages/Forge';
 import { BlindTests } from './pages/BlindTests';
 import { Search } from './pages/Search';
 import { Opponents } from './pages/Opponents';
+import { Trainer } from './pages/Trainer';
 import { Settings } from './pages/Settings';
 import './styles/shell.css';
 
@@ -48,6 +49,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { page: 'forge', label: 'Forge', short: 'Forge', icon: 'flame' },
       { page: 'blind', label: 'Blind Tests', short: 'Blind Tests', icon: 'eyeOff' },
       { page: 'search', label: 'Position Search', short: 'Search', icon: 'search' },
+      { page: 'trainer', label: 'Home Trainer', short: 'Trainer', icon: 'cpu' },
     ],
   },
   {
@@ -308,6 +310,9 @@ export function App() {
         break;
       case 'opponents':
         page = <Opponents id={route.params[0]} />;
+        break;
+      case 'trainer':
+        page = <Trainer />;
         break;
       case 'settings':
         page = <Settings />;

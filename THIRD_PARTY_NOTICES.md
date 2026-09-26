@@ -26,7 +26,8 @@ The compiled engine statically links:
 It is taken from `cpp/tests/models/` of the KataGo source tree as included in katago-webgpu at the commit
 above, where it falls under the same MIT licence ("all other content in this repo", see
 `public/engine/LICENSE-KataGo.txt`). It ships with the site so analysis works when network downloads are
-blocked, and it is the default on the CPU.
+blocked, and it is the default on the CPU. The Dop Trainer download (`dop-trainer.zip`, built from
+`trainer/` by `tools/trainer/pack.mjs`) includes the same file with KataGo's licence, as its rating reference.
 
 ### Fonts (SIL Open Font License 1.1)
 Bundled from the `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
@@ -58,6 +59,14 @@ first use and caches them locally.
 - **g170-b6c96**, a tiny test network included in the katago-webgpu repository under its MIT licence,
   fetched from jsDelivr or raw.githubusercontent.com when chosen.
 - A network file the user loads from their own computer stays in that browser's cache.
+
+Dop Trainer (`trainer/`), which runs on the user's own PC, downloads these itself during setup; none of
+them are in the repository or the zip:
+
+- **KataGo v1.18.1** release binaries and its Python training scripts and configs (MIT), from
+  https://github.com/lightvector/KataGo.
+- **PyTorch** (BSD-3-Clause) and **NumPy** (BSD-3-Clause), **psutil** (BSD-3-Clause) and **packaging**
+  (Apache-2.0 / BSD), from the Python package index and download.pytorch.org.
 
 ## Demo data
 
