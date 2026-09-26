@@ -2,7 +2,7 @@ import { memo, useEffect, useId, useMemo, useRef, useState, type JSX, type Point
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
 
-export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence';
+export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var';
 
 export interface Mark {
   loc: Loc;
