@@ -6,10 +6,12 @@ import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../c
 import { fmtPct } from '../components/common';
 import { itemBoard, lastOpponentMove, type GradeResult } from '../lib/forge/grading';
 import { newMastery, pickItem, pickWeakness } from '../lib/forge/scheduler';
+import { assessItem, describeSkipped, practiceItems, summarizePractice } from '../lib/forge/worth';
 import { buildContext } from '../lib/go/features';
 import { locToGtp } from '../lib/go/coords';
 import { decodeOwnership } from '../lib/engine/parse';
 import { buildExample, predict } from '../lib/profile/doppel';
+import { useCopy } from '../components/Doppel';
 import { signatureById } from '../lib/profile/signatures';
 import { PASS, type Loc } from '../lib/go/types';
 import type { Attempt, TrainingItem, TrainingKind, Weakness } from '../lib/types';
@@ -26,7 +28,7 @@ export const KIND_TEXT: Record<TrainingKind, { label: string; explain: string }>
 const REASONS = ['Looked urgent', 'Biggest point', 'Safety first', 'Attack', 'Shape', 'Instinct'];
 
 export function usePrediction(item: TrainingItem | null) {
-  const doppel = useStore((s) => s.doppel);
+  const doppel = useCopy().model;
   return useMemo(() => {
     if (!item || !doppel) return null;
     const ctx = buildContext(itemBoard(item), decodeOwnership(item.eval.ownership));
@@ -56,7 +58,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
         <dd className="kata">{locToGtp(grade.bestLoc, item.size)}</dd>
         {predicted && (
           <>
-            <dt>Doppelgänger</dt>
+            <dt>Your copy</dt>
             <dd className="doppel">
               expected {locToGtp(predicted.loc, item.size)} ({fmtPct(predicted.p)})
               {predicted.loc === attempt.loc ? ' · you played to type' : ' · you broke your pattern'}
@@ -124,8 +126,14 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const engine = useStore((s) => s.engine);
   const sessionId = useRef(uid('s')).current;
   const masteryMap = useMemo(() => new Map(Object.entries(mastery)), [mastery]);
-  const weakness: Weakness | null = weaknesses.find((w) => w.id === weaknessId) ?? pickWeakness(weaknesses, masteryMap) ?? null;
-  const items = weakness ? itemsByW[weakness.id] ?? [] : [];
+  const minWin = useStore((s) => s.settings.minLosingWinrate);
+  // With no weakness asked for, train one that has positions worth drilling.
+  const trainable = useMemo(() => weaknesses.filter((w) => practiceItems(itemsByW[w.id] ?? [], minWin).length > 0), [weaknesses, itemsByW, minWin]);
+  const weakness: Weakness | null =
+    weaknesses.find((w) => w.id === weaknessId) ?? pickWeakness(trainable, masteryMap) ?? pickWeakness(weaknesses, masteryMap) ?? null;
+  // Only positions worth drilling are asked (lib/forge/worth.ts), items saved before those rules included.
+  const stored = weakness ? itemsByW[weakness.id] : undefined;
+  const items = useMemo(() => practiceItems(stored ?? [], minWin), [stored, minWin]);
   const m = weakness ? mastery[weakness.id] ?? newMastery(weakness.id) : null;
 
   const [item, setItem] = useState<TrainingItem | null>(null);
@@ -139,20 +147,20 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [view, toggleView] = useAnalysisView();
   const predicted = usePrediction(item);
-  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
+  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
   const analysis = useAnalysis(base, explore, item?.eval);
 
   const next = useCallback(() => {
     if (!weakness) return;
     const history = useStore.getState().attempts.filter((a) => a.weaknessId === weakness.id && a.mode === 'forge');
     const lvl = useStore.getState().mastery[weakness.id]?.level ?? 1;
-    setItem(pickItem(itemsByW[weakness.id] ?? [], history, lvl));
+    setItem(pickItem(items, history, lvl));
     setPending(null);
     setResult(null);
     setExplore(false);
     setHoverPv(null);
     setStarted(Date.now());
-  }, [weakness, itemsByW]);
+  }, [weakness, items]);
 
   useEffect(() => {
     next();
@@ -206,25 +214,38 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
         </div>
       </div>
     );
-  if (!weakness || !item || !board)
+  if (!weakness || !item || !board) {
+    // Positions are there and the first one is being chosen.
+    if (weakness && items.length) return <div className="page" />;
+    const title = weakness ? <strong>{weakness.llm?.title ?? weakness.title}</strong> : 'this weakness';
+    const skipped = stored?.length ? summarizePractice(stored, minWin) : null;
     return (
       <div className="page">
         <div className="empty stack" style={{ justifyItems: 'center' }}>
-          <span>
-            No training positions for {weakness ? <strong>{weakness.llm?.title ?? weakness.title}</strong> : 'this weakness'} yet. Practice only uses positions where the side that is behind still has at least{' '}
-            {Math.round(useStore.getState().settings.minLosingWinrate * 100)}% to win, so decided games give fewer positions.
-          </span>
+          {skipped ? (
+            <span>
+              None of the {skipped.total} positions found for {title} are worth drilling: {describeSkipped(skipped)}. Forge only asks about positions where
+              a wrong move costs real points and one answer stands out, so early-opening choices and small differences are left out. Analyse more of
+              your games to find more.
+            </span>
+          ) : (
+            <span>
+              No training positions for {title} yet. Practice only uses positions where a wrong move costs real points and the side that is behind still
+              has at least {Math.round(minWin * 100)}% to win, so early-opening choices and decided games give none.
+            </span>
+          )}
           <span className="row wrap" style={{ justifyContent: 'center' }}>
-            <a className="btn small" href={href('settings')}>
-              Change the limit
-            </a>
             <a className="btn small" href={href('library')}>
-              Add more games
+              Analyse more games
+            </a>
+            <a className="btn small" href={href('settings')}>
+              Change the winrate limit
             </a>
           </span>
         </div>
       </div>
     );
+  }
 
   const marks: Mark[] = [];
   if (result) {
@@ -239,7 +260,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
     <div className="stage">
       <div className="board-wrap">
         {explore ? (
-          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} />
+          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} onHoverPv={setHoverPv} />
         ) : (
         <Board
           size={item.size}
@@ -260,6 +281,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
             view={view}
             onToggle={toggleView}
             onHoverPv={setHoverPv}
+            copyColor={item?.toPlay}
             onClose={() => {
               setExplore(false);
               setHoverPv(null);
@@ -294,6 +316,9 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                 <strong>{item.toPlay === 1 ? 'Black' : 'White'} to play</strong>
                 <span className="chip">{item.kind === 'original' ? 'from your game' : 'blind position'}</span>
               </div>
+              <p className="tiny muted" title="Why this position is worth drilling">
+                {assessItem(item).reason}
+              </p>
               <p className="small dim">Find the best move. Tap a point to select it, tap again (or press Enter) to commit.</p>
               {assisted && <p className="tiny warn">Analysis board used: this answer will not count toward mastery.</p>}
               <div className="row wrap">

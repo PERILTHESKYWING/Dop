@@ -17,24 +17,36 @@ piece is an optional LLM proxy.
 | Page | What it does |
 | --- | --- |
 | **Dashboard** | First-run checks (WebGPU, WASM, KataGo network, LLM), analysed games/positions, biggest and improving weakness, Player DNA, weakness map, training history. |
-| **Game Library** | Drag in many SGFs, in any common encoding (UTF-8, GBK/GB18030, Big5, Shift_JIS, EUC-KR). Asks which side you played when the player names don't say. Resumable background analysis queue: a fast network pass over every position, then deep searches on the positions that matter. |
-| **Game Review** | Board, winrate graph, your move vs KataGo, candidates, PV, policy heatmap, ownership, detected decision errors, "find similar". **Try moves here** opens the analysis board at any move. |
-| **Player DNA** | Fingerprint on 11 axes, each weakness with its evidence positions and confidence, and the Doppelgänger model: your likely move vs KataGo's. |
+| **Game Library** | Drag in many SGFs, in any common encoding (UTF-8, GBK/GB18030, Big5, Shift_JIS, EUC-KR). Asks which side you played when the player names don't say. Resumable background analysis queue: a quick network look at every game first, then a tree search of every position. Komi follows the rules (Fox's KM[0] becomes the standard komi, with a warning and a picker). |
+| **Game Review** | Live analysis as in Lizzie: KataGo keeps searching the move on screen, with candidate discs (winrate, visits, score) and a table that refine as it reads; Space pauses. Winrate and score graph, hover a candidate for its line, click it to try it on the analysis board. Ownership, policy heatmap, decision errors, "find similar", and what your copy expects on your turns. |
+| **Player DNA** | Fingerprint on 11 axes, each weakness with its evidence positions and confidence. |
+| **Doppelgänger** | The copy of you: how often it names your actual move (vs KataGo's policy alone), your habits in plain words, where you and KataGo disagree and what it costs, and a game against your copy. |
 | **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. The analysis board is one tap away. |
 | **Blind Tests** | "Do I really know this?": 10–20 blind positions per weakness, scored against what the old habit would get right by default. The analysis board is available here too. |
 | **Position Search** | Positions like this one across your games: board, game/move, your move, KataGo's move, evaluation difference and the associated weakness. |
 | **Opponent Profiles** | Openings, corner sequences, fighting, invasion and strategy tendencies from a rival's SGFs. |
 | **Engine & Settings** | Network choice (or load a network file), WebGPU/CPU, safe mode, visits, LLM connection test, the practice winrate floor, appearance, the model lab, storage. |
 
+### Live analysis and the tree search
+The browser build of KataGo evaluates positions with its network only, so DOPPELGÄNGER runs its own
+tree search (PUCT, as KataGo does) on top of it. Game analysis searches every position, and the position
+on screen keeps being searched ("pondering"): visits climb and the numbers refine while you watch, and one
+search tree follows you through the game. The network itself does not learn in the browser; KataGo gets
+stronger on a position by searching it longer. Settings has the visits per position for game analysis and
+an optional cap for live analysis. For the small built-in network, winrates are derived from its score
+estimate, which on a game analysed with desktop KataGo (via Lizzie) matched it far better than its value head.
+
 ### The analysis board
 In Forge, Blind Tests and Game Review you can open a live analysis board at any time: play moves for either
 side, undo and redo, and see KataGo's winrate, score lead, candidate moves with their lines, the policy
-heatmap and territory update after every move. Opening it before you answer marks that answer as assisted:
+heatmap and territory refine as it searches. Opening it before you answer marks that answer as assisted:
 it is recorded, but it does not count toward mastery or blind-test scores.
 
 ### Practice positions stay playable
 Forge, blind tests and engine-made variations only use positions where the side that is behind still has at
-least 30% to win, so there is always a real decision to make. The limit can be set from 10% to 45% in
+least 30% to win, so there is always a real decision to make. They also skip positions not worth drilling:
+early-opening choices where little is at stake, ordinary moves that lost little, and positions where several
+moves are about equally good. The limit can be set from 10% to 45% in
 Engine & Settings.
 
 ### How weaknesses are found (numbers never come from the LLM)

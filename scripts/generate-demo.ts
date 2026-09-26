@@ -258,13 +258,8 @@ async function runPart(modelPath: string, part: number, parts: number) {
     const g = await playGame(engine, spec, counts);
     if (spec.source === 'demo-opponent') g.playerColor = null;
     const t1 = Date.now();
-    const focus = spec.source === 'demo' ? g.playerColor : spec.black === RIVAL ? 1 : 2;
-    await analyzeGame(g, engine, store, {
-      deepVisits: Number(arg('visits', '1')),
-      deepPerGame: spec.source === 'demo' ? Number(arg('deep', '30')) : 10,
-      maxSearchMs: 20000,
-      focusColor: focus as 1 | 2,
-    });
+    // visits 0: the network pass only (the shipped demo); more runs the search pass too.
+    await analyzeGame(g, engine, store, { visits: Number(arg('visits', '0')) });
     games.push(store.games.get(g.id)!);
     console.log(`part ${part}: game ${spec.idx + 1} ${g.moves.length} moves ${g.result} play ${(t1 - t0) / 1000}s analyse ${(Date.now() - t1) / 1000}s`, counts);
   }

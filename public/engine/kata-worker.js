@@ -15,6 +15,8 @@ const CACHE_NAME = 'doppelganger-models-v1';
 const MAX_MOVES = 1024;
 const PV_CAP = 24;
 const ROOT_CAP = 32;
+/** kataeval evaluates at most this many positions per batch. */
+const BATCH_CAP = 16;
 /** Give up on a URL that sends no response headers for this long. */
 const CONNECT_MS = 20000;
 /** Give up on a download that sends no bytes for this long. */
@@ -198,6 +200,10 @@ function allocBuffers() {
     rWr: M._malloc(ROOT_CAP * 4),
     rPrior: M._malloc(ROOT_CAP * 4),
     pp: M._malloc(4 * 4),
+    bStones: M._malloc(BATCH_CAP * hw * 4),
+    bPlas: M._malloc(BATCH_CAP * 4),
+    bPol: M._malloc(BATCH_CAP * (hw + 1) * 4),
+    bVal: M._malloc(BATCH_CAP * 5 * 4),
   };
 }
 
@@ -293,6 +299,44 @@ async function evaluate(msg) {
   return { result: { policy, value, ownership }, transfer };
 }
 
+/**
+ * Several positions in one network call (stones only, no move history). On a GPU this
+ * costs about as much as one evaluation. kataeval returns White's perspective here;
+ * convert back to the side to move, like kgeEvalSeq.
+ */
+async function evaluateBatch(msg) {
+  await ensureSize(msg.size);
+  const hw = size * size;
+  const list = msg.positions;
+  if (!list.length || list.length > BATCH_CAP) throw new Error('batch size out of range');
+  const si = bufs.bStones >> 2;
+  for (let j = 0; j < list.length; j++) {
+    const st = list[j].stones;
+    for (let p = 0; p < hw; p++) M.HEAP32[si + j * hw + p] = st[p];
+    M.HEAP32[(bufs.bPlas >> 2) + j] = list[j].toPlay;
+  }
+  const ok = await M.ccall(
+    'kgeEvalBatch',
+    'number',
+    Array(6).fill('number'),
+    [bufs.bStones, bufs.bPlas, list.length, msg.komi, bufs.bPol, bufs.bVal],
+    { async: true },
+  );
+  if (!ok) throw new Error('batch evaluation failed: ' + M.ccall('kgeError', 'string', [], []));
+  const policy = M.HEAPF32.slice(bufs.bPol >> 2, (bufs.bPol >> 2) + list.length * (hw + 1));
+  const value = M.HEAPF32.slice(bufs.bVal >> 2, (bufs.bVal >> 2) + list.length * 5);
+  for (let j = 0; j < list.length; j++) {
+    if (list[j].toPlay !== 1) continue;
+    const v = j * 5;
+    const w = value[v];
+    value[v] = value[v + 1];
+    value[v + 1] = w;
+    value[v + 3] = -value[v + 3];
+    value[v + 4] = -value[v + 4];
+  }
+  return { result: { policy, value }, transfer: [policy.buffer, value.buffer] };
+}
+
 async function search(msg) {
   await ensureSize(msg.size);
   const n = writeMoves(msg.moves);
@@ -333,6 +377,9 @@ async function handle(msg) {
     if (type === 'init') post({ id, ok: true, result: await init(msg) });
     else if (type === 'eval') {
       const r = await evaluate(msg);
+      post({ id, ok: true, result: r.result }, r.transfer);
+    } else if (type === 'evalBatch') {
+      const r = await evaluateBatch(msg);
       post({ id, ok: true, result: r.result }, r.transfer);
     } else if (type === 'search') post({ id, ok: true, result: (await search(msg)).result });
     else throw new Error('unknown request ' + type);

@@ -1,3 +1,4 @@
+import { isTerritoryScoring, standardKomi } from './rules';
 import { sgfToLoc, locToSgf } from './coords';
 import { PASS, type Color, type Move } from './types';
 
@@ -151,18 +152,10 @@ export function extractGame(root: SgfNode): ParsedGame {
   const gm = first(p, 'GM');
   if (gm && gm !== '1') throw new SgfError('not a Go game (GM is not 1)');
 
-  let komi = parseFloat(first(p, 'KM') ?? '');
   const handicap = parseInt(first(p, 'HA') ?? '0', 10) || 0;
+  const rules = first(p, 'RU');
   const warnings: string[] = [];
-  if (!Number.isFinite(komi)) {
-    komi = handicap > 1 ? 0.5 : 7.5;
-    warnings.push(`no komi given, assuming ${komi}`);
-  }
-  // Some servers store komi multiplied (e.g. 375 for 3.75); clamp absurd values.
-  if (Math.abs(komi) > 150) {
-    komi = komi / 100;
-    warnings.push('komi looked scaled, divided by 100');
-  }
+  const komi = readKomi(first(p, 'KM'), handicap, size, rules, first(p, 'AP') ?? '', warnings);
 
   const setup: Move[] = [];
   const moves: Move[] = [];
@@ -201,9 +194,37 @@ export function extractGame(root: SgfNode): ParsedGame {
     result: first(p, 'RE'),
     date: first(p, 'DT'),
     event: first(p, 'EV') || first(p, 'GN'),
-    rules: first(p, 'RU'),
+    rules,
     warnings,
   };
+}
+
+/**
+ * Komi as the game was played. Fox (foxwq) writes KM[0] for even games, KM[375] for
+ * Chinese 3.75 stones (7.5 points) and KM[650] for 6.5; a komi of 0 in an even 19x19
+ * game is almost always such a missing value, and analysing with it tilts every
+ * winrate towards Black by about 7 points.
+ */
+export function readKomi(km: string | undefined, handicap: number, size: number, rules: string | undefined, app: string, warnings: string[]): number {
+  let komi = parseFloat(km ?? '');
+  const even = handicap < 2;
+  if (!Number.isFinite(komi)) {
+    komi = even ? standardKomi(rules) : 0.5;
+    warnings.push(`no komi given, assuming ${komi}`);
+    return komi;
+  }
+  if (Math.abs(komi) > 150) {
+    const k = komi / 100;
+    // Chinese komi counted in stones: 3.75 stones = 7.5 points.
+    komi = (k === 3.75 || k === 3.25 || k === 2.75) && !isTerritoryScoring(rules, 0) ? k * 2 : k;
+    warnings.push(`komi was stored as ${km}, read as ${komi}`);
+    return komi;
+  }
+  if (komi === 0 && even && size === 19) {
+    komi = standardKomi(rules);
+    warnings.push(`komi was 0 in an even game${/fox/i.test(app) ? ' (Fox writes 0 when komi is missing)' : ''}, using ${komi}; change it in the game list if the game really had no komi`);
+  }
+  return komi;
 }
 
 /** Parse every game in an SGF file. Bad games are reported, not thrown. */

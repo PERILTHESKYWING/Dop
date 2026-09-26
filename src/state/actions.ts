@@ -1,18 +1,21 @@
-import { analyzeGame, AnalysisStopped, type AnalysisStore } from '../lib/analysis/pipeline';
+import { analysisIsCurrent, analyzeGame, AnalysisStopped, type AnalysisStore } from '../lib/analysis/pipeline';
 import { Corpus } from '../lib/corpus';
 import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
 import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
 import { bundledModel, modelOrderFor } from '../lib/engine/models';
 import { generateItems } from '../lib/forge/generator';
 import { balancedItems } from '../lib/forge/balance';
-import { gradeAnswer, itemBoard } from '../lib/forge/grading';
+import { practiceItems } from '../lib/forge/worth';
+import { answerCovered, gradeAnswer, itemBoard, type LiveCheck } from '../lib/forge/grading';
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
 import { detectPlayerColor, guessPlayerName, importSgfTexts } from '../lib/games';
 import { buildContext } from '../lib/go/features';
 import { PASS, type Loc } from '../lib/go/types';
-import { decodeOwnership, moverView, processRawOutput } from '../lib/engine/parse';
-import { engineMoves } from '../lib/analysis/analyzer';
+import { decodeOwnership } from '../lib/engine/parse';
+import { ANALYSIS_VERSION, engineMoves, searchedEval } from '../lib/analysis/analyzer';
+import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
+import { engineKomi, standardKomi } from '../lib/go/rules';
 import { buildDiscoveryRequest, discoverPatterns, llmStatus, mergePatterns } from '../lib/llm/client';
 import { buildExample, trainDoppel, type DoppelExample } from '../lib/profile/doppel';
 import { computeFingerprint } from '../lib/profile/fingerprint';
@@ -71,6 +74,45 @@ export function corpus(): Corpus {
 
 // ---------------------------------------------------------------- startup
 
+/**
+ * Bring games stored by older versions up to date: read RU[] from the SGF, fix Fox's
+ * missing komi (KM[0]) and its komi in stones (KM[375]), and send games whose analysis
+ * was made the old way back to the queue. Demo games keep their bundled analysis.
+ */
+async function migrateGames(d: Awaited<ReturnType<typeof db>>, games: GameRecord[], analyses: GameAnalysis[]) {
+  const byId = new Map(analyses.map((a) => [a.gameId, a]));
+  for (const g of games) {
+    let changed = false;
+    if (g.rules === undefined) {
+      g.rules = g.sgf.match(/RU\[([^\]]*)\]/)?.[1]?.trim() ?? '';
+      changed = true;
+    }
+    const km = g.sgf.match(/KM\[([^\]]*)\]/)?.[1]?.trim();
+    const warned = g.warnings.some((w) => w.startsWith('komi was'));
+    if (!warned && g.size === 19 && g.handicap < 2 && km !== undefined) {
+      const fixed = g.komi === 0 && Number(km) === 0 ? standardKomi(g.rules) : g.komi === 3.75 && Number(km) === 375 ? 7.5 : null;
+      if (fixed !== null) {
+        g.komi = fixed;
+        g.warnings = [...g.warnings, `komi was stored as ${km}, using ${fixed}; change it in the game list if that is wrong`];
+        changed = true;
+      }
+    }
+    const a = byId.get(g.id);
+    const demo = g.source === 'demo' || g.source === 'demo-opponent';
+    if (a && !analysisIsCurrent(a, g)) {
+      if (demo) {
+        a.version = ANALYSIS_VERSION;
+        a.komi = engineKomi(g.komi, g.rules);
+        await d.put('analyses', a);
+      } else if (g.status !== 'pending') {
+        g.status = 'pending';
+        changed = true;
+      }
+    }
+    if (changed) await d.put('games', g);
+  }
+}
+
 export async function init() {
   try {
     const d = await db();
@@ -93,7 +135,8 @@ export async function init() {
     const minWin = { ...DEFAULT_SETTINGS, ...settings }.minLosingWinrate;
     for (const it of balancedItems(items, minWin)) (byWeakness[it.weaknessId] ??= []).push(it);
     // Interrupted analyses resume from their checkpoint.
-    for (const g of games) if (g.status === 'fast' || g.status === 'deep') g.status = 'pending';
+    for (const g of games) if (g.status === 'deep') g.status = 'pending';
+    await migrateGames(d, games, analyses);
     const merged = { ...DEFAULT_SETTINGS, ...settings };
     // Older versions saved the demo player's name as the user's own, which blocked name detection.
     if (merged.playerNames.length === 1 && merged.playerNames[0] === DEMO_PLAYER && !games.some((g) => g.source === 'user' && (g.black === DEMO_PLAYER || g.white === DEMO_PLAYER))) {
@@ -383,6 +426,25 @@ export async function setGameColor(id: string, color: 1 | 2 | null) {
  * Answer "which side were you?" for a game. With `remember`, that name becomes one of the
  * user's names and every other game where the side is still unknown is matched to it.
  */
+/** Correct a game's komi (Fox and other servers sometimes store it wrong); the game is analysed again. */
+export async function setGameKomi(id: string, komi: number) {
+  const g = get().games.find((x) => x.id === id);
+  if (!g || !Number.isFinite(komi) || g.komi === komi) return;
+  const next: GameRecord = {
+    ...g,
+    komi,
+    status: 'pending',
+    error: undefined,
+    warnings: g.warnings.filter((w) => !w.startsWith('komi')),
+    progress: { fast: 0, deep: 0, deepTotal: 0, total: g.moves.length + 1 },
+  };
+  const d = await db();
+  await d.put('games', next);
+  set((s) => ({ games: s.games.map((x) => (x.id === id ? next : x)) }));
+  toast(`Komi set to ${komi}. The game will be analysed again.`, 'ok');
+  if (get().settings.autoAnalyze) void runQueue();
+}
+
 export async function chooseSide(id: string, color: 1 | 2, remember: boolean) {
   const game = get().games.find((g) => g.id === id);
   if (!game) return;
@@ -424,6 +486,12 @@ export async function loadDemo() {
   const res = await fetch('/demo/demo.json');
   if (!res.ok) throw new Error('demo data missing');
   const demo = (await res.json()) as { games: GameRecord[]; analyses: GameAnalysis[]; player: string; rival: string };
+  // The demo ships its own (network-only) analysis; keep it rather than re-analysing.
+  const demoGames = new Map(demo.games.map((g) => [g.id, g]));
+  for (const a of demo.analyses) {
+    const g = demoGames.get(a.gameId);
+    if (g) Object.assign(a, { version: ANALYSIS_VERSION, komi: engineKomi(g.komi, g.rules) });
+  }
   const d = await db();
   const tx = d.transaction(['games', 'analyses'], 'readwrite');
   for (const g of demo.games) await tx.objectStore('games').put(g);
@@ -500,8 +568,19 @@ let interactiveUntil = 0;
 export function markInteractive(ms = 6000) {
   interactiveUntil = Math.max(interactiveUntil, Date.now() + ms);
 }
+const interactiveNow = () => Date.now() < interactiveUntil;
 async function waitForInteractive() {
-  while (Date.now() < interactiveUntil && !stopRequested) await new Promise((r) => setTimeout(r, 200));
+  while (interactiveNow() && !stopRequested) await new Promise((r) => setTimeout(r, 200));
+}
+
+/**
+ * Search visits per position for background analysis: the setting, or about two and a
+ * half seconds of this device's time per position (12 to 400 visits).
+ */
+export function searchVisitsFor(eng: { evalMs: number; batch: number; batchMs?: number }, setting: number): number {
+  if (setting > 0) return setting;
+  const perEval = eng.batch > 1 && eng.batchMs ? eng.batchMs / eng.batch : eng.evalMs || 150;
+  return Math.max(12, Math.min(400, Math.round(2500 / perEval / 4) * 4));
 }
 
 export function pauseQueue() {
@@ -530,10 +609,17 @@ const queueStore: AnalysisStore = {
   },
 };
 
-function nextGame(): GameRecord | undefined {
+/**
+ * The next game to work on. Every game first gets the network's quick look (so graphs and
+ * a first profile appear within minutes), then the slower search, the player's own games
+ * first, then opponents'.
+ */
+function nextGame(): { game: GameRecord; stage: 'fast' | 'full' } | undefined {
   const games = get().games.filter((g) => g.status !== 'done' && g.status !== 'error' && g.status !== 'skipped');
-  // The player's own games first, then opponents'.
-  return games.find((g) => g.source === 'user' && g.playerColor !== null) ?? games.find((g) => g.source === 'user') ?? games[0];
+  const pick = (list: GameRecord[]) => list.find((g) => g.source === 'user' && g.playerColor !== null) ?? list.find((g) => g.source === 'user') ?? list[0];
+  const unseen = games.filter((g) => g.status === 'pending');
+  if (unseen.length) return { game: pick(unseen), stage: 'fast' };
+  return games.length ? { game: pick(games), stage: 'full' } : undefined;
 }
 
 /** Background analysis of all pending games. Safe to call repeatedly. */
@@ -542,25 +628,33 @@ export async function runQueue() {
   stopRequested = false;
   set((s) => ({ queue: { ...s.queue, running: true, paused: false, lastError: undefined } }));
   let doneSinceRebuild = 0;
+  let lastStage: 'fast' | 'full' | null = null;
   try {
     for (;;) {
       if (stopRequested) break;
-      const g = nextGame();
-      if (!g) break;
+      const next = nextGame();
+      if (!next) break;
+      const g = next.game;
+      // Every game has had its first look: build the profile and the copy from it now,
+      // rather than after the (much longer) search of every game.
+      if (next.stage === 'full' && lastStage === 'fast' && doneSinceRebuild > 0) {
+        doneSinceRebuild = 0;
+        await rebuildProfile();
+      }
+      lastStage = next.stage;
       const eng = await startEngine();
       if (!eng) break;
       set((s) => ({ queue: { ...s.queue, currentGameId: g.id } }));
       const { settings } = get();
       const game: GameRecord = { ...g, progress: { ...g.progress } };
       try {
-        const cpu = eng.info.backend === 'cpu';
+        const visits = searchVisitsFor(eng, settings.searchVisits);
         const analysis = await analyzeGame(game, eng, queueStore, {
-          deepVisits: cpu ? Math.min(settings.deepVisits, 16) : settings.deepVisits,
-          deepPerGame: game.source === 'opponent' ? Math.round(settings.deepPerGame / 3) : settings.deepPerGame,
-          maxSearchMs: cpu ? 8000 : 20000,
-          focusColor: game.playerColor,
+          visits: game.source === 'opponent' ? Math.max(8, Math.round(visits / 2)) : visits,
+          stage: next.stage,
           shouldStop: () => stopRequested,
           yieldTo: waitForInteractive,
+          interrupted: interactiveNow,
           onProgress: showQueueState,
         });
         set((s) => ({
@@ -569,13 +663,13 @@ export async function runQueue() {
           corpusVersion: s.corpusVersion + 1,
         }));
         doneSinceRebuild++;
-        if (doneSinceRebuild >= 3) {
+        if (doneSinceRebuild >= (next.stage === 'fast' ? 6 : 3)) {
           doneSinceRebuild = 0;
           await rebuildProfile();
         }
       } catch (e) {
         if (e instanceof AnalysisStopped) {
-          game.status = 'pending';
+          game.status = game.status === 'deep' ? 'fast' : 'pending';
           await queueStore.saveGame(game);
           showQueueState(game);
           break;
@@ -609,6 +703,35 @@ export async function retryGame(id: string) {
   await idbAnalysisStore.saveGame(next);
   set((s) => ({ games: s.games.map((x) => (x.id === id ? next : x)) }));
   void runQueue();
+}
+
+/**
+ * Keep a live analysis that read further than the stored one: the game's graph, move
+ * losses and profile then use the deeper numbers. Profile and records follow after a
+ * pause, since several positions are usually refined in a row.
+ */
+let liveCommitTimer: ReturnType<typeof setTimeout> | undefined;
+export async function commitLiveAnalysis(gameId: string, index: number, snap: SearchSnapshot) {
+  const s = get();
+  const a = s.analyses[gameId];
+  const g = s.games.find((x) => x.id === gameId);
+  const cur = a?.evals[index];
+  if (!a || !g || !cur || !analysisIsCurrent(a, g) || s.queue.currentGameId === gameId) return;
+  if (snap.toPlay !== cur.toPlay || snap.visits < Math.max(cur.visits * 1.5, cur.visits + 16)) return;
+  const evals = [...a.evals];
+  evals[index] = searchedEval(cur, snap, { played: g.moves[index]?.loc });
+  const next: GameAnalysis = { ...a, evals, updatedAt: Date.now() };
+  try {
+    await (await db()).put('analyses', next);
+  } catch {
+    return;
+  }
+  set((st) => ({ analyses: { ...st.analyses, [gameId]: next } }));
+  clearTimeout(liveCommitTimer);
+  liveCommitTimer = setTimeout(() => {
+    set((st) => ({ corpusVersion: st.corpusVersion + 1 }));
+    void rebuildProfile();
+  }, 20_000);
 }
 
 /** Ask for deeper analysis of specific positions (used by the model lab's hard examples). */
@@ -689,7 +812,7 @@ export function rebuildProfile(): Promise<void> {
       const minWin = s.settings.minLosingWinrate;
       for (const w of all) {
         const fresh = generateItems(c, w, { minLosingWinrate: minWin });
-        const variations = balancedItems((s.items[w.id] ?? []).filter((i) => i.modification), minWin);
+        const variations = practiceItems((s.items[w.id] ?? []).filter((i) => i.modification), minWin);
         items[w.id] = [...fresh, ...variations];
         await tick();
       }
@@ -756,28 +879,32 @@ export async function refreshLlmStatus(live = false) {
 
 // ---------------------------------------------------------------- training
 
-/** Live one-ply evaluation of an answer that the stored analysis did not cover. */
-async function liveEval(item: TrainingItem, loc: Loc) {
+/**
+ * Check an answer the stored analysis did not cover well: a short search of the position
+ * with the answer given part of the visits, so the answer and the best move are measured
+ * by the same search.
+ */
+async function liveEval(item: TrainingItem, loc: Loc): Promise<LiveCheck | null> {
   const eng = engine;
-  if (!eng || loc === PASS) return null;
+  if (!eng) return null;
   try {
     const board = itemBoard(item);
-    board.play(loc, item.toPlay, true);
-    const opp = item.toPlay === 1 ? 2 : 1;
-    const raw = await eng.evalRaw(
-      { size: item.size, komi: item.komi, moves: engineMoves(item.setup, [...item.moves, { color: item.toPlay, loc }]), toPlay: opp },
-      false,
-    );
-    const net = processRawOutput(raw, opp, (l) => board.isLegal(l, opp), eng.postProcess);
-    return moverView(net.bWin, net.bLead, item.toPlay);
+    if (loc !== PASS && !board.isLegal(loc, item.toPlay)) return null;
+    const visits = Math.max(24, Math.min(160, Math.round(searchVisitsFor(eng, 0) / 2)));
+    const search = new Search(engineEvaluator(eng), { size: item.size, komi: engineKomi(item.komi, item.rules), moves: engineMoves(item.setup, item.moves), toPlay: item.toPlay, board }, { batch: eng.batch });
+    markInteractive(8000);
+    const snap = await search.run({ visits, maxMs: 6000, forced: loc, forcedShare: 0.3 });
+    const answer = snap.candidates.find((c) => c.loc === loc);
+    const best = snap.candidates[0];
+    if (!answer || !best) return null;
+    return { win: answer.winrate, lead: answer.scoreLead, bestWin: best.winrate, bestLead: best.scoreLead, bestLoc: best.loc };
   } catch {
     return null;
   }
 }
 
 export async function submitAnswer(item: TrainingItem, loc: Loc, timeMs: number, mode: 'forge' | 'blind', sessionId: string, opts: { reason?: string; assisted?: boolean } = {}) {
-  const covered = item.eval.candidates?.some((c) => c.loc === loc);
-  const live = covered ? null : await liveEval(item, loc);
+  const live = answerCovered(item, loc) ? null : await liveEval(item, loc);
   const g = gradeAnswer(item, loc, live);
   const attempt: Attempt = {
     id: uid('a'),
@@ -831,7 +958,7 @@ export async function generateVariations(weaknessId: string, count = 4) {
   for (const src of sources) {
     if (made.length >= count) break;
     try {
-      const v = await makeVariation(src, eng, Math.random, eng.info.backend === 'cpu' ? 1 : 32, minWin);
+      const v = await makeVariation(src, eng, Math.random, eng.info.backend === 'cpu' ? 32 : 64, minWin);
       if (v) made.push(v);
     } catch {
       /* skip */

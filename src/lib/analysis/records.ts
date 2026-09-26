@@ -24,11 +24,23 @@ export interface MoveLoss {
 
 /**
  * Loss of the played move from the mover's perspective.
- * Deep: compare the played move's one-ply evaluation against the best candidate's.
- * Fast: compare the evaluation before the move with the evaluation after it.
+ * Searched (analysis version 3): the searched value before the move minus the searched
+ * value after it, as Lizzie and KaTrain measure it.
+ * Older deep analyses: the played move's one-ply evaluation against the best candidate's.
+ * Network only: the evaluation before the move against the evaluation after it.
  */
 export function moveLoss(before: PositionEval, after: PositionEval | null, played: Loc): MoveLoss | null {
   const mover = before.toPlay;
+  if (before.searched && after?.searched) {
+    const b = moverView(before.bWin, before.bLead, mover);
+    const a = moverView(after.bWin, after.bLead, mover);
+    return {
+      scoreLoss: Math.max(0, b.lead - a.lead),
+      winrateLoss: Math.max(0, b.win - a.win),
+      bestLoc: before.bestLoc,
+      depth: 'deep',
+    };
+  }
   if (before.depth === 'deep' && before.candidates?.length) {
     const cands = before.candidates.filter((c) => c.scoreLead !== undefined && c.winrate !== undefined);
     const playedCand = cands.find((c) => c.loc === played);

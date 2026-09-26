@@ -1,9 +1,17 @@
 import { Board } from '../go/board';
 import { PASS, type Color, type Loc, type Move, other } from '../go/types';
 import { encodeOwnership, moverView, processRawOutput, round, topPolicy } from '../engine/parse';
+import { engineEvaluator, Search, type SearchCandidate, type SearchSnapshot } from '../engine/mcts';
 import type { EngineBackend, EngineRequest } from '../engine/types';
 import type { Candidate, PositionEval } from '../types';
 import { hashString } from '../util/hash';
+
+/**
+ * Version of stored analyses. 3: values come from a tree search (not the network's first
+ * impression), small networks' winrates are derived from the score, and komi follows the
+ * rules (Fox's missing komi, territory scoring). Older analyses are redone.
+ */
+export const ANALYSIS_VERSION = 3;
 
 export interface PositionSpec {
   size: number;
@@ -40,17 +48,23 @@ export function positionKey(spec: PositionSpec, modelId: string): string {
     .slice(-5)
     .map((m) => `${m.color}${m.loc}`)
     .join(',');
-  return `${modelId}|${spec.size}|${hashString(`${s}|${spec.toPlay}|${spec.komi}|${b.koPoint}|${recent}`)}`;
+  return `v${ANALYSIS_VERSION}|${modelId}|${spec.size}|${hashString(`${s}|${spec.toPlay}|${spec.komi}|${b.koPoint}|${recent}`)}`;
 }
 
-function request(spec: PositionSpec, extra: Move[] = [], toPlay = spec.toPlay): EngineRequest {
-  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, [...spec.history, ...extra]), toPlay };
+function request(spec: PositionSpec): EngineRequest {
+  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay };
+}
+
+/** The tree search's view of a position. */
+export function rootPosition(spec: PositionSpec) {
+  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay, board: spec.board };
 }
 
 /** Fast pass: one network evaluation (policy, value, score, ownership). */
 export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): Promise<PositionEval> {
   const raw = await engine.evalRaw(request(spec), true);
-  const net = processRawOutput(raw, spec.toPlay, (loc) => spec.board.isLegal(loc, spec.toPlay), engine.postProcess);
+  const legal = spec.board.legalMask(spec.toPlay);
+  const net = processRawOutput(raw, spec.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
   const policy = topPolicy(net.policy, 12);
   return {
     key: positionKey(spec, engine.info.modelId),
@@ -71,21 +85,19 @@ export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): P
 export interface DeepOptions {
   visits: number;
   maxMs: number;
-  /** Extra moves that must be evaluated as candidates (e.g. the move actually played). */
+  /** A move that must get some of the visits (e.g. the move actually played). */
   mustInclude?: Loc[];
   candidateCount?: number;
 }
 
 /**
- * A position's value once KataGo has looked past the network's first impression, which is
- * optimistic for the side to move (by a few points in sharp positions) and can call a lost
- * position even:
- *  - after a search, the network's value mixed with the searched candidates' values,
- *    weighted by visits, as KataGo's search averages them;
- *  - with one-ply candidate values but no search, the value after the best candidate;
- *  - otherwise the network's value.
+ * A position's value after KataGo has looked past the network's first impression. Analyses
+ * from version 3 store the searched value itself (`searched`). Older deep analyses stored
+ * the network's value with one-ply candidates: mix the root with the candidates by visits,
+ * as KataGo's search averages them, or take the best candidate when there are no visits.
  */
-export function searchedValue(e: { bWin: number; bLead: number; toPlay: Color; candidates?: Candidate[] }): { bWin: number; bLead: number } {
+export function searchedValue(e: { bWin: number; bLead: number; toPlay: Color; candidates?: Candidate[]; searched?: boolean }): { bWin: number; bLead: number } {
+  if (e.searched) return { bWin: e.bWin, bLead: e.bLead };
   const valued = (e.candidates ?? []).filter((c) => c.winrate !== undefined && c.scoreLead !== undefined);
   const root = moverView(e.bWin, e.bLead, e.toPlay);
   let win = root.win;
@@ -110,74 +122,44 @@ export function searchedValue(e: { bWin: number; bLead: number; toPlay: Color; c
   return { bWin: v.win, bLead: v.lead };
 }
 
-/**
- * Deep pass: a search for the best move and PV, then a one-ply evaluation after each
- * candidate (and the played move) so every candidate has a comparable winrate and
- * score for the side to move.
- */
-export async function evaluateDeep(
-  engine: EngineBackend,
-  spec: PositionSpec,
-  fast: PositionEval,
-  opts: DeepOptions,
-  evalAfter?: (loc: Loc) => Promise<{ bWin: number; bLead: number } | null>,
-): Promise<PositionEval> {
-  const mover = spec.toPlay;
-  let bestLoc = fast.bestLoc;
-  let pv: Loc[] = [];
-  let visits = 1;
-  const searchInfo = new Map<Loc, { visits: number; winrate: number; prior: number }>();
-  if (opts.visits > 1) {
-    try {
-      const r = await engine.searchRaw(request(spec), opts.visits, opts.maxMs);
-      bestLoc = r.best;
-      pv = r.pv;
-      visits = r.visits;
-      for (const c of r.children) searchInfo.set(c.loc, c);
-    } catch {
-      // Search failure is not fatal: fall back to policy candidates.
-    }
-  }
-  const want = new Set<Loc>();
-  if (bestLoc !== PASS) want.add(bestLoc);
-  const bySearch = [...searchInfo.entries()].sort((a, b) => b[1].visits - a[1].visits).map(([loc]) => loc);
-  const count = opts.candidateCount ?? 5;
-  for (const loc of bySearch) if (want.size < count && loc !== PASS) want.add(loc);
-  for (const p of fast.policy) if (want.size < count && p.loc !== PASS) want.add(p.loc);
-  for (const loc of opts.mustInclude ?? []) if (loc !== PASS && spec.board.isLegal(loc, mover)) want.add(loc);
+export const toCandidate = (c: SearchCandidate): Candidate => ({
+  loc: c.loc,
+  prior: round(c.prior, 5),
+  winrate: round(c.winrate),
+  scoreLead: round(c.scoreLead, 2),
+  visits: c.visits,
+  pv: c.pv.slice(0, 16),
+});
 
-  const candidates: Candidate[] = [];
-  for (const loc of want) {
-    let res: { bWin: number; bLead: number } | null = null;
-    if (evalAfter) res = await evalAfter(loc);
-    if (!res) {
-      const after = spec.board.clone();
-      after.play(loc, mover, true);
-      const raw = await engine.evalRaw(request(spec, [{ color: mover, loc }], other(mover)), false);
-      const net = processRawOutput(raw, other(mover), (l) => after.isLegal(l, other(mover)), engine.postProcess);
-      res = { bWin: net.bWin, bLead: net.bLead };
-    }
-    const v = moverView(res.bWin, res.bLead, mover);
-    const s = searchInfo.get(loc);
-    candidates.push({
-      loc,
-      prior: round(fast.policy.find((p) => p.loc === loc)?.p ?? s?.prior ?? 0, 5),
-      winrate: round(v.win),
-      scoreLead: round(v.lead, 2),
-      visits: s?.visits,
-      pv: loc === bestLoc ? pv : undefined,
-    });
-  }
-  candidates.sort((a, b) => (b.visits ?? 0) - (a.visits ?? 0) || (b.scoreLead ?? 0) - (a.scoreLead ?? 0));
-  // bWin/bLead stay the raw network values so consecutive positions remain comparable;
-  // the search result lives in bestLoc, pv, visits and the candidates.
+/**
+ * A position's stored analysis from a finished search: the searched value, the visited
+ * moves (most visits first, the played move always included when it was searched) and
+ * the best line. Policy and ownership stay the network's.
+ */
+export function searchedEval(fast: PositionEval, snap: SearchSnapshot, opts: { played?: Loc; candidateCount?: number } = {}): PositionEval {
+  const count = opts.candidateCount ?? 10;
+  const cands = snap.candidates.slice(0, count);
+  const played = opts.played !== undefined ? snap.candidates.find((c) => c.loc === opts.played) : undefined;
+  if (played && !cands.includes(played)) cands.push(played);
+  const best = snap.candidates[0];
   return {
     ...fast,
-    candidates,
-    bestLoc,
-    pv,
-    visits,
+    bWin: round(snap.bWin),
+    bLead: round(snap.bLead, 2),
+    candidates: cands.map(toCandidate),
+    bestLoc: best?.loc ?? fast.bestLoc,
+    pv: best ? best.pv.slice(0, 20) : [],
+    visits: snap.visits,
     depth: 'deep',
+    searched: true,
     analyzedAt: Date.now(),
   };
+}
+
+/** A search of one position with a fresh tree (practice variations, single positions). */
+export async function evaluateDeep(engine: EngineBackend, spec: PositionSpec, fast: PositionEval, opts: DeepOptions): Promise<PositionEval> {
+  const search = new Search(engineEvaluator(engine), rootPosition(spec), { batch: engine.batch ?? 1 });
+  const forced = opts.mustInclude?.find((l) => l === PASS || spec.board.isLegal(l, spec.toPlay));
+  const snap = await search.run({ visits: Math.max(2, opts.visits), maxMs: opts.maxMs, forced, forcedShare: 0.1 });
+  return searchedEval(fast, snap, { played: forced, candidateCount: opts.candidateCount ?? 10 });
 }

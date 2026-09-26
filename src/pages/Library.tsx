@@ -23,13 +23,14 @@ function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
     const p = g.status === 'deep' ? g.progress.deep / Math.max(1, g.progress.deepTotal) : g.progress.fast / Math.max(1, g.progress.total);
     return (
       <div style={{ minWidth: 120 }}>
-        <div className="tiny muted">{g.status === 'deep' ? `deep ${g.progress.deep}/${g.progress.deepTotal}` : `fast ${g.progress.fast}/${g.progress.total}`}</div>
+        <div className="tiny muted">{g.status === 'deep' ? `searching ${g.progress.deep}/${g.progress.deepTotal}` : `first look ${g.progress.fast}/${g.progress.total}`}</div>
         <div className="progress">
           <span style={{ width: `${p * 100}%` }} />
         </div>
       </div>
     );
   }
+  if (g.status === 'fast') return <span className="chip">{g.progress.deep > 0 ? 'search paused' : 'search queued'}</span>;
   return <span className="chip">{g.progress.fast > 0 ? 'paused' : 'queued'}</span>;
 }
 

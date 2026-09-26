@@ -1,5 +1,6 @@
 import { evaluateDeep, evaluateFast, searchedValue, type PositionSpec } from '../analysis/analyzer';
 import { Board } from '../go/board';
+import { engineKomi } from '../go/rules';
 import { chebyshev, locToGtp } from '../go/coords';
 import { buildContext, moveFeatures, pointFeatures } from '../go/features';
 import { PASS, type Loc } from '../go/types';
@@ -8,6 +9,7 @@ import type { EngineBackend } from '../engine/types';
 import { signatureById } from '../profile/signatures';
 import type { TrainingItem } from '../types';
 import { DEFAULT_MIN_LOSING_WINRATE, isBalanced } from './balance';
+import { assessPosition } from './worth';
 
 /**
  * Engine-verified variations of a real position: the opponent's last move is shifted
@@ -39,12 +41,14 @@ export async function makeVariation(
   const board = base.clone();
   board.play(alt, last.color, true);
   const history = [...item.moves.slice(0, -1), { color: last.color, loc: alt }];
-  const spec: PositionSpec = { size: item.size, komi: item.komi, setup: item.setup, history, toPlay: item.toPlay, board };
+  const spec: PositionSpec = { size: item.size, komi: engineKomi(item.komi, item.rules), setup: item.setup, history, toPlay: item.toPlay, board };
   const fast = await evaluateFast(engine, spec);
   // The shifted move can tip the game; lopsided positions are not used for practice.
   if (!isBalanced(fast.bWin, minLosingWinrate)) return null;
   const deep = await evaluateDeep(engine, spec, fast, { visits, maxMs: 15000, candidateCount: 5 });
   if (!isBalanced(searchedValue(deep).bWin, minLosingWinrate)) return null;
+  // Nor are shifts that leave little at stake or several equally good answers (worth.ts).
+  if (!assessPosition({ size: item.size, moveNumber: history.length + 1, eval: deep }).ok) return null;
 
   const sig = signatureById.get(item.signature);
   let expects = item.expectsContext;
@@ -66,6 +70,8 @@ export async function makeVariation(
     kind,
     moves: history,
     eval: deep,
+    // A new position: what the game move cost in the source does not carry over.
+    played: undefined,
     expectsContext: expects,
     difficulty: kind === 'boundary' ? 5 : 4,
     modification: {

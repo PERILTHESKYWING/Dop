@@ -4,9 +4,11 @@ import { corpus, importFiles, loadDemo, runQueue, startEngine, usesDemoData } fr
 import { Bar, DropZone, fmtPct } from '../components/common';
 import { Icon, type IconName } from '../components/Icons';
 import { DemoNotice, EngineNotice, SideChooser } from '../components/Notices';
+import { useCopy } from '../components/Doppel';
 import { go, href } from '../router';
 import { AXES, AXIS_LABEL } from '../lib/profile/fingerprint';
 import { describeWeights } from '../lib/profile/doppel';
+import { practiceItems } from '../lib/forge/worth';
 import type { Phase, Weakness } from '../lib/types';
 import { modelOrderFor } from '../lib/engine/models';
 
@@ -26,7 +28,7 @@ function Check({ ok, label, detail }: { ok: boolean | null; label: string; detai
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
   { icon: 'upload', title: 'Import', text: 'Drop your SGF games. Many at once is fine.' },
-  { icon: 'board', title: 'Analyse', text: 'KataGo reads every position, then studies the key moments.' },
+  { icon: 'board', title: 'Analyse', text: 'KataGo takes a first look at every position, then searches each one.' },
   { icon: 'dna', title: 'Profile', text: 'Your Player DNA and recurring weaknesses, from repeated evidence.' },
   { icon: 'flame', title: 'Forge', text: 'Train each weakness on positions from your own games.' },
   { icon: 'eyeOff', title: 'Test', text: 'Blind tests check that the lesson really stuck.' },
@@ -137,7 +139,7 @@ function QueueCard() {
           <div className="spread small">
             <span>
               <strong>{cur.black} vs {cur.white}</strong>{' '}
-              <span className="muted">{cur.status === 'deep' ? `studying key moments ${cur.progress.deep}/${cur.progress.deepTotal}` : `reading positions ${cur.progress.fast}/${cur.progress.total}`}</span>
+              <span className="muted">{cur.status === 'deep' ? `searching positions ${cur.progress.deep}/${cur.progress.deepTotal}` : `first look ${cur.progress.fast}/${cur.progress.total}`}</span>
             </span>
             <span className="muted">{pending.length - 1 > 0 ? `${pending.length - 1} more waiting` : 'last one'}</span>
           </div>
@@ -227,7 +229,10 @@ function WeaknessMap() {
 
 function WeaknessCard({ w, label }: { w: Weakness; label: string }) {
   const m = useStore((s) => s.mastery[w.id]);
-  const items = useStore((s) => s.items[w.id]?.length ?? 0);
+  const stored = useStore((s) => s.items[w.id]);
+  const minWin = useStore((s) => s.settings.minLosingWinrate);
+  // Only positions Forge will actually ask (worth drilling, not lopsided).
+  const items = useMemo(() => practiceItems(stored ?? [], minWin).length, [stored, minWin]);
   return (
     <div className="panel accent stack">
       <div className="spread">
@@ -319,7 +324,8 @@ export function Dashboard() {
   const games = useStore((s) => s.games);
   const profile = useStore((s) => s.profile);
   const weaknesses = useStore((s) => s.weaknesses);
-  const doppel = useStore((s) => s.doppel);
+  const copy = useCopy();
+  const doppel = copy.model;
   const busy = useStore((s) => s.busy);
   const analyses = useStore((s) => s.analyses);
   useStore((s) => s.corpusVersion);
@@ -383,14 +389,14 @@ export function Dashboard() {
           <WeaknessCard w={improving} label="Improving" />
         ) : (
           <div className="panel stack">
-            <h3>Your Doppelgänger</h3>
+            <h3>{copy.owner === 'demo' && copy.demoName ? `${copy.demoName}'s Doppelgänger` : 'Your Doppelgänger'}</h3>
             {doppel ? (
               <>
                 <h2>
-                  Predicts your move <span className="doppel">{fmtPct(doppel.metrics.top1)}</span> of the time
+                  Predicts {copy.whose} move <span className="doppel">{fmtPct(doppel.metrics.top1)}</span> of the time
                 </h2>
                 <p className="dim small">
-                  A model of how you choose moves, learned from {doppel.trainedOn} of your moves. KataGo's policy alone guesses {fmtPct(doppel.metrics.baselineTop1)}.
+                  A model of how {copy.owner === 'demo' ? 'the player chooses' : 'you choose'} moves, learned from {doppel.moves ?? doppel.trainedOn} of {copy.whose} moves. KataGo's policy alone guesses {fmtPct(doppel.metrics.baselineTop1)}.
                 </p>
                 {habits.length > 0 && (
                   <div className="row wrap">
@@ -401,12 +407,22 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
-                <a className="btn small" href={href('dna')} style={{ justifySelf: 'start' }}>
-                  <Icon name="dna" /> See Player DNA
-                </a>
+                <div className="row wrap">
+                  <a className="btn small primary" href={href('doppel')}>
+                    <Icon name="twin" /> Meet {copy.owner === 'demo' ? 'the copy' : 'your copy'}
+                  </a>
+                  <a className="btn small" href={href('doppel/play')}>
+                    <Icon name="play" /> Play it
+                  </a>
+                </div>
               </>
             ) : (
-              <p className="dim small">Trained once enough of your moves are analysed.</p>
+              <>
+                <p className="dim small">A copy of how you choose moves, trained once about 30 of your moves are analysed.</p>
+                <a className="btn small" href={href('doppel')} style={{ justifySelf: 'start' }}>
+                  <Icon name="twin" /> What it needs
+                </a>
+              </>
             )}
           </div>
         )}

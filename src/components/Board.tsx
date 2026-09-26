@@ -1,5 +1,5 @@
-import { memo, useId, useMemo, useState, type JSX, type PointerEvent } from 'react';
-import { PASS, type Color, type Loc } from '../lib/go/types';
+import { memo, useEffect, useId, useMemo, useRef, useState, type JSX, type PointerEvent } from 'react';
+import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
 
 export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence';
@@ -8,6 +8,21 @@ export interface Mark {
   loc: Loc;
   kind: MarkKind;
   label?: string;
+}
+
+/** A candidate move drawn Lizzie-style: winrate, visits and score on a coloured disc. */
+export interface CandidateMark {
+  loc: Loc;
+  /** 0 = KataGo's choice (most visits). */
+  rank: number;
+  /** Winrate and score lead for the side to move after this move. */
+  winrate: number;
+  scoreLead: number;
+  visits: number;
+  /** Visits relative to the most visited move (0..1): fainter when less explored. */
+  share: number;
+  /** 0 = as good as the best move, 1 = clearly worse (colour runs green, yellow, red). */
+  badness: number;
 }
 
 export interface BoardProps {
@@ -33,6 +48,39 @@ export interface BoardProps {
   detail?: 'full' | 'lite';
   /** Animate stones being placed and captured and the last-move marker (default true). */
   animate?: boolean;
+  /** Candidate moves with their numbers (live analysis). */
+  candidates?: CandidateMark[] | null;
+  onCandidateHover?: (loc: Loc | null) => void;
+  onCandidateClick?: (loc: Loc) => void;
+  /** A line of play drawn as numbered see-through stones (a candidate's variation). */
+  variation?: Move[] | null;
+}
+
+const CAND_BEST = '#2fc4e4';
+const CAND_STOPS: [number, [number, number, number]][] = [
+  [0, [120, 214, 104]],
+  [0.5, [244, 197, 66]],
+  [1, [236, 104, 72]],
+];
+function candColor(bad: number): string {
+  const b = Math.max(0, Math.min(1, bad));
+  for (let i = 1; i < CAND_STOPS.length; i++) {
+    const [t1, c1] = CAND_STOPS[i];
+    const [t0, c0] = CAND_STOPS[i - 1];
+    if (b <= t1) {
+      const f = (b - t0) / (t1 - t0);
+      return `rgb(${c0.map((v, k) => Math.round(v + (c1[k] - v) * f)).join(',')})`;
+    }
+  }
+  return 'rgb(236,104,72)';
+}
+
+/** 1234 -> "1.2k", 56789 -> "57k". */
+export function shortCount(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10000) return `${(n / 1000).toFixed(1)}k`;
+  if (n < 1e6) return `${Math.round(n / 1000)}k`;
+  return `${(n / 1e6).toFixed(1)}m`;
 }
 
 type Crop = NonNullable<BoardProps['crop']>;
@@ -433,6 +481,17 @@ function BoardImpl(p: BoardProps) {
   const n = size * size;
   const [hover, setHover] = useState<Loc | null>(null);
   const id = 'bd' + useId().replace(/[^A-Za-z0-9_-]/g, '');
+  // Rendered size, so candidate numbers can drop to the winrate alone when the board is small.
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [px, setPx] = useState(0);
+  const wantsSize = !!p.candidates;
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!wantsSize || !el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setPx(el.getBoundingClientRect().width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [wantsSize]);
   const crop = p.crop ?? { x0: 0, y0: 0, x1: size - 1, y1: size - 1 };
   const coords = !!p.coords;
   const full = (p.detail ?? (p.crop || !coords ? 'lite' : 'full')) === 'full';
@@ -443,6 +502,8 @@ function BoardImpl(p: BoardProps) {
     ? `${crop.x0 - g.m} ${crop.y0 - g.m} ${crop.x1 - crop.x0 + 2 * g.m} ${crop.y1 - crop.y0 + 2 * g.m}`
     : `${-g.m} ${-g.mv} ${g.W} ${g.W}`;
   const interactive = !!p.onPlay;
+  const tracksPointer = interactive || !!p.onCandidateHover || !!p.onCandidateClick;
+  const hoveredCand = useRef<Loc | null>(null);
   const animate = p.animate !== false;
   const { x0, y0, x1, y1 } = crop;
   const inWin = (x: number, y: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
@@ -583,6 +644,70 @@ function BoardImpl(p: BoardProps) {
     );
   });
 
+  // Candidate discs (Lizzie style), under the marks. Best move cyan; the others coloured by how much worse they are.
+  const unitPx = px ? px / (cropped ? crop.x1 - crop.x0 + 2 * g.m : g.W) : 40;
+  const compact = unitPx < 27;
+  const candEls = (p.candidates ?? [])
+    .filter((c) => c.loc !== PASS && !board[c.loc] && inWin(c.loc % size, Math.floor(c.loc / size)))
+    .sort((a, b) => b.rank - a.rank)
+    .map((c) => {
+      const x = c.loc % size, y = Math.floor(c.loc / size);
+      const wr = c.winrate * 100;
+      const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
+      return (
+        <g
+          key={`c${c.loc}`}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}`}
+          style={{ opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
+        >
+          <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          {compact ? (
+            <text className="cand-wr" x={x} y={y + 0.02}>
+              {Math.round(wr)}
+            </text>
+          ) : (
+            <>
+              <text className="cand-wr" x={x} y={y - 0.2}>
+                {wrText}
+              </text>
+              <text className="cand-v" x={x} y={y + 0.04}>
+                {shortCount(c.visits)}
+              </text>
+              <text className="cand-s" x={x} y={y + 0.25}>
+                {c.scoreLead >= 0 ? '' : '−'}
+                {Math.abs(c.scoreLead).toFixed(1)}
+              </text>
+            </>
+          )}
+          {c.rank < 9 && !compact && (
+            <text className="cand-rank" x={x + 0.37} y={y - 0.36}>
+              {c.rank + 1}
+            </text>
+          )}
+        </g>
+      );
+    });
+
+  // A variation: numbered see-through stones (the first move of the line at a point wins).
+  const varEls: JSX.Element[] = [];
+  if (p.variation?.length) {
+    const seen = new Set<Loc>();
+    p.variation.forEach((m, i) => {
+      if (m.loc === PASS || seen.has(m.loc)) return;
+      seen.add(m.loc);
+      const x = m.loc % size, y = Math.floor(m.loc / size);
+      if (!inWin(x, y)) return;
+      varEls.push(
+        <g key={`v${i}`} className={`bd-var ${m.color === 1 ? 'b' : 'w'}${board[m.loc] ? ' over' : ''}`}>
+          <circle cx={x} cy={y} r={m.color === 1 ? R_B : R_W} fill={`url(#${id}-${m.color === 1 ? 'sb' : 'sw0'})`} />
+          <text x={x} y={y + 0.015} className={i + 1 >= 10 ? 'long' : undefined}>
+            {i + 1}
+          </text>
+        </g>,
+      );
+    });
+  }
+
   const last = p.lastMove != null && p.lastMove !== PASS && inWin(p.lastMove % size, Math.floor(p.lastMove / size)) ? p.lastMove : null;
   const pending = p.pending != null && p.pending !== PASS ? p.pending : null;
   const showGhost = interactive && hover !== null && hover !== pending && !board[hover] && !!p.toPlay;
@@ -604,6 +729,7 @@ function BoardImpl(p: BoardProps) {
 
   return (
     <svg
+      ref={svgRef}
       className={`board ${full ? 'bd-full' : 'bd-lite'}${animate ? '' : ' bd-still'} ${p.className ?? ''}`}
       viewBox={vb}
       role="img"
@@ -622,6 +748,8 @@ function BoardImpl(p: BoardProps) {
           <circle className="bd-last-ring" cx={last % size} cy={Math.floor(last / size)} r={0.19} />
         </g>
       )}
+      {varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
+      {varEls.length > 0 && <g className="bd-vars">{varEls}</g>}
       {markEls}
       {showGhost && <circle className={`bd-ghost ${p.toPlay === 1 ? 'bd-ghost-b' : 'bd-ghost-w'}`} cx={hover! % size} cy={Math.floor(hover! / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay!, hover!)} />}
       {pending !== null && p.toPlay && (
@@ -633,19 +761,35 @@ function BoardImpl(p: BoardProps) {
           <circle className="bd-pending-ring" cx={pending % size} cy={Math.floor(pending / size)} r={0.6} />
         </g>
       )}
-      {interactive && (
+      {tracksPointer && (
         <rect
-          className="bd-hit"
+          className={`bd-hit${interactive ? '' : ' passive'}`}
           x={-0.5}
           y={-0.5}
           width={size}
           height={size}
           fill="transparent"
-          onPointerMove={(e) => setHover(locFromEvent(e))}
-          onPointerLeave={() => setHover(null)}
+          onPointerMove={(e) => {
+            const l = locFromEvent(e);
+            setHover(l);
+            const c = l !== null && p.candidates?.some((x) => x.loc === l) ? l : null;
+            if (c !== hoveredCand.current) {
+              hoveredCand.current = c;
+              p.onCandidateHover?.(c);
+            }
+          }}
+          onPointerLeave={() => {
+            setHover(null);
+            if (hoveredCand.current !== null) {
+              hoveredCand.current = null;
+              p.onCandidateHover?.(null);
+            }
+          }}
           onClick={(e) => {
             const l = locFromEvent(e as unknown as PointerEvent<SVGRectElement>);
-            if (l !== null && !stones[l]) p.onPlay!(l);
+            if (l === null || stones[l]) return;
+            if (interactive) p.onPlay!(l);
+            else if (p.candidates?.some((x) => x.loc === l)) p.onCandidateClick?.(l);
           }}
         />
       )}

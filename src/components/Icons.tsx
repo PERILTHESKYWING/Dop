@@ -97,6 +97,14 @@ const PATHS: Record<string, JSX.Element> = {
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   play: <path d="M8 5.5v13l10-6.5z" />,
+  /** A stone and its mirrored copy (the Doppelgänger). */
+  twin: (
+    <>
+      <path d="M12 3v18" strokeDasharray="1.4 2.6" />
+      <circle cx="6.6" cy="12" r="3.9" fill="currentColor" />
+      <circle cx="17.4" cy="12" r="3.9" strokeDasharray="2.3 1.9" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

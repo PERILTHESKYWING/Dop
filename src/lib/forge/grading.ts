@@ -38,27 +38,74 @@ export function lastOpponentMove(item: TrainingItem): Loc | null {
   return last && last.color !== item.toPlay ? last.loc : null;
 }
 
+/** An answer checked by a search of its own: the answer's value and the best move's, from the same search. */
+export interface LiveCheck {
+  win: number;
+  lead: number;
+  bestWin?: number;
+  bestLead?: number;
+  bestLoc?: Loc;
+}
+
 /**
- * Grade a training answer against the reference analysis. `live` is an optional
- * engine evaluation of the answer (mover's winrate/lead after the move) for moves the
- * reference analysis did not cover.
+ * The reference an answer is measured against. After a tree search that is the move the
+ * search trusted most (most visits), as in Lizzie: a candidate with a handful of visits
+ * can look better than it is. Older analyses (one-ply candidates) take the best value.
  */
-export function gradeAnswer(item: TrainingItem, loc: Loc, live?: { win: number; lead: number } | null): GradeResult {
+export function referenceOf(item: TrainingItem): { lead: number; win: number; loc: Loc } {
+  const e = item.eval;
+  const cands = (e.candidates ?? []).filter((c) => c.scoreLead !== undefined && c.winrate !== undefined);
+  const root = moverView(e.bWin, e.bLead, item.toPlay);
+  if (!cands.length) return { lead: root.lead, win: root.win, loc: e.bestLoc };
+  if (e.searched) {
+    const top = cands.reduce((a, c) => ((c.visits ?? 0) > (a.visits ?? 0) ? c : a));
+    return { lead: top.scoreLead!, win: top.winrate!, loc: top.loc };
+  }
+  return {
+    lead: Math.max(...cands.map((c) => c.scoreLead!)),
+    win: Math.max(...cands.map((c) => c.winrate!)),
+    loc: e.bestLoc !== PASS ? e.bestLoc : cands[0].loc,
+  };
+}
+
+/** Candidates with this many visits are trusted for grading; fewer, and the answer is checked again. */
+export const TRUSTED_VISITS = 8;
+
+/** Whether the stored analysis can grade this answer on its own. */
+export function answerCovered(item: TrainingItem, loc: Loc): boolean {
+  const c = item.eval.candidates?.find((x) => x.loc === loc);
+  if (!c || c.winrate === undefined || c.scoreLead === undefined) return false;
+  return !item.eval.searched || (c.visits ?? 0) >= TRUSTED_VISITS || loc === referenceOf(item).loc;
+}
+
+/**
+ * Grade a training answer against the reference analysis. `live` is an engine check of
+ * the answer (mover's winrate/lead after it) for moves the reference analysis did not
+ * cover well; when it carries the best move's value from the same search, the loss is
+ * measured within that search.
+ */
+export function gradeAnswer(item: TrainingItem, loc: Loc, live?: LiveCheck | null): GradeResult {
   const e = item.eval;
   const cands = (e.candidates ?? []).filter((c) => c.scoreLead !== undefined);
-  const bestLead = cands.length ? Math.max(...cands.map((c) => c.scoreLead!)) : moverView(e.bWin, e.bLead, item.toPlay).lead;
-  const bestWin = cands.length ? Math.max(...cands.map((c) => c.winrate!)) : moverView(e.bWin, e.bLead, item.toPlay).win;
-  const bestLoc = e.bestLoc !== PASS ? e.bestLoc : (cands[0]?.loc ?? PASS);
+  const ref = referenceOf(item);
+  const bestLead = ref.lead;
+  const bestWin = ref.win;
+  const bestLoc = ref.loc !== PASS ? ref.loc : (cands[0]?.loc ?? PASS);
   let scoreLoss: number;
   let winrateLoss: number;
   let estimated = false;
-  const cand = cands.find((c) => c.loc === loc);
+  const cand = answerCovered(item, loc) ? cands.find((c) => c.loc === loc) : undefined;
   if (cand) {
     scoreLoss = Math.max(0, bestLead - cand.scoreLead!);
     winrateLoss = Math.max(0, bestWin - cand.winrate!);
   } else if (live) {
-    scoreLoss = Math.max(0, bestLead - live.lead);
-    winrateLoss = Math.max(0, bestWin - live.win);
+    scoreLoss = Math.max(0, (live.bestLead ?? bestLead) - live.lead);
+    winrateLoss = Math.max(0, (live.bestWin ?? bestWin) - live.win);
+  } else if (cands.some((c) => c.loc === loc)) {
+    // A lightly searched candidate and no engine to check it: its value is all there is.
+    const c = cands.find((x) => x.loc === loc)!;
+    scoreLoss = Math.max(0, bestLead - c.scoreLead!);
+    winrateLoss = Math.max(0, bestWin - (c.winrate ?? bestWin));
   } else {
     // Outside KataGo's candidate list: assume at least as bad as the worst candidate.
     estimated = true;

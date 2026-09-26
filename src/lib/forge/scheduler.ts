@@ -1,5 +1,6 @@
 import type { Attempt, BlindTest, TrainingItem, TrainingKind, Weakness, WeaknessMastery } from '../types';
 import { binomialPValue } from '../util/stats';
+import { assessItem, isWorthDrilling } from './worth';
 
 /** Mix of position kinds by level: harder levels bring more counterexamples and boundary cases. */
 export const KIND_MIX: Record<number, Record<TrainingKind, number>> = {
@@ -54,11 +55,31 @@ export function pickWeakness(weaknesses: Weakness[], mastery: Map<string, Weakne
   return best;
 }
 
+/** How strongly selection favours better questions: an item's weight is its worth score to this power. */
+export const WORTH_PREFERENCE = 2;
+
+const worthWeight = (it: TrainingItem) => Math.max(1e-3, assessItem(it).score) ** WORTH_PREFERENCE;
+
+/** Random pick weighted by worth (rand() near 0 gives the best question). */
+function pickByWorth(xs: TrainingItem[], rand: () => number): TrainingItem | undefined {
+  const sorted = [...xs].sort((a, b) => worthWeight(b) - worthWeight(a));
+  const weights = sorted.map(worthWeight);
+  let x = rand() * weights.reduce((s, w) => s + w, 0);
+  for (let i = 0; i < sorted.length; i++) {
+    x -= weights[i];
+    if (x <= 0) return sorted[i];
+  }
+  return sorted[sorted.length - 1];
+}
+
 /**
- * Next Forge position for a weakness. Items missed before come back first (after a few
- * other positions), then the level's kind mix decides, avoiding recent repeats.
+ * Next Forge position for a weakness. Only positions worth drilling are asked (worth.ts,
+ * so items stored before those rules are filtered too). Items missed before come back
+ * first (after a few other positions), then the level's kind mix decides, avoiding recent
+ * repeats; within a kind, never-attempted items first and better questions more often.
  */
-export function pickItem(items: TrainingItem[], attempts: Attempt[], level: number, rand: () => number = Math.random): TrainingItem | null {
+export function pickItem(all: TrainingItem[], attempts: Attempt[], level: number, rand: () => number = Math.random): TrainingItem | null {
+  const items = all.filter(isWorthDrilling);
   if (!items.length) return null;
   const recentIds = new Set(attempts.slice(-8).map((a) => a.itemId));
   const lastByItem = new Map<string, Attempt>();
@@ -67,7 +88,7 @@ export function pickItem(items: TrainingItem[], attempts: Attempt[], level: numb
     const a = lastByItem.get(it.id);
     return a && !a.conceptCorrect && !recentIds.has(it.id);
   });
-  if (missed.length && rand() < 0.35) return missed[Math.floor(rand() * missed.length)];
+  if (missed.length && rand() < 0.35) return pickByWorth(missed, rand) ?? null;
 
   const mix = KIND_MIX[Math.min(5, Math.max(1, level))];
   const fresh = items.filter((it) => !recentIds.has(it.id));
@@ -87,14 +108,16 @@ export function pickItem(items: TrainingItem[], attempts: Attempt[], level: numb
   // Prefer items never attempted.
   const unseen = candidates.filter((it) => !lastByItem.has(it.id));
   const from = unseen.length ? unseen : candidates;
-  return from[Math.floor(rand() * from.length)] ?? pool[0];
+  return pickByWorth(from, rand) ?? pool[0];
 }
 
 /**
  * "Do I really know this?": a balanced blind set (no feedback until the end), half
- * positions where the habit is wrong and half where the opposite is right.
+ * positions where the habit is wrong and half where the opposite is right. Only positions
+ * worth drilling, the better questions more likely.
  */
-export function buildBlindSet(items: TrainingItem[], attempts: Attempt[], size = 14, rand: () => number = Math.random): TrainingItem[] {
+export function buildBlindSet(all: TrainingItem[], attempts: Attempt[], size = 14, rand: () => number = Math.random): TrainingItem[] {
+  const items = all.filter(isWorthDrilling);
   const n = Math.max(10, Math.min(20, size));
   const recentlyTrained = new Set(attempts.filter((a) => Date.now() - a.at < 12 * 3600_000).map((a) => a.itemId));
   const shuffle = <T,>(xs: T[]) => {
@@ -105,7 +128,13 @@ export function buildBlindSet(items: TrainingItem[], attempts: Attempt[], size =
     }
     return a;
   };
-  const prefer = (xs: TrainingItem[]) => [...shuffle(xs.filter((i) => !recentlyTrained.has(i.id))), ...shuffle(xs.filter((i) => recentlyTrained.has(i.id)))];
+  // A shuffle weighted by worth (keys u^(1/w), compared as logs): better questions tend to come first.
+  const byWorth = (xs: TrainingItem[]) =>
+    xs
+      .map((it) => ({ it, key: Math.log(Math.max(rand(), 1e-12)) / worthWeight(it) }))
+      .sort((x, y) => y.key - x.key)
+      .map((x) => x.it);
+  const prefer = (xs: TrainingItem[]) => [...byWorth(xs.filter((i) => !recentlyTrained.has(i.id))), ...byWorth(xs.filter((i) => recentlyTrained.has(i.id)))];
   const pos = prefer(items.filter((i) => i.expectsContext));
   const neg = prefer(items.filter((i) => !i.expectsContext));
   const out: TrainingItem[] = [];

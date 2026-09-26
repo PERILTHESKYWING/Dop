@@ -4,8 +4,9 @@ import { PASS, type Loc } from '../go/types';
 import { decodeOwnership } from '../engine/parse';
 import { signatureById, type Signature } from '../profile/signatures';
 import { positionFingerprint, similarity, type Fingerprint } from '../search/similarity';
-import type { MoveRecord, TrainingItem, TrainingKind, Weakness } from '../types';
+import type { MoveRecord, PositionEval, TrainingItem, TrainingKind, Weakness } from '../types';
 import { DEFAULT_MIN_LOSING_WINRATE, isBalanced } from './balance';
+import { assessRecord, playedFromRecord, type Worth } from './worth';
 
 function recordToItem(corpus: Corpus, r: MoveRecord, w: Weakness, kind: TrainingKind, expectsContext: boolean, difficulty: number): TrainingItem | null {
   const g = corpus.games.get(r.gameId);
@@ -22,10 +23,12 @@ function recordToItem(corpus: Corpus, r: MoveRecord, w: Weakness, kind: Training
     index: r.index,
     size: g.size,
     komi: g.komi,
+    rules: g.rules,
     setup: g.setup,
     moves: g.moves.slice(0, r.index),
     toPlay: r.color,
     eval: e,
+    played: playedFromRecord(r),
     expectsContext,
     difficulty,
     createdAt: Date.now(),
@@ -66,6 +69,20 @@ export function decisionGap(corpus: Corpus, sig: Signature, r: MoveRecord): numb
   return top - Math.max(...other.map((c) => c.scoreLead!));
 }
 
+/** How much a position's worth (0..1) adds to its similarity when ranking candidates for a kind. */
+const WORTH_RANK_WEIGHT = 0.2;
+
+const worthCache = new WeakMap<MoveRecord, { e: PositionEval; w: Worth }>();
+
+/** Worth of a record's position as a non-original question (cached: every weakness asks). */
+function positionWorth(r: MoveRecord, e: PositionEval): Worth {
+  const hit = worthCache.get(r);
+  if (hit && hit.e === e) return hit.w;
+  const w = assessRecord(r, e);
+  worthCache.set(r, { e, w });
+  return w;
+}
+
 export interface GenerateOptions {
   perKind?: Partial<Record<TrainingKind, number>>;
   /** Leave out positions where the side behind has less than this winrate (default 0.3). */
@@ -73,7 +90,8 @@ export interface GenerateOptions {
 }
 
 /**
- * Build Forge positions for one weakness from the player's real games:
+ * Build Forge positions for one weakness from the player's real games, using only
+ * positions worth drilling (worth.ts), the more instructive ones first:
  *  - original: positions where the player made this exact error
  *  - similar: other positions with the same decision, ranked by similarity to the originals
  *  - counterexample: superficially similar positions where the right decision is the
@@ -85,10 +103,24 @@ export function generateItems(corpus: Corpus, w: Weakness, opts: GenerateOptions
   const per = { original: 8, similar: 10, counterexample: 8, boundary: 6, ...opts.perKind };
   const minWin = opts.minLosingWinrate ?? DEFAULT_MIN_LOSING_WINRATE;
   const balanced = (r: MoveRecord) => isBalanced(r.winBefore, minWin);
-  const usable = corpus.records.filter((r) => r.loc !== PASS && r.bestLoc !== PASS && balanced(r));
-  const originals = w.evidence.map((e) => corpus.byId.get(e.moveId)).filter((r): r is MoveRecord => !!r && balanced(r));
-  const originalIds = new Set(originals.map((r) => r.id));
-  const seeds = originals.slice(0, 12).map((r) => fingerprintOf(corpus, r));
+  const evalOf = (r: MoveRecord) => corpus.analyses.get(r.gameId)?.evals[r.index] ?? null;
+  // Only positions worth drilling become questions: no early-opening half-point choices,
+  // no normal moves that lost little, no positions where several moves are fine (worth.ts).
+  const worth = (r: MoveRecord) => {
+    const e = evalOf(r);
+    return e ? positionWorth(r, e) : null;
+  };
+  const worthScore = (r: MoveRecord) => worth(r)?.score ?? 0;
+  const usable = corpus.records.filter((r) => r.loc !== PASS && r.bestLoc !== PASS && balanced(r) && !!worth(r)?.ok);
+  // Evidence of the weakness: kept out of the other kinds and used as similarity seeds, even
+  // when the position itself is not worth asking.
+  const evidence = w.evidence.map((e) => corpus.byId.get(e.moveId)).filter((r): r is MoveRecord => !!r && balanced(r));
+  const originals = evidence.filter((r) => {
+    const e = evalOf(r);
+    return !!e && assessRecord(r, e, 'original').ok;
+  });
+  const originalIds = new Set(evidence.map((r) => r.id));
+  const seeds = evidence.slice(0, 12).map((r) => fingerprintOf(corpus, r));
   const simToSeeds = (r: MoveRecord) => {
     if (!seeds.length) return 0;
     const fp = fingerprintOf(corpus, r);
@@ -109,7 +141,7 @@ export function generateItems(corpus: Corpus, w: Weakness, opts: GenerateOptions
     // originals and the positions most similar to them.
     const similarOnly = usable
       .filter((r) => !originalIds.has(r.id) && r.depth === 'deep')
-      .map((r) => ({ r, s: simToSeeds(r) }))
+      .map((r) => ({ r, s: simToSeeds(r) + WORTH_RANK_WEIGHT * worthScore(r) }))
       .sort((a, b) => b.s - a.s)
       .slice(0, per.similar + per.counterexample);
     for (const { r } of similarOnly) push(r, 'similar', true, 3);
@@ -119,7 +151,7 @@ export function generateItems(corpus: Corpus, w: Weakness, opts: GenerateOptions
   // Similar: same decision context, correct answer avoids the error, not an original.
   const similar = usable
     .filter((r) => !originalIds.has(r.id) && sig.context(r.features) && !bestCommits(sig, r))
-    .map((r) => ({ r, s: simToSeeds(r) + deepFirst(r) }))
+    .map((r) => ({ r, s: simToSeeds(r) + deepFirst(r) + WORTH_RANK_WEIGHT * worthScore(r) }))
     .sort((a, b) => b.s - a.s)
     .slice(0, per.similar);
   for (const { r } of similar) push(r, 'similar', true, r.isPlayer && r.errors.length === 0 ? 2 : 3);
@@ -127,7 +159,7 @@ export function generateItems(corpus: Corpus, w: Weakness, opts: GenerateOptions
   // Counterexamples: KataGo's move itself has the "error" pattern, in similar-looking positions.
   const counter = usable
     .filter((r) => !originalIds.has(r.id) && bestCommits(sig, r) && !sig.context(r.features))
-    .map((r) => ({ r, s: simToSeeds(r) + deepFirst(r) }))
+    .map((r) => ({ r, s: simToSeeds(r) + deepFirst(r) + WORTH_RANK_WEIGHT * worthScore(r) }))
     .sort((a, b) => b.s - a.s)
     .slice(0, per.counterexample);
   for (const { r } of counter) push(r, 'counterexample', false, 3);

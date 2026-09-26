@@ -108,6 +108,54 @@ export class Board {
     return false;
   }
 
+  /**
+   * Legal points for `color` (1 = legal), computed with one pass over the chains
+   * instead of a flood fill per point. Same rules as isLegal.
+   */
+  legalMask(color: Color): Uint8Array {
+    const n = this.stones.length;
+    const chain = new Int32Array(n).fill(-1);
+    const libs: number[] = [];
+    const stamp = new Int32Array(n).fill(-1);
+    const stack: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const c = this.stones[i];
+      if (c === 0 || chain[i] >= 0) continue;
+      const id = libs.length;
+      let count = 0;
+      chain[i] = id;
+      stack.push(i);
+      while (stack.length) {
+        const p = stack.pop()!;
+        for (const q of this.neighbors(p)) {
+          const v = this.stones[q];
+          if (v === 0) {
+            if (stamp[q] !== id) {
+              stamp[q] = id;
+              count++;
+            }
+          } else if (v === c && chain[q] < 0) {
+            chain[q] = id;
+            stack.push(q);
+          }
+        }
+      }
+      libs.push(count);
+    }
+    const out = new Uint8Array(n);
+    for (let p = 0; p < n; p++) {
+      if (this.stones[p] !== 0 || p === this.koPoint) continue;
+      for (const q of this.neighbors(p)) {
+        const v = this.stones[q];
+        if (v === 0 || (v === color ? libs[chain[q]] > 1 : libs[chain[q]] === 1)) {
+          out[p] = 1;
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
   /** Play a move. Throws on an illegal move unless `force` is set (SGFs can contain odd moves). */
   play(loc: Loc, color: Color, force = false): PlayResult {
     if (loc === PASS) {

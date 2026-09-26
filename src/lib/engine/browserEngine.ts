@@ -1,7 +1,7 @@
 import type { EngineInfo } from '../types';
 import type { ModelSpec } from './models';
 import { DEFAULT_POSTPROCESS, type PostProcessParams, type RawNetOutput } from './parse';
-import type { EngineBackend, EngineRequest, RawSearchResult } from './types';
+import type { EngineBackend, EngineRequest, RawSearchResult, StonesPosition } from './types';
 
 export const ENGINE_BUILD = 'katago-webgpu@d5ad1c0';
 
@@ -83,6 +83,13 @@ export class BrowserEngine implements EngineBackend {
   postProcess: PostProcessParams = DEFAULT_POSTPROCESS;
   /** Milliseconds per network evaluation, measured after loading. */
   evalMs = 0;
+  /**
+   * Positions per network call for the tree search: more than 1 only when a batch is
+   * much cheaper than evaluating its positions one by one (a GPU), measured after loading.
+   */
+  batch = 1;
+  /** Milliseconds for one batch of `batch` positions. */
+  batchMs = 0;
   /** Set once the worker crashed, hung or trapped. */
   dead: string | null = null;
   onDeath?: (reason: string) => void;
@@ -204,6 +211,36 @@ export class BrowserEngine implements EngineBackend {
       return true;
     };
     if (!finite(raw.policyLogits) || !finite(raw.value) || !finite(raw.ownership)) throw new Error('the network returned invalid numbers on this device');
+    if (this.info.backend === 'webgpu') await this.measureBatch();
+  }
+
+  /**
+   * Batched evaluation pays off on a GPU. Check that a batch gives the same numbers as
+   * single evaluations (the empty board has no history, so they must agree) and that
+   * it is actually faster; otherwise the search evaluates one position at a time.
+   */
+  private async measureBatch() {
+    try {
+      const hw = 19 * 19;
+      const empty = new Int8Array(hw);
+      const single = await this.evalRaw({ size: 19, komi: 7.5, moves: [], toPlay: 1 }, false);
+      const t0 = performance.now();
+      await this.evalRaw({ size: 19, komi: 7.5, moves: [], toPlay: 2 }, false);
+      const one = performance.now() - t0;
+      const B = 8;
+      const list: StonesPosition[] = Array.from({ length: B }, (_, i) => ({ stones: empty, toPlay: i % 2 === 0 ? 1 : 2 }));
+      await this.evalBatchRaw(19, 7.5, list); // warm-up (shader compilation for this batch size)
+      const t1 = performance.now();
+      const out = await this.evalBatchRaw(19, 7.5, list);
+      const batchMs = performance.now() - t1;
+      const same = Math.abs(out[0].value[0] - single.value[0]) < 0.05 && Math.abs(out[0].value[4] - single.value[4]) < 0.05;
+      if (same && batchMs < one * B * 0.5) {
+        this.batch = B;
+        this.batchMs = batchMs;
+      }
+    } catch {
+      this.batch = 1;
+    }
   }
 
   /** Load one network on one backend and check that it computes sensible numbers. */
@@ -221,7 +258,7 @@ export class BrowserEngine implements EngineBackend {
     try {
       const r = await eng.init(spec, forceCpu);
       eng.info = { ...eng.info, backend: r.backend, modelVersion: r.modelVersion };
-      eng.postProcess = r.postProcess;
+      eng.postProcess = { ...r.postProcess, winrateScale: spec.winrateFromScore };
       await eng.healthCheck();
       eng.onProgress = undefined;
       return eng;
@@ -238,6 +275,20 @@ export class BrowserEngine implements EngineBackend {
       EVAL_TIMEOUT_MS,
     );
     return { policyLogits: r.policy, value: r.value, ownership: r.ownership };
+  }
+
+  async evalBatchRaw(size: number, komi: number, positions: StonesPosition[]): Promise<RawNetOutput[]> {
+    this.size = size;
+    const hw = size * size;
+    const r = await this.call<{ policy: Float32Array; value: Float32Array }>(
+      { type: 'evalBatch', size, komi, positions: positions.map((p) => ({ stones: Int8Array.from(p.stones), toPlay: p.toPlay })) },
+      EVAL_TIMEOUT_MS,
+    );
+    return positions.map((_, j) => ({
+      policyLogits: r.policy.subarray(j * (hw + 1), (j + 1) * (hw + 1)),
+      value: r.value.subarray(j * 5, j * 5 + 5),
+      ownership: null,
+    }));
   }
 
   searchRaw(req: EngineRequest, visits: number, maxMs: number): Promise<RawSearchResult> {
