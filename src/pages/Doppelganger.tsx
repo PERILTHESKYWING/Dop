@@ -202,7 +202,7 @@ function NotReady({ copy }: { copy: CopyInfo }) {
                 {analysed.length ? `${plural(analysed.length, 'game')} analysed. ` : ''}
                 {waiting.length ? `${plural(waiting.length, 'game')} waiting. ` : ''}
                 {failed.length ? `${plural(failed.length, 'game')} failed (retry in the library). ` : ''}
-                {queue.running && cur ? `Now: ${gameTitle(cur)}, ${cur.status === 'deep' ? `key moments ${cur.progress.deep}/${cur.progress.deepTotal}` : `${cur.progress.fast}/${cur.progress.total} positions`}.` : ''}
+                {queue.running && cur ? `Now: ${gameTitle(cur)}, ${cur.status === 'deep' ? `searching ${cur.progress.deep}/${cur.progress.deepTotal}` : `first look ${cur.progress.fast}/${cur.progress.total}`}.` : ''}
                 {!analysed.length && !waiting.length && !failed.length ? 'Nothing to analyse yet.' : ''}
               </>
             }
@@ -588,7 +588,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
   if (!ranked.length)
     return (
       <div className="empty">
-        In {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} {plural(report.positions, 'position')} the copy's first choice is not KataGo's, but none of those, where KataGo measured it, cost a point or more in a game that was still open. More analysed games (and their key moments) will show more.
+        In {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} {plural(report.positions, 'position')} the copy's first choice is not KataGo's, but none of those, where KataGo measured it, cost a point or more in a game that was still open. More analysed games (and deeper searches of them) will show more.
       </div>
     );
 

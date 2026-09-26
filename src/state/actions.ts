@@ -628,12 +628,20 @@ export async function runQueue() {
   stopRequested = false;
   set((s) => ({ queue: { ...s.queue, running: true, paused: false, lastError: undefined } }));
   let doneSinceRebuild = 0;
+  let lastStage: 'fast' | 'full' | null = null;
   try {
     for (;;) {
       if (stopRequested) break;
       const next = nextGame();
       if (!next) break;
       const g = next.game;
+      // Every game has had its first look: build the profile and the copy from it now,
+      // rather than after the (much longer) search of every game.
+      if (next.stage === 'full' && lastStage === 'fast' && doneSinceRebuild > 0) {
+        doneSinceRebuild = 0;
+        await rebuildProfile();
+      }
+      lastStage = next.stage;
       const eng = await startEngine();
       if (!eng) break;
       set((s) => ({ queue: { ...s.queue, currentGameId: g.id } }));
