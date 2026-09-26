@@ -19,6 +19,8 @@ piece is an optional LLM proxy.
 | **Dashboard** | First-run checks (WebGPU, WASM, KataGo network, LLM), analysed games/positions, biggest and improving weakness, Player DNA, weakness map, training history. |
 | **Game Library** | Drag in many SGFs, in any common encoding (UTF-8, GBK/GB18030, Big5, Shift_JIS, EUC-KR). Asks which side you played when the player names don't say. Resumable background analysis queue: a quick network look at every game first, then a tree search of every position. Komi follows the rules (Fox's KM[0] becomes the standard komi, with a warning and a picker). |
 | **Game Review** | Live analysis as in Lizzie: KataGo keeps searching the move on screen, with candidate discs (winrate, visits, score) and a table that refine as it reads; Space pauses. Winrate and score graph, hover a candidate for its line, click it to try it on the analysis board. Ownership, policy heatmap, decision errors, "find similar", and what your copy expects on your turns. |
+| **Study Board** | A free board for studying anything: play both colours, keep every variation you try, add notes, place setup stones, pick board size, komi and rules, with KataGo's live analysis on or off. Save kifu in the browser, download or open SGF (variations and comments included). Opens from any live AI game or from Game Review. |
+| **Live AI Games** | KataGo playing itself on 8 tables at once, a move every 3 seconds, so openings, middle games and endgames are always on. Bet virtual coins on who wins, and open any table in the study board. |
 | **Player DNA** | Fingerprint on 11 axes, each weakness with its evidence positions and confidence. |
 | **Doppelgänger** | The copy of you: how often it names your actual move (vs KataGo's policy alone), your habits in plain words, where you and KataGo disagree and what it costs, and a game against your copy. |
 | **Forge** | Show → play → commit → reveal. Original positions, similar ones, counterexamples (look-alikes needing the opposite decision) and boundary cases; adaptive levels; optional one-tap reasons. The analysis board is one tap away. |
@@ -35,6 +37,20 @@ search tree follows you through the game. The network itself does not learn in t
 stronger on a position by searching it longer. Settings has the visits per position for game analysis and
 an optional cap for live analysis. For the small built-in network, winrates are derived from its score
 estimate, which on a game analysed with desktop KataGo (via Lizzie) matched it far better than its value head.
+
+### The live AI broadcast
+The games are played ahead of time by KataGo against itself (`npm run broadcast:generate`, or the
+"Broadcast games" workflow in GitHub Actions, which plays a fresh set in the cloud and commits it) and saved in
+`public/broadcast/games.json`. There is no game server: every browser works out the same schedule from the clock
+(`src/lib/broadcast/schedule.ts`), so everyone watching sees the same move on the same table, and a bet settles
+the same way everywhere. Each table plays the whole set in turn, the tables spread around it, and a game that
+comes round again is shown in another orientation between two other players.
+
+Moves are chosen among the candidates the search read that lose at most a fraction of a point against its best
+move, weighted by visits, so games differ but hold no mistakes by KataGo's own judgement; the side that is behind
+plays its best move, which keeps the games close. Bets use virtual coins kept in the browser (1000 to start, a
+daily bonus); the odds are fixed when you bet, from KataGo's winrate at that move, with a 5% margin. Coins cannot
+be bought or cashed out. Studying a live game only brings the moves played so far into the study board.
 
 ### The analysis board
 In Forge, Blind Tests and Game Review you can open a live analysis board at any time: play moves for either

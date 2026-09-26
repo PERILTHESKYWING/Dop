@@ -21,6 +21,8 @@ import { BlindTests } from './pages/BlindTests';
 import { Search } from './pages/Search';
 import { Opponents } from './pages/Opponents';
 import { Settings } from './pages/Settings';
+import { Broadcast } from './pages/Broadcast';
+import { Study } from './pages/Study';
 import './styles/shell.css';
 
 interface NavItem {
@@ -38,6 +40,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { page: 'dashboard', label: 'Dashboard', short: 'Home', icon: 'sunrise' },
       { page: 'library', label: 'Game Library', short: 'Games', icon: 'library' },
       { page: 'review', label: 'Game Review', short: 'Review', icon: 'board' },
+      { page: 'study', label: 'Study Board', short: 'Study', icon: 'kifu' },
+      { page: 'live', label: 'Live AI Games', short: 'Live', icon: 'broadcast' },
       { page: 'dna', label: 'Player DNA', short: 'Player DNA', icon: 'dna' },
       { page: 'doppel', label: 'Doppelgänger', short: 'Doppelgänger', icon: 'twin' },
     ],
@@ -311,6 +315,12 @@ export function App() {
         break;
       case 'settings':
         page = <Settings />;
+        break;
+      case 'live':
+        page = <Broadcast table={route.params[0]} />;
+        break;
+      case 'study':
+        page = <Study id={route.params[0]} query={route.query} />;
         break;
       default:
         page = <Dashboard />;

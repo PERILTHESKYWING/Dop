@@ -506,3 +506,33 @@ svg.board .bd-hit.passive {
 svg.board .bd-cands {
   pointer-events: none;
 }
+
+/* move numbers on the stones (study board) */
+svg.board .mark-num text {
+  font-size: 0.4px;
+  font-weight: 600;
+}
+svg.board .mark-num text.mk-long {
+  font-size: 0.32px;
+}
+svg.board .mark-num.on-b text {
+  fill: #f4efe6;
+}
+svg.board .mark-num.on-w text {
+  fill: #2a1f16;
+}
+
+/* where the variations after this move go (study board): lettered, in the accent colour */
+svg.board .mark-var .mk-halo {
+  fill: #fffdf8;
+  fill-opacity: 0.9;
+}
+svg.board .mark-var .mk-body {
+  stroke: var(--accent, #f0673f);
+  stroke-width: 0.05;
+  stroke-dasharray: 0.12 0.07;
+}
+svg.board .mark-var text {
+  fill: var(--accent-ink, #d0602f);
+  font-size: 0.38px;
+}

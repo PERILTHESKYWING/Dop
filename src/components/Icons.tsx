@@ -95,6 +95,24 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="15.5" cy="12" r="5.5" fill="#fff" />
     </>
   ),
+  /** An on-air mark: a stone with signal arcs. */
+  broadcast: (
+    <>
+      <circle cx="12" cy="12" r="2.6" fill="currentColor" />
+      <path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6" />
+      <path d="M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4" />
+    </>
+  ),
+  /** A kifu: a page with a stone and a line of moves. */
+  kifu: (
+    <>
+      <path d="M6 3.5h9l3.5 3.5v13.5H6z" />
+      <path d="M15 3.5V7h3.5" />
+      <circle cx="10" cy="11" r="1.7" fill="currentColor" />
+      <circle cx="14" cy="14" r="1.7" />
+      <path d="M9 17.5h6" />
+    </>
+  ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   play: <path d="M8 5.5v13l10-6.5z" />,
   /** A stone and its mirrored copy (the Doppelgänger). */

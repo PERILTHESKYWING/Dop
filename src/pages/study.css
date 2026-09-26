@@ -1,0 +1,104 @@
+/* The study board. Theme tokens come from styles.css. */
+
+.study-title {
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+}
+.study-title:hover,
+.study-title:focus {
+  border-color: var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.6);
+}
+.study-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.study-players label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.study-players input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.study-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.study-line .chip.ahead {
+  opacity: 0.55;
+}
+.study-line .chip.branch {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.study-line .chip.noted::after {
+  content: '✎';
+  margin-left: 3px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+.study-comment {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+}
+.study-modes {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.study-modes button {
+  padding: 6px 8px;
+}
+.study-lib {
+  display: grid;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.study-lib-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+.study-lib-row.on {
+  background: var(--row-selected);
+}
+.study-lib-row a {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  color: inherit;
+  text-decoration: none;
+}
+.study-lib-row a strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.study-lib-row:hover {
+  background: var(--row-hover);
+}
+.komi-picker {
+  gap: 6px;
+}
+@media (max-width: 560px) {
+  .study-modes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

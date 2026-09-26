@@ -363,6 +363,9 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
               <button className="btn small" onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)}>
                 Find similar positions
               </button>
+              <button className="btn small" onClick={() => go(`study?game=${encodeURIComponent(game.id)}&move=${cur}`)} title="Record variations and notes, and save them as a kifu">
+                Open in study board
+              </button>
               {!explore && (
                 <button className="btn small" onClick={() => setExplore(true)}>
                   Try moves here

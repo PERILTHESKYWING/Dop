@@ -1,0 +1,335 @@
+/* The live broadcast: AI games on many tables, and betting on them. Theme tokens come from styles.css. */
+
+.bc-onair {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e5484d;
+  box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.55);
+  animation: bc-pulse 1.6s ease-out infinite;
+  vertical-align: 1px;
+  margin-right: 4px;
+}
+@keyframes bc-pulse {
+  70% {
+    box-shadow: 0 0 0 9px rgba(229, 72, 77, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(229, 72, 77, 0);
+  }
+}
+
+.bc-filter {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: 16px;
+}
+.bc-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.25s var(--ease),
+    box-shadow 0.25s var(--ease);
+}
+.bc-card:hover {
+  transform: translateY(-3px);
+}
+.panel + .bc-card {
+  margin-top: 0;
+}
+.bc-card-head,
+.bc-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bc-table {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.bc-card-board,
+.bc-board-frame {
+  position: relative;
+}
+.bc-board-frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bc-card.done .bc-card-board .board {
+  filter: saturate(0.7) brightness(0.96);
+}
+
+.bc-phase.opening {
+  background: var(--good-soft);
+  color: var(--good-ink);
+}
+.bc-phase.middle {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.bc-phase.endgame {
+  background: var(--bad-soft);
+  color: var(--bad-ink);
+}
+.bc-phase.finished {
+  background: rgb(var(--tint-rgb) / 0.1);
+  color: var(--muted);
+}
+
+.bc-players {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13.5px;
+  min-width: 0;
+}
+.bc-players > span:not(.muted) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid transparent;
+  transition:
+    background 0.3s,
+    border-color 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-players > span.turn {
+  background: rgb(var(--accent-rgb) / 0.14);
+  border-color: rgb(var(--accent-edge-rgb) / 0.35);
+  font-weight: 600;
+}
+
+.bc-timer {
+  display: block;
+  flex: 0 0 64px;
+  height: 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgb(var(--tint-rgb) / 0.12);
+}
+.bc-watch .bc-timer {
+  width: 100%;
+}
+.bc-timer i {
+  display: block;
+  height: 100%;
+  background: var(--sunrise);
+  transform-origin: left center;
+  animation-name: bc-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes bc-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.bc-result {
+  position: absolute;
+  inset: 22% 8%;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  text-align: center;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-2);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--blur);
+  animation: rise-in 0.5s var(--ease) both;
+  font-size: 13px;
+}
+.bc-result strong {
+  font-size: 15px;
+}
+.bc-result.big {
+  inset: auto;
+  min-width: 260px;
+}
+.bc-result.big strong {
+  font-family: var(--display, inherit);
+  font-size: 22px;
+}
+
+.bc-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.bc-coin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #f4c542 45%, #c68a12);
+  box-shadow: inset 0 -1px 2px rgba(120, 70, 0, 0.4);
+}
+
+.bc-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.bc-side {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--button-edge);
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.15s,
+    box-shadow 0.2s;
+}
+.bc-side > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-side strong {
+  font-size: 20px;
+}
+.bc-side:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -10px rgb(var(--accent-glow-rgb) / 0.5);
+}
+.bc-side:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.bc-bet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.bc-bet > span:first-child {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .bc-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .bc-card {
+    padding: 9px;
+  }
+  .bc-card .winbar-labels {
+    font-size: 11px;
+  }
+}
+
+/* the lobby cards: a slim winrate bar and the two players with their chances */
+.bc-mini-bar {
+  height: 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fbf8f2, #e9e2d6);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.bc-mini-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(180deg, #3b3531, #14110f);
+  transition: width 0.8s var(--ease);
+}
+.bc-card-players {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+.bc-card-players > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  transition: background 0.3s;
+}
+.bc-card-players > div.turn {
+  background: rgb(var(--accent-rgb) / 0.14);
+  font-weight: 600;
+}
+.bc-card-players .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-card-head .chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.bc-table {
+  white-space: nowrap;
+}
+.bc-watch-head {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.bc-watch-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 0;
+}
+.bc-filter-wrap {
+  padding: 8px;
+}
+@media (max-width: 760px) {
+  .bc-card-head .chip {
+    font-size: 10px;
+    padding: 1px 6px;
+  }
+  .bc-table {
+    font-size: 12.5px;
+  }
+  .bc-card-players {
+    font-size: 12px;
+  }
+}
