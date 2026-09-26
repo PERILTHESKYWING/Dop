@@ -84,15 +84,16 @@ export function Library() {
       <DropZone compact onFiles={(f) => void importFiles(f)} />
       <div className="panel" style={{ marginTop: 14, padding: '6px 8px' }}>
         {shown.length ? (
-          <table className="data">
+          <div className="table-scroll">
+          <table className="data lib-table">
             <thead>
               <tr>
                 <th>Game</th>
-                <th>Date</th>
+                <th className="narrow-hide">Date</th>
                 <th>You</th>
                 <th>Result</th>
-                <th>Moves</th>
-                <th>Costly moves</th>
+                <th className="narrow-hide">Moves</th>
+                <th className="narrow-hide">Costly moves</th>
                 <th>Status</th>
                 <th />
               </tr>
@@ -108,7 +109,7 @@ export function Library() {
                       {g.handicap > 1 && ` · H${g.handicap}`}
                     </div>
                   </td>
-                  <td className="small dim">{g.date ?? '—'}</td>
+                  <td className="small dim narrow-hide">{g.date ?? '—'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {g.source === 'user' || g.source === 'demo' ? (
                       <select
@@ -125,8 +126,8 @@ export function Library() {
                     )}
                   </td>
                   <td className="small">{g.result ?? '—'}</td>
-                  <td className="small mono">{g.moves.length}</td>
-                  <td className="small mono">{g.status === 'done' && g.playerColor ? mistakes.get(g.id) ?? 0 : '—'}</td>
+                  <td className="small mono narrow-hide">{g.moves.length}</td>
+                  <td className="small mono narrow-hide">{g.status === 'done' && g.playerColor ? mistakes.get(g.id) ?? 0 : '—'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <StatusCell g={g} current={queue.currentGameId === g.id} />
                   </td>
@@ -145,6 +146,7 @@ export function Library() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <div className="empty" style={{ margin: 16 }}>
             No games here yet.

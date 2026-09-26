@@ -1,3 +1,4 @@
+import type { ThemeId } from './themes';
 import type { Color, Loc, Move } from './go/types';
 import type { Region } from './go/coords';
 
@@ -339,6 +340,8 @@ export interface Settings {
   minLosingWinrate: number;
   /** Background animation and glass blur: auto = light on slower devices. */
   effects: 'auto' | 'full' | 'light';
+  /** Background theme (lib/themes.ts). */
+  theme: ThemeId;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -356,4 +359,5 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   minLosingWinrate: 0.3,
   effects: 'auto',
+  theme: 'sunrise',
 };

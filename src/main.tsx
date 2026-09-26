@@ -5,6 +5,8 @@ import '@fontsource-variable/cormorant-garamond';
 import '@fontsource-variable/cinzel';
 import { App } from './App';
 import './styles.css';
+import './styles/scenery.css';
+import './styles/themes.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
