@@ -9,6 +9,7 @@
   box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.55);
   animation: bc-pulse 1.6s ease-out infinite;
   vertical-align: 1px;
+  flex: none;
   margin-right: 4px;
 }
 @keyframes bc-pulse {

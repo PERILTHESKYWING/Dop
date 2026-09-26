@@ -5,7 +5,9 @@
  * Each move is chosen among the candidates the search found that lose almost nothing
  * against the best one (by score and by winrate), weighted by visits, so the games vary
  * from one to the next but contain no mistakes by the engine's own judgement. The side
- * that is behind plays its best move, which keeps the games close.
+ * that is behind plays its best move, which keeps the games close. A move that turns out
+ * to lose more than a couple of points once the next position is read is taken back and
+ * replaced by the best move of a much longer search.
  *
  *   npx tsx scripts/generate-broadcast.ts --model public/models/<net>.bin.gz --games 36 --seed 1 --part 0 --parts 4
  *   npx tsx scripts/generate-broadcast.ts --merge --seed 1
@@ -48,7 +50,7 @@ function rng(seed: number) {
 
 async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx: number, seed: number, visits: number): Promise<BroadcastGame> {
   const r = rng(seed * 7919 + idx * 104729 + 17);
-  const board = new Board(SIZE);
+  let board = new Board(SIZE);
   const moves: Move[] = [];
   const wr: number[] = [];
   const lead: number[] = [];
@@ -61,18 +63,43 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
   const evaluator = engineEvaluator(engine);
   const search = new Search(evaluator, { size: SIZE, komi: KOMI, moves: [], toPlay: 1, board: board.clone() }, { batch: engine.batch ?? 1 });
 
+  // Hindsight check: when a move turns out to lose more than DROP points once the next position
+  // is searched, take it back and pick the best move of a search DEEP times longer instead.
+  const DROP = 2.5;
+  const DEEP = 6;
+  let deep = false;
+  let lastDeep = false;
+  let before: { board: Board; passes: number; lead: number } | null = null;
+
   while (moves.length < 360) {
     search.setPosition({ size: SIZE, komi: KOMI, moves: [...moves], toPlay: color, board: board.clone() });
-    const snap = await search.run({ visits });
+    const snap = await search.run({ visits: deep ? visits * DEEP : visits });
+    if (!deep && !lastDeep && before && moves.length) {
+      const last = moves[moves.length - 1];
+      const lost = last.color === 1 ? before.lead - snap.bLead : snap.bLead - before.lead;
+      if (lost > DROP) {
+        moves.pop();
+        board = before.board;
+        passes = before.passes;
+        color = last.color;
+        wr.pop();
+        lead.pop();
+        cands.pop();
+        deep = true;
+        continue;
+      }
+    }
+    const verified = deep;
+    deep = false;
     wr.push(Math.round(snap.bWin * 1000));
     lead.push(Math.round(snap.bLead * 10));
     const list = snap.candidates;
     cands.push(list.slice(0, 4).flatMap((c) => [c.loc, Math.round(c.winrate * 1000), Math.round(c.scoreLead * 10), c.visits]));
 
     const mover = color === 1 ? snap.bWin : 1 - snap.bWin;
-    // Resign only a hopeless game late on, so most games are played through the endgame.
-    losing[color] = mover < 0.01 && moves.length > 200 ? losing[color] + 1 : 0;
-    if (losing[color] >= 6) {
+    // Resign a game that has been hopeless for a while, rather than play it out.
+    losing[color] = mover < 0.02 && moves.length > 120 ? losing[color] + 1 : 0;
+    if (losing[color] >= 8) {
       result = `${color === 1 ? 'W' : 'B'}+R`;
       end = 'resign';
       cands.pop();
@@ -86,7 +113,7 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
     const n = moves.length;
     const opening = n < 12;
     const behind = !opening && mover < 0.4;
-    const choices = behind ? list.slice(0, 1) : safeChoices(list, opening ? 1.0 : n < 60 ? 0.6 : 0.4, opening ? 0.05 : 0.03);
+    const choices = behind || verified ? list.slice(0, 1) : safeChoices(list, opening ? 1.0 : n < 60 ? 0.6 : 0.4, opening ? 0.05 : 0.03);
     const temp = opening ? 1.4 : n < 60 ? 1.0 : 0.6;
     let loc: Loc = choices[0]?.loc ?? PASS;
     if (choices.length > 1) {
@@ -101,6 +128,8 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
       }
     }
     if (loc !== PASS && !board.isLegal(loc, color)) loc = PASS;
+    before = { board: board.clone(), passes, lead: snap.bLead };
+    lastDeep = verified;
     passes = loc === PASS ? passes + 1 : 0;
     board.play(loc, color, true);
     moves.push({ color, loc });
