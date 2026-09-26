@@ -1,8 +1,10 @@
-import { Component, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, type ReactNode } from 'react';
 import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
 import { Toasts } from './components/common';
+import { Scenery } from './components/Scenery';
+import { THEME_PREF, themeInfo } from './lib/themes';
 import { BrandMark, Icon, type IconName } from './components/Icons';
 import { Dashboard } from './pages/Dashboard';
 import { Library } from './pages/Library';
@@ -30,42 +32,6 @@ const NAV: ({ label: string } | { page: string; label: string; icon: IconName })
   { page: 'opponents', label: 'Opponents', icon: 'swords' },
   { page: 'settings', label: 'Engine & Settings', icon: 'sliders' },
 ];
-
-/** The painted sunrise behind everything, with slow light rays, drifting clouds and floating motes. */
-function Scenery() {
-  const motes = useMemo(
-    () =>
-      Array.from({ length: 16 }, (_, i) => {
-        const r = (k: number) => {
-          const x = Math.sin((i + 1) * 12.9898 + k * 78.233) * 43758.5453;
-          return x - Math.floor(x);
-        };
-        return {
-          '--x': `${(r(1) * 100).toFixed(1)}%`,
-          '--s': `${(3 + r(2) * 6).toFixed(1)}px`,
-          '--d': `${(16 + r(3) * 18).toFixed(1)}s`,
-          '--delay': `${(-r(4) * 30).toFixed(1)}s`,
-          '--dx': `${((r(5) - 0.5) * 120).toFixed(0)}px`,
-        } as CSSProperties;
-      }),
-    [],
-  );
-  return (
-    <div className="scenery" aria-hidden>
-      <div className="scenery-art">
-        <div className="scenery-img" />
-        <div className="scenery-glow" />
-        <div className="scenery-rays" />
-        <div className="scenery-rays two" />
-        <div className="scenery-clouds" />
-      </div>
-      {motes.map((style, i) => (
-        <span key={i} className="mote" style={style} />
-      ))}
-      <div className="scenery-veil" />
-    </div>
-  );
-}
 
 function StatusCard() {
   const engine = useStore((s) => s.engine);
@@ -132,9 +98,21 @@ export function App() {
   const route = useRoute();
   const loaded = useStore((s) => s.loaded);
   const fx = useEffectsClass();
+  const theme = useStore((s) => s.settings.theme) ?? 'sunrise';
   useEffect(() => {
     void init();
   }, []);
+  // The theme is also kept in this browser so the next visit paints it before the app loads (index.html).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.colorScheme = themeInfo(theme).dark ? 'dark' : 'light';
+    try {
+      localStorage.setItem(THEME_PREF, theme);
+    } catch {
+      /* private mode */
+    }
+  }, [theme]);
 
   let page = null;
   if (loaded) {
@@ -173,8 +151,8 @@ export function App() {
   const current = route.page === '' ? 'dashboard' : route.page;
 
   return (
-    <div className={`app ${fx}`}>
-      <Scenery />
+    <div className={`app ${fx}`} data-theme={theme}>
+      <Scenery theme={theme} />
       <div className="shell">
         <nav className="nav" aria-label="Main">
           <a className="brand" href={href('dashboard')}>
