@@ -12,6 +12,12 @@ export interface PostProcessParams {
   outputScale: number;
   scoreMeanMultiplier: number;
   leadMultiplier: number;
+  /**
+   * When set, the winrate is derived from the score lead as 1 / (1 + e^(-lead / scale))
+   * instead of the value head. For small networks whose value head is under-confident
+   * (see WINRATE_FROM_SCORE in models.ts).
+   */
+  winrateScale?: number;
 }
 
 export const DEFAULT_POSTPROCESS: PostProcessParams = { outputScale: 1, scoreMeanMultiplier: 20, leadMultiplier: 20 };
@@ -59,8 +65,8 @@ export function processRawOutput(
   const [w, l, n] = [raw.value[0] * s, raw.value[1] * s, raw.value[2] * s];
   const m = Math.max(w, l, n);
   const ew = Math.exp(w - m), el = Math.exp(l - m), en = Math.exp(n - m);
-  const winSide = (ew + 0.5 * en) / (ew + el + en);
   const leadSide = raw.value[4] * s * pp.leadMultiplier;
+  const winSide = pp.winrateScale ? 1 / (1 + Math.exp(-leadSide / pp.winrateScale)) : (ew + 0.5 * en) / (ew + el + en);
   const bWin = toPlay === 1 ? winSide : 1 - winSide;
   const bLead = toPlay === 1 ? leadSide : -leadSide;
 

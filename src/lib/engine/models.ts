@@ -28,7 +28,18 @@ export interface ModelSpec {
   human?: boolean;
   /** Where to download it by hand for "Load a network file". */
   homepage?: string;
+  /** Derive winrates from the score lead with this scale (see WINRATE_FROM_SCORE). */
+  winrateFromScore?: number;
 }
+
+/**
+ * The small g170 networks read the score well but their value head is under-confident:
+ * on a Lizzie-analysed game (kata1, ~50k visits) the built-in b10 said 15% where Lizzie
+ * said 0.3%, and 58% where it said 75%. KataGo's strong networks relate winrate to score
+ * lead as roughly 1 / (1 + e^(-lead / 2)) in the middle game, and using that on the b10's
+ * searched score brought its winrate error on that game from 10% to about 4%.
+ */
+export const WINRATE_FROM_SCORE = 2.0;
 
 const KATA1 = 'https://media.katagotraining.org/uploaded/networks/models/kata1/';
 const WEBGPU_REPO_PIN = 'd5ad1c0423dba989c60a2f06b1848e7eec2b5941';
@@ -76,6 +87,7 @@ export const MODELS: ModelSpec[] = [
     modelVersion: 8,
     strength: 40,
     bundled: true,
+    winrateFromScore: WINRATE_FROM_SCORE,
     note: 'Ships with the site, so it always loads. Fast enough on the CPU; still far stronger than most human players.',
   },
   {
@@ -87,6 +99,7 @@ export const MODELS: ModelSpec[] = [
     modelVersion: 8,
     strength: 20,
     optIn: true,
+    winrateFromScore: WINRATE_FROM_SCORE,
     note: 'Tiny network for very slow machines.',
   },
   {

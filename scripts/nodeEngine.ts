@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import type { EngineBackend, EngineRequest, RawSearchResult } from '../src/lib/engine/types';
+import type { EngineBackend, EngineRequest, RawSearchResult, StonesPosition } from '../src/lib/engine/types';
 import type { PostProcessParams, RawNetOutput } from '../src/lib/engine/parse';
 import type { EngineInfo } from '../src/lib/types';
 
@@ -21,7 +21,11 @@ type Kata = {
   _malloc: (n: number) => number;
 };
 
-export async function loadNodeEngine(modelPath: string, modelId: string, size = 19): Promise<EngineBackend> {
+/**
+ * `batch` > 1 makes the tree search use batched (stones-only) evaluation, as on a GPU.
+ * `winrateScale` derives winrates from the score (as the app does for small networks).
+ */
+export async function loadNodeEngine(modelPath: string, modelId: string, size = 19, batch = 1, winrateScale?: number): Promise<EngineBackend> {
   if (!existsSync(ENGINE_JS)) throw new Error(`missing ${ENGINE_JS}; run engine/build-engine.sh`);
   const require = createRequire(import.meta.url);
   const createKata = require(ENGINE_JS);
@@ -49,6 +53,10 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
     rw: M._malloc(128),
     rp: M._malloc(128),
     pp: M._malloc(16),
+    bs: M._malloc(16 * hw * 4),
+    bp: M._malloc(16 * 4),
+    bpol: M._malloc(16 * (hw + 1) * 4),
+    bval: M._malloc(16 * 5 * 4),
   };
   M.ccall('kgePostProcessParams', 'number', ['number'], [b.pp]);
   const f = M.HEAPF32;
@@ -56,6 +64,7 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
     outputScale: f[b.pp >> 2] || 1,
     scoreMeanMultiplier: f[(b.pp >> 2) + 1] || 20,
     leadMultiplier: f[(b.pp >> 2) + 2] || 20,
+    winrateScale,
   };
   const info: EngineInfo = {
     engine: 'katago-webgpu@d5ad1c0',
@@ -80,6 +89,23 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
   return {
     info,
     postProcess,
+    batch,
+    evalBatchRaw: (sz: number, komi: number, positions: StonesPosition[]) =>
+      serial(async (): Promise<RawNetOutput[]> => {
+        if (sz !== size) throw new Error('board size mismatch');
+        positions.forEach((p, j) => {
+          for (let i = 0; i < hw; i++) M.HEAP32[(b.bs >> 2) + j * hw + i] = p.stones[i];
+          M.HEAP32[(b.bp >> 2) + j] = p.toPlay;
+        });
+        const ok = await M.ccall('kgeEvalBatch', 'number', Array(6).fill('number'), [b.bs, b.bp, positions.length, komi, b.bpol, b.bval], { async: true });
+        if (!ok) throw new Error('kgeEvalBatch: ' + M.ccall('kgeError', 'string', [], []));
+        return positions.map((p, j) => {
+          const v = M.HEAPF32.slice((b.bval >> 2) + j * 5, (b.bval >> 2) + j * 5 + 5);
+          // kataeval's batch values are White's perspective; evalRaw's are the side to move's.
+          const value = p.toPlay === 1 ? Float32Array.from([v[1], v[0], v[2], -v[3], -v[4]]) : v;
+          return { policyLogits: M.HEAPF32.slice((b.bpol >> 2) + j * (hw + 1), (b.bpol >> 2) + (j + 1) * (hw + 1)), value, ownership: null };
+        });
+      }),
     evalRaw: (req, ownership) =>
       serial(async (): Promise<RawNetOutput> => {
         if (req.size !== size) throw new Error('board size mismatch');

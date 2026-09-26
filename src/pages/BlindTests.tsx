@@ -6,6 +6,7 @@ import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../c
 import { fmtPct } from '../components/common';
 import { itemBoard } from '../lib/forge/grading';
 import { buildBlindSet } from '../lib/forge/scheduler';
+import { practiceItems } from '../lib/forge/worth';
 import { locToGtp } from '../lib/go/coords';
 import type { Loc } from '../lib/go/types';
 import type { BlindTest, TrainingItem } from '../lib/types';
@@ -30,7 +31,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const [view, toggleView] = useAnalysisView();
   const item = items[i];
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
-  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
+  const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
   const analysis = useAnalysis(base, explore, item?.eval);
 
   const commit = async () => {
@@ -68,7 +69,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
     <div className="stage">
       <div className="board-wrap">
         {explore ? (
-          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} />
+          <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} onHoverPv={setHoverPv} />
         ) : (
           <Board size={item.size} stones={board.stones} lastMove={last} toPlay={item.toPlay} pending={pending} onPlay={(l) => (pending === l ? void commit() : setPending(l))} coords />
         )}
@@ -194,12 +195,18 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
   const [active, setActive] = useState<{ test: BlindTest; items: TrainingItem[] } | null>(null);
   const [finished, setFinished] = useState<{ test: BlindTest; items: TrainingItem[] } | null>(null);
   const weakness = weaknesses.find((w) => w.id === weaknessId);
+  const minWin = useStore((s) => s.settings.minLosingWinrate);
+  // Only positions worth drilling are asked (lib/forge/worth.ts), items saved before those rules included.
+  const practice = useMemo(
+    () => Object.fromEntries(weaknesses.map((w) => [w.id, practiceItems(itemsByW[w.id] ?? [], minWin)])),
+    [weaknesses, itemsByW, minWin],
+  );
 
   const start = async (wid: string) => {
-    const items = itemsByW[wid] ?? [];
+    const items = practice[wid] ?? [];
     const set = buildBlindSet(items, attempts, 14);
     if (set.length < 6) {
-      alert('Not enough positions for a blind test on this weakness yet. Analyse more games first.');
+      alert('Not enough positions worth drilling for a blind test on this weakness yet (early-opening choices and small losses are left out). Analyse more games first.');
       return;
     }
     const t: BlindTest = { id: uid('bt-'), weaknessId: wid, itemIds: set.map((x) => x.id), startedAt: Date.now(), attempts: [] };
@@ -254,7 +261,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
             <tbody>
               {weaknesses.map((w) => {
                 const last = done.find((t) => t.weaknessId === w.id);
-                const n = (itemsByW[w.id] ?? []).length;
+                const n = (practice[w.id] ?? []).length;
                 return (
                   <tr key={w.id} className={w.id === weakness?.id ? 'selected' : ''}>
                     <td>

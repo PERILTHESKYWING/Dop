@@ -83,20 +83,45 @@ export function Toasts() {
 }
 
 /** Winrate graph (black's winrate) with the current move and flagged errors. */
-export function WinrateGraph({ values, cursor, errors, onPick }: { values: (number | null)[]; cursor: number; errors?: number[]; onPick?: (i: number) => void }) {
+/**
+ * Black's winrate along a game (dark line and area), Black's score lead (magenta, scaled
+ * to the largest lead, at least 10 points), mistakes (red ticks) and the current move.
+ */
+export function WinrateGraph({
+  values,
+  scores,
+  cursor,
+  errors,
+  onPick,
+}: {
+  values: (number | null)[];
+  scores?: (number | null)[];
+  cursor: number;
+  errors?: number[];
+  onPick?: (i: number) => void;
+}) {
   const W = 600, H = 90;
   const n = Math.max(values.length - 1, 1);
-  const pts = values.map((v, i) => (v === null ? null : [(i / n) * W, H - v * H] as const));
-  let d = '';
+  const path = (pts: (readonly [number, number] | null)[]) => {
+    let d = '';
+    let started = false;
+    pts.forEach((p) => {
+      if (!p) return;
+      d += `${started ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+      started = true;
+    });
+    return d;
+  };
+  const pts = values.map((v, i) => (v === null ? null : ([(i / n) * W, H - v * H] as const)));
+  const d = path(pts);
   let area = '';
-  let started = false;
-  pts.forEach((p) => {
-    if (!p) return;
-    d += `${started ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`;
-    started = true;
-  });
   const valid = pts.filter((p): p is readonly [number, number] => !!p);
   if (valid.length) area = `M${valid[0][0]},${H} ` + valid.map((p) => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') + ` L${valid[valid.length - 1][0]},${H} Z`;
+  let sd = '';
+  if (scores?.some((v) => v !== null)) {
+    const span = Math.max(10, ...scores.map((v) => (v === null ? 0 : Math.abs(v))));
+    sd = path(scores.map((v, i) => (v === null ? null : ([(i / n) * W, H / 2 - (v / span) * (H / 2 - 3)] as const))));
+  }
   return (
     <svg
       className="graph"
@@ -111,6 +136,7 @@ export function WinrateGraph({ values, cursor, errors, onPick }: { values: (numb
     >
       <line className="mid" x1={0} x2={W} y1={H / 2} y2={H / 2} />
       {area && <path className="area" d={area} />}
+      {sd && <path className="score" d={sd} />}
       {d && <path className="line" d={d} />}
       {(errors ?? []).map((i) => (
         <rect key={i} className="err" x={(i / n) * W - 1.5} y={H - 6} width={3} height={6} />

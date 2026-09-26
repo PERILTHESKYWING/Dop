@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import {
+  getEngine,
   gpuMarkedBroken,
   inSafeMode,
   loadNetworkFile,
@@ -12,6 +13,7 @@ import {
   restartEngine,
   retryGpu,
   saveSettings,
+  searchVisitsFor,
   setPlayerNames,
   startEngine,
   trainLabModel,
@@ -43,6 +45,7 @@ function EngineSection() {
   const gpuBroken = gpuMarkedBroken();
   const safe = inSafeMode();
   const custom = customModel(settings.modelId);
+  const liveEngine = getEngine();
   return (
     <div className="panel stack">
       <div className="spread">
@@ -138,26 +141,32 @@ function EngineSection() {
       </label>
       <div className="row wrap">
         <label className="stack tight small">
-          <span className="field-label">Deep analysis visits</span>
-          <select value={settings.deepVisits} onChange={(e) => void saveSettings({ deepVisits: Number(e.target.value) })}>
-            {[16, 32, 64, 128, 256, 512].map((v) => (
+          <span className="field-label">Search per position (game analysis)</span>
+          <select value={settings.searchVisits} onChange={(e) => void saveSettings({ searchVisits: Number(e.target.value) })}>
+            <option value={0}>Automatic{engine.status === 'ready' && liveEngine ? ` (${searchVisitsFor(liveEngine, 0)} visits here)` : ''}</option>
+            {[16, 32, 64, 128, 256, 512, 1024].map((v) => (
               <option key={v} value={v}>
-                {v}
+                {v} visits
               </option>
             ))}
           </select>
         </label>
         <label className="stack tight small">
-          <span className="field-label">Deep positions per game</span>
-          <select value={settings.deepPerGame} onChange={(e) => void saveSettings({ deepPerGame: Number(e.target.value) })}>
-            {[8, 16, 24, 40, 60].map((v) => (
+          <span className="field-label">Live analysis stops at</span>
+          <select value={settings.ponderLimit} onChange={(e) => void saveSettings({ ponderLimit: Number(e.target.value) })}>
+            <option value={0}>Never (keeps reading)</option>
+            {[500, 2000, 10000, 50000].map((v) => (
               <option key={v} value={v}>
-                {v}
+                {v.toLocaleString()} visits
               </option>
             ))}
           </select>
         </label>
       </div>
+      <p className="tiny muted">
+        Every position of every game gets a quick look from the network first, then a tree search. Live analysis (Space in Game Review and on the
+        analysis boards) keeps searching the position on screen, so its numbers get more reliable the longer it runs; games wait while it does.
+      </p>
       <label className="row small">
         <input type="checkbox" checked={settings.autoAnalyze} onChange={(e) => void saveSettings({ autoAnalyze: e.target.checked })} /> Analyse imported games automatically
       </label>

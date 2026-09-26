@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { gradeAnswer, gradeOf } from '../src/lib/forge/grading';
+import { answerCovered, gradeAnswer, gradeOf } from '../src/lib/forge/grading';
 import { buildBlindSet, newMastery, pickItem, scoreBlindTest, updateMastery } from '../src/lib/forge/scheduler';
 import { balancedItems, isBalanced } from '../src/lib/forge/balance';
 import { makeVariation } from '../src/lib/forge/variations';
+import { isWorthDrilling } from '../src/lib/forge/worth';
 import { searchedValue } from '../src/lib/analysis/analyzer';
 import type { EngineRequest } from '../src/lib/engine/types';
 import { FakeEngine } from './helpers';
@@ -60,6 +61,28 @@ describe('Forge grading', () => {
     const r = gradeAnswer(item('i1'), at('A1'), { win: 0.6, lead: 2.7 });
     expect(r.estimated).toBe(false);
     expect(r.scoreLoss).toBeCloseTo(0.5, 5);
+  });
+
+  it('measures searched analyses against the most visited move, and rechecks thinly searched answers', () => {
+    const it = item('i1');
+    it.eval = {
+      ...it.eval,
+      searched: true,
+      candidates: [
+        { loc: at('G3'), prior: 0.4, winrate: 0.62, scoreLead: 3.2, visits: 50 },
+        { loc: at('D6'), prior: 0.2, winrate: 0.55, scoreLead: 1.9, visits: 20 },
+        // Two visits: looks better than the best move, which the search did not trust.
+        { loc: at('B8'), prior: 0.01, winrate: 0.7, scoreLead: 5, visits: 2 },
+      ],
+    };
+    expect(answerCovered(it, at('D6'))).toBe(true);
+    expect(answerCovered(it, at('B8'))).toBe(false);
+    expect(gradeAnswer(it, at('D6')).scoreLoss).toBeCloseTo(1.3, 5);
+    expect(gradeAnswer(it, at('G3')).scoreLoss).toBe(0);
+    // Checked by a search of its own: the loss is measured within that search.
+    const b8 = gradeAnswer(it, at('B8'), { win: 0.4, lead: -2, bestWin: 0.6, bestLead: 3 });
+    expect(b8.scoreLoss).toBeCloseTo(5, 5);
+    expect(b8.bestLoc).toBe(at('G3'));
   });
 });
 
@@ -151,15 +174,36 @@ describe('practice winrate floor', () => {
     expect(w.bLead).toBeCloseTo(-(1 + 3 * 5) / 4, 6);
   });
 
+  /** Black on G3 is worth 8 points to Black however the game goes on: one clear answer to find. */
+  class ClearBest extends FakeEngine {
+    async evalRaw(req: EngineRequest, ownership: boolean) {
+      const r = await super.evalRaw(req, ownership);
+      r.policyLogits[at('G3')] = 0.5;
+      if (req.moves.some((m) => m.loc === at('G3') && m.color === 1)) r.value[4] += req.toPlay === 1 ? 0.4 : -0.4;
+      return r;
+    }
+  }
+
   it('drops engine variations that tip the game past the limit', async () => {
-    class Lopsided extends FakeEngine {
+    // Worth asking in every other way, so only the winrate limit can drop it.
+    class Lopsided extends ClearBest {
       async evalRaw(req: EngineRequest, ownership: boolean) {
         const r = await super.evalRaw(req, ownership);
         r.value[0] = 4; // the side to move is winning ~98%
         return r;
       }
     }
-    expect(await makeVariation(item('v1'), new Lopsided(), () => 0.3, 1)).toBeNull();
-    expect(await makeVariation(item('v2'), new FakeEngine(), () => 0.3, 1)).not.toBeNull();
+    expect(await makeVariation(item('v1'), new Lopsided(), () => 0.3, 32)).toBeNull();
+    expect(await makeVariation(item('v2'), new ClearBest(), () => 0.3, 32)).not.toBeNull();
+  });
+
+  it('drops engine variations with nothing at stake', async () => {
+    // The plain fake engine rates every move the same: no answer to find.
+    expect(await makeVariation(item('v3'), new FakeEngine(), () => 0.3, 32)).toBeNull();
+    const source = { ...item('v4'), played: { loc: at('B8'), scoreLoss: 9.2, winrateLoss: 0.32, policy: 0.01, byPlayer: true } };
+    const v = await makeVariation(source, new ClearBest(), () => 0.3, 32);
+    // A new position: the source game's move and what it cost do not carry over.
+    expect(v!.played).toBeUndefined();
+    expect(isWorthDrilling(v!)).toBe(true);
   });
 });

@@ -23,6 +23,8 @@ export interface GameRecord {
   result?: string;
   date?: string;
   event?: string;
+  /** SGF RU[] (decides how komi is given to KataGo, see go/rules.ts). */
+  rules?: string;
   /** Which colour the studied player had in this game (null = unknown). */
   playerColor: Color | null;
   importedAt: number;
@@ -72,6 +74,8 @@ export interface PositionEval {
   pv: Loc[];
   visits: number;
   depth: 'fast' | 'deep';
+  /** bWin/bLead are the tree search's value (analysis version 3), not the network's first guess. */
+  searched?: boolean;
   engine: EngineInfo;
   analyzedAt: number;
   /** Human-like policy (only with a compatible human SL model). */
@@ -82,10 +86,14 @@ export interface GameAnalysis {
   gameId: string;
   /** evals[i] is the position before move i; evals[moves.length] is the final position. */
   evals: (PositionEval | null)[];
-  /** Indices of moves selected for deep analysis. */
+  /** Positions that get extra search visits (the model lab's hard examples). */
   deepTargets: number[];
   engine?: EngineInfo;
   updatedAt: number;
+  /** ANALYSIS_VERSION when it was made; older analyses are redone. */
+  version?: number;
+  /** Komi given to KataGo (see go/rules.ts); a changed komi means a new analysis. */
+  komi?: number;
 }
 
 export type Phase = 'opening' | 'middlegame' | 'endgame';
@@ -239,6 +247,8 @@ export interface TrainingItem {
   index: number;
   size: number;
   komi: number;
+  /** The source game's rules (KataGo's komi depends on them, see go/rules.ts). */
+  rules?: string;
   setup: Move[];
   /** Moves leading to the position (history matters for the engine). */
   moves: Move[];
@@ -247,6 +257,8 @@ export interface TrainingItem {
   modification?: { added: Move[]; removed: Loc[]; note: string };
   /** Reference evaluation for grading. */
   eval: PositionEval;
+  /** The move played here in the source game and what it cost (absent on engine variations and older items). */
+  played?: { loc: Loc; scoreLoss: number; winrateLoss: number; policy: number; byPlayer: boolean };
   /** Whether the correct decision in this position avoids or embraces the signature's error. */
   expectsContext: boolean;
   difficulty: number;
@@ -313,6 +325,11 @@ export interface Settings {
   modelId: string;
   forceCpu: boolean;
   fastVisits: number;
+  /** Search visits per position in background analysis (0 = automatic, from this device's speed). */
+  searchVisits: number;
+  /** Live analysis stops at this many visits (0 = keeps going). */
+  ponderLimit: number;
+  /** Older settings, no longer used. */
   deepVisits: number;
   deepPerGame: number;
   autoAnalyze: boolean;
@@ -330,6 +347,8 @@ export const DEFAULT_SETTINGS: Settings = {
   modelId: 'auto',
   forceCpu: false,
   fastVisits: 1,
+  searchVisits: 0,
+  ponderLimit: 0,
   deepVisits: 64,
   deepPerGame: 24,
   autoAnalyze: true,

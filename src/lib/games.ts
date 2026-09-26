@@ -39,6 +39,7 @@ export function gameFromParsed(g: ParsedGame, fileName: string, source: GameSour
     result: g.result,
     date: g.date,
     event: g.event,
+    rules: g.rules,
     playerColor: source === 'user' || source === 'demo' ? detectPlayerColor(g, playerNames) : null,
     importedAt: Date.now(),
     status: 'pending',

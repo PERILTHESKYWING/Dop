@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type Mark } from './Board';
 import { fmtPct } from './common';
-import { getEngine, markInteractive, startEngine } from '../state/actions';
-import { useStore } from '../state/store';
-import { engineMoves, evaluateDeep, searchedValue } from '../lib/analysis/analyzer';
-import { processRawOutput, topPolicy } from '../lib/engine/parse';
+import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, lineOf, useLiveAnalysis, type ShownCandidate } from './Live';
+import { searchedValue } from '../lib/analysis/analyzer';
+import { topPolicy } from '../lib/engine/parse';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
+import { engineKomi } from '../lib/go/rules';
 import { other, PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import type { Candidate, PositionEval } from '../lib/types';
+import type { LiveTarget } from '../state/live';
 
 /** The position the analysis board starts from. */
 export interface AnalysisBase {
   size: number;
+  /** The game's komi; with `rules` it decides the komi KataGo scores with (go/rules.ts). */
   komi: number;
+  rules?: string;
   setup: Move[];
   /** Moves that led to the position (the network sees recent history). */
   moves: Move[];
@@ -21,129 +24,94 @@ export interface AnalysisBase {
 }
 
 export interface LiveEval {
-  /** Black's winrate and lead: the network's at first, KataGo's searched value once `searched`. */
+  /** Black's winrate and lead: the stored analysis at first, then KataGo's live search. */
   bWin: number;
   bLead: number;
   /** Probabilities over size*size + 1 points (pass last). */
-  policy: Float32Array;
+  policy: Float32Array | null;
   ownership: Float32Array | null;
-  /** KataGo's top moves after a short search (winrate and lead from the mover's side). */
+  /** KataGo's candidate moves (winrate and lead from the mover's side), most visits first. */
   candidates: Candidate[];
+  shown: ShownCandidate[];
   pv: Loc[];
+  visits: number;
   searched: boolean;
 }
 
 const lineKey = (line: Move[]) => line.map((m) => `${m.color}${m.loc}`).join(',');
 
+function storedLive(e: PositionEval, size: number): LiveEval {
+  const policy = new Float32Array(size * size + 1);
+  for (const p of e.policy) policy[p.loc === PASS ? size * size : p.loc] = p.p;
+  const shown = fromStored(e.candidates);
+  return {
+    ...searchedValue(e),
+    policy,
+    ownership: null,
+    candidates: e.candidates ?? [],
+    shown,
+    pv: e.pv,
+    visits: e.visits,
+    searched: e.depth === 'deep',
+  };
+}
+
 /**
- * A free-play board from any position: every move is evaluated live by KataGo (winrate,
- * score, policy heat map, territory) and refined with a short search for the top moves.
- * `rootEval`, the stored deep analysis of the starting position, is used for that position
- * so the board opens with the same numbers as the problem or game review.
+ * A free-play board from any position, analysed live: KataGo keeps searching the position
+ * on the board (winrate, score, candidates, heat map and territory refine as it reads),
+ * and the tree follows the moves you try. `rootEval`, the stored analysis of the starting
+ * position, is shown until the live search has read further than it, so the board opens
+ * with the numbers the problem or game review showed.
  */
 export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval?: PositionEval | null) {
   const [line, setLine] = useState<Move[]>([]);
   const [cursor, setCursor] = useState(0);
-  const [version, setVersion] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'thinking' | 'searching' | 'error'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [retry, setRetry] = useState(0);
-  const cache = useRef(new Map<string, LiveEval>());
-  const baseKey = base ? `${base.size}|${base.komi}|${lineKey(base.setup)}|${lineKey(base.moves)}|${base.toPlay}` : '';
+  const values = useRef(new Map<string, number>());
+  const baseKey = base ? `${base.size}|${base.komi}|${base.rules ?? ''}|${lineKey(base.setup)}|${lineKey(base.moves)}|${base.toPlay}` : '';
 
   useEffect(() => {
     setLine([]);
     setCursor(0);
-    if (cache.current.size > 600) cache.current.clear();
+    if (values.current.size > 2000) values.current.clear();
   }, [baseKey]);
 
   const played = useMemo(() => line.slice(0, cursor), [line, cursor]);
   const board = useMemo(() => (base ? replay(base.size, base.setup, [...base.moves, ...played]) : null), [base, played]);
   const toPlay: Color = played.length ? other(played[played.length - 1].color) : base?.toPlay ?? 1;
-  // Cache entries are per start position and line, so switching problems never mixes them up.
-  const keyOf = (moves: Move[]) => `${baseKey}#${lineKey(moves)}`;
+  const keyOf = (moves: Move[]) => `an|${baseKey}#${lineKey(moves)}`;
   const key = keyOf(played);
 
-  useEffect(() => {
-    if (!active || !base || !board) return;
-    if (cache.current.get(key)?.searched) {
-      setStatus('idle');
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        setError(null);
-        markInteractive();
-        const eng = getEngine() ?? (await startEngine());
-        if (!eng) throw new Error('KataGo is not available. See Engine & Settings.');
-        if (cancelled) return;
-        const history = [...base.moves, ...played];
-        const req = { size: base.size, komi: base.komi, moves: engineMoves(base.setup, history), toPlay };
-        const legal = (l: Loc) => board.isLegal(l, toPlay);
-        // The starting position keeps the numbers of its stored deep analysis (the ones the
-        // problem was chosen and graded with); the network still supplies heat map and territory.
-        const stored = played.length === 0 && rootEval?.depth === 'deep' && rootEval.toPlay === toPlay && rootEval.candidates?.some((c) => c.winrate !== undefined) ? rootEval : null;
-        let ev = cache.current.get(key);
-        if (!ev) {
-          setStatus('thinking');
-          markInteractive();
-          const net = processRawOutput(await eng.evalRaw(req, true), toPlay, legal, eng.postProcess);
-          ev = { bWin: net.bWin, bLead: net.bLead, policy: net.policy, ownership: net.ownership ?? null, candidates: [], pv: [], searched: false };
-          if (!stored) {
-            cache.current.set(key, ev);
-            setVersion((v) => v + 1);
-          }
-        }
-        if (stored) {
-          const candidates = (stored.candidates ?? [])
-            .filter((c) => c.winrate !== undefined)
-            .sort((x, y) => (y.visits ?? 0) - (x.visits ?? 0) || (y.winrate ?? 0) - (x.winrate ?? 0))
-            .slice(0, 6);
-          cache.current.set(key, { ...ev, ...searchedValue(stored), candidates, pv: stored.pv, searched: true });
-          setVersion((v) => v + 1);
-          if (!cancelled) setStatus('idle');
-          return;
-        }
-        if (cancelled) return;
-        setStatus('searching');
-        markInteractive(10_000);
-        const cpu = eng.info.backend === 'cpu';
-        const pol = topPolicy(ev.policy, 12);
-        const fast: PositionEval = {
-          key,
-          toPlay,
-          bWin: ev.bWin,
-          bLead: ev.bLead,
-          policy: pol,
-          bestLoc: pol[0]?.loc ?? PASS,
-          pv: [],
-          visits: 1,
-          depth: 'fast',
-          engine: eng.info,
-          analyzedAt: Date.now(),
-        };
-        const deep = await evaluateDeep(eng, { size: base.size, komi: base.komi, setup: base.setup, history, toPlay, board }, fast, {
-          visits: cpu ? 10 : 64,
-          maxMs: cpu ? 5000 : 4000,
-          candidateCount: 5,
-        });
-        const value = searchedValue({ bWin: ev.bWin, bLead: ev.bLead, toPlay, candidates: deep.candidates });
-        const withSearch: LiveEval = { ...ev, ...value, candidates: (deep.candidates ?? []).slice(0, 6), pv: deep.pv, searched: true };
-        cache.current.set(key, withSearch);
-        setVersion((v) => v + 1);
-        if (!cancelled) setStatus('idle');
-      } catch (e) {
-        if (cancelled) return;
-        setStatus('error');
-        setError((e as Error).message);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const target = useMemo<LiveTarget | null>(
+    () =>
+      base
+        ? { key, size: base.size, komi: engineKomi(base.komi, base.rules), setup: base.setup, moves: [...base.moves, ...played], toPlay }
+        : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, key, retry]);
+    [key],
+  );
+  const live = useLiveAnalysis(active ? target : null, active);
+  const snap = live.snap;
+  const stored = played.length === 0 && rootEval && rootEval.toPlay === toPlay ? rootEval : null;
+
+  let ev: LiveEval | null = null;
+  if (snap && (!stored || snap.visits > stored.visits)) {
+    const shown = fromSnapshot(snap);
+    ev = {
+      bWin: snap.bWin,
+      bLead: snap.bLead,
+      policy: snap.policy,
+      ownership: snap.ownership,
+      candidates: shown.map((c) => ({ loc: c.loc, prior: c.prior, winrate: c.winrate, scoreLead: c.scoreLead, visits: c.visits, pv: c.pv })),
+      shown,
+      pv: shown[0]?.pv ?? [],
+      visits: snap.visits,
+      searched: snap.visits > 1,
+    };
+  } else if (stored) {
+    ev = storedLive(stored, base!.size);
+    if (snap?.ownership) ev.ownership = snap.ownership;
+  }
+  if (ev) values.current.set(key, ev.bWin);
 
   const play = useCallback(
     (loc: Loc) => {
@@ -160,12 +128,11 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
     [board, toPlay, played, line, cursor],
   );
 
-  const history = useMemo(() => {
-    const out: (number | null)[] = [];
-    for (let i = 0; i <= line.length; i++) out.push(cache.current.get(keyOf(line.slice(0, i)))?.bWin ?? null);
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line, version, baseKey]);
+  const history: (number | null)[] = [];
+  for (let i = 0; i <= line.length; i++) history.push(values.current.get(keyOf(line.slice(0, i))) ?? null);
+
+  const status: 'idle' | 'thinking' | 'searching' | 'error' =
+    live.status === 'error' ? 'error' : !live.on ? 'idle' : live.status === 'starting' || !snap ? 'thinking' : live.status === 'thinking' ? 'searching' : 'idle';
 
   return {
     base,
@@ -174,16 +141,17 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
     line,
     cursor,
     played,
-    eval: cache.current.get(key) ?? null,
+    eval: ev,
+    snap,
     history,
     status,
-    error,
+    error: live.error ?? null,
     play,
     undo: () => setCursor((c) => Math.max(0, c - 1)),
     redo: () => setCursor((c) => Math.min(line.length, c + 1)),
     reset: () => setCursor(0),
     goTo: (n: number) => setCursor(Math.max(0, Math.min(line.length, n))),
-    retry: () => setRetry((r) => r + 1),
+    retry: () => setCursor((c) => c),
   };
 }
 
@@ -217,19 +185,14 @@ export function useAnalysisView() {
 }
 
 /** The board half of the analysis board. */
-export function AnalysisBoard({ a, view, hoverPv }: { a: AnalysisState; view: AnalysisView; hoverPv?: Loc[] | null }) {
+export function AnalysisBoard({ a, view, hoverPv, onHoverPv }: { a: AnalysisState; view: AnalysisView; hoverPv?: Loc[] | null; onHoverPv?: (pv: Loc[] | null) => void }) {
   if (!a.base || !a.board) return null;
   const ev = a.eval;
   const marks: Mark[] = [];
-  if (hoverPv?.length) {
-    hoverPv.slice(0, 12).forEach((l, i) => l !== PASS && marks.push({ loc: l, kind: 'pv', label: String(i + 1) }));
-  } else if (ev && view.best) {
-    const cands = ev.candidates.length ? ev.candidates : topPolicy(ev.policy, 5).map((p) => ({ loc: p.loc, prior: p.p }) as Candidate);
-    cands.slice(0, 6).forEach((c, i) => {
-      if (c.loc === PASS) return;
-      const label = c.winrate !== undefined ? String(Math.round(c.winrate * 100)) : String(i + 1);
-      marks.push({ loc: c.loc, kind: i === 0 ? 'best' : 'cand', label });
-    });
+  let candidates = null;
+  if (ev && view.best && !hoverPv?.length) {
+    if (ev.shown.length) candidates = candidateMarks(ev.shown);
+    else if (ev.policy) topPolicy(ev.policy, 5).forEach((p, i) => p.loc !== PASS && marks.push({ loc: p.loc, kind: i === 0 ? 'best' : 'cand', label: String(i + 1) }));
   }
   const last = a.played.length ? a.played[a.played.length - 1].loc : a.base.moves.length ? a.base.moves[a.base.moves.length - 1].loc : null;
   return (
@@ -240,7 +203,10 @@ export function AnalysisBoard({ a, view, hoverPv }: { a: AnalysisState; view: An
       toPlay={a.toPlay}
       onPlay={(l) => a.play(l)}
       marks={marks}
-      heat={ev && view.heat && !hoverPv?.length ? ev.policy : null}
+      candidates={candidates}
+      onCandidateHover={onHoverPv ? (l) => onHoverPv(l === null ? null : ev?.shown.find((c) => c.loc === l)?.pv ?? null) : undefined}
+      variation={hoverPv?.length ? lineOf(hoverPv, a.toPlay) : null}
+      heat={ev && view.heat && !hoverPv?.length && !candidates ? ev.policy : null}
       ownership={ev && view.territory ? ev.ownership : null}
       coords
       ariaLabel="Analysis board"
@@ -309,7 +275,6 @@ export function AnalysisPanel({
   onHoverPv?: (pv: Loc[] | null) => void;
   note?: string;
 }) {
-  const engine = useStore((s) => s.engine);
   const ev = a.eval;
   const size = a.base?.size ?? 19;
 
@@ -330,73 +295,24 @@ export function AnalysisPanel({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [a, onClose]);
 
-  const thinking = a.status === 'thinking' || a.status === 'searching';
-  const loadingEngine = engine.status === 'loading' || engine.status === 'detecting';
   return (
     <div className="panel analysis-panel stack">
       <div className="spread">
-        <h3 className="with-icon">
-          <span className="live-dot" data-on={thinking || loadingEngine ? '1' : '0'} /> Analysis board
-        </h3>
+        <h3 className="with-icon">Analysis board</h3>
         {onClose && (
           <button className="btn small" onClick={onClose}>
             {closeLabel}
           </button>
         )}
       </div>
+      <LiveHeader snap={a.snap} />
       <WinBar bWin={ev?.bWin ?? null} bLead={ev?.bLead ?? null} pending={!ev?.searched} />
       <div className="small dim">
-        {a.status === 'error' ? (
-          <span className="bad">
-            {a.error}{' '}
-            <button className="btn small" onClick={a.retry}>
-              Try again
-            </button>
-          </span>
-        ) : loadingEngine ? (
-          engine.progress?.stage === 'download' ? (
-            `Downloading KataGo's network… ${engine.progress.total ? Math.round((engine.progress.loaded / engine.progress.total) * 100) + '%' : Math.round(engine.progress.loaded / 1e6) + ' MB'}`
-          ) : (
-            'Starting KataGo…'
-          )
-        ) : a.status === 'thinking' ? (
-          'KataGo is reading the position…'
-        ) : a.status === 'searching' ? (
-          'Searching the best moves…'
-        ) : (
-          <>
-            {a.toPlay === 1 ? 'Black' : 'White'} to play. Tap the board to try a move; both colours alternate.
-          </>
-        )}
+        {a.toPlay === 1 ? 'Black' : 'White'} to play. Tap the board to try a move; both colours alternate.
       </div>
 
-      {ev && ev.candidates.length > 0 && (
-        <table className="data cands">
-          <thead>
-            <tr>
-              <th>Move</th>
-              <th>Win</th>
-              <th>Score</th>
-              <th>Visits</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ev.candidates.map((c, i) => (
-              <tr
-                key={c.loc}
-                className="click"
-                onClick={() => a.play(c.loc)}
-                onMouseEnter={() => onHoverPv?.(c.pv?.length ? c.pv : [c.loc])}
-                onMouseLeave={() => onHoverPv?.(null)}
-              >
-                <td className={i === 0 ? 'kata strong' : ''}>{locToGtp(c.loc, size)}</td>
-                <td className="mono">{c.winrate !== undefined ? fmtPct(c.winrate, 1) : '—'}</td>
-                <td className="mono">{c.scoreLead !== undefined ? `${c.scoreLead >= 0 ? '+' : ''}${c.scoreLead.toFixed(1)}` : '—'}</td>
-                <td className="mono muted">{c.visits ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {ev && ev.shown.length > 0 && (
+        <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={8} />
       )}
 
       {a.line.length > 0 && (

@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Library } from './pages/Library';
 import { Review } from './pages/Review';
 import { PlayerDNA } from './pages/PlayerDNA';
+import { Doppelganger } from './pages/Doppelganger';
 import { Forge } from './pages/Forge';
 import { BlindTests } from './pages/BlindTests';
 import { Search } from './pages/Search';
@@ -20,6 +21,7 @@ const NAV: ({ label: string } | { page: string; label: string; icon: IconName })
   { page: 'library', label: 'Game Library', icon: 'library' },
   { page: 'review', label: 'Game Review', icon: 'board' },
   { page: 'dna', label: 'Player DNA', icon: 'dna' },
+  { page: 'doppel', label: 'Doppelgänger', icon: 'twin' },
   { label: 'Train' },
   { page: 'forge', label: 'Forge', icon: 'flame' },
   { page: 'blind', label: 'Blind Tests', icon: 'eyeOff' },
@@ -97,7 +99,7 @@ function StatusCard() {
         <span className={`dot ${queue.running ? 'busy' : pending ? '' : 'ok'}`} />
         {queue.running && cur ? (
           <>
-            Analysing <span className="muted">{cur.status === 'deep' ? `deep ${cur.progress.deep}/${cur.progress.deepTotal}` : `${cur.progress.fast}/${cur.progress.total}`}</span>
+            Analysing <span className="muted">{cur.status === 'deep' ? `searching ${cur.progress.deep}/${cur.progress.deepTotal}` : `first look ${cur.progress.fast}/${cur.progress.total}`}</span>
           </>
         ) : pending ? (
           `${pending} game${pending > 1 ? 's' : ''} waiting`
@@ -145,6 +147,9 @@ export function App() {
         break;
       case 'dna':
         page = <PlayerDNA />;
+        break;
+      case 'doppel':
+        page = <Doppelganger tab={route.params[0]} query={route.query} />;
         break;
       case 'forge':
         page = <Forge weaknessId={route.params[0]} />;
