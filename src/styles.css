@@ -1235,6 +1235,23 @@ details summary {
 .stage .side .panel + .panel {
   margin-top: 0;
 }
+/* Focus mode: hide the side panel and let the board take the whole stage, for a distraction-
+   free look at the position (see the Focus button, common.tsx FocusToggle). */
+.stage.focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stage.focused .side {
+  display: none;
+}
+.stage.focused .board-wrap .board {
+  max-height: calc(100vh - 24px);
+}
+.focus-toggle {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  z-index: 5;
+}
 .thumb {
   width: 100%;
   aspect-ratio: 1;

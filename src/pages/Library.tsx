@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { corpus, importFiles, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
 import { DropZone, gameTitle } from '../components/common';
 import { EngineNotice, SideChooser } from '../components/Notices';
 import { go } from '../router';
 import type { GameRecord } from '../lib/types';
+import { countMoves, kifuToSgf, type Kifu } from '../lib/kifu/kifu';
+import { deleteKifu, listKifus } from '../lib/kifu/store';
 
 function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
   if (g.status === 'done') return <span className="chip good">analysed</span>;
@@ -32,6 +34,88 @@ function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
   }
   if (g.status === 'fast') return <span className="chip">{g.progress.deep > 0 ? 'search paused' : 'search queued'}</span>;
   return <span className="chip">{g.progress.fast > 0 ? 'paused' : 'queued'}</span>;
+}
+
+/** Downloads a kifu as a real .sgf file, via the browser's own save dialog where it offers one. */
+function downloadKifu(k: Kifu) {
+  const blob = new Blob([kifuToSgf(k)], { type: 'application/x-go-sgf' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(k.title || 'kifu').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'kifu'}.sgf`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** Saved kifu from the study board: they're kept in IndexedDB, not shown on this page's own
+ * game table, so this section is the only place they're findable outside Study itself. */
+function KifuSection() {
+  const [items, setItems] = useState<Kifu[] | null>(null);
+  const refresh = () => void listKifus().then(setItems).catch(() => setItems([]));
+  useEffect(refresh, []);
+  if (items === null) return null;
+  if (!items.length)
+    return (
+      <div className="panel" style={{ marginTop: 14, padding: '10px 14px' }}>
+        <div className="spread">
+          <h3 style={{ margin: 0 }}>Your kifu</h3>
+          <span className="small muted">Save a position from the study board to see it here.</span>
+        </div>
+      </div>
+    );
+  return (
+    <div className="panel" style={{ marginTop: 14, padding: '6px 8px' }}>
+      <div className="spread" style={{ padding: '8px 8px 0' }}>
+        <h3 style={{ margin: 0 }}>Your kifu</h3>
+        <span className="small muted">
+          {items.length} saved · {items.reduce((a, k) => a + countMoves(k), 0)} moves total
+        </span>
+      </div>
+      <div className="table-scroll">
+        <table className="data lib-table">
+          <thead>
+            <tr>
+              <th>Kifu</th>
+              <th className="narrow-hide">Saved</th>
+              <th className="narrow-hide">Moves</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((k) => (
+              <tr key={k.id} className="click" onClick={() => go(`study/${k.id}`)}>
+                <td>
+                  <div>{k.title || 'Untitled'}</div>
+                  <div className="tiny muted">
+                    {k.size}×{k.size}
+                    {k.black || k.white ? ` · ${k.black || '?'} vs ${k.white || '?'}` : ''}
+                    {k.source === 'live' ? ' · from the live broadcast' : ''}
+                  </div>
+                </td>
+                <td className="small dim narrow-hide">{new Date(k.updatedAt).toLocaleDateString()}</td>
+                <td className="small mono narrow-hide">{countMoves(k)}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div className="row">
+                    <button className="btn small ghost" title="Save to your own files as an .sgf" onClick={() => downloadKifu(k)}>
+                      Export
+                    </button>
+                    <button
+                      className="btn small ghost"
+                      title="Remove from your kifu"
+                      onClick={() => {
+                        if (confirm(`Remove ${k.title || 'this kifu'}?`)) void deleteKifu(k.id).then(refresh);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export function Library() {
@@ -153,6 +237,7 @@ export function Library() {
           </div>
         )}
       </div>
+      <KifuSection />
     </div>
   );
 }

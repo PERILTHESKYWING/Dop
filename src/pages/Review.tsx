@@ -16,7 +16,7 @@ import type { LiveTarget } from '../state/live';
 import { Board, type Mark } from '../components/Board';
 import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, lineOf, useLiveAnalysis, type ShownCandidate } from '../components/Live';
-import { fmtPct, gameTitle, Legend, WinrateGraph } from '../components/common';
+import { FocusToggle, fmtPct, gameTitle, Legend, useFocusMode, WinrateGraph } from '../components/common';
 import { allPositions } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { engineKomi, isTerritoryScoring } from '../lib/go/rules';
@@ -45,6 +45,13 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [showPolicy, setShowPolicy] = useState(false);
   const [explore, setExplore] = useState(false);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  const [focused, setFocused] = useFocusMode();
+  useEffect(() => {
+    if (!focused) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focused, setFocused]);
   // A candidate clicked on the game board: open the analysis board with that move played.
   const [pendingPlay, setPendingPlay] = useState<Loc | null>(null);
   const [aView, toggleView, setCandidateCount] = useAnalysisView();
@@ -209,7 +216,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const hoverShown = (loc: Loc | null) => setHoverPv(loc === null ? null : shown.find((c) => c.loc === loc)?.pv ?? null);
 
   return (
-    <div className="stage">
+    <div className={`stage ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
       <div className="board-wrap">
         {explore ? (
           <AnalysisBoard a={analysisBoard} view={aView} hoverPv={hoverPv} onHoverPv={setHoverPv} />
