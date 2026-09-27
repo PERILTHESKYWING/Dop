@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { PositionSpec } from '../lib/analysis/analyzer';
 import type { ProStats } from '../lib/coach/pro';
-import { LABEL_TEXT, PRO_RANK } from '../lib/coach/difficulty';
+import { PRO_RANK } from '../lib/coach/difficulty';
+import { ClassPill } from './MoveBadge';
 import { locToGtp } from '../lib/go/coords';
 import { rankLabel } from '../lib/level/ranks';
 import { gradeMoves, moveDifficulty, proAt, type MoveDifficulty, type MoveInsightResult, type MoveTarget } from '../state/insight';
@@ -79,9 +80,9 @@ export function InsightPanel({ state, size, ownRank, comments, playedLoc }: { st
             <span>
               {i.role === 'played' ? 'Played' : 'KataGo'} <b className="mono">{locToGtp(i.loc, size)}</b>
             </span>
-            <span className={`label label-${i.label}`}>{LABEL_TEXT[i.label]}</span>
+            <ClassPill cls={i.label} />
           </div>
-          {(i.label === 'brilliant' || i.label === 'only') && i.gap && (
+          {(i.label === 'brilliant' || i.label === 'great') && i.gap && (
             <div className="tiny muted">
               Every other move KataGo read is at least {i.gap.points.toFixed(1)} points or {pct(i.gap.win)} worse.
             </div>

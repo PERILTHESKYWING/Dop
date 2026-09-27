@@ -22,11 +22,20 @@ interface Row {
 }
 
 const rows: Row[] = [];
+const seen = new Set<string>();
 for (const f of process.argv.slice(2)) {
   for (const l of readFileSync(f, 'utf8').split('\n')) {
     if (!l) continue;
-    const j = JSON.parse(l);
+    let j;
+    try {
+      j = JSON.parse(l);
+    } catch {
+      continue; // a line cut off when a measuring run was stopped
+    }
     if (j.skipped || !j.c) continue;
+    const id = `${String(j.file).split('/').pop()}:${j.move}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
     // The network's most natural moves; a move played outside them counts as "something else".
     const c = (j.c as [number, number, number, number][]).slice(0, CHOICE_COUNT).map(([, prior, loss, winLoss]) => ({ prior, loss, winLoss }));
     const bestLoss = Math.min(...c.map((x) => x.loss));
@@ -177,6 +186,16 @@ bands.forEach(([name], i) => {
 console.log('calibration (predicted -> observed):');
 for (const c of cal) if (c.n) console.log(`  ${((100 * c.pred) / c.n).toFixed(1)}% -> ${((100 * c.obs) / c.n).toFixed(1)}%  (n=${c.n})`);
 
+const tot = stat.reduce((a, x) => ({ n: a.n + x.n, ll: a.ll + x.ll, llPolicy: a.llPolicy + x.llPolicy }), { n: 0, ll: 0, llPolicy: 0 });
+const heldOut = {
+  positions: tot.n,
+  /** Mean log-likelihood of the move actually played, held out; and with the network's policy alone. */
+  logLik: +(tot.ll / tot.n).toFixed(4),
+  logLikPolicy: +(tot.llPolicy / tot.n).toFixed(4),
+  /** Mean absolute gap between predicted and observed find rates over the calibration bins (percentage points). */
+  calibrationGap: +((100 * cal.reduce((a, c) => a + (c.n ? Math.abs(c.pred - c.obs) : 0), 0)) / cal.reduce((a, c) => a + c.n, 0)).toFixed(2),
+};
+console.log('held out overall', heldOut);
 const final = fitAll(rows);
 for (let i = 0; i < final.ranks.length; i += final.ranks[i] >= PRO_RANK ? 1 : 3) console.log(`  rank ${final.ranks[i]}: ${final.coef[i].map((x) => x.toFixed(3)).join(' ')}`);
 const out: DifficultyModel = {
@@ -186,6 +205,7 @@ const out: DifficultyModel = {
   ranks: final.ranks,
   coef: final.coef.map((w) => w.map((x) => +x.toFixed(4))),
   positions: rows.length,
+  heldOut,
   createdAt: new Date().toISOString(),
 };
 const dest = path.join(here, '..', 'public', 'coach', 'difficulty.json');

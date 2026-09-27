@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildAskPrompt, unsupportedFigures, type PositionFacts } from '../shared/ask';
 import { canonicalPosition, proStats, transformLoc, type ProExplorer } from '../src/lib/coach/pro';
-import { choiceTable, findRate, labelMove, nextBestGap, type DifficultyModel } from '../src/lib/coach/difficulty';
+import { choiceTable, findRate, nextBestGap, type DifficultyModel } from '../src/lib/coach/difficulty';
+import { classifyMove, lossFromEvals, type EvalSummary } from '../src/lib/coach/classify';
 import { keyMoments } from '../src/lib/coach/moments';
 import { mainLineComments } from '../src/lib/go/sgf';
 import { Board } from '../src/lib/go/board';
@@ -73,12 +74,41 @@ describe('move difficulty', () => {
     expect(findRate(model, 0, choices, 42)).toBeNull();
   });
 
-  it('labels best, only and brilliant moves', () => {
-    expect(labelMove('best', null, 0.05)).toBe('best');
-    expect(labelMove('best', { points: 0.5, win: 0.02 }, 0.05)).toBe('best');
-    expect(labelMove('best', { points: 3, win: 0.05 }, 0.6)).toBe('only');
-    expect(labelMove('best', { points: 1, win: 0.12 }, 0.1)).toBe('brilliant');
-    expect(labelMove('mistake', { points: 3, win: 0.2 }, 0.01)).toBe('mistake');
+  it('classifies moves from Brilliant to Blunder', () => {
+    const best = { scoreLoss: 0, winrateLoss: 0, isBest: true };
+    expect(classifyMove({ ...best })).toBe('best');
+    expect(classifyMove({ ...best, gap: { points: 0.5, win: 0.02 } })).toBe('best');
+    expect(classifyMove({ ...best, gap: { points: 3, win: 0.05 }, strongFind: 0.6 })).toBe('great');
+    expect(classifyMove({ ...best, gap: { points: 1, win: 0.12 }, strongFind: 0.1 })).toBe('brilliant');
+    expect(classifyMove({ ...best, book: true })).toBe('book');
+    expect(classifyMove({ scoreLoss: 0.4, winrateLoss: 0.01, isBest: false })).toBe('excellent');
+    expect(classifyMove({ scoreLoss: 0.8, winrateLoss: 0.02, isBest: false })).toBe('good');
+    expect(classifyMove({ scoreLoss: 1.5, winrateLoss: 0.04, isBest: false })).toBe('inaccuracy');
+    expect(classifyMove({ scoreLoss: 1.5, winrateLoss: 0.04, isBest: false, book: true })).toBe('book');
+    expect(classifyMove({ scoreLoss: 4, winrateLoss: 0.1, isBest: false })).toBe('mistake');
+    expect(classifyMove({ scoreLoss: 9, winrateLoss: 0.3, isBest: false })).toBe('blunder');
+    // The opponent had just given away 8 points; giving 4 of them back is a miss.
+    expect(classifyMove({ scoreLoss: 4, winrateLoss: 0.1, isBest: false, prev: { scoreLoss: 8, winrateLoss: 0.2 } })).toBe('miss');
+    expect(classifyMove({ scoreLoss: 9, winrateLoss: 0.3, isBest: false, prev: { scoreLoss: 8, winrateLoss: 0.2 } })).toBe('blunder');
+  });
+
+  it('works out losses on a live board from the position before and after', () => {
+    const parent: EvalSummary = {
+      toPlay: 2,
+      bWin: 0.4,
+      bLead: 1,
+      visits: 200,
+      cands: [
+        { loc: 5, winrate: 0.6, scoreLead: 1, visits: 150 },
+        { loc: 6, winrate: 0.5, scoreLead: -2, visits: 40 },
+      ],
+    };
+    expect(lossFromEvals(parent, 6, null)).toMatchObject({ scoreLoss: 3, isBest: false });
+    expect(lossFromEvals(parent, 5, null)).toMatchObject({ scoreLoss: 0, isBest: true, gap: { points: 3 } });
+    // Not read at the parent: the position after it says Black now leads by 4 (White's view -4).
+    const child: EvalSummary = { toPlay: 1, bWin: 0.7, bLead: 4, visits: 50, cands: [] };
+    expect(lossFromEvals(parent, 9, child)).toMatchObject({ scoreLoss: 5, winrateLoss: expect.closeTo(0.3, 5) });
+    expect(lossFromEvals(parent, 9, null)).toBeNull();
   });
 
   it('measures the gap to the next-best move only from a real search', () => {

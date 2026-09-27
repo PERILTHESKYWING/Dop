@@ -1,6 +1,7 @@
 import { symmetric } from '../go/coords';
 import { PASS, type Loc } from '../go/types';
 import { candidatesAt, decodeMoves, type BroadcastFile, type BroadcastGame, type EngineCandidate } from './data';
+import { classifyMove, lossFromEvals, type EvalSummary, type MoveClass } from '../coach/classify';
 
 /**
  * The broadcast schedule. There is no game server: every visitor computes the same
@@ -162,3 +163,25 @@ export function valueAt(g: BroadcastGame, shown: number) {
 }
 
 export const winnerOf = (g: BroadcastGame): 1 | 2 => (g.result.startsWith('B') ? 1 : 2);
+
+/**
+ * The class of move `i` of a broadcast game (Best, Excellent, Great...), from what the
+ * engine read before it and the value after it. Book and Brilliant need lookups the
+ * broadcast skips.
+ */
+export function moveClassAt(g: LiveGame, moves: readonly Loc[], i: number): MoveClass | null {
+  const summary = (j: number): EvalSummary | null => {
+    if (j < 0 || j >= g.game.wr.length) return null;
+    const cands = showingCandidates(g, j);
+    const v = valueAt(g.game, j);
+    return { toPlay: j % 2 === 0 ? 1 : 2, bWin: v.bWin, bLead: v.bLead, visits: Math.max(2, cands.reduce((a, c) => a + c.visits, 0)), cands };
+  };
+  const parent = summary(i);
+  const loc = moves[i];
+  if (!parent || loc === undefined || loc === PASS) return null;
+  const loss = lossFromEvals(parent, loc, summary(i + 1));
+  if (!loss) return null;
+  const grand = summary(i - 1);
+  const prev = grand && moves[i - 1] !== undefined && moves[i - 1] !== PASS ? lossFromEvals(grand, moves[i - 1], parent) : null;
+  return classifyMove({ ...loss, prev });
+}

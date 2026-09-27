@@ -1,0 +1,156 @@
+# The coach keeps learning in GitHub's cloud, every day, whether or not anyone has the site
+# open. Each run measures a fresh batch of rank-labelled Fox games and professional games
+# with KataGo (the bundled network), adds them to everything measured before, refits the
+# level estimate (public/level/calibration.json) and the move-difficulty model
+# (public/coach/difficulty.json), logs the progress (public/coach/progress.json) and commits
+# them; Vercel then redeploys the site with the improved coach. The measured data itself is
+# kept in the "coach-data" release (coach-corpus.tar.gz), not in git.
+# It can also be started by hand: Actions → "Coach training" → "Run workflow".
+name: Coach training
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes each machine spends measuring
+        default: '240'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coach-training
+  cancel-in-progress: false
+
+env:
+  MINUTES: ${{ inputs.minutes || '240' }}
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [0, 1, 2, 3]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SEED: ${{ github.run_number }}${{ matrix.job }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Games measured before (so they are not measured twice)
+        run: |
+          mkdir -p corpus
+          if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
+            gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
+          cat corpus/*.jsonl | grep -o '"file":"[^"]*"' | cut -d'"' -f4 | sort -u > seen.txt
+          wc -l seen.txt
+
+      - name: Fetch a fresh sample of Fox games (github.com/featurecat/go-dataset)
+        run: |
+          command -v 7z > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q p7zip-full)
+          git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/featurecat/go-dataset fox
+          cd fox
+          DIRS=$(git ls-tree -d --name-only HEAD | grep -E '^[0-9]+[kd]$' | awk 'NR % 4 == ${{ matrix.job }}')
+          for d in $DIRS; do
+            # Alternate between the rank's two archives from run to run.
+            ARCH=$(git ls-tree --name-only HEAD "$d/" | grep -E '\.7z(\.001)?$' | awk -v r=${{ github.run_number }} '{a[NR]=$0} END {print a[(r % NR) + 1]}')
+            BASE=${ARCH%.001}
+            git checkout -q HEAD -- $(git ls-tree --name-only HEAD "$d/" | grep -F "$(basename "$BASE")")
+            7z l -ba -slt "$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | shuf -n 300 --random-source=<(yes "$SEED$d") > "../$d.list" || true
+            7z x -y -o"../sgf/$d" "$ARCH" @"../$d.list" > /dev/null || true
+            rm -f "$d"/*.7z*
+          done
+          cd .. && rm -rf fox
+          npx tsx scripts/coach-pick.ts --dir sgf --per-rank 60 --seen seen.txt --seed "$SEED" --out fox.txt
+
+      - name: Fetch a sample of professional games (github.com/yenw/computer-go-dataset)
+        run: |
+          git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/yenw/computer-go-dataset pro
+          (cd pro && git checkout -q HEAD -- Professional/pro2000+.zip Professional/pro1940-1999.zip)
+          unzip -q -o pro/Professional/pro2000+.zip -d prodata && unzip -q -o pro/Professional/pro1940-1999.zip -d prodata
+          cat prodata/*.txt | grep '^(' | grep 'KM\[' | shuf -n 400 --random-source=<(yes "$SEED") > pro.txt
+          rm -rf pro prodata
+
+      - name: Measure with KataGo
+        run: |
+          C=$(nproc)
+          mkdir -p out
+          T=$((MINUTES * 60))
+          # One core measures levels, one professional moves, the rest move difficulty in Fox games.
+          timeout $T npx tsx scripts/rank-corpus.ts --list fox.txt --part 0 --parts 1 --out out/rank-${{ matrix.job }}.jsonl > rank.log 2>&1 &
+          timeout $T npx tsx scripts/move-corpus.ts --sgf-lines pro.txt --rank P9 --out out/moves-pro-${{ matrix.job }}.jsonl > pro.log 2>&1 &
+          P=$((C > 2 ? C - 2 : 1))
+          for p in $(seq 0 $((P - 1))); do
+            timeout $T npx tsx scripts/move-corpus.ts --list fox.txt --part $p --parts $P --out out/moves-${{ matrix.job }}-$p.jsonl > moves-$p.log 2>&1 &
+          done
+          wait || true
+          tail -n 2 *.log || true
+          wc -l out/*.jsonl || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: measured-${{ matrix.job }}
+          path: out/
+
+  learn:
+    needs: measure
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: measured-*
+          path: parts
+          merge-multiple: true
+
+      - name: Add today's measurements to everything measured before
+        run: |
+          mkdir -p corpus
+          if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
+            gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
+          cat parts/rank-*.jsonl >> corpus/rank.jsonl 2>/dev/null || true
+          cat parts/moves-*.jsonl >> corpus/moves.jsonl 2>/dev/null || true
+          wc -l corpus/*.jsonl
+
+      - name: Refit the level estimate and move difficulty
+        run: |
+          OLD_GAMES=$(jq .games public/level/calibration.json)
+          OLD_POS=$(jq .positions public/coach/difficulty.json)
+          npx tsx scripts/rank-fit.ts corpus/rank.jsonl
+          npx tsx scripts/move-fit.ts corpus/moves.jsonl
+          # Never replace a model with one fitted on less data.
+          [ "$(jq .games public/level/calibration.json)" -ge "$OLD_GAMES" ] || git checkout public/level/calibration.json
+          [ "$(jq .positions public/coach/difficulty.json)" -ge "$OLD_POS" ] || git checkout public/coach/difficulty.json
+          npx tsx scripts/coach-progress.ts --run ${{ github.run_number }}
+
+      - name: Keep the measured data
+        run: |
+          tar czf coach-corpus.tar.gz corpus
+          gh release view coach-data > /dev/null 2>&1 || gh release create coach-data --title "Coach training data" \
+            --notes "Everything the daily coach training has measured (statistics per game side and per position; no game records). Updated by .github/workflows/coach-training.yml."
+          gh release upload coach-data coach-corpus.tar.gz --clobber
+
+      - name: Commit the improved coach
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add public/level/calibration.json public/coach/difficulty.json public/coach/progress.json
+          git commit -m "Coach training: run ${{ github.run_number }}" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

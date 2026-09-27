@@ -1,5 +1,4 @@
 import type { Loc } from '../go/types';
-import type { Severity } from '../types';
 import { rankLabel } from '../level/ranks';
 import type { MoveChoice } from './choices';
 
@@ -23,6 +22,8 @@ export interface DifficultyModel {
   ranks: number[];
   coef: number[][];
   positions: number;
+  /** Held-out accuracy of the fit (scripts/move-fit.ts). */
+  heldOut?: { positions: number; logLik: number; logLikPolicy: number; calibrationGap: number };
   createdAt: string;
 }
 
@@ -97,36 +98,12 @@ export function levelThatFinds(model: DifficultyModel, choices: readonly MoveCho
   return null;
 }
 
-export type MoveLabel = 'brilliant' | 'only' | Severity;
-
 /** Gap to the next-best move that makes the best move the only right one. */
 export const ONLY_GAP_POINTS = 2;
 export const ONLY_GAP_WIN = 0.08;
 /** An only move strong amateurs (5d) find less often than this is brilliant. */
 export const BRILLIANT_5D = 0.2;
 export const STRONG_AMATEUR = 5;
-
-/**
- * Best: KataGo's first choice or as good (the review's usual grading). Only move: best, and
- * every alternative KataGo read is clearly worse. Brilliant: an only move that is also hard
- * to see, one strong amateurs rarely find. Other moves keep the review's grading.
- */
-export function labelMove(severity: Severity, gap: { points: number; win: number } | null, fiveDanRate: number | null): MoveLabel {
-  if (severity !== 'best') return severity;
-  const only = !!gap && (gap.points >= ONLY_GAP_POINTS || gap.win >= ONLY_GAP_WIN);
-  if (only && fiveDanRate !== null && fiveDanRate < BRILLIANT_5D) return 'brilliant';
-  return only ? 'only' : 'best';
-}
-
-export const LABEL_TEXT: Record<MoveLabel, string> = {
-  brilliant: 'Brilliant',
-  only: 'Only move',
-  best: 'Best',
-  good: 'Good',
-  inaccuracy: 'Inaccuracy',
-  mistake: 'Mistake',
-  blunder: 'Blunder',
-};
 
 /**
  * How much worse the next-best move is than KataGo's first choice, from a search's

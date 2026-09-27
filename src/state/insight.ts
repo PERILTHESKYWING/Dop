@@ -1,13 +1,13 @@
 import type { MoveInsight, ProFacts } from '../../shared/ask';
 import type { PositionSpec } from '../lib/analysis/analyzer';
 import { positionChoices, type MoveChoice } from '../lib/coach/choices';
-import { findRate, findRates, labelMove, LABEL_TEXT, REPORT_RANKS, STRONG_AMATEUR, type DifficultyModel, type MoveLabel } from '../lib/coach/difficulty';
+import { findRate, findRates, REPORT_RANKS, STRONG_AMATEUR, type DifficultyModel } from '../lib/coach/difficulty';
+import { classifyMove, CLASS_INFO, type ClassInput, type MoveClass } from '../lib/coach/classify';
 import { proStats, type ProExplorer, type ProStats } from '../lib/coach/pro';
 import { BrowserEngine } from '../lib/engine/browserEngine';
 import { bundledModel } from '../lib/engine/models';
 import { locToGtp } from '../lib/go/coords';
 import { PASS, type Color, type Loc } from '../lib/go/types';
-import type { Severity } from '../lib/types';
 import { getEngine, markInteractive } from './actions';
 import { get as getApp } from './store';
 
@@ -52,10 +52,8 @@ async function quickEngine() {
 export interface MoveTarget {
   loc: Loc;
   role: 'played' | 'KataGo';
-  /** The review's grading of the move (best ... blunder). */
-  severity: Severity;
-  /** For KataGo's move: how much worse the next-best move is (points, winrate 0..1). */
-  gap?: { points: number; win: number } | null;
+  /** What the classification needs, except how hard the move is to find. */
+  input: Omit<ClassInput, 'strongFind'>;
 }
 
 /** How hard a move is to find (from the quick look), before it is graded. */
@@ -68,7 +66,7 @@ export interface MoveDifficulty {
 
 export interface MoveInsightResult extends MoveDifficulty {
   role: 'played' | 'KataGo';
-  label: MoveLabel;
+  label: MoveClass;
   gap?: { points: number; win: number } | null;
 }
 
@@ -100,7 +98,7 @@ export async function moveDifficulty(key: string, spec: PositionSpec, locs: read
 export function gradeMoves(targets: readonly MoveTarget[], diffs: readonly MoveDifficulty[]): MoveInsightResult[] {
   return targets.flatMap((t) => {
     const d = diffs.find((x) => x.loc === t.loc);
-    return d ? [{ ...d, role: t.role, gap: t.gap, label: labelMove(t.severity, t.gap ?? null, d.strong) }] : [];
+    return d ? [{ ...d, role: t.role, gap: t.input.gap, label: classifyMove({ ...t.input, strongFind: d.strong }) }] : [];
   });
 }
 
@@ -115,7 +113,7 @@ export function insightFacts(list: readonly MoveInsightResult[], size: number): 
   return list.map((i) => ({
     move: locToGtp(i.loc, size),
     role: i.role,
-    label: LABEL_TEXT[i.label],
+    label: CLASS_INFO[i.label].name,
     gap: i.gap ? { points: Math.round(i.gap.points * 10) / 10, winrate: Math.round(i.gap.win * 1000) / 10 } : undefined,
     findRates: i.rates.map((r) => ({ level: r.label, percent: Math.round(r.rate * 100) })),
   }));

@@ -77,7 +77,7 @@ export interface KeyMomentFact {
 export interface MoveInsight {
   move: string;
   role: 'played' | 'KataGo';
-  /** Brilliant, Only move, Best, Good, Inaccuracy, Mistake, Blunder. */
+  /** Brilliant, Great, Best, Excellent, Good, Book, Inaccuracy, Mistake, Miss, Blunder. */
   label: string;
   /** For KataGo's move: how much worse the next-best move is, for the side to move. */
   gap?: { points: number; winrate: number };
@@ -269,7 +269,7 @@ Rules:
 - When the facts cannot settle the question, say so plainly.
 - Explain the idea behind KataGo's choice in human terms (strength, weakness, territory, influence, tempo, shape) and tie it to the facts (group status, liberties, the lines).
 - Pitch the explanation to the student's level when it is given: simple words and one idea for kyu players, more precise reasoning for dan players.
-- Move labels come from KataGo: "Best" is KataGo's choice; "Only move" means every alternative is clearly worse; "Brilliant" is an only move that even strong amateurs rarely find. Never call a move brilliant, only or a mistake unless its label says so.
+- Move labels come from KataGo: Brilliant (an only move strong amateurs rarely find), Great (the only good move), Best (KataGo's choice), Excellent, Good, Book (a common professional choice in the opening), Inaccuracy, Mistake, Miss (failed to punish the opponent's error), Blunder. Never give a move a label other than the one in the facts.
 - Difficulty: the find rates say how often players of each level play that move in this position (measured on real games). Use them to say how hard the move is for the student's level, and why it is hard to see (it looks unnatural, the point only shows after a few moves, and so on).
 - Professional games (1940 to 2017, before AI changed the openings) show what pros chose here. When KataGo and the pros disagree, say so; KataGo's numbers decide what is better.
 - For questions about the whole game, use the key moments: turning points are where the game swung; only moves are where one move was needed. Name the move numbers.

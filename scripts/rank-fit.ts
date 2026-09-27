@@ -28,9 +28,15 @@ const seen = new Set<string>();
 for (const f of process.argv.slice(2))
   for (const l of readFileSync(f, 'utf8').split('\n')) {
     if (!l) continue;
-    const r = JSON.parse(l);
-    if (r.skipped || r.all === undefined || seen.has(`${r.file}:${r.color}`)) continue;
-    seen.add(`${r.file}:${r.color}`);
+    let r;
+    try {
+      r = JSON.parse(l);
+    } catch {
+      continue; // a line cut off when a measuring run was stopped
+    }
+    const id = `${String(r.file).split('/').pop()}:${r.color}`;
+    if (r.skipped || r.all === undefined || seen.has(id)) continue;
+    seen.add(id);
     rows.push(r);
   }
 console.log(`${rows.length} game sides from ${new Set(rows.map((r) => r.file)).size} games`);

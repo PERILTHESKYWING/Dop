@@ -123,6 +123,23 @@ npx tsx scripts/move-fit.ts moves/*.jsonl        # writes public/coach/difficult
 npx tsx scripts/pro-openings.ts pro1940-1999.txt pro2000+.txt   # writes public/pro/openings.json
 ```
 
+### Move classifications (Brilliant … Blunder)
+Every analysed move gets a chess.com-style class with its badge: **Brilliant !!** (an only move that strong
+amateurs rarely find), **Great !** (the only good move: every alternative is 2+ points or 8%+ worse), **Best ★**,
+**Excellent**, **Good ✓**, **Book** (a common professional choice from the same opening position),
+**Inaccuracy ?!**, **Mistake ?**, **Miss ✕** (the opponent had just erred and the move let them off) and
+**Blunder ??** (`src/lib/coach/classify.ts`). Review shows them on the board, in the move list and in a
+per-player report; the analysis boards, the study board and the live AI games classify the last move from what
+KataGo read before and after it.
+
+### The coach keeps learning (daily, in the cloud)
+`.github/workflows/coach-training.yml` runs every night on GitHub's machines, whether or not anyone has the site
+open. It measures a fresh sample of rank-labelled Fox games and professional games with KataGo, adds them to
+everything measured before (kept in the `coach-data` release, not in git), refits the level estimate and the
+move-difficulty model, and commits them with a progress log (`public/coach/progress.json`, shown on the
+dashboard). Vercel redeploys the site with the improved coach. A model is never replaced by one fitted on less
+data. It can also be started by hand from the Actions tab ("Coach training" → "Run workflow").
+
 ### Copies of other players, and the strength dial
 Opponent profiles train the same copy on an imported player's analysed games, and you can play against it.
 When playing any copy you can set a strength: the copy keeps choosing the moves its player tends to choose, but

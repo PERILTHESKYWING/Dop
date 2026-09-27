@@ -37,8 +37,15 @@ async function main() {
   const out = arg('out')!;
   mkdirSync(path.dirname(out), { recursive: true });
   const done = new Set<string>();
-  if (existsSync(out)) for (const l of readFileSync(out, 'utf8').split('\n')) if (l) done.add(JSON.parse(l).file);
-  const mine = files.filter((_, i) => i % parts === part).filter((f) => !done.has(f));
+  if (existsSync(out))
+    for (const l of readFileSync(out, 'utf8').split('\n')) {
+      try {
+        if (l) done.add(JSON.parse(l).file);
+      } catch {
+        /* a line cut off by a stopped run */
+      }
+    }
+  const mine = files.filter((_, i) => i % parts === part).filter((f) => !done.has(path.basename(f)));
   const engine = await loadNodeEngine(MODEL, CORPUS_MODEL_ID, 19, 1, WINRATE_FROM_SCORE);
   let k = 0;
   for (const file of mine) {
@@ -56,12 +63,12 @@ async function main() {
         const rank = parseRank(color === 1 ? parsed.blackRank : parsed.whiteRank);
         const sample = gameLevelSample(records, color);
         if (rank === null || !sample) continue;
-        lines.push(JSON.stringify({ file, color, rank, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
+        lines.push(JSON.stringify({ file: path.basename(file), color, rank, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
       }
-      if (!lines.length) lines.push(JSON.stringify({ file, skipped: 'no ranks' }));
+      if (!lines.length) lines.push(JSON.stringify({ file: path.basename(file), skipped: 'no ranks' }));
       appendFileSync(out, lines.join('\n') + '\n');
     } catch (e) {
-      appendFileSync(out, JSON.stringify({ file, skipped: String((e as Error).message ?? e) }) + '\n');
+      appendFileSync(out, JSON.stringify({ file: path.basename(file), skipped: String((e as Error).message ?? e) }) + '\n');
     }
     k++;
     if (k % 10 === 0) console.log(`part ${part}: ${k}/${mine.length} (${((Date.now() - t0) / 1000).toFixed(1)} s last game)`);

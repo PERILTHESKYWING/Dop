@@ -47,17 +47,23 @@ async function main() {
   const sources: { id: string; sgf: () => string }[] = arg('sgf-lines')
     ? readFileSync(arg('sgf-lines')!, 'utf8')
         .split('\n')
-        .map((l, i) => ({ l, i }))
-        .filter(({ l }) => l.startsWith('('))
-        .map(({ l, i }) => ({ id: `${path.basename(arg('sgf-lines')!)}:${i}`, sgf: () => l }))
+        .filter((l) => l.startsWith('('))
+        .map((l) => ({ id: `pro:${hashString(l)}`, sgf: () => l }))
     : readFileSync(arg('list')!, 'utf8')
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean)
-        .map((f) => ({ id: f, sgf: () => readFileSync(f, 'utf8') }));
+        .map((f) => ({ id: path.basename(f), sgf: () => readFileSync(f, 'utf8') }));
   mkdirSync(path.dirname(out), { recursive: true });
   const done = new Set<string>();
-  if (existsSync(out)) for (const l of readFileSync(out, 'utf8').split('\n')) if (l) done.add(JSON.parse(l).file);
+  if (existsSync(out))
+    for (const l of readFileSync(out, 'utf8').split('\n')) {
+      try {
+        if (l) done.add(JSON.parse(l).file);
+      } catch {
+        /* a line cut off by a stopped run */
+      }
+    }
   const mine = sources.slice(0, limit).filter((_, i) => i % parts === part).filter((s) => !done.has(s.id));
   const engine = await loadNodeEngine(MODEL, 'g170e-b10c128', 19, 1, WINRATE_FROM_SCORE);
   let k = 0;

@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { CoachTraining } from '../components/CoachTraining';
 import { useStore } from '../state/store';
 import { corpus, importFiles, loadDemo, runQueue, startEngine, usesDemoData } from '../state/actions';
 import { Bar, DropZone, MoveThumb, fmtPct } from '../components/common';
@@ -479,6 +480,7 @@ function LevelCard() {
         <More to="dna">Details</More>
       </div>
       <LevelPanel targets={targets} compact />
+      <CoachTraining />
     </section>
   );
 }

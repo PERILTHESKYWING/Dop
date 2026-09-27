@@ -4,6 +4,7 @@ import { WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, type ShownCandidate } from '../components/Live';
 import { fmtPct, WinrateGraph } from '../components/common';
 import { BrandSpinner } from '../components/Brand';
+import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { PASS } from '../lib/go/types';
@@ -15,6 +16,7 @@ import {
   PHASE_LABEL,
   showingCandidates,
   showingMoves,
+  moveClassAt,
   TABLES,
   tableAt,
   valueAt,
@@ -232,6 +234,7 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
   const wr = g.game.wr.slice(0, g.shown + 1).map((x) => x / 1000);
   const leads = g.game.lead.slice(0, g.shown + 1).map((x) => x / 10);
   const size = g.game.size;
+  const lastClass = g.shown > 0 ? moveClassAt(g, moves, g.shown - 1) : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -255,6 +258,7 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
             size={size}
             stones={stones}
             lastMove={last === PASS ? null : last}
+            badge={last !== null && last !== PASS && lastClass ? { loc: last, cls: lastClass } : null}
             candidates={showCands && cands.length ? candidateMarks(cands, 4) : null}
             coords
             ariaLabel={`Table ${table + 1}`}
@@ -299,6 +303,12 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
               captures ● {captures[1]} · ○ {captures[2]}
             </span>
           </div>
+          {lastClass && (
+            <div className="row small">
+              <span className="dim">Last move</span>
+              <ClassPill cls={lastClass} />
+            </div>
+          )}
           {!done && <MoveTimer g={g} />}
           <WinrateGraph values={wr} scores={leads} cursor={g.shown} />
           <div className="row wrap">

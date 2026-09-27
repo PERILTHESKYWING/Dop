@@ -12,6 +12,9 @@ import { engineKomi } from '../lib/go/rules';
 import { other, PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import type { Candidate, PositionEval } from '../lib/types';
 import type { LiveTarget } from '../state/live';
+import { remember } from '../state/evalMemory';
+import { useLiveMoveClass } from './LiveClass';
+import { ClassPill } from './MoveBadge';
 
 /** The position the analysis board starts from. */
 export interface AnalysisBase {
@@ -113,7 +116,33 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
     ev = storedLive(stored, base!.size);
     if (snap?.ownership) ev.ownership = snap.ownership;
   }
-  if (ev) values.current.set(key, ev.bWin);
+  if (ev) {
+    values.current.set(key, ev.bWin);
+    if (ev.visits > 1) remember(key, { toPlay, bWin: ev.bWin, bLead: ev.bLead, visits: ev.visits, cands: ev.shown.map((c) => ({ loc: c.loc, winrate: c.winrate, scoreLead: c.scoreLead, visits: c.visits })) });
+  }
+
+  // The class of the last move tried (Brilliant ... Blunder), from what KataGo read around it.
+  const lastMove = played.length ? played[played.length - 1] : null;
+  const lastClass = useLiveMoveClass(
+    base && lastMove
+      ? {
+          parentKey: keyOf(played.slice(0, -1)),
+          childKey: key,
+          grandKey: played.length >= 2 ? keyOf(played.slice(0, -2)) : null,
+          move: lastMove,
+          prevMove: played.length >= 2 ? played[played.length - 2] : null,
+          moveIndex: base.moves.length + played.length - 1,
+          spec: () => ({
+            size: base.size,
+            komi: engineKomi(base.komi, base.rules),
+            setup: base.setup,
+            history: [...base.moves, ...played.slice(0, -1)],
+            toPlay: lastMove.color,
+            board: replay(base.size, base.setup, [...base.moves, ...played.slice(0, -1)]),
+          }),
+        }
+      : null,
+  );
 
   const play = useCallback(
     (loc: Loc) => {
@@ -146,6 +175,7 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
     eval: ev,
     snap,
     history,
+    lastClass,
     status,
     error: live.error ?? null,
     play,
@@ -210,6 +240,7 @@ export function AnalysisBoard({ a, view, hoverPv, onHoverPv }: { a: AnalysisStat
       variation={hoverPv?.length ? lineOf(hoverPv, a.toPlay) : null}
       heat={ev && view.heat && !hoverPv?.length && !candidates ? ev.policy : null}
       ownership={ev && view.territory ? ev.ownership : null}
+      badge={a.lastClass && a.played.length ? { loc: a.played[a.played.length - 1].loc, cls: a.lastClass } : null}
       coords
       ariaLabel="Analysis board"
     />
@@ -326,6 +357,14 @@ export function AnalysisPanel({
       <div className="small dim">
         {a.toPlay === 1 ? 'Black' : 'White'} to play. Tap the board to try a move; both colours alternate.
       </div>
+      {a.lastClass && a.played.length > 0 && (
+        <div className="row small">
+          <span className="dim">
+            Last move {a.played[a.played.length - 1].color === 1 ? 'Black' : 'White'} {locToGtp(a.played[a.played.length - 1].loc, size)}
+          </span>
+          <ClassPill cls={a.lastClass} />
+        </div>
+      )}
 
       {ev && ev.shown.length > 0 && (
         <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={8} />
