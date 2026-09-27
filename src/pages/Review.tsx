@@ -47,7 +47,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   // A candidate clicked on the game board: open the analysis board with that move played.
   const [pendingPlay, setPendingPlay] = useState<Loc | null>(null);
-  const [aView, toggleView] = useAnalysisView();
+  const [aView, toggleView, setCandidateCount] = useAnalysisView();
   const exploreBase = useMemo(() => {
     if (!game || !explore) return null;
     const toPlay = game.moves[cur]?.color ?? (game.moves.length ? (game.moves[game.moves.length - 1].color === 1 ? 2 : 1) : 1);
@@ -239,6 +239,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             a={analysisBoard}
             view={aView}
             onToggle={toggleView}
+            onCandidateCount={setCandidateCount}
             onHoverPv={setHoverPv}
             copyColor={game.playerColor}
             onClose={() => {
@@ -329,7 +330,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           <div className="panel stack live-panel">
             <LiveHeader snap={snap} />
             <WinBar bWin={value?.bWin ?? null} bLead={value?.bLead ?? null} pending={!useLive && !ev?.searched} />
-            <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={8} />
+            <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={aView.candidateCount} />
             {!shown.length && <div className="tiny muted">KataGo's candidate moves appear here as it reads.</div>}
             <p className="tiny muted">
               {useLive ? 'Live' : ev?.searched ? 'Stored analysis' : ev ? 'Network only' : 'Not analysed'} · {visits ? `${visits} visits` : ''}{' '}

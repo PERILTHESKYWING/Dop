@@ -115,8 +115,12 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
     const behind = !opening && mover < 0.4;
     const choices = behind || verified ? list.slice(0, 1) : safeChoices(list, opening ? 1.0 : n < 60 ? 0.6 : 0.4, opening ? 0.05 : 0.03);
     const temp = opening ? 1.4 : n < 60 ? 1.0 : 0.6;
-    let loc: Loc = choices[0]?.loc ?? PASS;
-    if (choices.length > 1) {
+    // Once passing itself is among the safe choices, nothing left on the board is worth
+    // more than a couple of points either way: take it rather than filling dame, so games
+    // end by both sides passing instead of playing out neutral points to move 300+.
+    const passSafe = !opening && !behind && !verified && choices.some((c) => c.loc === PASS);
+    let loc: Loc = passSafe ? PASS : (choices[0]?.loc ?? PASS);
+    if (!passSafe && choices.length > 1) {
       const w = choices.map((c) => Math.pow(c.visits, 1 / temp));
       let x = r() * w.reduce((a, b) => a + b, 0);
       for (let i = 0; i < choices.length; i++) {

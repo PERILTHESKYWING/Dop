@@ -1808,6 +1808,24 @@ table.live-cands tr.best td {
 table.live-cands tr.played td {
   background: rgba(255, 170, 60, 0.12);
 }
+table.live-cands tr.previewed td {
+  background: rgba(120, 170, 255, 0.16);
+  box-shadow: inset 2px 0 0 rgb(var(--accent-rgb, 120 170 255));
+}
+table.live-cands .btn.tiny {
+  padding: 1px 7px;
+  font-size: 11px;
+}
+.candidate-count {
+  width: 44px;
+  margin: 0 4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.7);
+  color: inherit;
+  text-align: center;
+}
 table.live-cands td:first-child,
 table.live-cands th:first-child {
   width: 22px;

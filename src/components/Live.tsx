@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { shortCount, type CandidateMark } from './Board';
 import { fmtPct } from './common';
 import { useStore } from '../state/store';
@@ -136,6 +136,11 @@ export function CandidateTable({
   let rows = cands.slice(0, max);
   const playedRow = played != null ? cands.find((c) => c.loc === played) : undefined;
   if (playedRow && !rows.includes(playedRow)) rows = [...rows, playedRow];
+  // Tapping a row pins its variation on the board, like 星阵围棋's review list: no stone is
+  // placed, no hover is needed (mobile included), and a second tap or leaving with nothing
+  // pinned clears it. Hover still works for a mouse, but never fights a pin someone tapped.
+  const [pinned, setPinned] = useState<Loc | null>(null);
+  useEffect(() => setPinned(null), [cands]);
   if (!rows.length) return null;
   return (
     <table className="data cands live-cands">
@@ -147,6 +152,7 @@ export function CandidateTable({
           <th>Score</th>
           <th>Visits</th>
           <th>Share</th>
+          {onPick && <th />}
         </tr>
       </thead>
       <tbody>
@@ -155,10 +161,14 @@ export function CandidateTable({
           return (
             <tr
               key={c.loc}
-              className={`${onPick ? 'click' : ''} ${rank === 0 ? 'best' : ''} ${c.loc === played ? 'played' : ''}`}
-              onClick={onPick ? () => onPick(c.loc) : undefined}
-              onMouseEnter={onHover ? () => onHover(c) : undefined}
-              onMouseLeave={onHover ? () => onHover(null) : undefined}
+              className={`click ${rank === 0 ? 'best' : ''} ${c.loc === played ? 'played' : ''} ${c.loc === pinned ? 'previewed' : ''}`}
+              onClick={() => {
+                const next = pinned === c.loc ? null : c.loc;
+                setPinned(next);
+                onHover?.(next === null ? null : c);
+              }}
+              onMouseEnter={onHover && pinned === null ? () => onHover(c) : undefined}
+              onMouseLeave={onHover && pinned === null ? () => onHover(null) : undefined}
             >
               <td className="muted">{rank + 1}</td>
               <td className={rank === 0 ? 'kata strong' : c.loc === played ? 'you' : ''}>{c.loc === PASS ? 'pass' : locToGtp(c.loc, size)}</td>
@@ -166,6 +176,20 @@ export function CandidateTable({
               <td className="mono">{`${c.scoreLead >= 0 ? '+' : '−'}${Math.abs(c.scoreLead).toFixed(1)}`}</td>
               <td className="mono">{shortCount(c.visits)}</td>
               <td className="mono muted">{((c.visits / total) * 100).toFixed(1)}</td>
+              {onPick && (
+                <td>
+                  <button
+                    className="btn tiny ghost"
+                    title="Play this move on the board"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPick(c.loc);
+                    }}
+                  >
+                    Play
+                  </button>
+                </td>
+              )}
             </tr>
           );
         })}

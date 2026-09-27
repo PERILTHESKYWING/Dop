@@ -101,7 +101,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [mode, setMode] = useState<Mode>('play');
   const [analysis, setAnalysis] = useState(() => readPref(ANALYSIS_PREF, true));
   const [numbers, setNumbers] = useState(() => readPref(NUMBERS_PREF, false));
-  const [view, toggleView] = useAnalysisView();
+  const [view, toggleView, setCandidateCount] = useAnalysisView();
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Kifu[]>([]);
@@ -502,7 +502,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                   <ClassPill cls={lastClass} />
                 </div>
               )}
-              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={8} />
+              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} />
               <div className="row wrap toggles">
                 <label className="toggle">
                   <input type="checkbox" checked={view.best} onChange={() => toggleView('best')} /> Best moves
@@ -512,6 +512,18 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                 </label>
                 <label className="toggle">
                   <input type="checkbox" checked={view.territory} onChange={() => toggleView('territory')} /> Territory
+                </label>
+                <label className="toggle">
+                  Top
+                  <input
+                    className="candidate-count"
+                    type="number"
+                    min={3}
+                    max={20}
+                    value={view.candidateCount}
+                    onChange={(e) => setCandidateCount(Number(e.target.value) || view.candidateCount)}
+                  />
+                  moves
                 </label>
               </div>
             </>
