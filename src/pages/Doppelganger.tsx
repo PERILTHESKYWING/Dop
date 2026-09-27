@@ -393,9 +393,38 @@ function Overview({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
           <a className="btn primary" href={href('doppel/play')} style={{ justifySelf: 'start' }}>
             <Icon name="play" /> Play {copy.owner === 'demo' ? 'the copy' : 'your copy'}
           </a>
+          <OpponentCopyPicker />
         </div>
       </div>
     </>
+  );
+}
+
+/** The Doppelgänger isn't only for you: any opponent with enough of their games analysed
+ * gets a copy too, with its own strength dial. This is the way into it from the main page. */
+function OpponentCopyPicker() {
+  const opponents = useStore((s) => s.opponents).filter((o) => o.copy);
+  if (!opponents.length)
+    return (
+      <p className="tiny muted">
+        It can mimic any opponent too, not just you: analyse enough of someone's games on their{' '}
+        <a href={href('opponents')}>opponent page</a> to train a copy of them, style and strength dial included.
+      </p>
+    );
+  return (
+    <label className="stack tight">
+      <span className="field-label">Or play a copy of an opponent</span>
+      <select defaultValue="" onChange={(e) => e.target.value && go(`doppel/play?opp=${e.target.value}`)}>
+        <option value="" disabled>
+          Choose an opponent…
+        </option>
+        {opponents.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -814,6 +843,23 @@ const play: {
   hints: false,
   autostart: false,
 };
+
+/** Immersive play: no winrates, no candidate/policy hints, no move-by-move comparisons —
+ * just the board, until the game ends. Persisted like a setting, not tied to one game. */
+function readImmersive() {
+  try {
+    return localStorage.getItem('dop.doppelImmersive') === '1';
+  } catch {
+    return false;
+  }
+}
+function writeImmersive(v: boolean) {
+  try {
+    localStorage.setItem('dop.doppelImmersive', v ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
+}
 let gameIds = 1;
 
 const lineKey = (moves: Move[]) => moves.map((m) => `${m.color}${m.loc}`).join(',');
@@ -902,6 +948,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   const copyOf = opponent?.id ?? 'me';
   const [game, setGameState] = useState<PlayGame | null>((play.game?.copyOf ?? 'me') === copyOf ? play.game : null);
   const [hints, setHintsState] = useState(play.hints);
+  const [immersive, setImmersive] = useState(readImmersive);
   const [, setTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -1120,7 +1167,9 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
 
   const marks: Mark[] = [];
   let caption = '';
-  if (yourTurn && hints && current) {
+  if (immersive) {
+    // No hints, no comparisons: just the board, until the game is over.
+  } else if (yourTurn && hints && current) {
     const kata = current.policy.find((e) => e.loc !== PASS);
     const guess = current.preds.find((e) => e.loc !== PASS);
     if (guess) marks.push({ loc: guess.loc, kind: 'doppel', label: String(Math.round(guess.p * 100)) });
@@ -1180,7 +1229,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
               you: <i className={`stone-dot ${game.user === 1 ? 'b' : 'w'}`} /> {game.user === 1 ? 'Black' : 'White'}
             </span>
           </div>
-          <WinBar bWin={current?.bWin ?? null} bLead={current?.bLead ?? null} pending={!current} />
+          {(!immersive || over) && <WinBar bWin={current?.bWin ?? null} bLead={current?.bLead ?? null} pending={!current} />}
           <div className="small dim">
             {error ? (
               <span className="bad">
@@ -1224,18 +1273,31 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
             </button>
           </div>
           <label className="check small">
-            <input type="checkbox" checked={hints} onChange={(e) => setHints(e.target.checked)} /> Show what the copy expects from me before I move
+            <input
+              type="checkbox"
+              checked={immersive}
+              onChange={(e) => {
+                setImmersive(e.target.checked);
+                writeImmersive(e.target.checked);
+              }}
+            />{' '}
+            Immersive: hide winrates and hints until the game ends
           </label>
+          {!immersive && (
+            <label className="check small">
+              <input type="checkbox" checked={hints} onChange={(e) => setHints(e.target.checked)} /> Show what the copy expects from me before I move
+            </label>
+          )}
         </div>
 
-        {lastCopy !== undefined && (
+        {!immersive && lastCopy !== undefined && (
           <div className="panel stack">
             <h3>Its last reply</h3>
             {copyRead ? <ReplyCompare read={copyRead} played={game.moves[lastCopy].loc} size={size} who={whoName} /> : <p className="small muted">…</p>}
           </div>
         )}
 
-        {lastUser !== undefined && game.moves[lastUser].loc !== PASS && (
+        {!immersive && lastUser !== undefined && game.moves[lastUser].loc !== PASS && (
           <div className="panel stack">
             <h3>Your last move</h3>
             {userRead ? (
@@ -1251,7 +1313,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           </div>
         )}
 
-        {(replies > 0 || userMoves > 0) && (
+        {(!immersive || over) && (replies > 0 || userMoves > 0) && (
           <div className="panel stack">
             <h3>This game</h3>
             <dl className="kv">
