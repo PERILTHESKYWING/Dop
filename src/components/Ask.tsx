@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AskTurn, ProbeResult } from '../../shared/ask';
 import { askPosition } from '../lib/coach/ask';
-import { buildFacts, type FactInput } from '../lib/coach/facts';
+import { buildFacts, type ExtraFacts, type FactInput } from '../lib/coach/facts';
 import { rankLabel } from '../lib/level/ranks';
 import { runProbe, type ProbeBase } from '../state/coach';
 import { useStore } from '../state/store';
@@ -20,7 +20,20 @@ interface Turn extends AskTurn {
  * analysis only (see shared/ask.ts). `facts` is read when a question is asked, so the
  * answer uses the deepest analysis available at that moment.
  */
-export function AskPanel({ positionKey, facts, base, hasPlayed }: { positionKey: string; facts: () => FactInput | null; base: () => ProbeBase | null; hasPlayed?: boolean }) {
+export function AskPanel({
+  positionKey,
+  facts,
+  extra,
+  base,
+  hasPlayed,
+}: {
+  positionKey: string;
+  facts: () => FactInput | null;
+  /** Move insights, pro games and comments, gathered when a question is asked. */
+  extra?: () => Promise<ExtraFacts>;
+  base: () => ProbeBase | null;
+  hasPlayed?: boolean;
+}) {
   const llm = useStore((s) => s.llm);
   const useLlm = useStore((s) => s.settings.useLlm);
   const { level } = useLevelOf(usePlayerTargets());
@@ -45,7 +58,8 @@ export function AskPanel({ positionKey, facts, base, hasPlayed }: { positionKey:
     setBusy('Reading KataGo’s analysis…');
     setError(null);
     try {
-      const f = buildFacts({ ...input, level: level ? `about ${rankLabel(level.overall.rank)}` : undefined });
+      const more = extra ? await extra().catch(() => ({})) : {};
+      const f = { ...buildFacts({ ...input, level: level ? `about ${rankLabel(level.overall.rank)}` : undefined }), ...more };
       const out = await askPosition(
         question.trim(),
         f,
@@ -68,9 +82,11 @@ export function AskPanel({ positionKey, facts, base, hasPlayed }: { positionKey:
   const off = !useLlm ? 'The language model is switched off in Settings.' : llm && !llm.configured ? 'The language model is not configured on the server (LLM_API_KEY).' : null;
   const quick = [
     'Why is KataGo’s top move best here?',
-    ...(hasPlayed ? ['What was wrong with the move played?'] : []),
+    ...(hasPlayed ? ['How good was the move played, and how hard was the right move to find?'] : []),
+    'Is there a brilliant or only move here, and why is it hard to see?',
     'Which groups are weak, and what should each side do about them?',
     'What should I be thinking about in this position?',
+    'What were the key moments of this game?',
   ];
 
   return (

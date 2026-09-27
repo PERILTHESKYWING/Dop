@@ -46,6 +46,13 @@ contain no photographs or other third-party images, so no third-party licence ap
 (https://github.com/featurecat/go-dataset, distributed under GPL-3.0). No game records from the dataset are
 included in this repository or the site.
 
+### Move difficulty and professional game statistics
+`public/coach/difficulty.json` holds fitted coefficients computed by `scripts/move-corpus.ts` and
+`scripts/move-fit.ts` from sampled positions of Fox games (above) and professional games from
+https://github.com/yenw/computer-go-dataset. `public/pro/openings.json` holds counts of the moves professionals
+played in positions from the first 40 moves of that collection's professional games (73,519 games, 1940 to
+2017), made by `scripts/pro-openings.ts`. No game records from either collection are included.
+
 ### JavaScript dependencies (bundled into the site)
 - **React** and **React DOM** (MIT), Meta Platforms, Inc. and affiliates.
 - **zustand** (MIT), Paul Henschel and contributors.

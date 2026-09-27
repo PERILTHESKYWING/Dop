@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AskPanel } from '../components/Ask';
+import { InsightPanel, useMoveInsight } from '../components/Insight';
+import { useLevelOf, usePlayerTargets } from '../components/Level';
+import { nextBestGap } from '../lib/coach/difficulty';
+import { keyMoments } from '../lib/coach/moments';
+import { mainLineComments } from '../lib/go/sgf';
+import { insightFacts, proFacts, type MoveTarget } from '../state/insight';
 import type { MoveRecord } from '../lib/types';
 import { useStore } from '../state/store';
 import { commitLiveAnalysis, corpus, retryGame, runQueue, setGameKomi } from '../state/actions';
@@ -106,6 +112,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   }, [n, explore]);
 
   const boards = useMemo(() => (game ? allPositions(game.size, game.setup, game.moves) : []), [game]);
+  const sgfComments = useMemo(() => (game ? mainLineComments(game.sgf) : new Map<number, string>()), [game]);
+  const { level: ownLevel } = useLevelOf(usePlayerTargets());
   const records = useMemo(() => {
     if (!game) return new Map<number, MoveRecord>();
     return new Map<number, MoveRecord>(corpus().records.filter((r) => r.gameId === game.id).map((r) => [r.index, r]));
@@ -117,6 +125,37 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   // The live search replaces the stored analysis once it has read further.
   const useLive = !!snap && snap.visits > 1 && (!ev || snap.visits >= ev.visits);
   const heat = useMemoHeat(showPolicy && game ? (analysis?.evals[cur] ?? null) : null, game?.size ?? 19);
+
+  // Move insights: how good and how hard to find the played move and KataGo's move are.
+  const insightCands = useLive ? fromSnapshot(snap!) : fromStored(ev?.candidates);
+  const insightVisits = useLive ? snap!.visits : ev?.visits ?? 0;
+  const insightTargets: MoveTarget[] = [];
+  if (game && !explore) {
+    const played = game.moves[cur];
+    const r = records.get(cur);
+    const best = insightCands[0];
+    const gap = best ? nextBestGap(insightCands, insightVisits) : null;
+    if (played && played.loc !== PASS && r) insightTargets.push({ loc: played.loc, role: 'played', severity: r.severity, gap: best && best.loc === played.loc ? gap : null });
+    if (best && best.loc !== PASS && best.loc !== played?.loc) insightTargets.push({ loc: best.loc, role: 'KataGo', severity: 'best', gap });
+  }
+  const insight = useMoveInsight(
+    game && !explore ? `${game.id}|${cur}|${engineKomi(game.komi, game.rules)}` : null,
+    () =>
+      game
+        ? {
+            size: game.size,
+            komi: engineKomi(game.komi, game.rules),
+            setup: game.setup,
+            history: game.moves.slice(0, cur),
+            toPlay: game.moves[cur]?.color ?? (game.moves.length ? (game.moves[game.moves.length - 1].color === 1 ? 2 : 1) : 1),
+            board: boards[cur],
+          }
+        : null,
+    insightTargets,
+    ownLevel?.overall.rank,
+  );
+  const moments = useMemo(() => keyMoments([...records.values()], analysis), [records, analysis]);
+  const moveComments = { lastMove: cur > 0 ? sgfComments.get(cur) : undefined, nextMove: sgfComments.get(cur + 1) };
 
   if (!game)
     return (
@@ -354,6 +393,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
                 ))}
               </div>
             )}
+            <InsightPanel state={insight} size={game.size} ownRank={ownLevel?.overall.rank} comments={moveComments} playedLoc={next.loc} />
             <div className="row wrap">
               <label className="check small">
                 <input type="checkbox" checked={showOwn} onChange={(e) => setShowOwn(e.target.checked)} /> Territory
@@ -396,7 +436,54 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
                 : null
             }
             base={() => ({ size: game.size, komi: engineKomi(game.komi, game.rules), setup: game.setup, moves: game.moves.slice(0, cur), toPlay, board })}
+            extra={async () => {
+              const clip = (t?: string) => (t ? t.slice(0, 700) : undefined);
+              return {
+                insights: insight.insights ? insightFacts(insight.insights, game.size) : undefined,
+                pro: insight.pro ? proFacts(insight.pro, game.size) : undefined,
+                keyMoments: moments.map((k) => ({
+                  move: k.index + 1,
+                  player: k.color === 1 ? ('Black' as const) : ('White' as const),
+                  kind: k.kind === 'only-move' ? ('only move' as const) : ('turning point' as const),
+                  played: locToGtp(k.played, game.size),
+                  kataGo: locToGtp(k.best, game.size),
+                  found: k.found,
+                  winrateLoss: Math.round(k.winrateLoss * 1000) / 10,
+                  pointsLost: Math.round(k.scoreLoss * 10) / 10,
+                  gap: k.gap ? { points: Math.round(k.gap.points * 10) / 10, winrate: Math.round(k.gap.win * 1000) / 10 } : undefined,
+                })),
+                comments: moveComments.lastMove || moveComments.nextMove ? { lastMove: clip(moveComments.lastMove), nextMove: clip(moveComments.nextMove) } : undefined,
+              };
+            }}
           />
+        )}
+
+        {moments.length > 0 && (
+          <div className="panel stack tight">
+            <h3>Key moments</h3>
+            <div className="moments">
+              {moments.map((k) => (
+                <button key={k.index} className={`moment ${k.index === cur ? 'cur' : ''}`} onClick={() => setCur(k.index)}>
+                  <span className="mono">{k.index + 1}</span>
+                  <span>
+                    {k.color === 1 ? 'Black' : 'White'}
+                    {game.playerColor === k.color ? ' (you)' : ''} ·{' '}
+                    {k.kind === 'only-move' ? (
+                      <>
+                        only move <b className="mono">{locToGtp(k.best, game.size)}</b>{' '}
+                        <span className={k.found ? 'good-text' : 'bad-text'}>{k.found ? 'found' : `missed (${locToGtp(k.played, game.size)})`}</span>
+                      </>
+                    ) : (
+                      <>
+                        turning point: <b className="mono">{locToGtp(k.played, game.size)}</b>, KataGo <b className="mono">{locToGtp(k.best, game.size)}</b>{' '}
+                        <span className="bad-text">−{fmtPct(k.winrateLoss, 0)}</span>
+                      </>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="panel">

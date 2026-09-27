@@ -87,6 +87,26 @@ KataGo's analysis (candidates, values, lines, groups and their status). The mode
 three lines first, which the browser searches. Any coordinate, winrate or point figure in the answer that is not
 in KataGo's facts sends the answer back once for correction and is otherwise flagged under it (`shared/ask.ts`).
 
+### Best, only and brilliant moves; how hard a move is to find
+Review grades the move played and KataGo's move. **Best** is KataGo's choice (or as good). **Only move** means
+every alternative KataGo read is clearly worse (2+ points or 8%+ winrate). **Brilliant** is an only move that
+strong amateurs (5d) find less than 20% of the time. How often players of each level find a move comes from
+`public/coach/difficulty.json`, fitted on sampled positions from rank-labelled Fox games and professional games:
+among the network's eight most natural-looking moves plus "something else", a player of each rank chooses by how
+natural a move looks and what it is worth (`src/lib/coach/difficulty.ts`). Review also lists the game's key
+moments (turning points and only-move positions), shows what professionals played from the same whole-board
+position (73,519 pro games, 1940 to 2017, in any rotation, `public/pro/openings.json`), and shows comments written
+in the game file. All of it goes into the fact sheet for "Ask about this position", so the language model can say
+why a move matters and how hard it is for the student's level, and cannot cite figures that are not there.
+
+```
+# positions from rank-labelled games (a sample of files.txt) and pro games (one SGF per line)
+for p in 0 1 2; do npx tsx scripts/move-corpus.ts --list fox.txt --part $p --parts 3 --out moves/fox-$p.jsonl & done
+npx tsx scripts/move-corpus.ts --sgf-lines pro.txt --rank P9 --out moves/pro-0.jsonl; wait
+npx tsx scripts/move-fit.ts moves/*.jsonl        # writes public/coach/difficulty.json, prints held-out calibration
+npx tsx scripts/pro-openings.ts pro1940-1999.txt pro2000+.txt   # writes public/pro/openings.json
+```
+
 ### Copies of other players, and the strength dial
 Opponent profiles train the same copy on an imported player's analysed games, and you can play against it.
 When playing any copy you can set a strength: the copy keeps choosing the moves its player tends to choose, but

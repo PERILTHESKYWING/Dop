@@ -49,6 +49,46 @@ export interface PositionFacts {
   played?: { move: string; winrateLoss: number; pointsLost: number; kataGoBest: string };
   /** The asker's estimated level, to pitch the explanation ("about 3k"). */
   level?: string;
+  /** How good and how hard to find the played move and KataGo's move are. */
+  insights?: MoveInsight[];
+  /** What professionals played from this exact position (whole-board match). */
+  pro?: ProFacts;
+  /** Commentary written in the game file (a person's words, not KataGo's). */
+  comments?: { lastMove?: string; nextMove?: string };
+  /** The moments of the whole game that mattered most (for questions about the game). */
+  keyMoments?: KeyMomentFact[];
+}
+
+export interface KeyMomentFact {
+  /** Move number (1-based). */
+  move: number;
+  player: 'Black' | 'White';
+  kind: 'turning point' | 'only move';
+  played: string;
+  kataGo: string;
+  found: boolean;
+  /** What the move played cost (winrate 0–100 and points). */
+  winrateLoss: number;
+  pointsLost: number;
+  /** For only moves: how much worse the next-best move was. */
+  gap?: { points: number; winrate: number };
+}
+
+export interface MoveInsight {
+  move: string;
+  role: 'played' | 'KataGo';
+  /** Brilliant, Only move, Best, Good, Inaccuracy, Mistake, Blunder. */
+  label: string;
+  /** For KataGo's move: how much worse the next-best move is, for the side to move. */
+  gap?: { points: number; winrate: number };
+  /** How often players of each level play this move here (0–100), from rank-labelled games. */
+  findRates: { level: string; percent: number }[];
+}
+
+export interface ProFacts {
+  /** Professional games that reached this position (1940 to 2017, before AI openings). */
+  games: number;
+  moves: { move: string; games: number; percent: number; winPercent: number }[];
 }
 
 export interface ProbeRequest {
@@ -123,6 +163,13 @@ function allowedFigures(facts: PositionFacts, probes: readonly ProbeResult[] = [
     p.moves.forEach(add);
     p.bestLine?.forEach(add);
   }
+  for (const i of facts.insights ?? []) add(i.move);
+  for (const k of facts.keyMoments ?? []) {
+    add(k.played);
+    add(k.kataGo);
+  }
+  for (const m of facts.pro?.moves ?? []) add(m.move);
+  for (const c of [facts.comments?.lastMove, facts.comments?.nextMove]) if (c) coordsIn(c, facts.size).forEach(add);
   // Winrates in either player's view.
   const pct: number[] = [];
   const addPct = (x?: number) => {
@@ -133,6 +180,15 @@ function allowedFigures(facts: PositionFacts, probes: readonly ProbeResult[] = [
   for (const c of facts.candidates) addPct(c.winrate);
   for (const p of probes) addPct(p.blackWinrate);
   if (facts.played) pct.push(facts.played.winrateLoss);
+  for (const i of facts.insights ?? []) {
+    for (const r of i.findRates) pct.push(r.percent);
+    if (i.gap) pct.push(i.gap.winrate);
+  }
+  for (const m of facts.pro?.moves ?? []) pct.push(m.percent, m.winPercent, 100 - m.winPercent);
+  for (const k of facts.keyMoments ?? []) {
+    pct.push(k.winrateLoss);
+    if (k.gap) pct.push(k.gap.winrate);
+  }
   // Differences between winrates are fair to quote too.
   const base = [facts.blackWinrate, ...facts.candidates.map((c) => (facts.toPlay === 'Black' ? c.winrate : 100 - c.winrate)), ...probes.map((p) => p.blackWinrate ?? NaN)].filter(Number.isFinite);
   for (const a of base) for (const b of base) pct.push(Math.abs(a - b));
@@ -144,6 +200,11 @@ function allowedFigures(facts: PositionFacts, probes: readonly ProbeResult[] = [
     for (const b of leads) pts.push(Math.abs(a - b));
   }
   if (facts.played) pts.push(facts.played.pointsLost);
+  for (const i of facts.insights ?? []) if (i.gap) pts.push(i.gap.points);
+  for (const k of facts.keyMoments ?? []) {
+    pts.push(k.pointsLost);
+    if (k.gap) pts.push(k.gap.points);
+  }
   if (facts.area) pts.push(facts.area.black, facts.area.white, Math.abs(facts.area.black - facts.area.white));
   pts.push(facts.komi);
   return { coords, pct, pts };
@@ -199,8 +260,8 @@ export function parseAskReply(raw: string, final: boolean, size: number): { answ
   return probes && !answer ? { probes } : { answer, probes: undefined };
 }
 
-export const ASK_SYSTEM = `You are a patient, precise Go (baduk) teacher answering a student's question about one position.
-KataGo has analysed the position; its numbers are the only source of truth. You explain, KataGo decides.
+export const ASK_SYSTEM = `You are a patient, precise Go (baduk) teacher answering a student's question about a position or the game it comes from.
+KataGo has analysed the position (and, when key moments are given, the whole game); its numbers are the only source of truth. You explain, KataGo decides.
 
 Rules:
 - Use only coordinates, winrates and point figures that appear in the facts (or the probe results). Never invent a move, a line, a number or a life-and-death status.
@@ -208,6 +269,11 @@ Rules:
 - When the facts cannot settle the question, say so plainly.
 - Explain the idea behind KataGo's choice in human terms (strength, weakness, territory, influence, tempo, shape) and tie it to the facts (group status, liberties, the lines).
 - Pitch the explanation to the student's level when it is given: simple words and one idea for kyu players, more precise reasoning for dan players.
+- Move labels come from KataGo: "Best" is KataGo's choice; "Only move" means every alternative is clearly worse; "Brilliant" is an only move that even strong amateurs rarely find. Never call a move brilliant, only or a mistake unless its label says so.
+- Difficulty: the find rates say how often players of each level play that move in this position (measured on real games). Use them to say how hard the move is for the student's level, and why it is hard to see (it looks unnatural, the point only shows after a few moves, and so on).
+- Professional games (1940 to 2017, before AI changed the openings) show what pros chose here. When KataGo and the pros disagree, say so; KataGo's numbers decide what is better.
+- For questions about the whole game, use the key moments: turning points are where the game swung; only moves are where one move was needed. Name the move numbers.
+- Commentary from the game file is a person's opinion. Use it for ideas and wording, but where it contradicts KataGo, KataGo's numbers win and you should say so.
 - Coordinates: letters A–T without I, numbers 1–19 from the bottom, e.g. Q16. "Winrate" means the chance to win for the side named.
 - Plain text, no markdown headings, at most about 170 words.
 
@@ -233,6 +299,32 @@ export function buildAskPrompt(req: AskRequest, correction?: string[]): string {
   if (f.area) parts.push(`Expected area if play continued well: Black about ${f.area.black}, White about ${f.area.white} points.`);
   if (f.played)
     parts.push(`In the game ${f.toPlay} played ${f.played.move}; KataGo preferred ${f.played.kataGoBest}. It cost ${f.played.pointsLost.toFixed(1)} points and ${f.played.winrateLoss.toFixed(1)}% winrate.`);
+  for (const i of f.insights ?? [])
+    parts.push(
+      `${i.role === 'played' ? 'Move played' : "KataGo's move"} ${i.move}: ${i.label}` +
+        (i.gap ? ` (the next-best move is ${i.gap.points.toFixed(1)} points and ${i.gap.winrate.toFixed(1)}% worse)` : '') +
+        (i.findRates.length ? `. Players play it here: ${i.findRates.map((r) => `${r.level} ${r.percent}%`).join(', ')}.` : '.'),
+    );
+  if (f.pro)
+    parts.push(
+      `Professional games reaching this exact position: ${f.pro.games}. They played: ` +
+        f.pro.moves.map((m) => `${m.move} in ${m.games} games (${m.percent}%, the player won ${m.winPercent}%)`).join('; ') +
+        '.',
+    );
+  if (f.keyMoments?.length)
+    parts.push(
+      'Key moments of the whole game (from KataGo):\n' +
+        f.keyMoments
+          .map(
+            (k) =>
+              `- Move ${k.move}, ${k.player}, ${k.kind}: played ${k.played}, KataGo ${k.kataGo}` +
+              (k.kind === 'only move' ? (k.found ? ' (found it)' : ` (missed it: cost ${k.pointsLost.toFixed(1)} points, ${k.winrateLoss.toFixed(1)}% winrate)`) : `, cost ${k.pointsLost.toFixed(1)} points and ${k.winrateLoss.toFixed(1)}% winrate`) +
+              (k.gap ? `; every other move was at least ${k.gap.points.toFixed(1)} points or ${k.gap.winrate.toFixed(1)}% worse` : ''),
+          )
+          .join('\n'),
+    );
+  if (f.comments?.lastMove) parts.push(`Commentary in the game file on the last move:\n${f.comments.lastMove}`);
+  if (f.comments?.nextMove) parts.push(`Commentary in the game file on the move played here:\n${f.comments.nextMove}`);
   if (req.probes?.length)
     parts.push(
       'Lines you asked KataGo to check:\n' +

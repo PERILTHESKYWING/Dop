@@ -1,4 +1,7 @@
 import type { FactGroup, PositionFacts } from '../../../shared/ask';
+
+/** Facts gathered separately (move insights, pro games, game-file comments). */
+export type ExtraFacts = Pick<PositionFacts, 'insights' | 'pro' | 'comments'>;
 import { Board } from '../go/board';
 import { groupStatus } from '../go/features';
 import { locToGtp } from '../go/coords';
