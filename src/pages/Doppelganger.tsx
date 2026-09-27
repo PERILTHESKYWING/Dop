@@ -4,6 +4,7 @@ import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, rebuildProf
 import { Board, type Mark } from '../components/Board';
 import { WinBar } from '../components/Analysis';
 import { fmtPct, gameTitle, Legend, MoveThumb } from '../components/common';
+import { KomiPicker } from '../components/Komi';
 import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
 import { BrandMark, Icon } from '../components/Icons';
 import { evaluateFast, toPlayAt } from '../lib/analysis/analyzer';
@@ -765,6 +766,8 @@ interface PlaySetup {
   sample: boolean;
   /** Target level for the copy (see profile/strength.ts); null plays as the player does. */
   strength: number | null;
+  /** Komi for a game from an empty board (area scoring). */
+  komi?: number;
 }
 
 interface PlayGame {
@@ -836,7 +839,7 @@ function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
       from: { gameId: source.id, move: n },
     };
   }
-  return { id: gameIds++, size: s.size, komi: 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, sample: s.sample, strength: s.strength };
+  return { id: gameIds++, size: s.size, komi: s.komi ?? 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, sample: s.sample, strength: s.strength };
 }
 
 /** Set up a game from a position of the player's games (used by "Play from here"). */
@@ -1030,14 +1033,15 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
               </div>
             </div>
             {setup.from === 'empty' ? (
-              <label className="stack tight">
+              <div className="stack tight">
                 <span className="field-label">Board</span>
-                <select value={setup.size} onChange={(e) => setSetup({ ...setup, size: Number(e.target.value) })}>
+                <select aria-label="Board size" value={setup.size} onChange={(e) => setSetup({ ...setup, size: Number(e.target.value) })}>
                   <option value={19}>19×19</option>
                   <option value={13}>13×13</option>
                   <option value={9}>9×9</option>
                 </select>
-              </label>
+                <KomiPicker komi={setup.komi ?? 7.5} onKomi={(komi) => setSetup({ ...setup, komi })} />
+              </div>
             ) : (
               source && (
                 <div className="stack tight">

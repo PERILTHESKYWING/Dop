@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
-    "demo:generate": "tsx scripts/generate-demo.ts"
+    "demo:generate": "tsx scripts/generate-demo.ts",
+    "broadcast:generate": "tsx scripts/generate-broadcast.ts"
   },
   "engines": {
     "node": ">=20"

@@ -9,3 +9,4 @@ public/demo/part-*.json
 *.log
 coverage/
 .DS_Store
+.broadcast-parts/

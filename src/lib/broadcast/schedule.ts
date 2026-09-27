@@ -1,0 +1,164 @@
+import { symmetric } from '../go/coords';
+import { PASS, type Loc } from '../go/types';
+import { candidatesAt, decodeMoves, type BroadcastFile, type BroadcastGame, type EngineCandidate } from './data';
+
+/**
+ * The broadcast schedule. There is no game server: every visitor computes the same
+ * schedule from the wall clock, so everyone sees the same move on the same table at the
+ * same moment, and bets settle the same way everywhere.
+ *
+ * Each table plays the whole pool in one fixed order, one move every MOVE_MS, with a
+ * short break between games. The tables are spread evenly around that cycle, so at any
+ * moment some are in the opening, some in the middle game and some in the endgame. Each
+ * time a game comes round again it is shown in another of the board's 8 symmetries,
+ * between two other players.
+ */
+
+export const MOVE_MS = 3000;
+export const BREAK_MS = 20_000;
+export const TABLES = 8;
+/** The day the broadcast began; changing it reshuffles every table. */
+export const EPOCH = Date.UTC(2026, 8, 1);
+
+export const PLAYERS = [
+  'Hoshi', 'Komoku', 'Tengen', 'Sansan', 'Takamoku', 'Mokuhazushi', 'Tesuji', 'Miai', 'Sente', 'Moyo',
+  'Hane', 'Aji', 'Kikashi', 'Shinogi', 'Nozoki', 'Tsuke', 'Kosumi', 'Keima', 'Ogeima', 'Seki',
+];
+
+export type Phase = 'opening' | 'middle' | 'endgame' | 'finished';
+
+export const PHASE_LABEL: Record<Phase, string> = { opening: 'Opening', middle: 'Middle game', endgame: 'Endgame', finished: 'Finished' };
+
+export interface Schedule {
+  pool: BroadcastFile;
+  order: number[];
+  /** Start of each game within the cycle, in the cycle's order, and the cycle length. */
+  offsets: number[];
+  cycle: number;
+}
+
+export const movesOf = (g: BroadcastGame) => g.wr.length - 1;
+const slotMs = (g: BroadcastGame) => movesOf(g) * MOVE_MS + BREAK_MS;
+
+export function makeSchedule(pool: BroadcastFile): Schedule {
+  // A fixed shuffle so neighbouring tables don't show games generated side by side.
+  const order = pool.games.map((_, i) => i).sort((a, b) => hash(`o${a}`) - hash(`o${b}`) || a - b);
+  const offsets: number[] = [];
+  let t = 0;
+  for (const i of order) {
+    offsets.push(t);
+    t += slotMs(pool.games[i]);
+  }
+  return { pool, order, offsets, cycle: Math.max(t, 1) };
+}
+
+/** A game as it is shown on one table at one time. */
+export interface LiveGame {
+  /** Identifies this showing (table, cycle, game): the key bets are placed on. */
+  key: string;
+  table: number;
+  game: BroadcastGame;
+  /** The symmetry it is shown in (coords.ts symmetric). */
+  sym: number;
+  black: string;
+  white: string;
+  /** Wall-clock start, and when the last move lands. */
+  start: number;
+  end: number;
+  total: number;
+  /** Moves on the board now. */
+  shown: number;
+  phase: Phase;
+  /** Milliseconds until the next move (or until the next game during the break). */
+  nextIn: number;
+}
+
+/** FNV-1a: a small, stable hash so every browser picks the same. */
+function hash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+function pick(seed: string, n: number) {
+  return hash(seed) % n;
+}
+
+export function tableAt(s: Schedule, table: number, now: number): LiveGame {
+  const shift = Math.floor((table * s.cycle) / TABLES);
+  const t = now - EPOCH + shift;
+  const cycleNo = Math.floor(t / s.cycle);
+  const pos = t - cycleNo * s.cycle;
+  // The last slot starting at or before pos.
+  let lo = 0, hi = s.offsets.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (s.offsets[mid] <= pos) lo = mid;
+    else hi = mid - 1;
+  }
+  const gi = s.order[lo];
+  const game = s.pool.games[gi];
+  const start = now - (pos - s.offsets[lo]);
+  const total = movesOf(game);
+  const elapsed = now - start;
+  const shown = Math.min(total, Math.floor(elapsed / MOVE_MS));
+  const key = `${table}:${cycleNo}:${lo}`;
+  const b = pick(`${key}:b:${game.id}`, PLAYERS.length);
+  let w = pick(`${key}:w:${game.id}`, PLAYERS.length - 1);
+  if (w >= b) w++;
+  const end = start + total * MOVE_MS;
+  return {
+    key,
+    table,
+    game,
+    sym: pick(`${key}:s:${game.id}`, 8),
+    black: PLAYERS[b],
+    white: PLAYERS[w],
+    start,
+    end,
+    total,
+    shown,
+    phase: phaseOf(shown, total),
+    nextIn: shown < total ? MOVE_MS - (elapsed % MOVE_MS) : end + BREAK_MS - now,
+  };
+}
+
+export function phaseOf(shown: number, total: number): Phase {
+  if (shown >= total) return 'finished';
+  if (shown < 50) return 'opening';
+  if (shown >= 170 || (total - shown <= 40 && shown >= 120)) return 'endgame';
+  return 'middle';
+}
+
+export function allTables(s: Schedule, now: number): LiveGame[] {
+  return Array.from({ length: TABLES }, (_, t) => tableAt(s, t, now));
+}
+
+/** The showing a bet was placed on, if it is still in the schedule (it may have been refreshed). */
+export function findShowing(s: Schedule, key: string, gameId: string): LiveGame | null {
+  const [table, cycleNo, slot] = key.split(':').map(Number);
+  if (!(slot >= 0 && slot < s.order.length)) return null;
+  const game = s.pool.games[s.order[slot]];
+  if (!game || game.id !== gameId) return null;
+  const shift = Math.floor((table * s.cycle) / TABLES);
+  const start = EPOCH - shift + cycleNo * s.cycle + s.offsets[slot];
+  const g = tableAt(s, table, start);
+  return g.key === key ? g : null;
+}
+
+/** The game's moves in the symmetry it is shown in. */
+export function showingMoves(g: LiveGame): Loc[] {
+  return decodeMoves(g.game.moves, g.game.size).map((l) => (l === PASS ? PASS : symmetric(l, g.game.size, g.sym)));
+}
+
+export function showingCandidates(g: LiveGame, index: number): EngineCandidate[] {
+  return candidatesAt(g.game, index).map((c) => ({ ...c, loc: c.loc === PASS ? PASS : symmetric(c.loc, g.game.size, g.sym) }));
+}
+
+/** Black's winrate and lead with `shown` moves on the board. */
+export function valueAt(g: BroadcastGame, shown: number) {
+  const i = Math.max(0, Math.min(g.wr.length - 1, shown));
+  return { bWin: g.wr[i] / 1000, bLead: g.lead[i] / 10 };
+}
+
+export const winnerOf = (g: BroadcastGame): 1 | 2 => (g.result.startsWith('B') ? 1 : 2);

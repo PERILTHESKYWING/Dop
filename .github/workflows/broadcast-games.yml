@@ -1,0 +1,71 @@
+# Plays a fresh set of games for the live AI broadcast with KataGo, in GitHub's cloud, and
+# commits them to public/broadcast/games.json (Vercel then redeploys the site with them).
+# Run it from the Actions tab: "Broadcast games" → "Run workflow".
+name: Broadcast games
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: Number of games
+        default: '36'
+      visits:
+        description: KataGo visits per move (more is stronger and slower)
+        default: '32'
+
+permissions:
+  contents: write
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      matrix:
+        job: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Play games
+        run: |
+          CORES=$(nproc)
+          PARTS=$((4 * CORES))
+          for c in $(seq 0 $((CORES - 1))); do
+            npx tsx scripts/generate-broadcast.ts --model public/models/g170e-b10c128-s1141046784-d204142634.bin.gz \
+              --games ${{ inputs.games }} --visits ${{ inputs.visits }} --seed ${{ github.run_number }} \
+              --part $((${{ matrix.job }} * CORES + c)) --parts $PARTS &
+          done
+          wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: games-${{ matrix.job }}
+          path: .broadcast-parts/
+          include-hidden-files: true
+
+  publish:
+    needs: play
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: games-*
+          path: .broadcast-parts
+          merge-multiple: true
+      - run: npx tsx scripts/generate-broadcast.ts --merge --seed ${{ github.run_number }} --visits ${{ inputs.visits }}
+      - name: Commit the new games
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add public/broadcast/games.json
+          git commit -m "Broadcast: new set of KataGo games (run ${{ github.run_number }})" || echo "nothing to commit"
+          git push
