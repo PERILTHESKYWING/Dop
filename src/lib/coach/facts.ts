@@ -63,6 +63,7 @@ export function buildFacts(input: FactInput): PositionFacts {
       color: grp.color === 1 ? 'Black' : 'White',
       stones: grp.stones.length,
       at: grp.stones.slice(0, 3).map(g),
+      all: grp.stones.map(g),
       liberties: grp.liberties.length,
       status,
     }));

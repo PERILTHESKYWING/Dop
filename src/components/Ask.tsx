@@ -26,6 +26,7 @@ export function AskPanel({
   extra,
   base,
   hasPlayed,
+  chatHref,
 }: {
   positionKey: string;
   facts: () => FactInput | null;
@@ -33,6 +34,8 @@ export function AskPanel({
   extra?: () => Promise<ExtraFacts>;
   base: () => ProbeBase | null;
   hasPlayed?: boolean;
+  /** Opens this position in the Go Coach chat. */
+  chatHref?: string;
 }) {
   const llm = useStore((s) => s.llm);
   const useLlm = useStore((s) => s.settings.useLlm);
@@ -93,11 +96,18 @@ export function AskPanel({
     <div className="panel stack ask">
       <div className="spread">
         <h3>Ask about this position</h3>
-        {turns.length > 0 && (
-          <button className="btn small ghost" onClick={() => setTurns([])}>
-            Clear
-          </button>
-        )}
+        <div className="row">
+          {chatHref && (
+            <a className="btn small ghost" href={chatHref} title="Discuss this position in a full chat: follow-up questions, study plans, other positions">
+              Open in Coach chat
+            </a>
+          )}
+          {turns.length > 0 && (
+            <button className="btn small ghost" onClick={() => setTurns([])}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
       {off ? (
         <p className="small dim">{off}</p>
