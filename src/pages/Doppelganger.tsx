@@ -26,11 +26,17 @@ import {
   type DoppelPrediction,
   type MoveValue,
 } from '../lib/profile/doppel';
-import type { GameRecord, PolicyEntry } from '../lib/types';
+import type { GameRecord, OpponentProfile, PolicyEntry } from '../lib/types';
+import { chooseStyled, FULL_STRENGTH, lossBudget } from '../lib/profile/strength';
+import { rankLabel } from '../lib/level/ranks';
+import { loadLevel, useLevel } from '../state/level';
 import { go, href } from '../router';
 import './doppel.css';
 
 type View = 'overview' | 'differences' | 'play';
+
+/** Strength dial settings (ranks on the level scale, see level/ranks.ts). */
+const STRENGTHS = [-14, -9, -6, -4, -2, 0, 1, 3, 5, 7, 9, FULL_STRENGTH];
 
 const TABS: { view: View; path: string; label: string; hint: string }[] = [
   { view: 'overview', path: 'doppel', label: 'The copy', hint: 'accuracy and habits' },
@@ -56,8 +62,29 @@ function ago(t: number) {
 
 export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchParams }) {
   const copy = useCopy();
+  const opponents = useStore((s) => s.opponents);
   const view: View = tab === 'differences' ? 'differences' : tab === 'play' ? 'play' : 'overview';
   const ready = copy.state === 'ready' && copy.model;
+  // Playing an imported player's copy (from their profile page).
+  const opp = view === 'play' ? opponents.find((o) => o.id === query?.get('opp') && o.copy) : undefined;
+  if (opp?.copy)
+    return (
+      <div className="page dop-page dop-wide">
+        <div className="page-head">
+          <div>
+            <div className="eyebrow">Doppelgänger</div>
+            <h1>{opp.name}'s copy</h1>
+            <p className="sub">
+              Learned from {opp.copy.moves ?? opp.copy.trainedOn} of {opp.name}'s moves · predicts {fmtPct(opp.copy.metrics.top1)} of held-out moves (KataGo alone {fmtPct(opp.copy.metrics.baselineTop1)})
+            </p>
+          </div>
+          <a className="btn small" href={href(`opponents/${opp.id}`)}>
+            Back to {opp.name}
+          </a>
+        </div>
+        <PlayCopy key={opp.id} copy={{ ...copy, owner: 'user', who: `${opp.name}'s copy`, whose: `${opp.name}'s`, demoName: opp.name }} model={opp.copy} opponent={opp} />
+      </div>
+    );
   return (
     <div className={`page dop-page ${view !== 'overview' && ready ? 'dop-wide' : ''}`}>
       <Head copy={copy} view={view} />
@@ -737,6 +764,8 @@ interface PlaySetup {
   move: number;
   /** Vary like a person (sample) or always play the copy's likeliest move. */
   sample: boolean;
+  /** Target level for the copy (see profile/strength.ts); null plays as the player does. */
+  strength: number | null;
   /** Komi for a game from an empty board (area scoring). */
   komi?: number;
 }
@@ -753,7 +782,10 @@ interface PlayGame {
   start: Color;
   user: Color;
   sample: boolean;
+  strength: number | null;
   from?: { gameId: string; move: number };
+  /** Whose copy plays: "me" or an imported player's id. */
+  copyOf?: string;
 }
 
 /** KataGo's quick read of one position, and what the copy makes of it. */
@@ -764,6 +796,8 @@ interface PositionRead {
   policy: PolicyEntry[];
   /** The copy's probabilities for the side to move, likeliest first. */
   preds: DoppelPrediction[];
+  /** Points each considered move loses (with the strength dial on). */
+  losses?: Map<Loc, number>;
 }
 
 /** Kept while the app is open, so a game survives switching tabs. */
@@ -774,7 +808,7 @@ const play: {
   hints: boolean;
   autostart: boolean;
 } = {
-  setup: { user: 1, from: 'empty', size: 19, move: 0, sample: true },
+  setup: { user: 1, from: 'empty', size: 19, move: 0, sample: true, strength: null },
   game: null,
   reads: new Map(),
   hints: false,
@@ -801,10 +835,11 @@ function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
       start: toPlayAt(source.setup, source.moves, n, source.handicap),
       user: s.user,
       sample: s.sample,
+      strength: s.strength,
       from: { gameId: source.id, move: n },
     };
   }
-  return { id: gameIds++, size: s.size, komi: s.komi ?? 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, sample: s.sample };
+  return { id: gameIds++, size: s.size, komi: s.komi ?? 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, sample: s.sample, strength: s.strength };
 }
 
 /** Set up a game from a position of the player's games (used by "Play from here"). */
@@ -814,7 +849,7 @@ function startFromPosition(g: GameRecord, move: number, user: Color, autostart: 
   play.autostart = autostart;
 }
 
-async function readPosition(g: PlayGame, ply: number, model: DoppelModel): Promise<PositionRead> {
+async function readPosition(g: PlayGame, ply: number, model: DoppelModel, withLosses = false): Promise<PositionRead> {
   markInteractive();
   const eng = getEngine() ?? (await startEngine());
   if (!eng) throw new Error('KataGo is not available');
@@ -824,23 +859,48 @@ async function readPosition(g: PlayGame, ply: number, model: DoppelModel): Promi
   const toPlay = colorAt(g, ply);
   const ev = await evaluateFast(eng, { size: g.size, komi: g.komi, setup: g.setup, history, toPlay, board });
   const preds = predictForPosition(model, { size: g.size, setup: g.setup, history, toPlay, policy: ev.policy, ownership: ev.ownership, board }, 10);
-  return { toPlay, bWin: ev.bWin, bLead: ev.bLead, policy: ev.policy, preds };
+  const read: PositionRead = { toPlay, bWin: ev.bWin, bLead: ev.bLead, policy: ev.policy, preds };
+  if (withLosses && preds.length) {
+    // What each move the copy considers costs: KataGo's look at the position after it,
+    // compared with the best of them (KataGo's own first choices are always included).
+    const top = preds[0].p;
+    const locs = [...new Set([...preds.filter((p) => p.p >= top * 0.05).slice(0, 6).map((p) => p.loc), ...ev.policy.filter((e) => e.loc !== PASS).slice(0, 3).map((e) => e.loc)])];
+    const leads = new Map<Loc, number>();
+    for (const loc of locs) {
+      if (loc === PASS || !board.isLegal(loc, toPlay)) continue;
+      const after = board.clone();
+      after.play(loc, toPlay);
+      markInteractive();
+      const child = await evaluateFast(eng, { size: g.size, komi: g.komi, setup: g.setup, history: [...history, { color: toPlay, loc }], toPlay: other(toPlay), board: after });
+      leads.set(loc, toPlay === 1 ? child.bLead : -child.bLead);
+    }
+    const best = Math.max(...leads.values());
+    read.losses = new Map([...leads].map(([loc, lead]) => [loc, best - lead]));
+  }
+  return read;
 }
 
 /** The copy's move: from its own distribution; a pass when KataGo thinks the game is over or offers nothing. */
-function chooseReply(read: PositionRead, sample: boolean): Loc {
+function chooseReply(read: PositionRead, sample: boolean, strength: number | null): Loc {
   const passP = read.policy.find((e) => e.loc === PASS)?.p ?? 0;
   if (passP >= 0.5) return PASS;
+  if (strength !== null && read.losses?.size) {
+    const styled = chooseStyled(read.preds, read.losses, lossBudget(strength, useLevel.getState().calibration), { sample });
+    if (styled) return styled.loc;
+  }
   const pick = sample ? sampleMove(read.preds) : read.preds[0] ?? null;
   if (pick) return pick.loc;
   return read.policy.find((e) => e.loc !== PASS)?.loc ?? PASS;
 }
 
-function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
+function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelModel; opponent?: OpponentProfile }) {
   const games = useStore((s) => s.games);
+  useLevel((s) => s.calibration);
+  useEffect(() => void loadLevel(), []);
   const engine = useStore((s) => s.engine);
   const [setup, setSetupState] = useState<PlaySetup>(play.setup);
-  const [game, setGameState] = useState<PlayGame | null>(play.game);
+  const copyOf = opponent?.id ?? 'me';
+  const [game, setGameState] = useState<PlayGame | null>((play.game?.copyOf ?? 'me') === copyOf ? play.game : null);
   const [hints, setHintsState] = useState(play.hints);
   const [, setTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -865,8 +925,12 @@ function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
     setHintsState(v);
   };
 
-  const demoMode = copy.owner === 'demo';
-  const sources = useMemo(() => games.filter((g) => isPlayerGame(g) && (demoMode ? g.source === 'demo' : g.source === 'user')), [games, demoMode]);
+  // Someone else's copy (the demo player's or an imported player's) is named rather than "your copy".
+  const demoMode = copy.owner === 'demo' || !!opponent;
+  const sources = useMemo(
+    () => (opponent ? games.filter((g) => opponent.gameIds.includes(g.id)) : games.filter((g) => isPlayerGame(g) && (copy.owner === 'demo' ? g.source === 'demo' : g.source === 'user'))),
+    [games, copy.owner, opponent],
+  );
   const source = sources.find((g) => g.id === setup.gameId) ?? sources[0];
 
   const start = useCallback(() => {
@@ -874,8 +938,8 @@ function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
     const src = sources.find((g) => g.id === s.gameId) ?? sources[0];
     if (play.reads.size > 400) play.reads.clear();
     setError(null);
-    setGame(() => newGame(s, src));
-  }, [sources, setGame]);
+    setGame(() => ({ ...newGame(s, src), copyOf }));
+  }, [sources, setGame, copyOf]);
 
   // "Play from here" asks for a game to start right away.
   useEffect(() => {
@@ -900,7 +964,7 @@ function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
         setError(null);
         let read = reads.get(key);
         if (!read) {
-          read = await readPosition(game, ply, model);
+          read = await readPosition(game, ply, model, copyTurn && game.strength !== null);
           reads.set(key, read);
           setTick((t) => t + 1);
         }
@@ -909,7 +973,7 @@ function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
         const wait = 550 - (performance.now() - t0);
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
         if (cancelled) return;
-        const loc = chooseReply(read, game.sample);
+        const loc = chooseReply(read, game.sample, game.strength);
         setGame((g) => (g && g.id === game.id && readKey(g, g.moves.length) === key ? { ...g, moves: [...g.moves, { color: colorAt(g, ply), loc }] } : g));
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
@@ -1000,6 +1064,23 @@ function PlayCopy({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
                 </div>
               )
             )}
+            <label className="stack tight">
+              <span className="field-label">Strength</span>
+              <select value={setup.strength === null ? 'natural' : String(setup.strength)} onChange={(e) => setSetup({ ...setup, strength: e.target.value === 'natural' ? null : Number(e.target.value) })}>
+                <option value="natural">As {demoMode ? 'the player' : 'you'} play (no limit)</option>
+                {STRENGTHS.map((r) => (
+                  <option key={r} value={r}>
+                    {r === FULL_STRENGTH ? 'Full strength, same style' : `About ${rankLabel(r)}, same style`}
+                  </option>
+                ))}
+              </select>
+              {setup.strength !== null && (
+                <span className="tiny muted">
+                  The copy still picks the moves its player would pick, but each move's cost is held to what a {setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)} typically loses
+                  (about {lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} points a move). Stronger settings take a little longer per move.
+                </span>
+              )}
+            </label>
             <label className="check small">
               <input type="checkbox" checked={setup.sample} onChange={(e) => setSetup({ ...setup, sample: e.target.checked })} /> Vary its moves like a person (otherwise it always plays its likeliest move)
             </label>

@@ -1,0 +1,137 @@
+/* Move classification badges (components/MoveBadge.tsx) */
+.move-badge {
+  display: inline-block;
+  vertical-align: -0.2em;
+  flex: none;
+  overflow: visible;
+}
+.mb-shadow {
+  fill: rgba(20, 10, 0, 0.32);
+}
+.mb-rim {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 0.07;
+}
+.mb-gloss {
+  fill: rgba(255, 255, 255, 0.26);
+}
+.mb-text {
+  fill: #fff;
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.12);
+  stroke-width: 0.06;
+}
+.mb-halo {
+  stroke-width: 0.1;
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mb-halo 2.4s ease-in-out infinite;
+}
+@keyframes mb-halo {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.06);
+  }
+}
+
+/* On the board: pops in over the corner of the stone. */
+.bd-badge {
+  pointer-events: none;
+}
+.bd-badge .mb {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mb-pop 0.42s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes mb-pop {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bd-badge .mb,
+  .mb-halo {
+    animation: none;
+  }
+}
+
+.class-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px 1px 3px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--cp) 72%, black);
+  background: color-mix(in srgb, var(--cp) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cp) 38%, transparent);
+}
+:root[data-theme='aurora'] .class-pill {
+  color: color-mix(in srgb, var(--cp) 70%, white);
+}
+
+/* Game report: classification counts per player. */
+.class-report {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 2px 14px;
+  align-items: center;
+  font-size: 13px;
+}
+.class-report .cr-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.class-report .cr-n {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 2ch;
+}
+.class-report .cr-head {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.class-report .cr-n {
+  background: none;
+  border: 0;
+  padding: 1px 4px;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+.class-report .cr-n:hover:not(:disabled) {
+  background: var(--line);
+}
+.class-report .cr-n:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.movelist button {
+  position: relative;
+}
+.movelist .move-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}

@@ -681,6 +681,7 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
     grid-template-areas:
       'weak weak weak copy copy'
+      'level level level level level'
       'dna dna dna list list'
       'train train train train train';
   }
@@ -692,6 +693,9 @@
   }
   .dash-dna {
     grid-area: dna;
+  }
+  .dash-level {
+    grid-area: level;
   }
   .dash-list {
     grid-area: list;

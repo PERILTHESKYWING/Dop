@@ -79,6 +79,74 @@ initialised to KataGo's policy and trained on your games (held out by game). It 
 play, and its weights read as habits ("extends small weak stones", "answers locally"). It is a behavioural
 model, not a claim to simulate you perfectly.
 
+### Your level (rank estimate)
+Every analysed game side gives a few numbers measured on the bundled network's first look at each position:
+how often the move was KataGo's first choice or in its top three, how likely the network found it, points lost
+per move, and the share of mistakes and blunders. `public/level/calibration.json` says, for every Fox rank from
+18k to 9d, what those numbers typically are and how much they vary from game to game. The app scores every rank
+by how well it explains all of a player's games, and shows the best estimate with an 80% range, per phase too.
+Games analysed with another network are measured again with the bundled one (one look per position, no search).
+The same corpus gives each rank's error rate per decision type, so weaknesses a player makes much more often
+than players of their level are trained first.
+
+Rebuilding the calibration (it ran in the cloud on CPU; about 450 games an hour on 4 cores):
+
+```
+# one SGF path per line, ranks read from BR/WR (e.g. a sample of github.com/featurecat/go-dataset)
+for p in 0 1 2 3; do npx tsx scripts/rank-corpus.ts --list files.txt --part $p --parts 4 --out corpus/part-$p.jsonl & done; wait
+npx tsx scripts/rank-fit.ts corpus/part-*.jsonl   # writes public/level/calibration.json and prints held-out accuracy
+```
+
+### Ask about this position
+In Review, questions about the position go to the language model together with a fact sheet made from
+KataGo's analysis (candidates, values, lines, groups and their status). The model may ask KataGo to check up to
+three lines first, which the browser searches. Any coordinate, winrate or point figure in the answer that is not
+in KataGo's facts sends the answer back once for correction and is otherwise flagged under it (`shared/ask.ts`).
+
+### Best, great and brilliant moves; how hard a move is to find
+Review grades the move played and KataGo's move. **Best** is KataGo's choice (or as good). **Great** is an only
+move: every alternative KataGo read is clearly worse (2+ points or 8%+ winrate). **Brilliant** is an only move that
+strong amateurs (5d) find less than 20% of the time. How often players of each level find a move comes from
+`public/coach/difficulty.json`, fitted on sampled positions from rank-labelled Fox games and professional games:
+among the network's eight most natural-looking moves plus "something else", a player of each rank chooses by how
+natural a move looks and what it is worth (`src/lib/coach/difficulty.ts`). Review also lists the game's key
+moments (turning points and only-move positions), shows what professionals played from the same whole-board
+position (73,519 pro games, 1940 to 2017, in any rotation, `public/pro/openings.json`), and shows comments written
+in the game file. All of it goes into the fact sheet for "Ask about this position", so the language model can say
+why a move matters and how hard it is for the student's level, and cannot cite figures that are not there.
+
+```
+# positions from rank-labelled games (a sample of files.txt) and pro games (one SGF per line)
+for p in 0 1 2; do npx tsx scripts/move-corpus.ts --list fox.txt --part $p --parts 3 --out moves/fox-$p.jsonl & done
+npx tsx scripts/move-corpus.ts --sgf-lines pro.txt --rank P9 --out moves/pro-0.jsonl; wait
+npx tsx scripts/move-fit.ts moves/*.jsonl        # writes public/coach/difficulty.json, prints held-out calibration
+npx tsx scripts/pro-openings.ts pro1940-1999.txt pro2000+.txt   # writes public/pro/openings.json
+```
+
+### Move classifications (Brilliant … Blunder)
+Every analysed move gets a chess.com-style class with its badge: **Brilliant !!** (an only move that strong
+amateurs rarely find), **Great !** (the only good move: every alternative is 2+ points or 8%+ worse), **Best ★**,
+**Excellent**, **Good ✓**, **Book** (a common professional choice from the same opening position),
+**Inaccuracy ?!**, **Mistake ?**, **Miss ✕** (the opponent had just erred and the move let them off) and
+**Blunder ??** (`src/lib/coach/classify.ts`). Review shows them on the board, in the move list and in a
+per-player report; the analysis boards, the study board and the live AI games classify the last move from what
+KataGo read before and after it.
+
+### The coach keeps learning (daily, in the cloud)
+`.github/workflows/coach-training.yml` runs every night on GitHub's machines, whether or not anyone has the site
+open. It measures a fresh sample of rank-labelled Fox games and professional games with KataGo, adds them to
+everything measured before (kept in the `coach-data` release, not in git; the first run starts from the
+measurements in `data/coach/seed/`, statistics only), refits the level estimate and the
+move-difficulty model, and commits them with a progress log (`public/coach/progress.json`, shown on the
+dashboard). Vercel redeploys the site with the improved coach. A model is never replaced by one fitted on less
+data. It can also be started by hand from the Actions tab ("Coach training" → "Run workflow").
+
+### Copies of other players, and the strength dial
+Opponent profiles train the same copy on an imported player's analysed games, and you can play against it.
+When playing any copy you can set a strength: the copy keeps choosing the moves its player tends to choose, but
+each move's cost (KataGo's look after it, against the best alternative) is weighed against what a player of the
+chosen rank typically loses per move (`src/lib/profile/strength.ts`).
+
 ### Model lab
 A small pattern model is trained in a Web Worker on your KataGo data, benchmarked against KataGo's choices,
 and the positions it gets most wrong are queued for deeper analysis. Datasets and model versions are kept.

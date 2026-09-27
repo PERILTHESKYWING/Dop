@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { LevelPanel } from '../components/Level';
+import { opponentTargets } from '../state/level';
 import { useStore } from '../state/store';
 import { deleteOpponent, importOpponentFiles, renameOpponent, saveOpponent } from '../state/actions';
 import { Board } from '../components/Board';
@@ -52,7 +54,32 @@ function Profile({ o }: { o: OpponentProfile }) {
         </div>
       </div>
       <div className="callout small">
-        This profile describes tendencies in the games you gave it. It is not a simulation of {o.name}, and small samples can mislead.
+        This profile describes tendencies in the games you gave it, and the copy imitates how {o.name} chooses moves in them. Neither reads {o.name}'s mind, and small samples can mislead.
+      </div>
+      <div className="panel">
+        <h3 style={{ marginBottom: 8 }}>{o.name}'s level</h3>
+        <LevelPanel targets={opponentTargets(o, games)} who={`${o.name}'s`} auto />
+      </div>
+      <div className="panel stack">
+        <div className="spread">
+          <h3>{o.name}'s copy</h3>
+          {o.copy && (
+            <a className="btn small primary" href={href(`doppel/play?opp=${o.id}`)}>
+              Play against it
+            </a>
+          )}
+        </div>
+        {o.copy ? (
+          <>
+            <p className="small">
+              Predicts {o.name}'s exact move <strong className="doppel">{fmtPct(o.copy.metrics.top1)}</strong> of the time on games it did not learn from (KataGo's policy alone: {fmtPct(o.copy.metrics.baselineTop1)}), and has it in its top three{' '}
+              {fmtPct(o.copy.metrics.top3)} of the time. Learned from {o.copy.moves ?? o.copy.trainedOn} moves in {o.copy.gameIds?.length ?? '?'} games.
+            </p>
+            <p className="tiny muted">It gets more accurate as you add games. When you play it you can set its strength, and it keeps choosing the moves {o.name} tends to choose.</p>
+          </>
+        ) : (
+          <p className="small dim">The copy is learned once KataGo has analysed at least 30 of {o.name}'s moves ({analysed} of {games.length} games analysed so far).</p>
+        )}
       </div>
       <DropZone compact label={`Add more of ${o.name}'s games`} onFiles={(f) => void importOpponentFiles(f, undefined, o)} />
       {!s ? (

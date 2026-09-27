@@ -3,6 +3,8 @@ import { Board, type Mark } from '../components/Board';
 import { useAnalysisView, WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, LiveHeader, lineOf, useLiveAnalysis } from '../components/Live';
 import { KomiPicker } from '../components/Komi';
+import { useLiveMoveClass } from '../components/LiveClass';
+import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { engineKomi } from '../lib/go/rules';
@@ -148,11 +150,12 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const toPlay: Color = k ? toPlayAt(k, cursor) : 1;
   const rules = k?.rules === 'japanese' ? 'japanese' : 'chinese';
 
+  const stKey = (moves: Move[], tp: Color) => (k ? `st|${k.size}|${k.komi}|${rules}|${moveKey(k.setup)}|${moveKey(moves)}|${tp}` : '');
   const target = useMemo(
     () =>
       k && analysis
         ? {
-            key: `st|${k.size}|${k.komi}|${rules}|${moveKey(k.setup)}|${moveKey(played)}|${toPlay}`,
+            key: stKey(played, toPlay),
             size: k.size,
             komi: engineKomi(k.komi, rules),
             setup: k.setup,
@@ -163,6 +166,28 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     [k, analysis, rules, played, toPlay],
   );
   const live = useLiveAnalysis(target, analysis);
+  // The class of the move that led here, from what KataGo read before and after it.
+  const lastPlayed = played.length ? played[played.length - 1] : null;
+  const lastClass = useLiveMoveClass(
+    k && analysis && lastPlayed
+      ? {
+          parentKey: stKey(played.slice(0, -1), lastPlayed.color),
+          childKey: stKey(played, toPlay),
+          grandKey: played.length >= 2 ? stKey(played.slice(0, -2), played[played.length - 2].color) : null,
+          move: lastPlayed,
+          prevMove: played.length >= 2 ? played[played.length - 2] : null,
+          moveIndex: played.length - 1,
+          spec: () => ({
+            size: k.size,
+            komi: engineKomi(k.komi, rules),
+            setup: k.setup,
+            history: played.slice(0, -1),
+            toPlay: lastPlayed.color,
+            board: replay(k.size, k.setup, played.slice(0, -1)),
+          }),
+        }
+      : null,
+  );
   const snap = live.snap;
   const shown = snap ? fromSnapshot(snap) : [];
 
@@ -278,6 +303,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
           size={size}
           stones={board.stones}
           lastMove={last}
+          badge={last !== null && lastClass ? { loc: last, cls: lastClass } : null}
           toPlay={mode === 'play' ? toPlay : mode === 'white' ? 2 : 1}
           onPlay={play}
           marks={marks}
@@ -468,6 +494,14 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
             <>
               <LiveHeader snap={snap} />
               <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
+              {lastClass && lastPlayed && lastPlayed.loc !== PASS && (
+                <div className="row small">
+                  <span className="dim">
+                    Move {played.length} {lastPlayed.color === 1 ? 'Black' : 'White'} {locToGtp(lastPlayed.loc, size)}
+                  </span>
+                  <ClassPill cls={lastClass} />
+                </div>
+              )}
               <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={8} />
               <div className="row wrap toggles">
                 <label className="toggle">

@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { MoveRecord } from '../lib/types';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { AskPanel } from '../components/Ask';
+import { InsightPanel, useMoveInsight } from '../components/Insight';
+import { useLevelOf, usePlayerTargets } from '../components/Level';
+import { nextBestGap } from '../lib/coach/difficulty';
+import { keyMoments } from '../lib/coach/moments';
+import { CLASS_INFO, CLASS_ORDER, type MoveClass } from '../lib/coach/classify';
+import { ClassPill, MoveBadge } from '../components/MoveBadge';
+import { classInputs, useGameClasses } from '../state/classes';
+import { mainLineComments } from '../lib/go/sgf';
+import { insightFacts, proFacts, type MoveTarget } from '../state/insight';
+import type { GameRecord, MoveRecord } from '../lib/types';
 import { useStore } from '../state/store';
 import { commitLiveAnalysis, corpus, retryGame, runQueue, setGameKomi } from '../state/actions';
 import type { LiveTarget } from '../state/live';
@@ -105,6 +115,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   }, [n, explore]);
 
   const boards = useMemo(() => (game ? allPositions(game.size, game.setup, game.moves) : []), [game]);
+  const sgfComments = useMemo(() => (game ? mainLineComments(game.sgf) : new Map<number, string>()), [game]);
+  const { level: ownLevel } = useLevelOf(usePlayerTargets());
   const records = useMemo(() => {
     if (!game) return new Map<number, MoveRecord>();
     return new Map<number, MoveRecord>(corpus().records.filter((r) => r.gameId === game.id).map((r) => [r.index, r]));
@@ -116,6 +128,39 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   // The live search replaces the stored analysis once it has read further.
   const useLive = !!snap && snap.visits > 1 && (!ev || snap.visits >= ev.visits);
   const heat = useMemoHeat(showPolicy && game ? (analysis?.evals[cur] ?? null) : null, game?.size ?? 19);
+
+  // Move insights: how good and how hard to find the played move and KataGo's move are.
+  const insightCands = useLive ? fromSnapshot(snap!) : fromStored(ev?.candidates);
+  const insightVisits = useLive ? snap!.visits : ev?.visits ?? 0;
+  const classes = useGameClasses(game, records, analysis, boards);
+  const insightTargets: MoveTarget[] = [];
+  if (game && !explore) {
+    const played = game.moves[cur];
+    const best = insightCands[0];
+    const gap = best ? nextBestGap(insightCands, insightVisits) : null;
+    const input = classInputs(new Map([...records].filter(([i]) => i === cur || i === cur - 1)), analysis).get(cur);
+    if (played && played.loc !== PASS && input)
+      insightTargets.push({ loc: played.loc, role: 'played', input: { ...input, gap: input.gap ?? (best && best.loc === played.loc ? gap : null), book: classes.get(cur) === 'book' } });
+    if (best && best.loc !== PASS && best.loc !== played?.loc) insightTargets.push({ loc: best.loc, role: 'KataGo', input: { scoreLoss: 0, winrateLoss: 0, isBest: true, gap } });
+  }
+  const insight = useMoveInsight(
+    game && !explore ? `${game.id}|${cur}|${engineKomi(game.komi, game.rules)}` : null,
+    () =>
+      game
+        ? {
+            size: game.size,
+            komi: engineKomi(game.komi, game.rules),
+            setup: game.setup,
+            history: game.moves.slice(0, cur),
+            toPlay: game.moves[cur]?.color ?? (game.moves.length ? (game.moves[game.moves.length - 1].color === 1 ? 2 : 1) : 1),
+            board: boards[cur],
+          }
+        : null,
+    insightTargets,
+    ownLevel?.overall.rank,
+  );
+  const moments = useMemo(() => keyMoments([...records.values()], analysis), [records, analysis]);
+  const moveComments = { lastMove: cur > 0 ? sgfComments.get(cur) : undefined, nextMove: sgfComments.get(cur + 1) };
 
   if (!game)
     return (
@@ -183,6 +228,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
               setExplore(true);
             }}
             variation={hoverPv ? lineOf(hoverPv, toPlay) : null}
+            badge={cur > 0 && classes.get(cur - 1) ? { loc: game.moves[cur - 1].loc, cls: classes.get(cur - 1)! } : null}
             coords
           />
         )}
@@ -299,7 +345,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
                 Move {cur + 1} · {next.color === 1 ? 'Black' : 'White'}
                 {game.playerColor === next.color && <span className="you"> (you)</span>}
               </h3>
-              {rec && <span className={`chip ${rec.severity === 'blunder' || rec.severity === 'mistake' ? 'bad' : rec.severity === 'inaccuracy' ? 'warn' : 'good'}`}>{rec.severity}</span>}
+              {classes.get(cur) ? <ClassPill cls={classes.get(cur)!} /> : rec && <span className="chip">{rec.severity}</span>}
             </div>
             {view && (
               <div className="kv">
@@ -353,6 +399,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
                 ))}
               </div>
             )}
+            <InsightPanel state={insight} size={game.size} ownRank={ownLevel?.overall.rank} comments={moveComments} playedLoc={next.loc} />
             <div className="row wrap">
               <label className="check small">
                 <input type="checkbox" checked={showOwn} onChange={(e) => setShowOwn(e.target.checked)} /> Territory
@@ -376,15 +423,105 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           </div>
         )}
 
+        {!explore && (
+          <AskPanel
+            positionKey={`${game.id}|${cur}`}
+            hasPlayed={!!next && next.loc !== PASS}
+            facts={() =>
+              value
+                ? {
+                    board,
+                    komi: engineKomi(game.komi, game.rules),
+                    moveNumber: cur + 1,
+                    toPlay,
+                    lastMove: cur > 0 ? game.moves[cur - 1].loc : null,
+                    bWin: value.bWin,
+                    bLead: value.bLead,
+                    visits,
+                    candidates: shown,
+                    ownership: useLive && snap?.ownership ? snap.ownership : decodeOwnership(ev?.ownership),
+                    played: next && rec ? { loc: next.loc, winrateLoss: rec.winrateLoss, scoreLoss: rec.scoreLoss, bestLoc: rec.bestLoc } : null,
+                  }
+                : null
+            }
+            base={() => ({ size: game.size, komi: engineKomi(game.komi, game.rules), setup: game.setup, moves: game.moves.slice(0, cur), toPlay, board })}
+            extra={async () => {
+              const clip = (t?: string) => (t ? t.slice(0, 700) : undefined);
+              return {
+                insights: insight.insights ? insightFacts(insight.insights, game.size) : undefined,
+                pro: insight.pro ? proFacts(insight.pro, game.size) : undefined,
+                keyMoments: moments.map((k) => ({
+                  move: k.index + 1,
+                  player: k.color === 1 ? ('Black' as const) : ('White' as const),
+                  kind: k.kind === 'only-move' ? ('only move' as const) : ('turning point' as const),
+                  played: locToGtp(k.played, game.size),
+                  kataGo: locToGtp(k.best, game.size),
+                  found: k.found,
+                  winrateLoss: Math.round(k.winrateLoss * 1000) / 10,
+                  pointsLost: Math.round(k.scoreLoss * 10) / 10,
+                  gap: k.gap ? { points: Math.round(k.gap.points * 10) / 10, winrate: Math.round(k.gap.win * 1000) / 10 } : undefined,
+                })),
+                comments: moveComments.lastMove || moveComments.nextMove ? { lastMove: clip(moveComments.lastMove), nextMove: clip(moveComments.nextMove) } : undefined,
+              };
+            }}
+          />
+        )}
+
+        {classes.size > 0 && (
+          <ClassReport
+            classes={classes}
+            game={game}
+            onPick={(cls, color) => {
+              const hits = [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).map(([i]) => i).sort((a, b) => a - b);
+              const next = hits.find((i) => i > cur) ?? hits[0];
+              if (next !== undefined) setCur(next);
+            }}
+          />
+        )}
+
+        {moments.length > 0 && (
+          <div className="panel stack tight">
+            <h3>Key moments</h3>
+            <div className="moments">
+              {moments.map((k) => (
+                <button key={k.index} className={`moment ${k.index === cur ? 'cur' : ''}`} onClick={() => setCur(k.index)}>
+                  <span className="mono">{k.index + 1}</span>
+                  <span>
+                    {k.color === 1 ? 'Black' : 'White'}
+                    {game.playerColor === k.color ? ' (you)' : ''} ·{' '}
+                    {k.kind === 'only-move' ? (
+                      <>
+                        only move <b className="mono">{locToGtp(k.best, game.size)}</b>{' '}
+                        <span className={k.found ? 'good-text' : 'bad-text'}>{k.found ? 'found' : `missed (${locToGtp(k.played, game.size)})`}</span>
+                      </>
+                    ) : (
+                      <>
+                        turning point: <b className="mono">{locToGtp(k.played, game.size)}</b>, KataGo <b className="mono">{locToGtp(k.best, game.size)}</b>{' '}
+                        <span className="bad-text">−{fmtPct(k.winrateLoss, 0)}</span>
+                      </>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Moves</h3>
           <div className="movelist">
             {game.moves.map((m, i) => {
               const r = records.get(i);
               return (
-                <button key={i} className={`${i === cur ? 'cur' : ''} ${r?.isPlayer ? `sev-${r.severity}` : ''}`} onClick={() => setCur(i)} title={r ? `${r.severity} −${r.scoreLoss.toFixed(1)}` : ''}>
+                <button
+                  key={i}
+                  className={`${i === cur ? 'cur' : ''} ${r?.isPlayer ? `sev-${r.severity}` : ''}`}
+                  onClick={() => setCur(i)}
+                  title={r ? `${classes.get(i) ? CLASS_INFO[classes.get(i)!].name : r.severity} −${r.scoreLoss.toFixed(1)}` : ''}
+                >
                   {i + 1}
                   {m.color === game.playerColor ? '•' : ''}
+                  {NOTABLE.has(classes.get(i)!) && <MoveBadge cls={classes.get(i)!} size={11} />}
                 </button>
               );
             })}
@@ -402,4 +539,38 @@ function useMemoHeat(ev: { policy: { loc: number; p: number }[] } | null, size: 
     for (const p of ev.policy) if (p.loc >= 0) h[p.loc] = p.p;
     return h;
   }, [ev, size]);
+}
+
+/** Classes worth a badge in the move list (the rest are the quiet majority). */
+const NOTABLE = new Set<MoveClass>(['brilliant', 'great', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder']);
+
+/** The game report: how many moves of each class each player made. */
+function ClassReport({ classes, game, onPick }: { classes: Map<number, MoveClass>; game: GameRecord; onPick: (cls: MoveClass, color: 1 | 2) => void }) {
+  const count = (cls: MoveClass, color: 1 | 2) => [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).length;
+  return (
+    <div className="panel stack tight">
+      <h3>Move classifications</h3>
+      <div className="class-report">
+        <span />
+        <span className="cr-head">{game.black}</span>
+        <span className="cr-head">{game.white}</span>
+        {CLASS_ORDER.map((cls) => (
+          <Fragment key={cls}>
+            <span className="cr-name" title={CLASS_INFO[cls].about}>
+              <MoveBadge cls={cls} size={18} />
+              {CLASS_INFO[cls].name}
+            </span>
+            {([1, 2] as const).map((color) => {
+              const n = count(cls, color);
+              return (
+                <button key={color} className="cr-n linkish" disabled={!n} onClick={() => onPick(cls, color)} title={n ? `Go to the next ${CLASS_INFO[cls].name.toLowerCase()} move` : undefined}>
+                  {n || '·'}
+                </button>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
 }

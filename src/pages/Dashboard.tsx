@@ -1,7 +1,9 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { CoachTraining } from '../components/CoachTraining';
 import { useStore } from '../state/store';
 import { corpus, importFiles, loadDemo, runQueue, startEngine, usesDemoData } from '../state/actions';
 import { Bar, DropZone, MoveThumb, fmtPct } from '../components/common';
+import { LevelPanel, usePlayerTargets } from '../components/Level';
 import { Icon, type IconName } from '../components/Icons';
 import { DemoNotice, EngineNotice, SideChooser } from '../components/Notices';
 import { useCopy } from '../components/Doppel';
@@ -469,6 +471,20 @@ function NoWeaknessCard() {
   );
 }
 
+function LevelCard() {
+  const targets = usePlayerTargets();
+  return (
+    <section className="panel dash-card dash-level">
+      <div className="dash-card-head">
+        <h3>{usesDemoData() ? "The demo player's level" : 'Your level'}</h3>
+        <More to="dna">Details</More>
+      </div>
+      <LevelPanel targets={targets} compact />
+      <CoachTraining />
+    </section>
+  );
+}
+
 function CopyCard() {
   const copy = useCopy();
   const doppel = copy.model;
@@ -807,6 +823,7 @@ function Home() {
       <div className="dash-grid">
         {biggest ? <WeaknessCard w={biggest} practice={practice[biggest.id] ?? 0} /> : <NoWeaknessCard />}
         <CopyCard />
+        <LevelCard />
         <DnaCard />
         <WeaknessList practice={practice} />
         <TrainingCard />

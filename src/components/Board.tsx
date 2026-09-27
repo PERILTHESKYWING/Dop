@@ -1,4 +1,6 @@
 import { memo, useEffect, useId, useMemo, useRef, useState, type JSX, type PointerEvent } from 'react';
+import { BadgeShape } from './MoveBadge';
+import type { MoveClass } from '../lib/coach/classify';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
 
@@ -54,6 +56,8 @@ export interface BoardProps {
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
   variation?: Move[] | null;
+  /** A move classification badge on a stone (usually the last move). */
+  badge?: { loc: Loc; cls: MoveClass } | null;
 }
 
 const CAND_BEST = '#2fc4e4';
@@ -751,6 +755,15 @@ function BoardImpl(p: BoardProps) {
       {varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
       {varEls.length > 0 && <g className="bd-vars">{varEls}</g>}
       {markEls}
+      {p.badge && p.badge.loc !== PASS && inWin(p.badge.loc % size, Math.floor(p.badge.loc / size)) && (
+        <g
+          key={`badge${p.badge.loc}${p.badge.cls}`}
+          className="bd-badge"
+          transform={`translate(${Math.min(p.badge.loc % size + 0.38, size - 0.62)} ${Math.max(Math.floor(p.badge.loc / size) - 0.38, -0.2)}) scale(0.34)`}
+        >
+          <BadgeShape cls={p.badge.cls} />
+        </g>
+      )}
       {showGhost && <circle className={`bd-ghost ${p.toPlay === 1 ? 'bd-ghost-b' : 'bd-ghost-w'}`} cx={hover! % size} cy={Math.floor(hover! / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay!, hover!)} />}
       {pending !== null && p.toPlay && (
         <g key={`p${pending}`} className="bd-pending">

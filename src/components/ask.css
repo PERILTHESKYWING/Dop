@@ -1,0 +1,34 @@
+/* Ask about this position (components/Ask.tsx) */
+.ask-turn {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.ask-q {
+  justify-self: end;
+  max-width: 90%;
+  padding: 6px 10px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--you-soft);
+  color: var(--ink);
+}
+.ask-a {
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.ask-quick .chip {
+  cursor: pointer;
+  text-align: left;
+}
+.ask-form {
+  gap: 6px;
+}
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+}
+.bad-text {
+  color: var(--bad-ink);
+}

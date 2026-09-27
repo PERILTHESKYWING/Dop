@@ -1,0 +1,62 @@
+/* Move insights (components/Insight.tsx) */
+.insight {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  min-width: 0;
+}
+.insight-row {
+  display: grid;
+  gap: 3px;
+}
+.insight .rates {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.insight .rates .own {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.insight .comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 9em;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--line);
+}
+
+/* Key moments list (pages/Review.tsx) */
+.moments {
+  display: grid;
+  gap: 4px;
+}
+.moment {
+  display: grid;
+  grid-template-columns: 2.6em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.moment:hover {
+  border-color: var(--line);
+}
+.moment.cur {
+  background: var(--line);
+}
+.good-text {
+  color: var(--good-ink);
+}
+.bad-text {
+  color: var(--bad-ink);
+}

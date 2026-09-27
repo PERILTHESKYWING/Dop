@@ -268,3 +268,26 @@ export function toSgf(g: Omit<ParsedGame, 'warnings'>): string {
   for (const m of g.moves) s += `;${m.color === 1 ? 'B' : 'W'}[${locToSgf(m.loc, g.size)}]`;
   return s + ')';
 }
+
+/**
+ * Comments (C[]) on the main line of the first game in `text`, keyed by the number of moves
+ * played when the comment was written: 0 is the game's own comment, k is a comment on move k.
+ */
+export function mainLineComments(text: string): Map<number, string> {
+  const out = new Map<number, string>();
+  let trees: SgfNode[];
+  try {
+    trees = parseSgfCollection(text);
+  } catch {
+    return out;
+  }
+  let node: SgfNode | undefined = trees[0];
+  let moves = 0;
+  while (node) {
+    if (node.props.B || node.props.W) moves++;
+    const c = node.props.C?.join('\n').trim();
+    if (c) out.set(moves, out.has(moves) ? `${out.get(moves)}\n${c}` : c);
+    node = node.children[0];
+  }
+  return out;
+}
