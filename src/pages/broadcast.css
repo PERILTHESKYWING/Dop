@@ -262,3 +262,17 @@
     font-size: 12px;
   }
 }
+
+.bc-floor-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.bc-floor-label select {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.7);
+  color: inherit;
+}

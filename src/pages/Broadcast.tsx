@@ -8,7 +8,7 @@ import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { PASS } from '../lib/go/types';
-import { loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
+import { BROADCAST_FLOORS, loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
 import {
   allTables,
   makeSchedule,
@@ -47,20 +47,39 @@ function useSpeed() {
   return [speed, set] as const;
 }
 
-/** The broadcast pool and a clock that ticks with it, at the viewer's chosen speed. */
-function useBroadcast(speed: number) {
+/** The floor (minimum losing-side winrate) this viewer wants; 40 always exists, others are
+ * generated on request (see the "Broadcast games" workflow) and fall back to 40 until then. */
+function useFloor() {
+  const [floor, setFloor] = useState(() => {
+    const n = Number(localStorage.getItem('dop.broadcastFloor'));
+    return (BROADCAST_FLOORS as readonly number[]).includes(n) ? n : 40;
+  });
+  const set = (n: number) => {
+    setFloor(n);
+    try {
+      localStorage.setItem('dop.broadcastFloor', String(n));
+    } catch {
+      /* ignore */
+    }
+  };
+  return [floor, set] as const;
+}
+
+/** The broadcast pool and a clock that ticks with it, at the viewer's chosen speed and floor. */
+function useBroadcast(speed: number, floor: number) {
   const [pool, setPool] = useState<BroadcastFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let alive = true;
-    loadBroadcast()
+    setPool(null);
+    loadBroadcast(floor)
       .then((p) => alive && setPool(p))
       .catch((e) => alive && setError((e as Error).message));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [floor]);
   useEffect(() => {
     if (speed === 1) {
       // Track the real clock exactly, so every viewer at 1x sees the same move at once.
@@ -82,7 +101,8 @@ function useBroadcast(speed: number) {
 
 export function Broadcast({ table }: { table?: string }) {
   const [speed, setSpeed] = useSpeed();
-  const { pool, sched, error, now } = useBroadcast(speed);
+  const [floor, setFloor] = useFloor();
+  const { pool, sched, error, now } = useBroadcast(speed, floor);
   const t = table !== undefined && table !== '' ? Number(table) : NaN;
   if (error)
     return (
@@ -99,7 +119,7 @@ export function Broadcast({ table }: { table?: string }) {
       </div>
     );
   if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} speed={speed} onSpeed={setSpeed} />;
-  return <Lobby sched={sched} now={now} engine={pool.engine} speed={speed} onSpeed={setSpeed} />;
+  return <Lobby sched={sched} now={now} engine={pool.engine} speed={speed} onSpeed={setSpeed} floor={floor} onFloor={setFloor} />;
 }
 
 /** 0.5x/1x/2x/4x playback for this viewer; 1x is the shared, real-time broadcast. */
@@ -115,6 +135,23 @@ function SpeedControl({ speed, onSpeed }: { speed: number; onSpeed: (n: number) 
   );
 }
 
+/** The minimum winrate the losing side is held to; picking a pool that hasn't been
+ * generated yet falls back to the 40% one until the "Broadcast games" workflow makes it. */
+function FloorControl({ floor, onFloor }: { floor: number; onFloor: (n: number) => void }) {
+  return (
+    <label className="small bc-floor-label">
+      Losing side keeps at least{' '}
+      <select value={floor} onChange={(e) => onFloor(Number(e.target.value))} aria-label="Minimum losing-side winrate">
+        {BROADCAST_FLOORS.map((f) => (
+          <option key={f} value={f}>
+            {f}%
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 // ------------------------------------------------------------------ the lobby: every table at once
 
 const FILTERS: { id: Phase | 'all'; label: string }[] = [
@@ -124,7 +161,23 @@ const FILTERS: { id: Phase | 'all'; label: string }[] = [
   { id: 'endgame', label: 'Endgame' },
 ];
 
-function Lobby({ sched, now, engine, speed, onSpeed }: { sched: Schedule; now: number; engine: string; speed: number; onSpeed: (n: number) => void }) {
+function Lobby({
+  sched,
+  now,
+  engine,
+  speed,
+  onSpeed,
+  floor,
+  onFloor,
+}: {
+  sched: Schedule;
+  now: number;
+  engine: string;
+  speed: number;
+  onSpeed: (n: number) => void;
+  floor: number;
+  onFloor: (n: number) => void;
+}) {
   const [filter, setFilter] = useState<Phase | 'all'>('all');
   const tables = allTables(sched, now);
   const shown = tables.filter((g) => filter === 'all' || g.phase === filter || (filter === 'endgame' && g.phase === 'finished'));
@@ -141,7 +194,10 @@ function Lobby({ sched, now, engine, speed, onSpeed }: { sched: Schedule; now: n
             with an overwhelming position. For self-improvement, not betting; a leaderboard may come later.
           </p>
         </div>
-        <SpeedControl speed={speed} onSpeed={onSpeed} />
+        <div className="stack tight" style={{ alignItems: 'flex-end' }}>
+          <SpeedControl speed={speed} onSpeed={onSpeed} />
+          <FloorControl floor={floor} onFloor={onFloor} />
+        </div>
       </div>
       <div className="panel bc-filter-wrap">
       <div className="segmented bc-filter" role="tablist" aria-label="Game phase">

@@ -4,15 +4,20 @@
  *
  * Each move is chosen among the candidates the search found that lose almost nothing
  * against the best one (by score and by winrate), weighted by visits, so the games vary
- * from one to the next but contain no mistakes by the engine's own judgement. The side
- * that is behind plays its best move, which keeps the games close. A move that turns out
- * to lose more than a couple of points once the next position is read is taken back and
- * replaced by the best move of a much longer search.
+ * from one to the next but contain no mistakes by the engine's own judgement. Once a side
+ * falls below `--floor` (its winrate, default 0.4) it gives up variety and plays its single
+ * best move, which holds it near that floor rather than sliding further behind, so neither
+ * side ends up with an overwhelming position. A move that turns out to lose more than a
+ * couple of points once the next position is read is taken back and replaced by the best
+ * move of a much longer search.
  *
- *   npx tsx scripts/generate-broadcast.ts --model public/models/<net>.bin.gz --games 36 --seed 1 --part 0 --parts 4
- *   npx tsx scripts/generate-broadcast.ts --merge --seed 1
+ *   npx tsx scripts/generate-broadcast.ts --model public/models/<net>.bin.gz --games 36 --seed 1 --part 0 --parts 4 --floor 0.4
+ *   npx tsx scripts/generate-broadcast.ts --merge --seed 1 --floor 0.4
  *
  * `--seed` changes the whole set (.github/workflows/broadcast-games.yml passes its run number).
+ * `--floor 0.4` (the default) writes public/broadcast/games.json, same as before; any other
+ * floor writes its own games-<pct>.json (e.g. --floor 0.3 → games-30.json), which the site
+ * offers once it exists (see lib/broadcast/data.ts loadBroadcast, pages/Broadcast.tsx).
  */
 import { writeFileSync, readFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -48,7 +53,7 @@ function rng(seed: number) {
   };
 }
 
-async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx: number, seed: number, visits: number): Promise<BroadcastGame> {
+async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx: number, seed: number, visits: number, floor: number): Promise<BroadcastGame> {
   const r = rng(seed * 7919 + idx * 104729 + 17);
   let board = new Board(SIZE);
   const moves: Move[] = [];
@@ -112,7 +117,9 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
     // best. Small differences still add up, so the games stay close and hard to call.
     const n = moves.length;
     const opening = n < 12;
-    const behind = !opening && mover < 0.4;
+    // Below `floor`, the side behind gives up variety and plays its single best move, which
+    // holds the losing side's winrate near that floor instead of it sliding further behind.
+    const behind = !opening && mover < floor;
     const choices = behind || verified ? list.slice(0, 1) : safeChoices(list, opening ? 1.0 : n < 60 ? 0.6 : 0.4, opening ? 0.05 : 0.03);
     const temp = opening ? 1.4 : n < 60 ? 1.0 : 0.6;
     // Once passing itself is among the safe choices, nothing left on the board is worth
@@ -158,17 +165,27 @@ async function playGame(engine: Awaited<ReturnType<typeof loadNodeEngine>>, idx:
   return { id: `s${seed}-${idx}`, size: SIZE, komi: KOMI, rules: 'chinese', moves: encodeMoves(moves.map((m) => m.loc), SIZE), wr, lead, cands, result, end };
 }
 
+/** The default floor (40%) keeps writing plain games.json, so the existing pool and every
+ * page that fetches it without asking need no change; any other floor gets its own file,
+ * named by the whole percent (e.g. games-20.json), which the site offers as an option once
+ * it exists (see lib/broadcast/data.ts loadBroadcast). */
+function outName(floor: number) {
+  const pct = Math.round(floor * 100);
+  return pct === 40 ? 'games.json' : `games-${pct}.json`;
+}
+
 async function runPart(modelPath: string, part: number, parts: number) {
   const engine = await loadNodeEngine(modelPath, arg('model-id', 'g170e-b10c128')!, SIZE, 1, WINRATE_FROM_SCORE);
   const total = Number(arg('games', '40'));
   const seed = Number(arg('seed', '1'));
   const visits = Number(arg('visits', '32'));
+  const floor = Number(arg('floor', '0.4'));
   mkdirSync(TMP, { recursive: true });
   for (let i = part; i < total; i += parts) {
     const file = path.join(TMP, `g-${seed}-${i}.json`);
     if (existsSync(file)) continue; // resumable
     const t0 = Date.now();
-    const g = await playGame(engine, i, seed, visits);
+    const g = await playGame(engine, i, seed, visits, floor);
     writeFileSync(file, JSON.stringify(g));
     console.log(`part ${part}: game ${i + 1}/${total} ${g.wr.length - 1} moves ${g.result} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   }
@@ -176,6 +193,7 @@ async function runPart(modelPath: string, part: number, parts: number) {
 
 function merge() {
   const seed = arg('seed', '1');
+  const floor = Number(arg('floor', '0.4'));
   const files = readdirSync(TMP).filter((f) => f.startsWith(`g-${seed}-`));
   const games: BroadcastGame[] = files.map((f) => JSON.parse(readFileSync(path.join(TMP, f), 'utf8')));
   games.sort((a, b) => Number(a.id.split('-')[1]) - Number(b.id.split('-')[1]));
@@ -186,8 +204,9 @@ function merge() {
     games,
   };
   mkdirSync(OUT, { recursive: true });
-  writeFileSync(path.join(OUT, 'games.json'), JSON.stringify(out));
-  console.log(`merged ${games.length} games into public/broadcast/games.json`);
+  const name = outName(floor);
+  writeFileSync(path.join(OUT, name), JSON.stringify(out));
+  console.log(`merged ${games.length} games into public/broadcast/${name}`);
 }
 
 if (args.includes('--merge')) merge();
