@@ -1,0 +1,14 @@
+{
+ "version": 1,
+ "entries": [
+  {
+   "at": "2026-09-27T03:24:15.226Z",
+   "run": 0,
+   "rankGames": 1572,
+   "rankError1": 3.993,
+   "rankError10": 1.694,
+   "positions": 6432,
+   "calibrationGap": 0.3
+  }
+ ]
+}

@@ -103,9 +103,9 @@ KataGo's analysis (candidates, values, lines, groups and their status). The mode
 three lines first, which the browser searches. Any coordinate, winrate or point figure in the answer that is not
 in KataGo's facts sends the answer back once for correction and is otherwise flagged under it (`shared/ask.ts`).
 
-### Best, only and brilliant moves; how hard a move is to find
-Review grades the move played and KataGo's move. **Best** is KataGo's choice (or as good). **Only move** means
-every alternative KataGo read is clearly worse (2+ points or 8%+ winrate). **Brilliant** is an only move that
+### Best, great and brilliant moves; how hard a move is to find
+Review grades the move played and KataGo's move. **Best** is KataGo's choice (or as good). **Great** is an only
+move: every alternative KataGo read is clearly worse (2+ points or 8%+ winrate). **Brilliant** is an only move that
 strong amateurs (5d) find less than 20% of the time. How often players of each level find a move comes from
 `public/coach/difficulty.json`, fitted on sampled positions from rank-labelled Fox games and professional games:
 among the network's eight most natural-looking moves plus "something else", a player of each rank chooses by how
@@ -135,7 +135,8 @@ KataGo read before and after it.
 ### The coach keeps learning (daily, in the cloud)
 `.github/workflows/coach-training.yml` runs every night on GitHub's machines, whether or not anyone has the site
 open. It measures a fresh sample of rank-labelled Fox games and professional games with KataGo, adds them to
-everything measured before (kept in the `coach-data` release, not in git), refits the level estimate and the
+everything measured before (kept in the `coach-data` release, not in git; the first run starts from the
+measurements in `data/coach/seed/`, statistics only), refits the level estimate and the
 move-difficulty model, and commits them with a progress log (`public/coach/progress.json`, shown on the
 dashboard). Vercel redeploys the site with the improved coach. A model is never replaced by one fitted on less
 data. It can also be started by hand from the Actions tab ("Coach training" → "Run workflow").
