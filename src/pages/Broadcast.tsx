@@ -8,7 +8,7 @@ import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { PASS } from '../lib/go/types';
-import { BROADCAST_FLOORS, loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
+import { BROADCAST_FLOORS, DEFAULT_FLOOR, loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
 import {
   allTables,
   makeSchedule,
@@ -26,6 +26,7 @@ import {
 } from '../lib/broadcast/schedule';
 import { go, href } from '../router';
 import './broadcast.css';
+import { BackLink } from '../components/ControlSheet';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
@@ -47,12 +48,12 @@ function useSpeed() {
   return [speed, set] as const;
 }
 
-/** The floor (minimum losing-side winrate) this viewer wants; 40 always exists, others are
- * generated on request (see the "Broadcast games" workflow) and fall back to 40 until then. */
+/** The floor (minimum losing-side winrate, percent) this viewer wants. */
 function useFloor() {
   const [floor, setFloor] = useState(() => {
-    const n = Number(localStorage.getItem('dop.broadcastFloor'));
-    return (BROADCAST_FLOORS as readonly number[]).includes(n) ? n : 40;
+    const v = localStorage.getItem('dop.broadcastFloor');
+    const n = v === null ? NaN : Number(v);
+    return (BROADCAST_FLOORS as readonly number[]).includes(n) ? n : DEFAULT_FLOOR;
   });
   const set = (n: number) => {
     setFloor(n);
@@ -72,14 +73,13 @@ function useBroadcast(speed: number, floor: number) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let alive = true;
-    setPool(null);
-    loadBroadcast(floor)
+    loadBroadcast()
       .then((p) => alive && setPool(p))
       .catch((e) => alive && setError((e as Error).message));
     return () => {
       alive = false;
     };
-  }, [floor]);
+  }, []);
   useEffect(() => {
     if (speed === 1) {
       // Track the real clock exactly, so every viewer at 1x sees the same move at once.
@@ -95,7 +95,8 @@ function useBroadcast(speed: number, floor: number) {
     }, 100);
     return () => clearInterval(t);
   }, [speed]);
-  const sched = useMemo(() => (pool && pool.games.length ? makeSchedule(pool) : null), [pool]);
+  // The floor is applied here, in the schedule: every viewer at the same floor sees the same tables.
+  const sched = useMemo(() => (pool ? makeSchedule(pool, floor) : null), [pool, floor]);
   return { pool, sched, error, now };
 }
 
@@ -118,7 +119,19 @@ export function Broadcast({ table }: { table?: string }) {
         </div>
       </div>
     );
-  if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} speed={speed} onSpeed={setSpeed} />;
+  if (!sched.order.length)
+    return (
+      <div className="page bc-page">
+        <div className="page-head">
+          <div>
+            <h1>Live AI games</h1>
+          </div>
+          <FloorControl floor={floor} onFloor={setFloor} />
+        </div>
+        <div className="empty">No game keeps the losing side above {floor}% past the opening. Pick a lower minimum.</div>
+      </div>
+    );
+  if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} speed={speed} onSpeed={setSpeed} floor={floor} onFloor={setFloor} />;
   return <Lobby sched={sched} now={now} engine={pool.engine} speed={speed} onSpeed={setSpeed} floor={floor} onFloor={setFloor} />;
 }
 
@@ -135,20 +148,34 @@ function SpeedControl({ speed, onSpeed }: { speed: number; onSpeed: (n: number) 
   );
 }
 
-/** The minimum winrate the losing side is held to; picking a pool that hasn't been
- * generated yet falls back to the 40% one until the "Broadcast games" workflow makes it. */
+/** The minimum winrate the losing side is held to: a game leaves its table 10 seconds after
+ * the losing side drops under it, and the next game takes its place. */
 function FloorControl({ floor, onFloor }: { floor: number; onFloor: (n: number) => void }) {
   return (
-    <label className="small bc-floor-label">
+    <label className="small bc-floor-label" title="A game leaves its table 10 seconds after the losing side drops under this">
       Losing side keeps at least{' '}
       <select value={floor} onChange={(e) => onFloor(Number(e.target.value))} aria-label="Minimum losing-side winrate">
         {BROADCAST_FLOORS.map((f) => (
           <option key={f} value={f}>
-            {f}%
+            {f ? `${f}%` : 'no minimum'}
           </option>
         ))}
       </select>
     </label>
+  );
+}
+
+/** "White dropped under 30%, leaving in 7s" once the losing side is under the floor. */
+function Leaving({ g, floor, big }: { g: LiveGame; floor: number; big?: boolean }) {
+  if (!g.leaving) return null;
+  const who = g.leaving.side === 1 ? g.black : g.white;
+  return (
+    <div className={`bc-result bc-leaving ${big ? 'big' : ''}`}>
+      <strong>
+        {who} fell under {floor}%
+      </strong>
+      <span>Next game in {Math.max(0, Math.ceil(g.leaving.in / 1000))}s</span>
+    </div>
   );
 }
 
@@ -216,7 +243,7 @@ function Lobby({
       </div>
       <div className="bc-grid">
         {shown.map((g) => (
-          <TableCard key={g.table} g={g} />
+          <TableCard key={g.table} g={g} floor={sched.floor} />
         ))}
         {!shown.length && <div className="empty">No table is in that phase right now.</div>}
       </div>
@@ -237,24 +264,25 @@ function useStones(g: LiveGame) {
   }, [moves, n, g.game.size]);
 }
 
-const TableCard = memo(function TableCard({ g }: { g: LiveGame }) {
+const TableCard = memo(function TableCard({ g, floor }: { g: LiveGame; floor: number }) {
   const { stones, last } = useStones(g);
   const v = valueAt(g.game, g.shown);
   const done = g.shown >= g.total;
   return (
-    <a className={`bc-card panel click ${done ? 'done' : ''}`} href={href(`live/${g.table}`)} aria-label={`Table ${g.table + 1}: ${g.black} against ${g.white}`}>
+    <a className={`bc-card panel click ${done ? 'done' : ''} ${g.leaving ? 'leaving' : ''}`} href={href(`live/${g.table}`)} aria-label={`Table ${g.table + 1}: ${g.black} against ${g.white}`}>
       <div className="bc-card-head">
         <span className="bc-table">Table {g.table + 1}</span>
         <span className={`chip bc-phase ${g.phase}`}>{PHASE_LABEL[g.phase]}</span>
       </div>
       <div className="bc-card-board">
         <Board size={g.game.size} stones={stones} lastMove={last === PASS ? null : last} detail="lite" ariaLabel={`Table ${g.table + 1}`} />
-        {done && (
+        {done && !g.leaving && (
           <div className="bc-result">
             <strong>{resultText(g)}</strong>
             <span>Next game in {Math.ceil(g.nextIn / 1000)}s</span>
           </div>
         )}
+        <Leaving g={g} floor={floor} />
       </div>
       <div className="bc-mini-bar" aria-hidden>
         <i style={{ width: `${v.bWin * 100}%` }} />
@@ -309,7 +337,23 @@ function MoveTimer({ g }: { g: LiveGame }) {
 
 // ------------------------------------------------------------------ one table
 
-function Watch({ sched, table, now, speed, onSpeed }: { sched: Schedule; table: number; now: number; speed: number; onSpeed: (n: number) => void }) {
+function Watch({
+  sched,
+  table,
+  now,
+  speed,
+  onSpeed,
+  floor,
+  onFloor,
+}: {
+  sched: Schedule;
+  table: number;
+  now: number;
+  speed: number;
+  onSpeed: (n: number) => void;
+  floor: number;
+  onFloor: (n: number) => void;
+}) {
   const g = tableAt(sched, table, now);
   const { moves, stones, last, captures } = useStones(g);
   const [showCands, setShowCands] = useState(true);
@@ -349,7 +393,8 @@ function Watch({ sched, table, now, speed, onSpeed }: { sched: Schedule; table: 
             coords
             ariaLabel={`Table ${table + 1}`}
           />
-          {done && (
+          <Leaving g={g} floor={floor} big />
+          {done && !g.leaving && (
             <div className="bc-result big">
               <strong>{resultText(g)}</strong>
               <span>{g.game.result}</span>
@@ -361,9 +406,7 @@ function Watch({ sched, table, now, speed, onSpeed }: { sched: Schedule; table: 
       <div className="side">
         <div className="panel stack">
           <div className="spread bc-watch-head">
-            <a className="btn small ghost" href={href('live')}>
-              ← All tables
-            </a>
+            <BackLink href={href('live')} label="All tables" />
             <span className="bc-watch-title">
               <span className="bc-onair" />
               <strong>Table {table + 1}</strong>
@@ -378,10 +421,8 @@ function Watch({ sched, table, now, speed, onSpeed }: { sched: Schedule; table: 
               </button>
             </div>
           </div>
-          <div className="spread">
-            <a className="small" href={href('live')}>
-              Watch a different table
-            </a>
+          <div className="spread wrap">
+            <FloorControl floor={floor} onFloor={onFloor} />
             <SpeedControl speed={speed} onSpeed={onSpeed} />
           </div>
           <Players g={g} />

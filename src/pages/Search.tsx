@@ -10,6 +10,7 @@ import { replay } from '../lib/go/board';
 import { PASS } from '../lib/go/types';
 import type { MoveRecord } from '../lib/types';
 import { go, href } from '../router';
+import { BackLink } from '../components/ControlSheet';
 
 type Scope = 'mistakes' | 'mine' | 'all';
 
@@ -85,6 +86,7 @@ export function Search({ query }: { query: URLSearchParams }) {
   const qw = weaknessOf(q);
   return (
     <div className="page">
+      <BackLink href={href(`review/${q.gameId}?move=${q.index + 1}`)} label="Back to the game" />
       <div className="page-head">
         <div>
           <div className="eyebrow">Search</div>

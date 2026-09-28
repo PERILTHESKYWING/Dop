@@ -17,6 +17,7 @@ import { PASS, type Loc } from '../lib/go/types';
 import type { Attempt, TrainingItem, TrainingKind, Weakness } from '../lib/types';
 import { uid } from '../lib/util/hash';
 import { go, href } from '../router';
+import { BackLink } from '../components/ControlSheet';
 
 export const KIND_TEXT: Record<TrainingKind, { label: string; explain: string }> = {
   original: { label: 'From your game', explain: 'You played this position in a real game and made the error here.' },
@@ -293,7 +294,9 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
         )}
         <div className="panel stack">
           <div className="spread">
-            <h3>Forge</h3>
+            <span className="row">
+              <BackLink href={href('forge')} label="Forge" />
+            </span>
             <select value={weakness.id} onChange={(e) => go(`forge/${e.target.value}`)} style={{ maxWidth: 220 }}>
               {weaknesses.map((w) => (
                 <option key={w.id} value={w.id}>

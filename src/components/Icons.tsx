@@ -122,6 +122,36 @@ const PATHS: Record<string, JSX.Element> = {
   ),
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   play: <path d="M8 5.5v13l10-6.5z" />,
+  back: <path d="M19 12H5.5M11 5.5 4.5 12l6.5 6.5" />,
+  pen: (
+    <>
+      <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </>
+  ),
+  gear: (
+    <>
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" />
+      <circle cx="12" cy="12" r="6.6" />
+    </>
+  ),
+  /** A panel with its sidebar: open or close the navigation. */
+  sidebar: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9.5 4v16" />
+      <path d="m6 10.5-1.3 1.5L6 13.5" />
+    </>
+  ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  save: (
+    <>
+      <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+      <path d="M8 4v5h7V4M8 20v-6h8v6" />
+    </>
+  ),
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
   /** A stone and its mirrored copy (the Doppelgänger). */
   twin: (
     <>

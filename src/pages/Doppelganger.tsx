@@ -31,6 +31,7 @@ import { chooseStyled, FULL_STRENGTH, lossBudget } from '../lib/profile/strength
 import { rankLabel } from '../lib/level/ranks';
 import { loadLevel, useLevel } from '../state/level';
 import { go, href } from '../router';
+import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, SheetSection, ToggleTile } from '../components/ControlSheet';
 import './doppel.css';
 
 type View = 'overview' | 'differences' | 'play';
@@ -60,8 +61,16 @@ function ago(t: number) {
 
 // ------------------------------------------------------------------ page
 
+/** Opens and closes the page's settings sheet (the gear at the top right). */
+interface SheetCtl {
+  open: boolean;
+  set: (v: boolean) => void;
+}
+
 export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchParams }) {
   const copy = useCopy();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheet: SheetCtl = { open: sheetOpen, set: setSheetOpen };
   const opponents = useStore((s) => s.opponents);
   const view: View = tab === 'differences' ? 'differences' : tab === 'play' ? 'play' : 'overview';
   const ready = copy.state === 'ready' && copy.model;
@@ -70,24 +79,25 @@ export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchPa
   if (opp?.copy)
     return (
       <div className="page dop-page dop-wide">
-        <div className="page-head">
-          <div>
-            <div className="eyebrow">Doppelgänger</div>
-            <h1>{opp.name}'s copy</h1>
-            <p className="sub">
-              Learned from {opp.copy.moves ?? opp.copy.trainedOn} of {opp.name}'s moves · predicts {fmtPct(opp.copy.metrics.top1)} of held-out moves (KataGo alone {fmtPct(opp.copy.metrics.baselineTop1)})
-            </p>
+        <div className="page-head dop-head">
+          <div className="dop-title">
+            <BackLink href={href(`opponents/${opp.id}`)} label={opp.name} />
+            <div>
+              <div className="eyebrow">Doppelgänger</div>
+              <h1>{opp.name}'s copy</h1>
+              <p className="sub">
+                Learned from {opp.copy.moves ?? opp.copy.trainedOn} of {opp.name}'s moves · predicts {fmtPct(opp.copy.metrics.top1)} of held-out moves (KataGo alone {fmtPct(opp.copy.metrics.baselineTop1)})
+              </p>
+            </div>
           </div>
-          <a className="btn small" href={href(`opponents/${opp.id}`)}>
-            Back to {opp.name}
-          </a>
+          <GearButton onClick={() => sheet.set(true)} label="Game settings" />
         </div>
-        <PlayCopy key={opp.id} copy={{ ...copy, owner: 'user', who: `${opp.name}'s copy`, whose: `${opp.name}'s`, demoName: opp.name }} model={opp.copy} opponent={opp} />
+        <PlayCopy key={opp.id} copy={{ ...copy, owner: 'user', who: `${opp.name}'s copy`, whose: `${opp.name}'s`, demoName: opp.name }} model={opp.copy} opponent={opp} sheet={sheet} />
       </div>
     );
   return (
     <div className={`page dop-page ${view !== 'overview' && ready ? 'dop-wide' : ''}`}>
-      <Head copy={copy} view={view} />
+      <Head copy={copy} view={view} onSettings={ready ? () => sheet.set(true) : undefined} />
       {!ready ? (
         <NotReady copy={copy} />
       ) : (
@@ -95,14 +105,15 @@ export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchPa
           {copy.owner === 'demo' && view === 'overview' && <DemoBanner copy={copy} />}
           {view === 'overview' && <Overview copy={copy} model={copy.model!} />}
           {view === 'differences' && <Differences copy={copy} model={copy.model!} at={query?.get('at') ?? undefined} />}
-          {view === 'play' && <PlayCopy copy={copy} model={copy.model!} />}
+          {view === 'play' && <PlayCopy copy={copy} model={copy.model!} sheet={sheet} />}
+          {view !== 'play' && <DopSheet sheet={sheet} copy={copy} />}
         </>
       )}
     </div>
   );
 }
 
-function Head({ copy, view }: { copy: CopyInfo; view: View }) {
+function Head({ copy, view, onSettings }: { copy: CopyInfo; view: View; onSettings?: () => void }) {
   const busy = useStore((s) => s.busy.profile);
   const m = copy.model;
   const demo = copy.owner === 'demo' && copy.state === 'ready';
@@ -122,16 +133,66 @@ function Head({ copy, view }: { copy: CopyInfo; view: View }) {
         </div>
       </div>
       {m && (
-        <div className="segmented dop-tabs" role="tablist" aria-label="Doppelgänger views">
-          {TABS.map((t) => (
-            <button key={t.view} role="tab" aria-selected={view === t.view} className={view === t.view ? 'on' : ''} onClick={() => view !== t.view && go(t.path)}>
-              <strong>{t.label}</strong>
-              <span>{t.hint}</span>
-            </button>
-          ))}
+        <div className="dop-head-tools">
+          <div className="segmented dop-tabs" role="tablist" aria-label="Doppelgänger views">
+            {TABS.map((t) => (
+              <button key={t.view} role="tab" aria-selected={view === t.view} className={view === t.view ? 'on' : ''} onClick={() => view !== t.view && go(t.path)}>
+                <strong>{t.label}</strong>
+                <span>{t.hint}</span>
+              </button>
+            ))}
+          </div>
+          {onSettings && <GearButton onClick={onSettings} label="Doppelgänger settings" />}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The Control Center: everything you can set or do on the Doppelgänger pages, grouped.
+ * `children` puts the current view's own settings (a game's setup, say) first.
+ */
+function DopSheet({ sheet, copy, children }: { sheet: SheetCtl; copy: CopyInfo; children?: ReactNode }) {
+  const busy = useStore((s) => s.busy.profile);
+  const opponents = useStore((s) => s.opponents).filter((o) => o.copy);
+  const close = useCallback(() => sheet.set(false), [sheet]);
+  const nav = (path: string) => {
+    sheet.set(false);
+    go(path);
+  };
+  return (
+    <ControlSheet open={sheet.open} onClose={close} title="Doppelgänger">
+      {children}
+      <SheetSection title="Go to">
+        <ActionTile onClick={() => nav('doppel')} icon={<Icon name="twin" />} label="The copy" sub="Accuracy and habits" />
+        <ActionTile onClick={() => nav('doppel/differences')} icon={<Icon name="target" />} label="Where it differs" sub="And what it costs" />
+        <ActionTile onClick={() => nav('doppel/play')} icon={<Icon name="play" />} label="Play it" sub="A game against the copy" />
+        <ActionTile onClick={() => nav('dna')} icon={<Icon name="dna" />} label="Player DNA" sub="Your style profile" />
+      </SheetSection>
+      <SheetSection title="The copy">
+        <ActionTile onClick={() => void rebuildProfile()} disabled={busy} icon="↻" label={busy ? 'Retraining…' : 'Retrain now'} sub="From every analysed game" />
+        <ActionTile onClick={() => nav('library')} icon={<Icon name="upload" />} label="Import games" sub={copy.owner === 'demo' ? 'Make it yours' : 'Teach it more'} />
+      </SheetSection>
+      <SheetSection title="Opponents' copies">
+        {opponents.length ? (
+          <FieldTile label="Play a copy of an opponent">
+            <select defaultValue="" onChange={(e) => e.target.value && nav(`doppel/play?opp=${e.target.value}`)} aria-label="Opponent">
+              <option value="" disabled>
+                Choose an opponent…
+              </option>
+              {opponents.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </FieldTile>
+        ) : (
+          <ActionTile onClick={() => nav('opponents')} icon={<Icon name="swords" />} label="Opponents" sub="Train a copy of anyone" />
+        )}
+      </SheetSection>
+    </ControlSheet>
   );
 }
 
@@ -939,7 +1000,7 @@ function chooseReply(read: PositionRead, sample: boolean, strength: number | nul
   return read.policy.find((e) => e.loc !== PASS)?.loc ?? PASS;
 }
 
-function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelModel; opponent?: OpponentProfile }) {
+function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: DoppelModel; opponent?: OpponentProfile; sheet: SheetCtl }) {
   const games = useStore((s) => s.games);
   useLevel((s) => s.calibration);
   useEffect(() => void loadLevel(), []);
@@ -970,6 +1031,10 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   const setHints = (v: boolean) => {
     play.hints = v;
     setHintsState(v);
+  };
+  const setImmersiveBoth = (v: boolean) => {
+    setImmersive(v);
+    writeImmersive(v);
   };
 
   // Someone else's copy (the demo player's or an imported player's) is named rather than "your copy".
@@ -1066,54 +1131,82 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
                 ))}
               </div>
             </div>
-            <div className="stack tight">
-              <span className="field-label">Start from</span>
-              <div className="segmented dop-seg">
-                <button className={setup.from === 'empty' ? 'on' : ''} onClick={() => setSetup({ ...setup, from: 'empty' })}>
-                  <strong>An empty board</strong>
-                  <span>Black moves first</span>
-                </button>
-                <button className={setup.from === 'game' ? 'on' : ''} disabled={!sources.length} onClick={() => setSetup({ ...setup, from: 'game', gameId: source?.id, move: setup.move || Math.min(60, source?.moves.length ?? 0) })}>
-                  <strong>{demoMode ? 'One of the games' : 'One of your games'}</strong>
-                  <span>any position</span>
-                </button>
-              </div>
+            <div className="dop-setup-summary">
+              <button className="dop-sum" onClick={() => sheet.set(true)}>
+                <span className="dop-sum-k">Start from</span>
+                <span className="dop-sum-v">{setup.from === 'game' && source ? `${gameTitle(source)}, move ${Math.min(setup.move, source.moves.length)}` : `Empty ${setup.size}×${setup.size} · komi ${setup.komi ?? 7.5}`}</span>
+              </button>
+              <button className="dop-sum" onClick={() => sheet.set(true)}>
+                <span className="dop-sum-k">Strength</span>
+                <span className="dop-sum-v">{setup.strength === null ? `As ${demoMode ? 'the player plays' : 'you play'}` : setup.strength === FULL_STRENGTH ? 'Full strength' : `About ${rankLabel(setup.strength)}`}</span>
+              </button>
+              <button className="dop-sum" onClick={() => sheet.set(true)}>
+                <span className="dop-sum-k">Moves</span>
+                <span className="dop-sum-v">{setup.sample ? 'Varied, like a person' : 'Always its likeliest'}</span>
+              </button>
             </div>
-            {setup.from === 'empty' ? (
-              <div className="stack tight">
-                <span className="field-label">Board</span>
-                <select aria-label="Board size" value={setup.size} onChange={(e) => setSetup({ ...setup, size: Number(e.target.value) })}>
-                  <option value={19}>19×19</option>
-                  <option value={13}>13×13</option>
-                  <option value={9}>9×9</option>
-                </select>
-                <KomiPicker komi={setup.komi ?? 7.5} onKomi={(komi) => setSetup({ ...setup, komi })} />
+            {unavailable ? (
+              <div className="callout bad small">
+                KataGo could not start on this device, and the copy chooses among KataGo's candidate moves, so it cannot play here. <a href={href('settings')}>Engine &amp; Settings</a> has the details and fixes.
               </div>
             ) : (
+              <div className="row wrap">
+                <button className="btn primary dop-start" onClick={start}>
+                  <Icon name="play" /> Start the game
+                </button>
+                <button className="btn" onClick={() => sheet.set(true)}>
+                  <Icon name="gear" /> Game settings
+                </button>
+              </div>
+            )}
+            {!unavailable && engine.status !== 'ready' && <p className="tiny muted">KataGo loads when the game starts (it supplies the candidate moves the copy chooses from).</p>}
+          </div>
+        </div>
+        <DopSheet sheet={sheet} copy={copy}>
+          <SheetSection title="Game setup">
+            <ToggleTile on={setup.from === 'empty'} onChange={() => setSetup({ ...setup, from: 'empty' })} icon="◻" label="Empty board" sub="Black moves first" />
+            <ToggleTile
+              on={setup.from === 'game'}
+              onChange={() => sources.length && setSetup({ ...setup, from: 'game', gameId: source?.id, move: setup.move || Math.min(60, source?.moves.length ?? 0) })}
+              icon="◧"
+              label={demoMode ? 'One of the games' : 'One of your games'}
+              sub={sources.length ? 'Any position' : 'No games yet'}
+            />
+            {setup.from === 'empty' ? (
+              <>
+                <FieldTile label="Board">
+                  <select aria-label="Board size" value={setup.size} onChange={(e) => setSetup({ ...setup, size: Number(e.target.value) })}>
+                    <option value={19}>19×19</option>
+                    <option value={13}>13×13</option>
+                    <option value={9}>9×9</option>
+                  </select>
+                </FieldTile>
+                <FieldTile label="Scoring">
+                  <KomiPicker komi={setup.komi ?? 7.5} onKomi={(komi) => setSetup({ ...setup, komi })} />
+                </FieldTile>
+              </>
+            ) : (
               source && (
-                <div className="stack tight">
-                  <label className="stack tight">
-                    <span className="field-label">Game</span>
-                    <select value={source.id} onChange={(e) => setSetup({ ...setup, gameId: e.target.value, move: Math.min(setup.move, games.find((g) => g.id === e.target.value)?.moves.length ?? 0) })}>
+                <>
+                  <FieldTile label="Game">
+                    <select value={source.id} onChange={(e) => setSetup({ ...setup, gameId: e.target.value, move: Math.min(setup.move, games.find((g) => g.id === e.target.value)?.moves.length ?? 0) })} aria-label="Game">
                       {sources.map((g) => (
                         <option key={g.id} value={g.id}>
                           {gameTitle(g)} {g.date ?? ''}
                         </option>
                       ))}
                     </select>
-                  </label>
-                  <label className="stack tight">
-                    <span className="field-label">
-                      After move {setup.move} of {source.moves.length} · {toPlayAt(source.setup, source.moves, setup.move, source.handicap) === 1 ? 'Black' : 'White'} to play
-                    </span>
-                    <input type="range" min={0} max={source.moves.length} value={Math.min(setup.move, source.moves.length)} onChange={(e) => setSetup({ ...setup, move: Number(e.target.value) })} />
-                  </label>
-                </div>
+                  </FieldTile>
+                  <FieldTile label={`After move ${setup.move} of ${source.moves.length} · ${toPlayAt(source.setup, source.moves, setup.move, source.handicap) === 1 ? 'Black' : 'White'} to play`}>
+                    <input type="range" min={0} max={source.moves.length} value={Math.min(setup.move, source.moves.length)} onChange={(e) => setSetup({ ...setup, move: Number(e.target.value) })} aria-label="Starting move" />
+                  </FieldTile>
+                </>
               )
             )}
-            <label className="stack tight">
-              <span className="field-label">Strength</span>
-              <select value={setup.strength === null ? 'natural' : String(setup.strength)} onChange={(e) => setSetup({ ...setup, strength: e.target.value === 'natural' ? null : Number(e.target.value) })}>
+          </SheetSection>
+          <SheetSection title="The copy's play">
+            <FieldTile label="Strength">
+              <select value={setup.strength === null ? 'natural' : String(setup.strength)} onChange={(e) => setSetup({ ...setup, strength: e.target.value === 'natural' ? null : Number(e.target.value) })} aria-label="Strength">
                 <option value="natural">As {demoMode ? 'the player' : 'you'} play (no limit)</option>
                 {STRENGTHS.map((r) => (
                   <option key={r} value={r}>
@@ -1123,26 +1216,15 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
               </select>
               {setup.strength !== null && (
                 <span className="tiny muted">
-                  The copy still picks the moves its player would pick, but each move's cost is held to what a {setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)} typically loses
-                  (about {lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} points a move). Stronger settings take a little longer per move.
+                  Picks the moves its player would, but each move's cost is held to what a {setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)} typically loses (about{' '}
+                  {lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} points a move).
                 </span>
               )}
-            </label>
-            <label className="check small">
-              <input type="checkbox" checked={setup.sample} onChange={(e) => setSetup({ ...setup, sample: e.target.checked })} /> Vary its moves like a person (otherwise it always plays its likeliest move)
-            </label>
-            {unavailable ? (
-              <div className="callout bad small">
-                KataGo could not start on this device, and the copy chooses among KataGo's candidate moves, so it cannot play here. <a href={href('settings')}>Engine &amp; Settings</a> has the details and fixes.
-              </div>
-            ) : (
-              <button className="btn primary" style={{ justifySelf: 'start' }} onClick={start}>
-                <Icon name="play" /> Start the game
-              </button>
-            )}
-            {!unavailable && engine.status !== 'ready' && <p className="tiny muted">KataGo loads when the game starts (it supplies the candidate moves the copy chooses from).</p>}
-          </div>
-        </div>
+            </FieldTile>
+            <ToggleTile on={setup.sample} onChange={(v) => setSetup({ ...setup, sample: v })} icon="⚄" label="Vary its moves" sub="Like a person would" />
+          </SheetSection>
+          <PlayingToggles immersive={immersive} setImmersive={setImmersiveBoth} hints={hints} setHints={setHints} />
+        </DopSheet>
       </div>
     );
   }
@@ -1260,34 +1342,24 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
               <>{whoName} is choosing a move…</>
             )}
           </div>
-          <div className="row wrap">
-            <button className="btn small" onClick={undo} disabled={lastUser === undefined}>
-              ◀ Take back
+          <div className="dop-toolbar" role="toolbar" aria-label="Game controls">
+            <button onClick={undo} disabled={lastUser === undefined} title="Take back your last move">
+              <span aria-hidden>↶</span>
+              Take back
             </button>
-            <button className="btn small ghost" onClick={() => onPlay(PASS)} disabled={!yourTurn}>
+            <button onClick={() => onPlay(PASS)} disabled={!yourTurn} title="Pass">
+              <span aria-hidden>⏸</span>
               Pass
             </button>
-            <span className="grow" />
-            <button className="btn small ghost" onClick={() => setGame(() => null)}>
+            <button onClick={() => setGame(() => null)} title="Back to the game setup">
+              <span aria-hidden>＋</span>
               New game
             </button>
+            <button className={immersive ? 'on' : ''} onClick={() => setImmersiveBoth(!immersive)} aria-pressed={immersive} title="Hide winrates and hints until the game ends">
+              <span aria-hidden>◐</span>
+              Immersive
+            </button>
           </div>
-          <label className="check small">
-            <input
-              type="checkbox"
-              checked={immersive}
-              onChange={(e) => {
-                setImmersive(e.target.checked);
-                writeImmersive(e.target.checked);
-              }}
-            />{' '}
-            Immersive: hide winrates and hints until the game ends
-          </label>
-          {!immersive && (
-            <label className="check small">
-              <input type="checkbox" checked={hints} onChange={(e) => setHints(e.target.checked)} /> Show what the copy expects from me before I move
-            </label>
-          )}
         </div>
 
         {!immersive && lastCopy !== undefined && (
@@ -1312,6 +1384,10 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
             )}
           </div>
         )}
+
+        <DopSheet sheet={sheet} copy={copy}>
+          <PlayingToggles immersive={immersive} setImmersive={setImmersiveBoth} hints={hints} setHints={setHints} />
+        </DopSheet>
 
         {(!immersive || over) && (replies > 0 || userMoves > 0) && (
           <div className="panel stack">
@@ -1345,6 +1421,16 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
         )}
       </div>
     </div>
+  );
+}
+
+/** Settings that apply while a game is on: immersive mode and the copy's hint. */
+function PlayingToggles({ immersive, setImmersive, hints, setHints }: { immersive: boolean; setImmersive: (v: boolean) => void; hints: boolean; setHints: (v: boolean) => void }) {
+  return (
+    <SheetSection title="While playing">
+      <ToggleTile on={immersive} onChange={setImmersive} icon="◐" label="Immersive" sub="No winrates or hints until it ends" />
+      <ToggleTile on={hints && !immersive} onChange={(v) => (setHints(v), v && setImmersive(false))} icon="◎" label="Hints" sub="What the copy expects from you" />
+    </SheetSection>
   );
 }
 

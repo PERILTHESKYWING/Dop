@@ -28,9 +28,12 @@ import {
 } from '../lib/kifu/kifu';
 import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '../lib/kifu/store';
 import { loadBroadcast } from '../lib/broadcast/data';
-import { findShowing, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
+import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
 import { FocusToggle, gameTitle, useFocusMode } from '../components/common';
+import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
+import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
+import { Icon } from '../components/Icons';
 import { href } from '../router';
 import './study.css';
 
@@ -60,7 +63,7 @@ async function openKifu(id: string | undefined, query: URLSearchParams): Promise
   const live = query.get('live');
   if (live) {
     const pool = await loadBroadcast();
-    const g = findShowing(makeSchedule(pool), live, query.get('g') ?? '');
+    const g = findShowing(makeSchedule(pool, floorOfKey(live)), live, query.get('g') ?? '');
     if (!g) throw new Error('that live game is no longer being broadcast');
     // Only the moves already played: the rest of the game stays unseen.
     const n = Math.max(0, Math.min(g.total, Number(query.get('n') ?? 0) || 0));
@@ -112,6 +115,10 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Kifu[]>([]);
+  const [sheet, setSheet] = useState(false);
+  const closeSheet = useCallback(() => setSheet(false), []);
+  // Where the board was opened from, for the back arrow.
+  const [from] = useState(() => (query.get('live') ? { href: href('live'), label: 'Live games' } : query.get('game') ? { href: href(`review/${query.get('game')}?move=${Number(query.get('move') ?? 0) + 1}`), label: 'Review' } : null));
   const qs = query.toString();
 
   // Open whatever the address asks for; a live game or a game from the library becomes a new draft.
@@ -219,6 +226,18 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     [k, board, mode, cursor, toPlay],
   );
 
+  // Scroll over the board: down goes forward along the current line, up goes back.
+  const boardWrap = useWheelSteps((d) => {
+    if (!k) return;
+    setCursor((c) => {
+      const nd = k.nodes[c];
+      if (!nd) return c;
+      if (d < 0) return nd.parent ?? c;
+      return nd.children.length ? nd.children[0] : c;
+    });
+    setHoverPv(null);
+  });
+
   // Keys: ← → through the moves, ↑ ↓ between variations, Home / End.
   useEffect(() => {
     if (!k) return;
@@ -306,7 +325,16 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   return (
     <div className={`stage study ${focused ? 'focused' : ''}`}>
       <FocusToggle focused={focused} onChange={setFocused} />
-      <div className="board-wrap">
+      {focused && (
+        <FocusNav
+          onBack={() => node.parent !== null && (setCursor(node.parent), setHoverPv(null))}
+          onForward={() => node.children.length && (setCursor(node.children[0]), setHoverPv(null))}
+          canBack={node.parent !== null}
+          canForward={node.children.length > 0}
+          label={depth ? `Move ${depth}` : 'Start'}
+        />
+      )}
+      <div className="board-wrap" ref={boardWrap}>
         <Board
           size={size}
           stones={board.stones}
@@ -327,66 +355,35 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
       </div>
       <div className="side">
         <div className="panel stack">
-          <div className="spread">
-            <div className="eyebrow">Study board</div>
-            <span className="tiny muted">{k.saved ? 'Saved to your kifu' : 'Draft · kept in this browser'}</span>
-          </div>
-          <input className="study-title" value={k.title} onChange={(e) => update({ title: e.target.value })} aria-label="Title" />
-          {error && <div className="callout small">Could not open that: {error}.</div>}
-          <div className="row wrap">
-            <button className="btn small primary" onClick={() => void save()}>
-              {k.saved ? 'Saved' : 'Save kifu'}
-            </button>
-            <button className="btn small" onClick={download}>
-              Download SGF
-            </button>
-            <SgfImport onText={importText} />
-            <NewMenu onNew={fresh} />
-          </div>
-        </div>
-
-        <div className="panel stack">
-          <div className="study-players">
-            <label>
-              <i className="stone-dot b" />
-              <input value={k.black} onChange={(e) => update({ black: e.target.value })} aria-label="Black player" />
-            </label>
-            <label>
-              <i className="stone-dot w" />
-              <input value={k.white} onChange={(e) => update({ white: e.target.value })} aria-label="White player" />
-            </label>
-          </div>
-          <div className="row wrap">
-            <KomiPicker komi={k.komi} rules={rules} onKomi={(komi) => update({ komi })} onRules={(r) => update({ rules: r })} />
-            <label className="small">
-              Result <input value={k.result ?? ''} onChange={(e) => update({ result: e.target.value || undefined })} placeholder="B+R" style={{ width: 70 }} />
-            </label>
-          </div>
-        </div>
-
-        <div className="panel stack">
-          <div className="spread">
-            <div className="row">
-              <button className="btn small" onClick={() => setCursor(0)} disabled={cursor === 0} aria-label="Start">
-                ⏮
-              </button>
-              <button className="btn small" onClick={() => node.parent !== null && setCursor(node.parent)} disabled={node.parent === null} aria-label="Back">
-                ◀
-              </button>
-              <button className="btn small" onClick={() => node.children.length && setCursor(node.children[0])} disabled={!node.children.length} aria-label="Forward">
-                ▶
-              </button>
-              <button className="btn small" onClick={() => setCursor(lineEnd(k, cursor))} disabled={!node.children.length} aria-label="End">
-                ⏭
-              </button>
-              <button className="btn small ghost" onClick={() => play(PASS)} disabled={mode !== 'play'}>
-                Pass
-              </button>
+          <div className="board-head">
+            {from && <BackLink href={from.href} label={from.label} />}
+            <div className="grow">
+              <div className="eyebrow">Study board</div>
+              <span className="tiny muted">{k.saved ? 'Saved to your kifu' : 'Draft · kept in this browser'}</span>
             </div>
-            <span className="small mono">
-              {depth ? `${depth}. ${node.move!.color === 1 ? '●' : '○'} ${node.move!.loc === PASS ? 'pass' : locToGtp(node.move!.loc, size)}` : 'Start'} · {toPlay === 1 ? 'Black' : 'White'} to play
-            </span>
+            <GearButton onClick={() => setSheet(true)} label="Board settings, save and your kifu" />
           </div>
+          <PlayerNames black={k.black} white={k.white} onSave={(black, white) => update({ black, white })} />
+          {error && <div className="callout small">Could not open that: {error}.</div>}
+        </div>
+
+        <div className="panel stack">
+          <div className="spread wrap">
+            <MoveStepper
+              onFirst={() => setCursor(0)}
+              onBack={() => node.parent !== null && setCursor(node.parent)}
+              onForward={() => node.children.length && setCursor(node.children[0])}
+              onLast={() => setCursor(lineEnd(k, cursor))}
+              canBack={node.parent !== null}
+              canForward={node.children.length > 0}
+            />
+            <button className="btn small ghost" onClick={() => play(PASS)} disabled={mode !== 'play'}>
+              Pass
+            </button>
+          </div>
+          <span className="small mono">
+            {depth ? `${depth}. ${node.move!.color === 1 ? '●' : '○'} ${node.move!.loc === PASS ? 'pass' : locToGtp(node.move!.loc, size)}` : 'Start'} · {toPlay === 1 ? 'Black' : 'White'} to play
+          </span>
           {node.children.length > 1 && (
             <div className="row wrap">
               <span className="tiny muted">Variations here:</span>
@@ -486,17 +483,6 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
               />{' '}
               KataGo analysis
             </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={numbers}
-                onChange={(e) => {
-                  setNumbers(e.target.checked);
-                  writePref(NUMBERS_PREF, e.target.checked);
-                }}
-              />{' '}
-              Move numbers
-            </label>
           </div>
           {analysis && (
             <>
@@ -511,44 +497,65 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                 </div>
               )}
               <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} resetKey={`${k.id}:${cursor}`} />
-              <div className="row wrap toggles">
-                <label className="toggle">
-                  <input type="checkbox" checked={view.best} onChange={() => toggleView('best')} /> Best moves
-                </label>
-                <label className="toggle">
-                  <input type="checkbox" checked={view.heat} onChange={() => toggleView('heat')} /> Heat map
-                </label>
-                <label className="toggle">
-                  <input type="checkbox" checked={view.territory} onChange={() => toggleView('territory')} /> Territory
-                </label>
-                <label className="toggle">
-                  Top
-                  <input
-                    className="candidate-count"
-                    type="number"
-                    min={3}
-                    max={20}
-                    value={view.candidateCount}
-                    onChange={(e) => setCandidateCount(Number(e.target.value) || view.candidateCount)}
-                  />
-                  moves
-                </label>
-              </div>
             </>
           )}
         </div>
+        <p className="tiny muted">← → or scroll on the board: moves · ↑ ↓ variations · Space pauses KataGo</p>
+      </div>
 
+      <ControlSheet open={sheet} onClose={closeSheet} title="Study board">
+        <SheetSection title="Kifu">
+          <ActionTile primary onClick={() => void save()} icon={<Icon name="save" />} label={k.saved ? 'Saved' : 'Save kifu'} sub={k.saved ? 'Keeps saving as you go' : 'Keep it in Your kifu'} />
+          <ActionTile onClick={download} icon={<Icon name="download" />} label="Download SGF" sub="To your own files" />
+          <SgfImport onText={(t, n) => (importText(t, n), setSheet(false))} />
+          <FieldTile label="Title">
+            <input className="study-title" value={k.title} onChange={(e) => update({ title: e.target.value })} aria-label="Title" />
+          </FieldTile>
+          <FieldTile label="New board">
+            <NewMenu
+              onNew={(sz) => {
+                fresh(sz);
+                setSheet(false);
+              }}
+            />
+          </FieldTile>
+        </SheetSection>
+        <SheetSection title="Game">
+          <FieldTile label="Komi and rules">
+            <KomiPicker komi={k.komi} rules={rules} onKomi={(komi) => update({ komi })} onRules={(r) => update({ rules: r })} />
+          </FieldTile>
+          <FieldTile label="Result">
+            <input value={k.result ?? ''} onChange={(e) => update({ result: e.target.value || undefined })} placeholder="B+R" aria-label="Result" />
+          </FieldTile>
+        </SheetSection>
+        <SheetSection title="On the board">
+          <ToggleTile
+            on={numbers}
+            onChange={(v) => {
+              setNumbers(v);
+              writePref(NUMBERS_PREF, v);
+            }}
+            icon="#"
+            label="Move numbers"
+          />
+          <ToggleTile on={view.best} onChange={() => toggleView('best')} icon="◎" label="Best moves" sub="KataGo's candidates" />
+          <ToggleTile on={view.heat} onChange={() => toggleView('heat')} icon="▦" label="Heat map" sub="Policy" />
+          <ToggleTile on={view.territory} onChange={() => toggleView('territory')} icon="◩" label="Territory" />
+          <FieldTile label={`Candidate list: top ${view.candidateCount} moves`}>
+            <input type="range" min={3} max={20} value={view.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves shown" />
+          </FieldTile>
+        </SheetSection>
         <KifuLibrary
           items={library}
           current={k.id}
+          onOpen={() => setSheet(false)}
           onDelete={async (kid) => {
             await deleteKifu(kid);
             if (kid === k.id) update({ saved: false });
             refreshLibrary();
           }}
         />
-        <p className="tiny muted">← → moves · ↑ ↓ variations · Space pauses KataGo</p>
-      </div>
+      </ControlSheet>
     </div>
   );
 }
@@ -558,12 +565,8 @@ function SgfImport({ onText }: { onText: (text: string, name?: string) => void }
   const [paste, setPaste] = useState<string | null>(null);
   return (
     <>
-      <button className="btn small" onClick={() => file.current?.click()}>
-        Open SGF
-      </button>
-      <button className="btn small ghost" onClick={() => setPaste(paste === null ? '' : null)}>
-        Paste SGF
-      </button>
+      <ActionTile onClick={() => file.current?.click()} icon={<Icon name="upload" />} label="Open SGF" sub="From your files" />
+      <ActionTile onClick={() => setPaste(paste === null ? '' : null)} icon="⎘" label="Paste SGF" sub="From the clipboard" />
       <input
         ref={file}
         type="file"
@@ -575,7 +578,7 @@ function SgfImport({ onText }: { onText: (text: string, name?: string) => void }
         }}
       />
       {paste !== null && (
-        <div className="stack tight" style={{ width: '100%' }}>
+        <div className="stack tight" style={{ gridColumn: '1 / -1' }}>
           <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={4} placeholder="(;GM[1]SZ[19]…)" aria-label="SGF text" />
           <div className="row">
             <button
@@ -616,15 +619,15 @@ function NewMenu({ onNew }: { onNew: (size: number) => void }) {
   );
 }
 
-function KifuLibrary({ items, current, onDelete }: { items: Kifu[]; current: string; onDelete: (id: string) => void }) {
+function KifuLibrary({ items, current, onDelete, onOpen }: { items: Kifu[]; current: string; onDelete: (id: string) => void; onOpen?: () => void }) {
   if (!items.length) return null;
   return (
-    <div className="panel stack">
-      <h3>Your kifu</h3>
+    <section className="csheet-section">
+      <h4>Your kifu</h4>
       <div className="study-lib">
         {items.map((it) => (
           <div key={it.id} className={`study-lib-row ${it.id === current ? 'on' : ''}`}>
-            <a href={href(`study/${it.id}`)} onClick={(e) => it.id === current && e.preventDefault()}>
+            <a href={href(`study/${it.id}`)} onClick={(e) => (it.id === current ? e.preventDefault() : onOpen?.())}>
               <strong>{it.title || 'Untitled'}</strong>
               <span className="tiny muted">
                 {it.size}×{it.size} · {countMoves(it)} moves · {new Date(it.updatedAt).toLocaleDateString()}
@@ -643,6 +646,6 @@ function KifuLibrary({ items, current, onDelete }: { items: Kifu[]; current: str
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

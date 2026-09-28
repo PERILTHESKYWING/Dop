@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
 import { AskPanel } from '../components/Ask';
 import { InsightPanel, useMoveInsight } from '../components/Insight';
 import { useLevelOf, usePlayerTargets } from '../components/Level';
@@ -11,7 +12,9 @@ import { mainLineComments } from '../lib/go/sgf';
 import { insightFacts, proFacts, type MoveTarget } from '../state/insight';
 import type { GameRecord, MoveRecord } from '../lib/types';
 import { useStore } from '../state/store';
-import { commitLiveAnalysis, corpus, retryGame, runQueue, setGameKomi } from '../state/actions';
+import { commitLiveAnalysis, corpus, renameGamePlayers, retryGame, runQueue, setGameKomi } from '../state/actions';
+import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
+import { Icon } from '../components/Icons';
 import type { LiveTarget } from '../state/live';
 import { Board, type Mark } from '../components/Board';
 import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
@@ -46,6 +49,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [explore, setExplore] = useState(false);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [focused, setFocused] = useFocusMode();
+  const [sheet, setSheet] = useState(false);
+  const closeSheet = useCallback(() => setSheet(false), []);
   useEffect(() => {
     if (!focused) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
@@ -120,6 +125,9 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [n, explore]);
+
+  // Scroll over the board to step through the game (the analysis board keeps its own controls).
+  const boardWrap = useWheelSteps((d) => setCur((c) => Math.max(0, Math.min(n, c + d))), !explore);
 
   const boards = useMemo(() => (game ? allPositions(game.size, game.setup, game.moves) : []), [game]);
   const sgfComments = useMemo(() => (game ? mainLineComments(game.sgf) : new Map<number, string>()), [game]);
@@ -218,7 +226,10 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   return (
     <div className={`stage ${focused ? 'focused' : ''}`}>
       <FocusToggle focused={focused} onChange={setFocused} />
-      <div className="board-wrap">
+      {focused && !explore && (
+        <FocusNav onBack={() => setCur((c) => Math.max(0, c - 1))} onForward={() => setCur((c) => Math.min(n, c + 1))} canBack={cur > 0} canForward={cur < n} label={`Move ${cur} / ${n}`} />
+      )}
+      <div className="board-wrap" ref={boardWrap}>
         {explore ? (
           <AnalysisBoard a={analysisBoard} view={aView} hoverPv={hoverPv} onHoverPv={setHoverPv} />
         ) : (
@@ -259,31 +270,17 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
         )}
         <div className="panel stack">
           <div className="stack tight">
-            <h2 className="game-title">{gameTitle(game)}</h2>
-            <div className="tiny muted row wrap" style={{ gap: 6 }}>
-              <span>{[game.date, game.event, game.result, game.rules].filter(Boolean).join(' · ')}</span>
-              <label className="komi-edit" title={`Komi KataGo scores with: ${engineKomi(game.komi, game.rules)}${isTerritoryScoring(game.rules, game.komi) ? ' (territory scoring counted by area)' : ''}`}>
-                komi{' '}
-                <select value={game.komi} onChange={(e) => void setGameKomi(game.id, Number(e.target.value))} aria-label="Komi">
-                  {[...new Set([game.komi, ...KOMI_CHOICES])].map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </select>
-                {komiNote}
-              </label>
+            <div className="board-head">
+              <BackLink href={href('library')} label="Games" />
+              <span className="grow" />
+              <GearButton onClick={() => setSheet(true)} label="Game, komi and board settings" />
+            </div>
+            <PlayerNames black={game.black} white={game.white} onSave={(b, w) => void renameGamePlayers(game.id, b, w)} />
+            <div className="tiny muted">
+              {[game.date, game.event, game.result].filter(Boolean).join(' · ')}
+              {game.date || game.event || game.result ? ' · ' : ''}komi {game.komi}
             </div>
             {game.warnings.some((w) => w.startsWith('komi')) && <div className="tiny warn-text">{game.warnings.find((w) => w.startsWith('komi'))}</div>}
-            {games.length > 1 && (
-              <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} aria-label="Switch game" style={{ width: '100%', marginTop: 4 }}>
-                {games.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {gameTitle(g)} {g.date ?? ''}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           <WinrateGraph values={wr} scores={scores} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
           <div className="graph-legend">
@@ -294,25 +291,15 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
               <i className="score" /> Black's lead
             </span>
           </div>
-          <div className="spread">
-            <div className="row">
-              <button className="btn small" onClick={() => setCur(0)}>
-                ⏮
-              </button>
-              <button className="btn small" onClick={() => setCur((c) => Math.max(0, c - 1))}>
-                ◀
-              </button>
-              <button className="btn small" onClick={() => setCur((c) => Math.min(n, c + 1))}>
-                ▶
-              </button>
-              <button className="btn small" onClick={() => setCur(n)}>
-                ⏭
-              </button>
-            </div>
-            <span className="small mono">
-              {cur}/{n}
-            </span>
-          </div>
+          <MoveStepper
+            onFirst={() => setCur(0)}
+            onBack={() => setCur((c) => Math.max(0, c - 1))}
+            onForward={() => setCur((c) => Math.min(n, c + 1))}
+            onLast={() => setCur(n)}
+            canBack={cur > 0}
+            canForward={cur < n}
+            label={`${cur} / ${n}`}
+          />
           {analysis === undefined && (
             <div className="callout small">
               {game.status === 'error' ? (
@@ -410,12 +397,6 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             )}
             <InsightPanel state={insight} size={game.size} ownRank={ownLevel?.overall.rank} comments={moveComments} playedLoc={next.loc} />
             <div className="row wrap">
-              <label className="check small">
-                <input type="checkbox" checked={showOwn} onChange={(e) => setShowOwn(e.target.checked)} /> Territory
-              </label>
-              <label className="check small">
-                <input type="checkbox" checked={showPolicy} onChange={(e) => setShowPolicy(e.target.checked)} /> Policy
-              </label>
               <button className="btn small" onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)}>
                 Find similar positions
               </button>
@@ -538,6 +519,56 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           </div>
         </div>
       </div>
+
+      <ControlSheet open={sheet} onClose={closeSheet} title="Game review">
+        <SheetSection title="Game">
+          {games.length > 1 && (
+            <FieldTile label="Switch game">
+              <select value={game.id} onChange={(e) => (setSheet(false), go(`review/${e.target.value}`))} aria-label="Switch game">
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {gameTitle(g)} {g.date ?? ''}
+                  </option>
+                ))}
+              </select>
+            </FieldTile>
+          )}
+          <FieldTile label={`Komi${game.rules ? ` · ${game.rules} rules` : ''}`}>
+            <select value={game.komi} onChange={(e) => void setGameKomi(game.id, Number(e.target.value))} aria-label="Komi" title={`Komi KataGo scores with: ${engineKomi(game.komi, game.rules)}${isTerritoryScoring(game.rules, game.komi) ? ' (territory scoring counted by area)' : ''}`}>
+              {[...new Set([game.komi, ...KOMI_CHOICES])].map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+            {komiNote && <span className="tiny muted">{komiNote.trim()}</span>}
+          </FieldTile>
+        </SheetSection>
+        <SheetSection title="On the board">
+          <ToggleTile on={showOwn} onChange={setShowOwn} icon="◩" label="Territory" sub="Who owns what" />
+          <ToggleTile on={showPolicy} onChange={setShowPolicy} icon="▦" label="Policy" sub="KataGo's instinct" />
+          <FieldTile label={`Candidate list: top ${aView.candidateCount} moves`}>
+            <input type="range" min={3} max={20} value={aView.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves shown" />
+          </FieldTile>
+        </SheetSection>
+        <SheetSection title="Take it further">
+          <ActionTile onClick={() => go(`study?game=${encodeURIComponent(game.id)}&move=${cur}`)} icon={<Icon name="kifu" />} label="Study board" sub="Variations and notes" />
+          <ActionTile onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)} icon={<Icon name="search" />} label="Similar positions" sub="From your games" />
+          <ActionTile onClick={() => go(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)} icon={<Icon name="chat" />} label="Ask the coach" sub="About this position" />
+          <ActionTile
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(new Blob([game.sgf], { type: 'application/x-go-sgf' }));
+              a.download = `${gameTitle(game).replace(/[\\/:*?"<>|]+/g, ' ')}.sgf`;
+              a.click();
+              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            }}
+            icon={<Icon name="download" />}
+            label="Download SGF"
+            sub="To your own files"
+          />
+        </SheetSection>
+      </ControlSheet>
     </div>
   );
 }

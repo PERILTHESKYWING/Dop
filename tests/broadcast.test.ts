@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeMoves, encodeMoves, type BroadcastFile, type BroadcastGame } from '../src/lib/broadcast/data';
-import { allTables, BREAK_MS, EPOCH, findShowing, makeSchedule, MOVE_MS, phaseOf, showingMoves, TABLES, tableAt } from '../src/lib/broadcast/schedule';
+import { allTables, BREAK_MS, cutOf, EPOCH, findShowing, floorOfKey, LEAVE_MS, makeSchedule, MOVE_MS, phaseOf, showingMoves, TABLES, tableAt } from '../src/lib/broadcast/schedule';
 import { PASS } from '../src/lib/go/types';
 import { safeChoices } from '../src/lib/broadcast/choose';
 
@@ -80,5 +80,46 @@ describe('move choice in the broadcast games', () => {
   it('keeps only moves that lose next to nothing and were read enough', () => {
     const list = [c(1, 100, 0.55, 1.0), c(2, 40, 0.54, 0.8), c(3, 30, 0.5, -0.5), c(4, 3, 0.56, 1.2)];
     expect(safeChoices(list, 0.5, 0.03).map((x) => x.loc)).toEqual([1, 2]);
+  });
+});
+
+describe('the losing-side floor', () => {
+  // Black's winrate slides from 50% down by 0.5% a move: under 30% before move 41.
+  const sliding = (i: number): BroadcastGame => ({ ...game(i, 150), id: `s-${i}`, wr: Array.from({ length: 151 }, (_, k) => Math.max(0, 500 - k * 5)) });
+  const early = (i: number): BroadcastGame => ({ ...game(i, 150), id: `e-${i}`, wr: Array.from({ length: 151 }, (_, k) => Math.max(0, 500 - k * 40)) });
+  const p: BroadcastFile = { version: 1, generatedAt: '', engine: 'test', games: [...Array.from({ length: 6 }, (_, i) => sliding(i)), early(99)] };
+
+  it('finds when the losing side drops under the floor', () => {
+    expect(cutOf(p.games[0], 30)).toBe(41);
+    expect(cutOf(p.games[0], 0)).toBeNull();
+  });
+
+  it('leaves out games that drop under it in the opening', () => {
+    const s = makeSchedule(p, 30);
+    expect(s.order.map((i) => p.games[i].id)).not.toContain('e-99');
+    expect(s.order).toHaveLength(6);
+    expect(makeSchedule(p, 0).order).toHaveLength(7);
+  });
+
+  it('shows a game for 10 seconds after it drops under, then moves on', () => {
+    const s = makeSchedule(p, 30);
+    const g = tableAt(s, 0, EPOCH + 5_000_000);
+    const under = g.start + 41 * MOVE_MS;
+    const before = tableAt(s, 0, under - 1);
+    expect(before.key).toBe(g.key);
+    expect(before.leaving).toBeNull();
+    const after = tableAt(s, 0, under + 1000);
+    expect(after.key).toBe(g.key);
+    expect(after.leaving?.side).toBe(1);
+    expect(after.leaving!.in).toBe(LEAVE_MS - 1000);
+    expect(tableAt(s, 0, under + LEAVE_MS + 1).key).not.toBe(g.key);
+  });
+
+  it('finds a showing again only under the same floor', () => {
+    const s = makeSchedule(p, 30);
+    const g = tableAt(s, 2, EPOCH + 9_000_000);
+    expect(floorOfKey(g.key)).toBe(30);
+    expect(findShowing(s, g.key, g.game.id)?.key).toBe(g.key);
+    expect(findShowing(makeSchedule(p, 20), g.key, g.game.id)).toBeNull();
   });
 });
