@@ -4,13 +4,10 @@
 
 /* ================================================ closable sidebar */
 .app .shell {
-  --nav-w: 250px;
+  /* About a third of the pre-round-7 250px sidebar: an icon rail, same width whether the
+   * window is tablet- or desktop-sized. "Hide sidebar" (or Ctrl+B) folds it away entirely. */
+  --nav-w: 84px;
   transition: grid-template-columns 0.55s var(--ease);
-}
-@media (min-width: 761px) and (max-width: 1023px) {
-  .app .shell {
-    --nav-w: 78px;
-  }
 }
 @media (min-width: 761px) {
   .app .shell:not(.booting) {
@@ -78,7 +75,7 @@
 .app .nav .nav-collapse:hover svg {
   transform: translateX(-3px);
 }
-@media (min-width: 761px) and (max-width: 1023px) {
+@media (min-width: 761px) {
   .app .nav .nav-collapse {
     justify-content: center;
     padding: 10px 0;

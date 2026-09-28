@@ -211,6 +211,17 @@
 .dop-side .panel + .panel {
   margin-top: 0;
 }
+/* Focus mode: same idea as .stage.focused (see styles.css) but for the Doppelgänger board's own
+   grid, which uses dop- prefixed class names instead of the shared .stage/.side ones. */
+.dop-stage.focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dop-stage.focused .dop-side {
+  display: none;
+}
+.dop-stage.focused .dop-board .board {
+  max-height: calc(100vh - 24px);
+}
 .dop-table th,
 .dop-table td {
   padding: 6px 7px;

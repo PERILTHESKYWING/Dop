@@ -14,6 +14,7 @@ import { currentCombo, ensureTexts, historyOf, loadForge, playerRank, recordResu
 import { go, href } from '../router';
 import '../components/forge.css';
 import { BackLink } from '../components/ControlSheet';
+import { FocusToggle, useFocusMode } from '../components/common';
 
 /**
  * Solving a set of Forge problems, 101weiqi style: the task on top, the board, and the
@@ -133,6 +134,7 @@ function Solver({
   const [recorded, setRecorded] = useState<ProblemResult | null>(null);
   const [progressNote, setProgressNote] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(prefs.timeLimit);
+  const [focused, setFocused] = useFocusMode();
   const startedAt = useRef(Date.now());
   const text = useMemo(() => textOf(p), [p, textReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const view = viewOf(p);
@@ -236,7 +238,10 @@ function Solver({
       if (e.key === 'Enter' && recorded && phase !== 'solving') onNext();
       else if (e.key.toLowerCase() === 'h' && !hinted) setHinted(true);
       else if (e.key.toLowerCase() === 'r' && phase === 'wrong' && prefs.onWrong === 'retry') retry();
-      else if (e.key === 'Escape') setPending(null);
+      else if (e.key === 'Escape') {
+        if (focused) setFocused(false);
+        else setPending(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -255,7 +260,8 @@ function Solver({
   const margin = prefs.coords ? 2.48 : 1.2; // the board's own margin around a crop, both sides
 
   return (
-    <div className="stage forge-solve">
+    <div className={`stage forge-solve ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
       <div className="board-wrap" style={view ? ({ '--arw': view.x1 - view.x0 + margin, '--arh': view.y1 - view.y0 + margin } as CSSProperties) : undefined}>
         <Board
           size={p.size}

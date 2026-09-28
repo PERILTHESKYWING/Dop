@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { Board } from '../components/Board';
 import { WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, type ShownCandidate } from '../components/Live';
-import { fmtPct, WinrateGraph } from '../components/common';
+import { fmtPct, FocusToggle, useFocusMode, WinrateGraph } from '../components/common';
 import { BrandSpinner } from '../components/Brand';
 import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
@@ -365,6 +365,7 @@ function Watch({
   const leads = g.game.lead.slice(0, g.shown + 1).map((x) => x / 10);
   const size = g.game.size;
   const lastClass = g.shown > 0 ? moveClassAt(g, moves, g.shown - 1) : null;
+  const [focused, setFocused] = useFocusMode();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -372,16 +373,19 @@ function Watch({
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowRight') go(`live/${(table + 1) % TABLES}`);
       else if (e.key === 'ArrowLeft') go(`live/${(table + TABLES - 1) % TABLES}`);
-      else if (e.key === 'Escape') go('live');
-      else return;
+      else if (e.key === 'Escape') {
+        if (focused) setFocused(false);
+        else go('live');
+      } else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [table]);
+  }, [table, focused, setFocused]);
 
   return (
-    <div className="stage bc-watch">
+    <div className={`stage bc-watch ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
       <div className="board-wrap">
         <div className="bc-board-frame">
           <Board

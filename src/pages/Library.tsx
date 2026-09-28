@@ -130,7 +130,7 @@ export function Library() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
   const shown = games
-    .filter((g) => (filter === 'all' ? true : filter === 'mine' ? g.source === 'user' || g.source === 'demo' : g.source === 'opponent' || g.source === 'demo-opponent'))
+    .filter((g) => (filter === 'all' ? true : filter === 'mine' ? g.source === 'user' || g.source === 'demo' || g.source === 'doppel' : g.source === 'opponent' || g.source === 'demo-opponent'))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.importedAt - a.importedAt);
   const pending = games.filter((g) => g.status !== 'done' && g.status !== 'error' && g.status !== 'skipped').length;
 
@@ -205,6 +205,10 @@ export function Library() {
                         <option value={1}>Black</option>
                         <option value={2}>White</option>
                       </select>
+                    ) : g.source === 'doppel' ? (
+                      <span className="small">
+                        <i className={`stone-dot ${g.playerColor === 1 ? 'b' : 'w'}`} /> {g.playerColor === 1 ? 'Black' : 'White'}
+                      </span>
                     ) : (
                       <span className="muted small">opponent</span>
                     )}

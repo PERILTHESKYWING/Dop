@@ -60,8 +60,14 @@ export function useFocusMode() {
 
 export function FocusToggle({ focused, onChange }: { focused: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button className="btn small ghost focus-toggle" onClick={() => onChange(!focused)} title={focused ? 'Show the side panel back (Esc)' : 'Enlarge the board, hide everything else'}>
-      {focused ? '⤡ Exit focus' : '⤢ Focus'}
+    <button
+      className={`focus-toggle ${focused ? 'on' : ''}`}
+      onClick={() => onChange(!focused)}
+      aria-pressed={focused}
+      title={focused ? 'Show the side panel back (Esc)' : 'Enlarge the board, hide everything else'}
+    >
+      <Icon name="target" />
+      <span>{focused ? 'Exit focus' : 'Focus'}</span>
     </button>
   );
 }
