@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Board, type Mark } from '../components/Board';
 import { useAnalysisView, WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, LiveHeader, lineOf, useLiveAnalysis } from '../components/Live';
+import type { SearchSnapshot } from '../lib/engine/mcts';
 import { KomiPicker } from '../components/Komi';
 import { useLiveMoveClass } from '../components/LiveClass';
 import { ClassPill } from '../components/MoveBadge';
@@ -30,7 +31,7 @@ import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
-import { FocusEval, FocusToggle, gameTitle, useEvalPref, useFocusMode } from '../components/common';
+import { FocusEval, FocusToggle, gameTitle, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
 import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
 import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
 import { Icon } from '../components/Icons';
@@ -166,6 +167,17 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const rules = k?.rules === 'japanese' ? 'japanese' : 'chinese';
 
   const stKey = (moves: Move[], tp: Color) => (k ? `st|${k.size}|${k.komi}|${rules}|${moveKey(k.setup)}|${moveKey(moves)}|${tp}` : '');
+  // Every position visited long enough to read, kept by node id, so the winrate graph can fill
+  // in as you browse (there's no background analysis pass over a kifu like there is for a game).
+  const [seen, setSeen] = useState<Map<number, { bWin: number; bLead: number }>>(() => new Map());
+  const onLeaveNode = useCallback((snap: SearchSnapshot, node: number) => {
+    if (snap.visits < 2) return;
+    setSeen((m) => {
+      const prev = m.get(node);
+      if (prev && prev.bWin === snap.bWin && prev.bLead === snap.bLead) return m;
+      return new Map(m).set(node, { bWin: snap.bWin, bLead: snap.bLead });
+    });
+  }, []);
   const target = useMemo(
     () =>
       k && analysis
@@ -176,9 +188,10 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
             setup: k.setup,
             moves: played,
             toPlay,
+            onLeave: (snap: SearchSnapshot) => onLeaveNode(snap, cursor),
           }
         : null,
-    [k, analysis, rules, played, toPlay],
+    [k, analysis, rules, played, toPlay, cursor, onLeaveNode],
   );
   const live = useLiveAnalysis(target, analysis);
   // The class of the move that led here, from what KataGo read before and after it.
@@ -291,6 +304,8 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const candidates = analysis && view.best && !hoverPv?.length && mode === 'play' && shown.length ? candidateMarks(shown) : null;
   const line = lineThrough(k, cursor);
   const depth = depthOf(k, cursor);
+  const graphValues = line.map((nid) => (nid === cursor ? (snap?.bWin ?? seen.get(nid)?.bWin ?? null) : (seen.get(nid)?.bWin ?? null)));
+  const graphScores = line.map((nid) => (nid === cursor ? (snap?.bLead ?? seen.get(nid)?.bLead ?? null) : (seen.get(nid)?.bLead ?? null)));
 
   const download = () => {
     const blob = new Blob([kifuToSgf(k)], { type: 'application/x-go-sgf' });
@@ -340,6 +355,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
       {focused && evalOn && analysis && (
         <FocusEval>
           <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
+          <WinrateGraph values={graphValues} scores={graphScores} cursor={depth} onPick={(i) => setCursor(line[i] ?? cursor)} />
         </FocusEval>
       )}
       <div className="board-wrap" ref={boardWrap}>
@@ -496,6 +512,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
             <>
               <LiveHeader snap={snap} />
               <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
+              {line.length > 1 && <WinrateGraph values={graphValues} scores={graphScores} cursor={depth} onPick={(i) => setCursor(line[i] ?? cursor)} />}
               {lastClass && lastPlayed && lastPlayed.loc !== PASS && (
                 <div className="row small">
                   <span className="dim">

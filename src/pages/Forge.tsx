@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { addReason, generateVariations, submitAnswer } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
-import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
+import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
 import { fmtPct, FocusToggle, useFocusMode } from '../components/common';
 import { itemBoard, lastOpponentMove, type GradeResult } from '../lib/forge/grading';
 import { newMastery, pickItem, pickWeakness } from '../lib/forge/scheduler';
@@ -325,6 +325,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                 <strong>{item.toPlay === 1 ? 'Black' : 'White'} to play</strong>
                 <span className="chip">{item.kind === 'original' ? 'from your game' : 'blind position'}</span>
               </div>
+              <WinBar bWin={item.eval.bWin} bLead={item.eval.bLead} />
               <p className="tiny muted" title="Why this position is worth drilling">
                 {assessItem(item).reason}
               </p>
