@@ -30,7 +30,7 @@ import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
-import { FocusToggle, gameTitle, useFocusMode } from '../components/common';
+import { FocusEval, FocusToggle, gameTitle, useEvalPref, useFocusMode } from '../components/common';
 import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
 import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
 import { Icon } from '../components/Icons';
@@ -103,6 +103,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [cursor, setCursor] = useState(0);
   const [mode, setMode] = useState<Mode>('play');
   const [focused, setFocused] = useFocusMode();
+  const [evalOn, setEvalOn] = useEvalPref();
   useEffect(() => {
     if (!focused) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
@@ -332,7 +333,14 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
           canBack={node.parent !== null}
           canForward={node.children.length > 0}
           label={depth ? `Move ${depth}` : 'Start'}
+          evalOn={evalOn}
+          onEvalChange={setEvalOn}
         />
+      )}
+      {focused && evalOn && analysis && (
+        <FocusEval>
+          <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
+        </FocusEval>
       )}
       <div className="board-wrap" ref={boardWrap}>
         <Board

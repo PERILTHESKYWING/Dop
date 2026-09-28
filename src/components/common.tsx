@@ -72,6 +72,47 @@ export function FocusToggle({ focused, onChange }: { focused: boolean; onChange:
   );
 }
 
+const EVAL_PREF = 'dop.focusEval';
+
+/** Whether the evaluation bar and winrate graph stay up in focus mode: an opt-in, since the
+ * point of focus mode is otherwise to hide everything but the board. Shared across every
+ * page with focus mode, like the FocusNav sparks preference. */
+export function useEvalPref() {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(EVAL_PREF) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(EVAL_PREF, v ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  };
+  return [on, set] as const;
+}
+
+/** A standalone toggle for `useEvalPref`, for stages that have no FocusNav (which folds the
+ * same toggle into its own bar) to hang it on. */
+export function EvalToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button className={`eval-toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)} aria-pressed={on} title={on ? 'Hide the evaluation bar and graph' : 'Keep the evaluation bar and graph up'}>
+      <Icon name="board" />
+      <span>Eval</span>
+    </button>
+  );
+}
+
+/** Floating panel that keeps the evaluation bar and/or winrate graph on screen in focus mode,
+ * which otherwise hides the whole side panel (see `useEvalPref`). */
+export function FocusEval({ children }: { children: ReactNode }) {
+  return <div className="focus-eval">{children}</div>;
+}
+
 export function Stat({ value, label, hint, tone }: { value: ReactNode; label: string; hint?: ReactNode; tone?: string }) {
   return (
     <div className="stat">

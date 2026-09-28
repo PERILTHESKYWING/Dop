@@ -207,6 +207,39 @@
   font-size: 13px;
   color: var(--ink-2);
 }
+/* Back/forward as a smaller version of the focus-mode theme object (see FocusNav), so the
+ * stepper looks the same polished way in and out of focus mode. */
+.move-stepper button.step-obj {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  border-radius: 50%;
+}
+.move-stepper button.step-obj svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.move-stepper button.step-obj.back svg {
+  transform: scaleX(-1);
+}
+.move-stepper button.step-obj:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: none;
+}
+.move-stepper button.step-obj:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.move-stepper button.step-obj:disabled {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+}
+.move-stepper button.step-obj.pressed {
+  animation: focus-nav-press 0.42s var(--spring, ease);
+}
 
 /* ================================================ focus-mode buttons, one object per theme */
 .focus-nav {
@@ -330,6 +363,75 @@
 .focus-nav-sparks.on {
   background: var(--glass-2);
   color: var(--accent, var(--ink));
+}
+.focus-nav-eval {
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.focus-nav-eval.on {
+  background: var(--glass-2);
+  color: var(--accent, var(--ink));
+}
+
+/* A standalone version of the same toggle, for stages with no FocusNav bar to fold it into. */
+.eval-toggle {
+  position: absolute;
+  top: 58px;
+  right: 20px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-2);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 12px;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35);
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.eval-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.eval-toggle.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent, #fff);
+}
+
+/* The evaluation bar/graph kept up in focus mode (see useEvalPref): a floating card so it
+ * survives the side panel being hidden, without bringing the rest of the panel back. */
+.focus-eval {
+  position: absolute;
+  top: 14px;
+  left: 20px;
+  z-index: 5;
+  width: min(340px, 42vw);
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--glass-shadow);
+}
+@media (max-width: 760px) {
+  .focus-eval {
+    width: min(260px, 60vw);
+  }
 }
 /* Narrow or tall stages: the buttons move under the board. */
 @media (max-aspect-ratio: 6/5) {

@@ -19,7 +19,7 @@ import type { LiveTarget } from '../state/live';
 import { Board, type Mark } from '../components/Board';
 import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, lineOf, useLiveAnalysis, type ShownCandidate } from '../components/Live';
-import { FocusToggle, fmtPct, gameTitle, Legend, useFocusMode, WinrateGraph } from '../components/common';
+import { FocusEval, FocusToggle, fmtPct, gameTitle, Legend, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
 import { allPositions } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { engineKomi, isTerritoryScoring } from '../lib/go/rules';
@@ -49,6 +49,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [explore, setExplore] = useState(false);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [focused, setFocused] = useFocusMode();
+  const [evalOn, setEvalOn] = useEvalPref();
   const [sheet, setSheet] = useState(false);
   const closeSheet = useCallback(() => setSheet(false), []);
   useEffect(() => {
@@ -227,7 +228,21 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     <div className={`stage ${focused ? 'focused' : ''}`}>
       <FocusToggle focused={focused} onChange={setFocused} />
       {focused && !explore && (
-        <FocusNav onBack={() => setCur((c) => Math.max(0, c - 1))} onForward={() => setCur((c) => Math.min(n, c + 1))} canBack={cur > 0} canForward={cur < n} label={`Move ${cur} / ${n}`} />
+        <FocusNav
+          onBack={() => setCur((c) => Math.max(0, c - 1))}
+          onForward={() => setCur((c) => Math.min(n, c + 1))}
+          canBack={cur > 0}
+          canForward={cur < n}
+          label={`Move ${cur} / ${n}`}
+          evalOn={evalOn}
+          onEvalChange={setEvalOn}
+        />
+      )}
+      {focused && evalOn && (
+        <FocusEval>
+          <WinBar bWin={value?.bWin ?? null} bLead={value?.bLead ?? null} pending={!useLive && !ev?.searched} />
+          <WinrateGraph values={wr} scores={scores} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
+        </FocusEval>
       )}
       <div className="board-wrap" ref={boardWrap}>
         {explore ? (

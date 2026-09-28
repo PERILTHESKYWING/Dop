@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
 import { WinBar } from '../components/Analysis';
-import { fmtPct, gameTitle, Legend, MoveThumb, useFocusMode, FocusToggle, WinrateGraph } from '../components/common';
+import { EvalToggle, fmtPct, FocusEval, gameTitle, Legend, MoveThumb, useEvalPref, useFocusMode, FocusToggle, WinrateGraph } from '../components/common';
 import { KomiPicker } from '../components/Komi';
 import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
 import { BrandMark, Icon } from '../components/Icons';
@@ -1002,6 +1002,7 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [focused, setFocused] = useFocusMode();
+  const [evalOn, setEvalOn] = useEvalPref();
   const reads = play.reads;
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -1306,6 +1307,19 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
   return (
     <div className={`dop-stage ${focused ? 'focused' : ''}`}>
       <FocusToggle focused={focused} onChange={setFocused} />
+      {focused && <EvalToggle on={evalOn} onChange={setEvalOn} />}
+      {focused && evalOn && (
+        <FocusEval>
+          <WinBar bWin={current?.bWin ?? null} bLead={current?.bLead ?? null} pending={!current} />
+          {ply > 0 && (
+            <WinrateGraph
+              values={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bWin ?? null)}
+              scores={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bLead ?? null)}
+              cursor={ply}
+            />
+          )}
+        </FocusEval>
+      )}
       <div className="dop-board">
         <Board size={size} stones={board.stones} lastMove={last} toPlay={yourTurn ? game.user : undefined} onPlay={yourTurn ? onPlay : undefined} marks={marks} coords ariaLabel="Game against your copy" />
         {caption && <div className="small dop-caption">{caption}</div>}

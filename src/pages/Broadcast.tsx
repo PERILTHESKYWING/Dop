@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { Board } from '../components/Board';
 import { WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, type ShownCandidate } from '../components/Live';
-import { fmtPct, FocusToggle, useFocusMode, WinrateGraph } from '../components/common';
+import { EvalToggle, fmtPct, FocusEval, FocusToggle, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
 import { BrandSpinner } from '../components/Brand';
 import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
@@ -366,6 +366,7 @@ function Watch({
   const size = g.game.size;
   const lastClass = g.shown > 0 ? moveClassAt(g, moves, g.shown - 1) : null;
   const [focused, setFocused] = useFocusMode();
+  const [evalOn, setEvalOn] = useEvalPref();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -386,6 +387,13 @@ function Watch({
   return (
     <div className={`stage bc-watch ${focused ? 'focused' : ''}`}>
       <FocusToggle focused={focused} onChange={setFocused} />
+      {focused && <EvalToggle on={evalOn} onChange={setEvalOn} />}
+      {focused && evalOn && (
+        <FocusEval>
+          <WinBar bWin={v.bWin} bLead={v.bLead} />
+          <WinrateGraph values={wr} scores={leads} cursor={g.shown} />
+        </FocusEval>
+      )}
       <div className="board-wrap">
         <div className="bc-board-frame">
           <Board
