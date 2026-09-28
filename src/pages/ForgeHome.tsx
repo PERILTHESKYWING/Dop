@@ -249,7 +249,7 @@ export function ForgeHome() {
           </div>
         </section>
       )}
-      <p className="tiny muted">
+      <p className="tiny muted fs-source">
         How problems are made: KataGo scans real games (Fox games from 15k to 7d and professional games) for fights where one move decides,
         cuts the fight out, proves the answer with a full search and searches out how the opponent resists and how tempting wrong moves fail. Levels
         come from how often players of each rank find those moves in real games. The AI coach only writes the words and judges which problems teach
