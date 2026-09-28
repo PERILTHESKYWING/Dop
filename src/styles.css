@@ -1251,6 +1251,33 @@ details summary {
   top: 14px;
   right: 20px;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-2);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35);
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.15s var(--ease), color 0.2s var(--ease);
+}
+.focus-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.focus-toggle:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+.focus-toggle.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent, #fff);
 }
 .thumb {
   width: 100%;

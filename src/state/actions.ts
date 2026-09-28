@@ -9,9 +9,10 @@ import { practiceItems } from '../lib/forge/worth';
 import { answerCovered, gradeAnswer, itemBoard, type LiveCheck } from '../lib/forge/grading';
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
-import { detectPlayerColor, guessPlayerName, importSgfTexts } from '../lib/games';
+import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts } from '../lib/games';
 import { buildContext } from '../lib/go/features';
-import { PASS, type Color, type Loc } from '../lib/go/types';
+import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
+import { toSgf } from '../lib/go/sgf';
 import { allPositions, type Board } from '../lib/go/board';
 import { decodeOwnership } from '../lib/engine/parse';
 import { ANALYSIS_VERSION, engineMoves, searchedEval } from '../lib/analysis/analyzer';
@@ -456,6 +457,52 @@ export async function renameGamePlayers(id: string, black: string, white: string
   const d = await db();
   await d.put('games', next);
   set((s) => ({ games: s.games.map((x) => (x.id === id ? next : x)) }));
+}
+
+/**
+ * Save a game played against a Doppelgänger copy to the library, so it can be reviewed like
+ * any other game. Returns the id it was saved under (existing games with the same moves are
+ * reused rather than duplicated, so calling this more than once for the same game is safe).
+ */
+export async function saveDoppelGame(g: {
+  size: number;
+  komi: number;
+  setup: Move[];
+  moves: Move[];
+  user: Color;
+  black: string;
+  white: string;
+  result?: string;
+}): Promise<string> {
+  const parsed = { size: g.size, komi: g.komi, handicap: 0, setup: g.setup, moves: g.moves, black: g.black, white: g.white, result: g.result, event: 'Played against a Doppelgänger copy', warnings: [] };
+  const sgf = toSgf(parsed);
+  const rec: GameRecord = {
+    id: gameId(parsed),
+    source: 'doppel',
+    fileName: `${g.black} vs ${g.white}.sgf`,
+    sgf,
+    size: parsed.size,
+    komi: parsed.komi,
+    handicap: parsed.handicap,
+    setup: parsed.setup,
+    moves: parsed.moves,
+    black: parsed.black,
+    white: parsed.white,
+    result: parsed.result,
+    event: parsed.event,
+    playerColor: g.user,
+    importedAt: Date.now(),
+    status: 'pending',
+    warnings: [],
+    progress: { fast: 0, deep: 0, deepTotal: 0, total: g.moves.length + 1 },
+  };
+  const existing = get().games.find((x) => x.id === rec.id);
+  if (existing) return existing.id;
+  const d = await db();
+  await d.put('games', rec);
+  set((st) => ({ games: [...st.games, rec] }));
+  if (get().settings.autoAnalyze) void runQueue();
+  return rec.id;
 }
 
 export async function chooseSide(id: string, color: 1 | 2, remember: boolean) {

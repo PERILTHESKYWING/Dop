@@ -44,7 +44,9 @@ export function useWheelSteps(onStep: (delta: number) => void, enabled = true) {
   return setEl;
 }
 
-/** The ⏮ ◀ ▶ ⏭ row, bigger and clearer than plain small buttons. */
+/** The ⏮ ◀ ▶ ⏭ row, bigger and clearer than plain small buttons. Back/forward are drawn as a
+ * smaller version of each theme's own focus-mode object, so the row looks the same polished
+ * way whether or not you're in focus mode. */
 export function MoveStepper({
   onFirst,
   onBack,
@@ -62,17 +64,26 @@ export function MoveStepper({
   canForward: boolean;
   label?: string;
 }) {
+  const theme = (useStore((s) => s.settings.theme) ?? 'sunrise') as ThemeId;
+  const [sparks] = useSparksPref();
+  const press = (el: HTMLElement, dir: 1 | -1, step: () => void) => {
+    el.classList.remove('pressed');
+    void el.offsetWidth; // restart the press animation
+    el.classList.add('pressed');
+    if (sparks) burst(el, theme, dir);
+    step();
+  };
   return (
     <div className="move-stepper" role="group" aria-label="Move through the game">
       <button onClick={onFirst} disabled={!canBack} aria-label="First move" title="Start (Home)">
         <StepGlyph kind="first" />
       </button>
-      <button className="big" onClick={onBack} disabled={!canBack} aria-label="Previous move" title="Back (← or scroll up on the board)">
-        <StepGlyph kind="back" />
+      <button className="step-obj back" onClick={(e) => press(e.currentTarget, -1, onBack)} disabled={!canBack} aria-label="Previous move" title="Back (← or scroll up on the board)">
+        <ThemeObject theme={theme} />
       </button>
       {label && <span className="move-stepper-label mono">{label}</span>}
-      <button className="big" onClick={onForward} disabled={!canForward} aria-label="Next move" title="Forward (→ or scroll down on the board)">
-        <StepGlyph kind="forward" />
+      <button className="step-obj forward" onClick={(e) => press(e.currentTarget, 1, onForward)} disabled={!canForward} aria-label="Next move" title="Forward (→ or scroll down on the board)">
+        <ThemeObject theme={theme} />
       </button>
       <button onClick={onLast} disabled={!canForward} aria-label="Last move" title="End (End)">
         <StepGlyph kind="last" />
@@ -154,12 +165,17 @@ export function FocusNav({
   canBack,
   canForward,
   label,
+  evalOn,
+  onEvalChange,
 }: {
   onBack: () => void;
   onForward: () => void;
   canBack: boolean;
   canForward: boolean;
   label?: string;
+  /** Shows an "Eval" toggle in the bar, for stages with an evaluation bar/graph to keep up (see `useEvalPref`). */
+  evalOn?: boolean;
+  onEvalChange?: (v: boolean) => void;
 }) {
   const theme = (useStore((s) => s.settings.theme) ?? 'sunrise') as ThemeId;
   const [sparks, setSparks] = useSparksPref();
@@ -180,6 +196,11 @@ export function FocusNav({
       </button>
       <div className="focus-nav-bar">
         {label && <span className="mono">{label}</span>}
+        {onEvalChange && (
+          <button className={`focus-nav-eval ${evalOn ? 'on' : ''}`} onClick={() => onEvalChange(!evalOn)} aria-pressed={!!evalOn} title={evalOn ? 'Hide the evaluation bar and graph' : 'Keep the evaluation bar and graph up'}>
+            📈 Eval
+          </button>
+        )}
         <button className={`focus-nav-sparks ${sparks ? 'on' : ''}`} onClick={() => setSparks(!sparks)} aria-pressed={sparks} title={sparks ? 'Sparks on: click to turn them off' : 'Sparks off: click to turn them on'}>
           ✦ Sparks
         </button>

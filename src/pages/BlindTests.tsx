@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { saveBlindTest, submitAnswer } from '../state/actions';
 import { Board } from '../components/Board';
 import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
-import { fmtPct } from '../components/common';
+import { fmtPct, FocusToggle, useFocusMode } from '../components/common';
 import { itemBoard } from '../lib/forge/grading';
 import { buildBlindSet } from '../lib/forge/scheduler';
 import { practiceItems } from '../lib/forge/worth';
@@ -29,6 +29,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const [assistedFor, setAssistedFor] = useState<string | null>(null);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [view, toggleView, setCandidateCount] = useAnalysisView();
+  const [focused, setFocused] = useFocusMode();
   const item = items[i];
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
@@ -57,6 +58,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter') void commit();
+      else if (e.key === 'Escape' && focused) setFocused(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -66,7 +68,8 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const last = item.moves.length ? item.moves[item.moves.length - 1].loc : null;
   const assisted = assistedFor === item.id;
   return (
-    <div className="stage">
+    <div className={`stage ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
       <div className="board-wrap">
         {explore ? (
           <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} onHoverPv={setHoverPv} />

@@ -30,41 +30,60 @@ import './styles/shell.css';
 import './styles/ux.css';
 
 interface NavItem {
+  /** Unique key (several items can share `page`, e.g. the three Doppelgänger entries). */
+  id: string;
+  /** The route's top segment; also what groups items sharing one page for the active check. */
   page: string;
+  /** The href target, including any sub-path. Defaults to `page` when built with navItem(). */
+  path: string;
+  /** Which first route param(s) this entry is active for. Omit to match `page` alone
+   * (the old behaviour); '' means "no param". */
+  sub?: string[];
   label: string;
   /** Label in the phone tab bar and the "More" sheet. */
   short: string;
   icon: IconName;
 }
 
+function navItem(page: string, label: string, short: string, icon: IconName, opts?: { path?: string; sub?: string[] }): NavItem {
+  return { id: opts?.path ?? page, page, path: opts?.path ?? page, label, short, icon, sub: opts?.sub };
+}
+
+/** Whether a nav entry should show as the current page. */
+function navActive(item: NavItem, current: string, params0: string) {
+  return item.page === current && (item.sub === undefined || item.sub.includes(params0));
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Study',
     items: [
-      { page: 'dashboard', label: 'Dashboard', short: 'Home', icon: 'sunrise' },
-      { page: 'library', label: 'Game Library', short: 'Games', icon: 'library' },
-      { page: 'review', label: 'Game Review', short: 'Review', icon: 'board' },
-      { page: 'chat', label: 'Go Coach Chat', short: 'Coach', icon: 'chat' },
-      { page: 'study', label: 'Study Board', short: 'Study', icon: 'kifu' },
-      { page: 'live', label: 'Live AI Games', short: 'Live', icon: 'broadcast' },
-      { page: 'dna', label: 'Player DNA', short: 'Player DNA', icon: 'dna' },
-      { page: 'doppel', label: 'Doppelgänger', short: 'Doppelgänger', icon: 'twin' },
+      navItem('dashboard', 'Dashboard', 'Home', 'sunrise'),
+      navItem('library', 'Game Library', 'Games', 'library'),
+      navItem('review', 'Game Review', 'Review', 'board'),
+      navItem('chat', 'Go Coach Chat', 'Coach', 'chat'),
+      navItem('study', 'Study Board', 'Study', 'kifu'),
+      navItem('live', 'Live AI Games', 'Live', 'broadcast'),
+      navItem('dna', 'Player DNA', 'Player DNA', 'dna'),
+      navItem('doppel', 'Doppelgänger', 'Doppelgänger', 'twin', { sub: ['', 'play'] }),
+      navItem('doppel', 'The Copy', 'The Copy', 'stones', { path: 'doppel/copy', sub: ['copy'] }),
+      navItem('doppel', 'Where It Differs', 'Differs', 'target', { path: 'doppel/differences', sub: ['differences'] }),
     ],
   },
   {
     label: 'Train',
     items: [
-      { page: 'forge', label: 'Forge', short: 'Forge', icon: 'flame' },
-      { page: 'blind', label: 'Blind Tests', short: 'Blind Tests', icon: 'eyeOff' },
-      { page: 'search', label: 'Position Search', short: 'Search', icon: 'search' },
+      navItem('forge', 'Forge', 'Forge', 'flame'),
+      navItem('blind', 'Blind Tests', 'Blind Tests', 'eyeOff'),
+      navItem('search', 'Position Search', 'Search', 'search'),
     ],
   },
   {
     label: 'Prepare',
-    items: [{ page: 'opponents', label: 'Opponents', short: 'Opponents', icon: 'swords' }],
+    items: [navItem('opponents', 'Opponents', 'Opponents', 'swords')],
   },
 ];
-const SETTINGS_ITEM: NavItem = { page: 'settings', label: 'Engine & Settings', short: 'Settings', icon: 'sliders' };
+const SETTINGS_ITEM: NavItem = navItem('settings', 'Engine & Settings', 'Settings', 'sliders');
 const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), SETTINGS_ITEM];
 /** The phone tab bar: the most used pages; everything else is in "More". */
 const TABS = ['dashboard', 'library', 'review', 'forge'];
@@ -135,9 +154,10 @@ function StatusCard() {
 }
 
 function NavLink({ item, current }: { item: NavItem; current: string }) {
-  const on = current === item.page;
+  const route = useRoute();
+  const on = navActive(item, current, route.params[0] ?? '');
   return (
-    <a href={href(item.page)} className={`item ${on ? 'active' : ''}`} aria-current={on ? 'page' : undefined} title={item.label} style={{ '--i': ALL_ITEMS.indexOf(item) } as CSSProperties}>
+    <a href={href(item.path)} className={`item ${on ? 'active' : ''}`} aria-current={on ? 'page' : undefined} title={item.label} style={{ '--i': ALL_ITEMS.indexOf(item) } as CSSProperties}>
       <Icon name={item.icon} />
       <span className="item-label">{item.label}</span>
     </a>
@@ -161,6 +181,7 @@ function TabBar({ current }: { current: string }) {
   const route = useRoute();
   const panel = useRef<HTMLDivElement>(null);
   const rest = ALL_ITEMS.filter((i) => !TABS.includes(i.page));
+  const params0 = route.params[0] ?? '';
   const moreActive = !TABS.includes(current);
   const close = () => setSheet((s) => (s === 'open' ? 'closing' : s));
   // Any navigation closes the sheet.
@@ -209,7 +230,7 @@ function TabBar({ current }: { current: string }) {
             </div>
             <div className="sheet-grid">
               {rest.map((it) => (
-                <a key={it.page} href={href(it.page)} className={`sheet-item ${current === it.page ? 'on' : ''}`} aria-current={current === it.page ? 'page' : undefined}>
+                <a key={it.id} href={href(it.path)} className={`sheet-item ${navActive(it, current, params0) ? 'on' : ''}`} aria-current={navActive(it, current, params0) ? 'page' : undefined}>
                   <span className="sheet-ico">
                     <Icon name={it.icon} />
                   </span>
@@ -413,7 +434,7 @@ export function App() {
                   <div key={g.label} className="nav-group" role="group" aria-label={g.label}>
                     <div className="nav-label">{g.label}</div>
                     {g.items.map((it) => (
-                      <NavLink key={it.page} item={it} current={current} />
+                      <NavLink key={it.id} item={it} current={current} />
                     ))}
                   </div>
                 ))}

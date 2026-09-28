@@ -2,7 +2,7 @@ import type { ThemeId } from './themes';
 import type { Color, Loc, Move } from './go/types';
 import type { Region } from './go/coords';
 
-export type GameSource = 'user' | 'opponent' | 'demo' | 'demo-opponent';
+export type GameSource = 'user' | 'opponent' | 'demo' | 'demo-opponent' | 'doppel';
 export type AnalysisStatus = 'pending' | 'fast' | 'deep' | 'done' | 'error' | 'skipped';
 
 export interface GameRecord {

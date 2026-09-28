@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
-import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, rebuildProfile, runQueue, startEngine } from '../state/actions';
+import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
 import { WinBar } from '../components/Analysis';
-import { fmtPct, gameTitle, Legend, MoveThumb } from '../components/common';
+import { EvalToggle, fmtPct, FocusEval, gameTitle, Legend, MoveThumb, useEvalPref, useFocusMode, FocusToggle, WinrateGraph } from '../components/common';
 import { KomiPicker } from '../components/Komi';
 import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
 import { BrandMark, Icon } from '../components/Icons';
@@ -39,12 +39,6 @@ type View = 'overview' | 'differences' | 'play';
 /** Strength dial settings (ranks on the level scale, see level/ranks.ts). */
 const STRENGTHS = [-14, -9, -6, -4, -2, 0, 1, 3, 5, 7, 9, FULL_STRENGTH];
 
-const TABS: { view: View; path: string; label: string; hint: string }[] = [
-  { view: 'overview', path: 'doppel', label: 'The copy', hint: 'accuracy and habits' },
-  { view: 'differences', path: 'doppel/differences', label: 'Where it differs', hint: 'vs KataGo, and the cost' },
-  { view: 'play', path: 'doppel/play', label: 'Play it', hint: 'a game against the copy' },
-];
-
 /** The losing side must keep this winrate for a disagreement to count (looser than practice: this is a report). */
 const REPORT_MIN_LOSING_WINRATE = 0.1;
 
@@ -72,7 +66,9 @@ export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchPa
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheet: SheetCtl = { open: sheetOpen, set: setSheetOpen };
   const opponents = useStore((s) => s.opponents);
-  const view: View = tab === 'differences' ? 'differences' : tab === 'play' ? 'play' : 'overview';
+  // "Play" is the default: the sidebar's own three entries (Doppelgänger, The Copy, Where
+  // it differs) are the only way to reach the other two views now.
+  const view: View = tab === 'differences' ? 'differences' : tab === 'copy' ? 'overview' : 'play';
   const ready = copy.state === 'ready' && copy.model;
   // Playing an imported player's copy (from their profile page).
   const opp = view === 'play' ? opponents.find((o) => o.id === query?.get('opp') && o.copy) : undefined;
@@ -96,8 +92,8 @@ export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchPa
       </div>
     );
   return (
-    <div className={`page dop-page ${view !== 'overview' && ready ? 'dop-wide' : ''}`}>
-      <Head copy={copy} view={view} onSettings={ready ? () => sheet.set(true) : undefined} />
+    <div className={`page dop-page ${view !== 'overview' && ready ? 'dop-wide' : ''} ${view === 'play' ? 'dop-play-page' : ''}`}>
+      {view !== 'play' && <Head copy={copy} onSettings={ready ? () => sheet.set(true) : undefined} />}
       {!ready ? (
         <NotReady copy={copy} />
       ) : (
@@ -113,7 +109,9 @@ export function Doppelganger({ tab, query }: { tab?: string; query?: URLSearchPa
   );
 }
 
-function Head({ copy, view, onSettings }: { copy: CopyInfo; view: View; onSettings?: () => void }) {
+/** The overview and differences pages still get a full title (now reached only from the
+ * sidebar); the play page keeps to a board, a Start button and whose copy it is. */
+function Head({ copy, onSettings }: { copy: CopyInfo; onSettings?: () => void }) {
   const busy = useStore((s) => s.busy.profile);
   const m = copy.model;
   const demo = copy.owner === 'demo' && copy.state === 'ready';
@@ -132,17 +130,9 @@ function Head({ copy, view, onSettings }: { copy: CopyInfo; view: View; onSettin
           </p>
         </div>
       </div>
-      {m && (
+      {m && onSettings && (
         <div className="dop-head-tools">
-          <div className="segmented dop-tabs" role="tablist" aria-label="Doppelgänger views">
-            {TABS.map((t) => (
-              <button key={t.view} role="tab" aria-selected={view === t.view} className={view === t.view ? 'on' : ''} onClick={() => view !== t.view && go(t.path)}>
-                <strong>{t.label}</strong>
-                <span>{t.hint}</span>
-              </button>
-            ))}
-          </div>
-          {onSettings && <GearButton onClick={onSettings} label="Doppelgänger settings" />}
+          <GearButton onClick={onSettings} label="Doppelgänger settings" />
         </div>
       )}
     </div>
@@ -164,12 +154,6 @@ function DopSheet({ sheet, copy, children }: { sheet: SheetCtl; copy: CopyInfo; 
   return (
     <ControlSheet open={sheet.open} onClose={close} title="Doppelgänger">
       {children}
-      <SheetSection title="Go to">
-        <ActionTile onClick={() => nav('doppel')} icon={<Icon name="twin" />} label="The copy" sub="Accuracy and habits" />
-        <ActionTile onClick={() => nav('doppel/differences')} icon={<Icon name="target" />} label="Where it differs" sub="And what it costs" />
-        <ActionTile onClick={() => nav('doppel/play')} icon={<Icon name="play" />} label="Play it" sub="A game against the copy" />
-        <ActionTile onClick={() => nav('dna')} icon={<Icon name="dna" />} label="Player DNA" sub="Your style profile" />
-      </SheetSection>
       <SheetSection title="The copy">
         <ActionTile onClick={() => void rebuildProfile()} disabled={busy} icon="↻" label={busy ? 'Retraining…' : 'Retrain now'} sub="From every analysed game" />
         <ActionTile onClick={() => nav('library')} icon={<Icon name="upload" />} label="Import games" sub={copy.owner === 'demo' ? 'Make it yours' : 'Teach it more'} />
@@ -876,6 +860,10 @@ interface PlayGame {
   from?: { gameId: string; move: number };
   /** Whose copy plays: "me" or an imported player's id. */
   copyOf?: string;
+  /** Set when a side resigns instead of the game ending by double pass. */
+  resigned?: Color;
+  /** The library id this game was saved as, once "Review game" or the sheet has saved it. */
+  savedId?: string;
 }
 
 /** KataGo's quick read of one position, and what the copy makes of it. */
@@ -926,7 +914,7 @@ let gameIds = 1;
 const lineKey = (moves: Move[]) => moves.map((m) => `${m.color}${m.loc}`).join(',');
 const readKey = (g: PlayGame, ply: number) => `${g.id}|${lineKey(g.moves.slice(0, ply))}`;
 const colorAt = (g: PlayGame, ply: number): Color => (ply % 2 === 0 ? g.start : other(g.start));
-const isOver = (g: PlayGame) => g.moves.length >= 2 && g.moves[g.moves.length - 1].loc === PASS && g.moves[g.moves.length - 2].loc === PASS;
+const isOver = (g: PlayGame) => !!g.resigned || (g.moves.length >= 2 && g.moves[g.moves.length - 1].loc === PASS && g.moves[g.moves.length - 2].loc === PASS);
 
 function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
   if (s.from === 'game' && source) {
@@ -1013,9 +1001,18 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
   const [, setTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [focused, setFocused] = useFocusMode();
+  const [evalOn, setEvalOn] = useEvalPref();
   const reads = play.reads;
   const gameRef = useRef(game);
   gameRef.current = game;
+  useEffect(() => {
+    if (!focused) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focused, setFocused]);
+  const [saving, setSaving] = useState(false);
 
   const setSetup = (s: PlaySetup) => {
     play.setup = s;
@@ -1113,11 +1110,11 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
           />
         </div>
         <div className="dop-side">
-          <div className="panel accent stack">
-            <h2>Play against {demoMode ? copy.who : 'your copy'}</h2>
-            <p className="small dim">
-              The copy answers with the move it expects {demoMode ? `${copy.demoName ?? 'the player'} to play` : 'you to play'}, chosen among KataGo's candidates. After each reply you see what KataGo would have played.
-            </p>
+          <div className="panel accent stack dop-play-setup">
+            <div className="spread">
+              <h2>Play against {demoMode ? copy.who : 'your copy'}</h2>
+              <GearButton onClick={() => sheet.set(true)} label="Game settings" />
+            </div>
             <div className="stack tight">
               <span className="field-label">You play</span>
               <div className="segmented dop-seg">
@@ -1131,33 +1128,14 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
                 ))}
               </div>
             </div>
-            <div className="dop-setup-summary">
-              <button className="dop-sum" onClick={() => sheet.set(true)}>
-                <span className="dop-sum-k">Start from</span>
-                <span className="dop-sum-v">{setup.from === 'game' && source ? `${gameTitle(source)}, move ${Math.min(setup.move, source.moves.length)}` : `Empty ${setup.size}×${setup.size} · komi ${setup.komi ?? 7.5}`}</span>
-              </button>
-              <button className="dop-sum" onClick={() => sheet.set(true)}>
-                <span className="dop-sum-k">Strength</span>
-                <span className="dop-sum-v">{setup.strength === null ? `As ${demoMode ? 'the player plays' : 'you play'}` : setup.strength === FULL_STRENGTH ? 'Full strength' : `About ${rankLabel(setup.strength)}`}</span>
-              </button>
-              <button className="dop-sum" onClick={() => sheet.set(true)}>
-                <span className="dop-sum-k">Moves</span>
-                <span className="dop-sum-v">{setup.sample ? 'Varied, like a person' : 'Always its likeliest'}</span>
-              </button>
-            </div>
             {unavailable ? (
               <div className="callout bad small">
                 KataGo could not start on this device, and the copy chooses among KataGo's candidate moves, so it cannot play here. <a href={href('settings')}>Engine &amp; Settings</a> has the details and fixes.
               </div>
             ) : (
-              <div className="row wrap">
-                <button className="btn primary dop-start" onClick={start}>
-                  <Icon name="play" /> Start the game
-                </button>
-                <button className="btn" onClick={() => sheet.set(true)}>
-                  <Icon name="gear" /> Game settings
-                </button>
-              </div>
+              <button className="btn primary dop-start" onClick={start}>
+                <Icon name="play" /> Start the game
+              </button>
             )}
             {!unavailable && engine.status !== 'ready' && <p className="tiny muted">KataGo loads when the game starts (it supplies the candidate moves the copy chooses from).</p>}
           </div>
@@ -1277,6 +1255,37 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
     if (lastUser === undefined) return;
     setGame((g) => (g && g.id === game.id ? { ...g, moves: g.moves.slice(0, lastUser) } : g));
   };
+  const resign = () => {
+    if (over) return;
+    if (!confirm('Resign this game?')) return;
+    setGame((g) => (g && g.id === game.id ? { ...g, resigned: g.user } : g));
+  };
+  const reviewGame = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const you = 'You';
+      const black = game.user === 1 ? you : whoName;
+      const white = game.user === 1 ? whoName : you;
+      const result = game.resigned ? `${game.resigned === 1 ? 'W' : 'B'}+R` : current ? `${current.bLead >= 0 ? 'B' : 'W'}+${Math.abs(current.bLead).toFixed(1)}` : undefined;
+      const id =
+        game.savedId ??
+        (await saveDoppelGame({
+          size: game.size,
+          komi: game.komi,
+          setup: game.setup,
+          moves: history,
+          user: game.user,
+          black,
+          white,
+          result,
+        }));
+      setGame((g) => (g && g.id === game.id ? { ...g, savedId: id } : g));
+      go(`review/${id}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // How the game has gone: the copy's replies against KataGo, and the player's moves against the copy.
   let replies = 0,
@@ -1296,7 +1305,21 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
   });
 
   return (
-    <div className="dop-stage">
+    <div className={`dop-stage ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
+      {focused && <EvalToggle on={evalOn} onChange={setEvalOn} />}
+      {focused && evalOn && (
+        <FocusEval>
+          <WinBar bWin={current?.bWin ?? null} bLead={current?.bLead ?? null} pending={!current} />
+          {ply > 0 && (
+            <WinrateGraph
+              values={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bWin ?? null)}
+              scores={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bLead ?? null)}
+              cursor={ply}
+            />
+          )}
+        </FocusEval>
+      )}
       <div className="dop-board">
         <Board size={size} stones={board.stones} lastMove={last} toPlay={yourTurn ? game.user : undefined} onPlay={yourTurn ? onPlay : undefined} marks={marks} coords ariaLabel="Game against your copy" />
         {caption && <div className="small dop-caption">{caption}</div>}
@@ -1312,6 +1335,13 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
             </span>
           </div>
           {(!immersive || over) && <WinBar bWin={current?.bWin ?? null} bLead={current?.bLead ?? null} pending={!current} />}
+          {(!immersive || over) && ply > 0 && (
+            <WinrateGraph
+              values={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bWin ?? null)}
+              scores={Array.from({ length: ply + 1 }, (_, i) => reads.get(readKey(game, i))?.bLead ?? null)}
+              cursor={ply}
+            />
+          )}
           <div className="small dim">
             {error ? (
               <span className="bad">
@@ -1329,10 +1359,16 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
               )
             ) : over ? (
               <>
-                Game over: both passed.{' '}
-                {current && (
+                {game.resigned ? (
+                  <>{game.resigned === game.user ? 'You resigned.' : `${whoName} resigned.`}</>
+                ) : (
                   <>
-                    KataGo's estimate: <strong>{current.bLead >= 0 ? 'B' : 'W'}+{Math.abs(current.bLead).toFixed(1)}</strong>.
+                    Game over: both passed.{' '}
+                    {current && (
+                      <>
+                        KataGo's estimate: <strong>{current.bLead >= 0 ? 'B' : 'W'}+{Math.abs(current.bLead).toFixed(1)}</strong>.
+                      </>
+                    )}
                   </>
                 )}
               </>
@@ -1351,6 +1387,12 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
               <span aria-hidden>⏸</span>
               Pass
             </button>
+            {!over && (
+              <button onClick={resign} title="Resign the game">
+                <span aria-hidden>⚑</span>
+                Resign
+              </button>
+            )}
             <button onClick={() => setGame(() => null)} title="Back to the game setup">
               <span aria-hidden>＋</span>
               New game
@@ -1360,6 +1402,11 @@ function PlayCopy({ copy, model, opponent, sheet }: { copy: CopyInfo; model: Dop
               Immersive
             </button>
           </div>
+          {over && (
+            <button className="btn primary" onClick={() => void reviewGame()} disabled={saving}>
+              <Icon name="board" /> {saving ? 'Saving…' : 'Review this game'}
+            </button>
+          )}
         </div>
 
         {!immersive && lastCopy !== undefined && (
