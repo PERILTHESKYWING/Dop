@@ -25,6 +25,8 @@ export interface FactGroup {
   stones: number;
   /** A few of its stones, for naming it. */
   at: string[];
+  /** All of its stones (for checking claims about it; not shown to the model). */
+  all?: string[];
   liberties: number;
   status: 'weak' | 'safe' | 'dead' | 'settled';
 }
@@ -154,7 +156,7 @@ function allowedFigures(facts: PositionFacts, probes: readonly ProbeResult[] = [
   const add = (s?: string) => s && s !== 'pass' && coords.add(s.toUpperCase());
   add(facts.lastMove);
   for (const c of facts.candidates) c.line.forEach(add);
-  for (const g of facts.groups) g.at.forEach(add);
+  for (const g of facts.groups) (g.all ?? g.at).forEach(add);
   if (facts.played) {
     add(facts.played.move);
     add(facts.played.kataGoBest);
@@ -281,8 +283,8 @@ Reply with JSON only, one of:
 {"probes":[{"moves":["D4","C3"],"why":"short reason"}]}   (up to 3 lines of at most 8 moves, alternating from the side to move; only when needed and only on the first round)
 {"answer":"your explanation"}`;
 
-export function buildAskPrompt(req: AskRequest, correction?: string[]): string {
-  const f = req.facts;
+/** The fact sheet as text: position, KataGo's numbers, groups, insights, pro games, probes. */
+export function describeFacts(f: PositionFacts, probes?: readonly ProbeResult[]): string[] {
   const parts: string[] = [];
   if (f.level) parts.push(`Student's level: ${f.level}.`);
   parts.push(`Position (move ${f.moveNumber}, ${f.toPlay} to play, komi ${f.komi}${f.lastMove ? `, last move ${f.lastMove}` : ''}):\n${f.diagram}`);
@@ -325,10 +327,10 @@ export function buildAskPrompt(req: AskRequest, correction?: string[]): string {
     );
   if (f.comments?.lastMove) parts.push(`Commentary in the game file on the last move:\n${f.comments.lastMove}`);
   if (f.comments?.nextMove) parts.push(`Commentary in the game file on the move played here:\n${f.comments.nextMove}`);
-  if (req.probes?.length)
+  if (probes?.length)
     parts.push(
-      'Lines you asked KataGo to check:\n' +
-        req.probes
+      'Lines KataGo checked:\n' +
+        probes
           .map((p) =>
             p.legal
               ? `- ${p.moves.join(' ')} → ${p.toPlay} to play, Black's winrate ${p.blackWinrate?.toFixed(1)}%, Black leads ${p.blackLead?.toFixed(1)}, KataGo continues ${p.bestLine?.join(' ') || '(nothing)'} (${p.visits} visits)`
@@ -336,6 +338,11 @@ export function buildAskPrompt(req: AskRequest, correction?: string[]): string {
           )
           .join('\n'),
     );
+  return parts;
+}
+
+export function buildAskPrompt(req: AskRequest, correction?: string[]): string {
+  const parts = describeFacts(req.facts, req.probes);
   if (req.history?.length) parts.push('Earlier in this conversation:\n' + req.history.map((h) => `Q: ${h.question}\nA: ${h.answer}`).join('\n'));
   parts.push(`Question: ${req.question}`);
   if (req.final) parts.push('Answer now (no probes).');

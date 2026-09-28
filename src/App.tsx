@@ -23,6 +23,7 @@ import { Opponents } from './pages/Opponents';
 import { Settings } from './pages/Settings';
 import { Broadcast } from './pages/Broadcast';
 import { Study } from './pages/Study';
+import { Chat } from './pages/Chat';
 import './styles/shell.css';
 
 interface NavItem {
@@ -40,6 +41,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { page: 'dashboard', label: 'Dashboard', short: 'Home', icon: 'sunrise' },
       { page: 'library', label: 'Game Library', short: 'Games', icon: 'library' },
       { page: 'review', label: 'Game Review', short: 'Review', icon: 'board' },
+      { page: 'chat', label: 'Go Coach Chat', short: 'Coach', icon: 'chat' },
       { page: 'study', label: 'Study Board', short: 'Study', icon: 'kifu' },
       { page: 'live', label: 'Live AI Games', short: 'Live', icon: 'broadcast' },
       { page: 'dna', label: 'Player DNA', short: 'Player DNA', icon: 'dna' },
@@ -321,6 +323,9 @@ export function App() {
         break;
       case 'study':
         page = <Study id={route.params[0]} query={route.query} />;
+        break;
+      case 'chat':
+        page = <Chat query={route.query} />;
         break;
       default:
         page = <Dashboard />;

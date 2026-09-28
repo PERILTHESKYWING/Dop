@@ -435,6 +435,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
         {!explore && (
           <AskPanel
             positionKey={`${game.id}|${cur}`}
+            chatHref={href(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)}
             hasPlayed={!!next && next.loc !== PASS}
             facts={() =>
               value

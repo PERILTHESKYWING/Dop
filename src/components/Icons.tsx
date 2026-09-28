@@ -2,6 +2,13 @@ import { useId, type JSX, type SVGProps } from 'react';
 
 /** Small line icons (24x24, stroke = currentColor). Drawn for this app. */
 const PATHS: Record<string, JSX.Element> = {
+  chat: (
+    <>
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" />
+      <circle cx="9.5" cy="9.5" r="1.9" fill="currentColor" />
+      <circle cx="14.5" cy="9.5" r="1.9" />
+    </>
+  ),
   sunrise: (
     <>
       <path d="M3 18h18" />
