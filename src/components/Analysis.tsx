@@ -167,6 +167,8 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
 
   return {
     base,
+    /** Identifies the position on the board (base + the moves tried). */
+    key,
     board,
     toPlay,
     line,
@@ -384,7 +386,7 @@ export function AnalysisPanel({
       )}
 
       {ev && ev.shown.length > 0 && (
-        <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={view.candidateCount} />
+        <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={view.candidateCount} resetKey={a.key} />
       )}
       {guess.length > 0 && <DoppelLine predictions={guess} size={size} who={copy.who} />}
 

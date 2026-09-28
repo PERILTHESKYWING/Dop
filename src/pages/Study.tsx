@@ -510,7 +510,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                   <ClassPill cls={lastClass} />
                 </div>
               )}
-              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} />
+              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} resetKey={`${k.id}:${cursor}`} />
               <div className="row wrap toggles">
                 <label className="toggle">
                   <input type="checkbox" checked={view.best} onChange={() => toggleView('best')} /> Best moves

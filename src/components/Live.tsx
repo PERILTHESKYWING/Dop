@@ -124,6 +124,7 @@ export function CandidateTable({
   onHover,
   onPick,
   max = 10,
+  resetKey,
 }: {
   cands: ShownCandidate[];
   size: number;
@@ -131,16 +132,40 @@ export function CandidateTable({
   onHover?: (c: ShownCandidate | null) => void;
   onPick?: (loc: Loc) => void;
   max?: number;
+  /** The position shown; a pinned variation is dropped when it changes. */
+  resetKey?: string | number;
 }) {
   const total = cands.reduce((a, c) => a + c.visits, 0) || 1;
   let rows = cands.slice(0, max);
   const playedRow = played != null ? cands.find((c) => c.loc === played) : undefined;
   if (playedRow && !rows.includes(playedRow)) rows = [...rows, playedRow];
   // Tapping a row pins its variation on the board, like 星阵围棋's review list: no stone is
-  // placed, no hover is needed (mobile included), and a second tap or leaving with nothing
-  // pinned clears it. Hover still works for a mouse, but never fights a pin someone tapped.
+  // placed and no hover is needed (mobile included); a second tap clears it. Hover still
+  // works for a mouse, but never fights a pin someone tapped.
   const [pinned, setPinned] = useState<Loc | null>(null);
-  useEffect(() => setPinned(null), [cands]);
+  const hoverRef = useRef(onHover);
+  hoverRef.current = onHover;
+  const sentPv = useRef('');
+  useEffect(() => {
+    setPinned(null);
+    sentPv.current = '';
+  }, [resetKey]);
+  // While KataGo keeps reading, the pinned move's line keeps refining: pass the new line on
+  // (only when it actually changed, so a parent re-render can't loop), and let go of the pin
+  // if the move drops out of the list.
+  const pinnedPv = pinned === null ? '' : (cands.find((c) => c.loc === pinned)?.pv.join(',') ?? 'gone');
+  useEffect(() => {
+    if (pinned === null || pinnedPv === sentPv.current) return;
+    sentPv.current = pinnedPv;
+    if (pinnedPv === 'gone') {
+      setPinned(null);
+      hoverRef.current?.(null);
+      return;
+    }
+    const c = cands.find((x) => x.loc === pinned);
+    if (c) hoverRef.current?.(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned, pinnedPv]);
   if (!rows.length) return null;
   return (
     <table className="data cands live-cands">
@@ -164,6 +189,7 @@ export function CandidateTable({
               className={`click ${rank === 0 ? 'best' : ''} ${c.loc === played ? 'played' : ''} ${c.loc === pinned ? 'previewed' : ''}`}
               onClick={() => {
                 const next = pinned === c.loc ? null : c.loc;
+                sentPv.current = next === null ? '' : c.pv.join(',');
                 setPinned(next);
                 onHover?.(next === null ? null : c);
               }}

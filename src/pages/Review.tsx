@@ -338,7 +338,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           <div className="panel stack live-panel">
             <LiveHeader snap={snap} />
             <WinBar bWin={value?.bWin ?? null} bLead={value?.bLead ?? null} pending={!useLive && !ev?.searched} />
-            <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={aView.candidateCount} />
+            <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={aView.candidateCount} resetKey={`${game.id}:${cur}`} />
             {!shown.length && <div className="tiny muted">KataGo's candidate moves appear here as it reads.</div>}
             <p className="tiny muted">
               {useLive ? 'Live' : ev?.searched ? 'Stored analysis' : ev ? 'Network only' : 'Not analysed'} · {visits ? `${visits} visits` : ''}{' '}
