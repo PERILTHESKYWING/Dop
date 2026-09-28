@@ -17,6 +17,8 @@ import { Review } from './pages/Review';
 import { PlayerDNA } from './pages/PlayerDNA';
 import { Doppelganger } from './pages/Doppelganger';
 import { Forge } from './pages/Forge';
+import { ForgeHome } from './pages/ForgeHome';
+import { ProblemSet } from './pages/ProblemSet';
 import { BlindTests } from './pages/BlindTests';
 import { Search } from './pages/Search';
 import { Opponents } from './pages/Opponents';
@@ -304,7 +306,14 @@ export function App() {
         page = <Doppelganger tab={route.params[0]} query={route.query} />;
         break;
       case 'forge':
-        page = <Forge weaknessId={route.params[0]} />;
+        // forge: problem settings; forge/set: a problem set; forge/mine or forge/<weakness>: drills on your own mistakes.
+        page = !route.params[0] ? (
+          <ForgeHome />
+        ) : route.params[0] === 'set' ? (
+          <ProblemSet daily={route.query.get('daily') === '1'} />
+        ) : (
+          <Forge weaknessId={route.params[0] === 'mine' ? undefined : route.params[0]} />
+        );
         break;
       case 'blind':
         page = <BlindTests weaknessId={route.params[0]} />;

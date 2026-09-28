@@ -7,6 +7,7 @@
  * with a short backoff, and stops at a total time budget that fits the function limit.
  */
 import { ASK_SYSTEM, buildAskPrompt, parseAskReply, unsupportedFigures, validAskRequest, type AskRequest, type AskResponse } from './ask.js';
+import { handleForgeWrite } from './forgeWriter.js';
 import { buildChatPrompt, CHAT_SYSTEM, checkable, checkAnswer, parseChatReply, parseReview, REVIEW_SYSTEM, validChatRequest, type ChatRequest, type ChatResponse } from './chat.js';
 import { describeFacts } from './ask.js';
 import { buildUserPrompt, resolveLlmConfig, safeJson, SYSTEM_PROMPT, validatePatterns, type DiscoveryRequest, type DiscoveryResponse } from './llm.js';
@@ -163,6 +164,10 @@ export async function handleLlmRequest(
   if (!rawBody || rawBody.length > MAX_BODY) return { status: 413, body: { error: 'request too large or empty' } };
   const parsed = safeJson(rawBody) as { task?: string } | null;
   if (parsed?.task === 'ask-position') return handleAsk(parsed, env, fetchImpl, opts);
+  if (parsed?.task === 'forge-problems') {
+    const budget = opts.budgetMs ?? 52_000;
+    return handleForgeWrite(parsed, (prompt, left) => generateJson(prompt, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, left) }), budget, opts.now);
+  }
   if (parsed?.task === 'chat') return handleChat(parsed, env, fetchImpl, opts);
   const req = parsed as DiscoveryRequest | null;
   if (!req || req.task !== 'discover-patterns' || !Array.isArray(req.clusters) || !req.player) {
