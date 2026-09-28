@@ -10,3 +10,4 @@ public/demo/part-*.json
 coverage/
 .DS_Store
 .broadcast-parts/
+.problem-parts/

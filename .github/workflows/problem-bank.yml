@@ -1,0 +1,117 @@
+# Grows Forge's problem bank every night in GitHub's cloud. Each run takes a fresh sample of
+# rank-labelled Fox games (15k to 9d) and professional games, lets native KataGo find the
+# moments where one move decided a fight, proves each problem and searches out its answer
+# tree (scripts/problem-bank.ts), then merges the new problems into
+# public/problems/bank.json and commits it; Vercel redeploys the site with them.
+# It can also be started by hand: Actions → "Forge problems" → "Run workflow".
+name: Forge problems
+
+on:
+  schedule:
+    - cron: '43 6 * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes each machine spends finding problems
+        default: '200'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: problem-bank
+  cancel-in-progress: false
+
+env:
+  MINUTES: ${{ inputs.minutes || '200' }}
+  KATAGO_ZIP: https://github.com/lightvector/KataGo/releases/download/v1.18.1/katago-v1.18.1-eigenavx2-linux-x64.zip
+  MODEL: public/models/g170e-b10c128-s1141046784-d204142634.bin.gz
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 290
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [0, 1, 2, 3]
+    env:
+      SEED: ${{ github.run_number }}${{ matrix.job }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Install KataGo (CPU, AVX2)
+        run: |
+          curl -sSLf -o katago.zip "$KATAGO_ZIP"
+          mkdir -p kg && unzip -q -o katago.zip -d kg && chmod +x kg/katago
+          kg/katago version
+
+      - name: Fetch a sample of Fox games (github.com/featurecat/go-dataset)
+        run: |
+          command -v 7z > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q p7zip-full)
+          git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/featurecat/go-dataset fox
+          cd fox
+          DIRS=$(git ls-tree -d --name-only HEAD | grep -E '^[0-9]+[kd]$' | awk 'NR % 4 == ${{ matrix.job }}')
+          for d in $DIRS; do
+            ARCH=$(git ls-tree --name-only HEAD "$d/" | grep -E '\.7z(\.001)?$' | awk -v r=${{ github.run_number }} '{a[NR]=$0} END {print a[(r % NR) + 1]}')
+            BASE=${ARCH%.001}
+            git checkout -q HEAD -- $(git ls-tree --name-only HEAD "$d/" | grep -F "$(basename "$BASE")")
+            7z l -ba -slt "$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | shuf -n 150 --random-source=<(yes "$SEED$d") > "../$d.list" || true
+            7z x -y -o"../sgf/$d" "$ARCH" @"../$d.list" > /dev/null || true
+            rm -f "$d"/*.7z*
+          done
+          cd .. && rm -rf fox
+
+      - name: Fetch a sample of professional games (github.com/yenw/computer-go-dataset)
+        run: |
+          git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/yenw/computer-go-dataset pro
+          (cd pro && git checkout -q HEAD -- Professional/pro2000+.zip Professional/pro1940-1999.zip)
+          unzip -q -o pro/Professional/pro2000+.zip -d prodata && unzip -q -o pro/Professional/pro1940-1999.zip -d prodata
+          cat prodata/*.txt | grep '^(' | shuf -n 600 --random-source=<(yes "$SEED") > pro.txt
+          rm -rf pro prodata
+
+      - name: Find and prove problems with KataGo
+        run: |
+          mkdir -p out
+          npx tsx scripts/problem-bank.ts --katago kg/katago --model "$MODEL" --threads $(nproc) --concurrency 8 \
+            --fox-dir sgf --pro pro.txt --minutes $((MINUTES)) --seed "$SEED" \
+            --seen public/problems/bank.json --out out/problems-${{ matrix.job }}.jsonl 2>&1 | tail -n 40
+          wc -l out/*.jsonl || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: problems-${{ matrix.job }}
+          path: out/
+
+  publish:
+    needs: find
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: problems-*
+          path: parts
+          merge-multiple: true
+      - name: Merge into the bank
+        run: |
+          ls parts || exit 0
+          npx tsx scripts/problem-bank.ts --merge parts
+      - name: Commit the bank
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add public/problems/bank.json
+          git commit -m "Forge: new KataGo-verified problems (run ${{ github.run_number }})" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

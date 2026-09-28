@@ -1,0 +1,450 @@
+/* Forge: problem settings (ForgeHome) and solving (ProblemSet). */
+
+.forge-home .page-head {
+  align-items: flex-start;
+  gap: 18px;
+}
+.fh-rating {
+  min-width: 170px;
+  text-align: right;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.fh-rank {
+  font-family: var(--display, inherit);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--sunrise);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.fh-spark {
+  width: 150px;
+  height: 30px;
+  margin-top: 4px;
+}
+.fh-spark polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+.fh-start {
+  justify-items: end;
+}
+
+.fh-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.fh-streak,
+.fh-mini {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--blur);
+}
+.fh-mini {
+  grid-template-columns: 1fr;
+}
+.fh-streak strong,
+.fh-mini strong {
+  font-size: 22px;
+  line-height: 1.1;
+}
+.fh-streak svg {
+  width: 26px;
+  height: 26px;
+  grid-row: span 2;
+  stroke: var(--muted);
+}
+.fh-streak.on svg {
+  stroke: #f0673f;
+  filter: drop-shadow(0 0 6px rgba(255, 120, 50, 0.55));
+  animation: fh-flicker 1.8s ease-in-out infinite;
+}
+@keyframes fh-flicker {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.08) rotate(-3deg);
+  }
+}
+
+.fh-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.fh-daily {
+  background: linear-gradient(160deg, rgb(var(--accent-rgb) / 0.16), transparent 60%), var(--glass);
+}
+.fh-daily-dots {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.fh-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.5);
+  transition: transform 0.3s;
+}
+.fh-dot.done {
+  border-color: transparent;
+  background: var(--sunrise);
+  box-shadow: 0 2px 8px rgb(var(--accent-glow-rgb) / 0.4);
+}
+
+.fh-field {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.fh-field:first-of-type {
+  border-top: 0;
+}
+.fh-zh {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.9em;
+  margin-left: 2px;
+}
+.fh-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.fh-cat {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.55);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.15s;
+}
+.fh-cat:hover {
+  transform: translateY(-1px);
+}
+.fh-cat strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+.fh-cat span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.fh-cat.on {
+  background: rgb(var(--surface-rgb));
+  border-color: rgb(var(--accent-rgb) / 0.6);
+  box-shadow: 0 6px 16px -8px rgb(var(--accent-end-rgb) / 0.5);
+}
+.fh-cat.on strong::before {
+  content: '✓ ';
+  color: var(--accent);
+}
+.fh-cat.mine {
+  border-style: dashed;
+}
+.fh-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgb(var(--tint-rgb) / 0.08);
+  border: 1px solid var(--line);
+  width: fit-content;
+}
+.fh-seg button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.fh-seg button.on {
+  background: rgb(var(--surface-rgb));
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  color: var(--ink);
+  font-weight: 600;
+}
+.fh-options summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  padding: 6px 0;
+}
+.fh-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+.fh-toggle input {
+  margin-top: 3px;
+}
+.fh-go {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.fh-catstats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+.fh-catstat {
+  display: grid;
+  gap: 2px;
+}
+.fh-recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fh-res {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--bad);
+  opacity: 0.8;
+}
+.fh-res.ok {
+  background: var(--good);
+}
+.fh-res.half {
+  background: var(--warn);
+}
+
+/* Solving */
+.fs-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.fs-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  background: transparent;
+  flex: none;
+  transition: all 0.3s var(--ease, ease);
+}
+.fs-dot.now {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.25);
+}
+.fs-dot.ok {
+  background: var(--good);
+  border-color: var(--good);
+}
+.fs-dot.half {
+  background: var(--warn);
+  border-color: var(--warn);
+}
+.fs-dot.bad {
+  background: var(--bad);
+  border-color: var(--bad);
+}
+.fs-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  line-height: 1.25;
+}
+.fs-task .stone-dot {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.fs-timer {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--tint-rgb) / 0.1);
+  overflow: hidden;
+}
+.fs-timer div {
+  height: 100%;
+  background: var(--meadow);
+  transition: width 0.25s linear;
+}
+.fs-timer.low div {
+  background: var(--sunrise);
+}
+.fs-verdict {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fs-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.fs-verdict svg {
+  width: 24px;
+  height: 24px;
+}
+.fs-verdict.ok {
+  color: var(--good-ink);
+}
+.fs-verdict.ok svg {
+  stroke: var(--good);
+  stroke-width: 3;
+}
+.fs-verdict.bad {
+  color: var(--bad-ink);
+}
+@keyframes fs-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.fs-combo {
+  animation: fs-pop 0.4s both;
+}
+.forge-solve .side .panel + .panel {
+  margin-top: 0;
+}
+.forge-summary {
+  display: grid;
+  place-items: center;
+  min-height: 80vh;
+  position: relative;
+  overflow: hidden;
+}
+.fs-summary {
+  width: min(560px, 100%);
+  text-align: left;
+}
+.fs-summary h1 {
+  font-size: 56px;
+  margin: 0;
+}
+.fs-list {
+  display: grid;
+  gap: 4px;
+  max-height: 40vh;
+  overflow: auto;
+}
+.fs-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.fs-confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+.fs-confetti span {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation-name: fs-fall;
+  animation-timing-function: cubic-bezier(0.3, 0.2, 0.6, 1);
+  animation-fill-mode: both;
+}
+@keyframes fs-fall {
+  to {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0.2;
+  }
+}
+
+@media (max-width: 900px) {
+  .fh-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fh-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .forge-home .page-head {
+    flex-direction: column;
+  }
+  .fh-rating {
+    text-align: left;
+    justify-items: start;
+  }
+  .fh-start {
+    justify-items: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fh-streak.on svg,
+  .fs-verdict,
+  .fs-combo,
+  .fs-confetti {
+    animation: none;
+  }
+  .fs-confetti {
+    display: none;
+  }
+}
+
+/* A cropped problem: size the board to the crop's own shape, so the wood and lines past
+   the crop's edge never show in a letterbox. */
+.forge-solve .board-wrap[style] .board {
+  aspect-ratio: var(--arw) / var(--arh);
+  height: auto;
+  width: min(100%, calc((100vh - 40px) * var(--arw) / var(--arh)));
+  overflow: hidden;
+  border-radius: 10px;
+}
+@media (max-width: 1100px) {
+  .forge-solve .board-wrap[style] .board {
+    width: min(100%, calc(82vh * var(--arw) / var(--arh)));
+  }
+}
+.fs-source {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+}
+/* In a crop the labels sit on the next line of the board; a wood-coloured halo keeps them legible. */
+.forge-solve .board-wrap[style] svg.board .bd-coords text {
+  paint-order: stroke;
+  stroke: #d9aa6a;
+  stroke-width: 0.16px;
+  stroke-linejoin: round;
+}

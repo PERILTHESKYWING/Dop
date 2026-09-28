@@ -7,6 +7,7 @@
  * with a short backoff, and stops at a total time budget that fits the function limit.
  */
 import { ASK_SYSTEM, buildAskPrompt, parseAskReply, unsupportedFigures, validAskRequest, type AskRequest, type AskResponse } from './ask.js';
+import { handleForgeWrite } from './forgeWriter.js';
 import { buildUserPrompt, resolveLlmConfig, safeJson, SYSTEM_PROMPT, validatePatterns, type DiscoveryRequest, type DiscoveryResponse } from './llm.js';
 
 export interface LlmHttpResult {
@@ -161,6 +162,10 @@ export async function handleLlmRequest(
   if (!rawBody || rawBody.length > MAX_BODY) return { status: 413, body: { error: 'request too large or empty' } };
   const parsed = safeJson(rawBody) as { task?: string } | null;
   if (parsed?.task === 'ask-position') return handleAsk(parsed, env, fetchImpl, opts);
+  if (parsed?.task === 'forge-problems') {
+    const budget = opts.budgetMs ?? 52_000;
+    return handleForgeWrite(parsed, (prompt, left) => generateJson(prompt, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, left) }), budget, opts.now);
+  }
   const req = parsed as DiscoveryRequest | null;
   if (!req || req.task !== 'discover-patterns' || !Array.isArray(req.clusters) || !req.player) {
     return { status: 400, body: { error: 'invalid request' } };
