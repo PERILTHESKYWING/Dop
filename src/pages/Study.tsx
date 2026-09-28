@@ -30,7 +30,7 @@ import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
-import { gameTitle } from '../components/common';
+import { FocusToggle, gameTitle, useFocusMode } from '../components/common';
 import { href } from '../router';
 import './study.css';
 
@@ -99,9 +99,16 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [kifu, setKifu] = useState<Kifu | null>(null);
   const [cursor, setCursor] = useState(0);
   const [mode, setMode] = useState<Mode>('play');
+  const [focused, setFocused] = useFocusMode();
+  useEffect(() => {
+    if (!focused) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focused, setFocused]);
   const [analysis, setAnalysis] = useState(() => readPref(ANALYSIS_PREF, true));
   const [numbers, setNumbers] = useState(() => readPref(NUMBERS_PREF, false));
-  const [view, toggleView] = useAnalysisView();
+  const [view, toggleView, setCandidateCount] = useAnalysisView();
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Kifu[]>([]);
@@ -288,7 +295,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     setKifu(nk);
     await saveKifu(nk);
     refreshLibrary();
-    toast('Saved to your kifu.', 'info');
+    toast('Saved — find it under Library → Your kifu.', 'info');
   };
   const fresh = (sz: number) => {
     setKifu(blankKifu(sz, sz === 19 ? k.komi : sz === 13 ? 6.5 : 5.5, k.rules));
@@ -297,7 +304,8 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   };
 
   return (
-    <div className="stage study">
+    <div className={`stage study ${focused ? 'focused' : ''}`}>
+      <FocusToggle focused={focused} onChange={setFocused} />
       <div className="board-wrap">
         <Board
           size={size}
@@ -502,7 +510,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                   <ClassPill cls={lastClass} />
                 </div>
               )}
-              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={8} />
+              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} resetKey={`${k.id}:${cursor}`} />
               <div className="row wrap toggles">
                 <label className="toggle">
                   <input type="checkbox" checked={view.best} onChange={() => toggleView('best')} /> Best moves
@@ -512,6 +520,18 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
                 </label>
                 <label className="toggle">
                   <input type="checkbox" checked={view.territory} onChange={() => toggleView('territory')} /> Territory
+                </label>
+                <label className="toggle">
+                  Top
+                  <input
+                    className="candidate-count"
+                    type="number"
+                    min={3}
+                    max={20}
+                    value={view.candidateCount}
+                    onChange={(e) => setCandidateCount(Number(e.target.value) || view.candidateCount)}
+                  />
+                  moves
                 </label>
               </div>
             </>

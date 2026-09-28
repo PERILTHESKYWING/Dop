@@ -167,6 +167,8 @@ export function useAnalysis(base: AnalysisBase | null, active: boolean, rootEval
 
   return {
     base,
+    /** Identifies the position on the board (base + the moves tried). */
+    key,
     board,
     toPlay,
     line,
@@ -193,17 +195,31 @@ export interface AnalysisView {
   heat: boolean;
   territory: boolean;
   best: boolean;
+  /** How many rows the candidate-move list shows, user-set (see AnalysisPanel). */
+  candidateCount: number;
 }
+
+const DEFAULT_VIEW: AnalysisView = { heat: true, territory: false, best: true, candidateCount: 8 };
 
 export function useAnalysisView() {
   const [view, setView] = useState<AnalysisView>(() => {
     try {
-      return { heat: true, territory: false, best: true, ...JSON.parse(localStorage.getItem('dop.analysisView') ?? '{}') };
+      return { ...DEFAULT_VIEW, ...JSON.parse(localStorage.getItem('dop.analysisView') ?? '{}') };
     } catch {
-      return { heat: true, territory: false, best: true };
+      return DEFAULT_VIEW;
     }
   });
-  const toggle = (k: keyof AnalysisView) =>
+  const setCandidateCount = (n: number) =>
+    setView((v) => {
+      const next = { ...v, candidateCount: Math.max(3, Math.min(20, n)) };
+      try {
+        localStorage.setItem('dop.analysisView', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  const toggle = (k: keyof Pick<AnalysisView, 'heat' | 'territory' | 'best'>) =>
     setView((v) => {
       const next = { ...v, [k]: !v[k] };
       try {
@@ -213,7 +229,7 @@ export function useAnalysisView() {
       }
       return next;
     });
-  return [view, toggle] as const;
+  return [view, toggle, setCandidateCount] as const;
 }
 
 /** The board half of the analysis board. */
@@ -295,6 +311,7 @@ export function AnalysisPanel({
   a,
   view,
   onToggle,
+  onCandidateCount,
   onClose,
   closeLabel = 'Back to the problem',
   onHoverPv,
@@ -303,7 +320,9 @@ export function AnalysisPanel({
 }: {
   a: AnalysisState;
   view: AnalysisView;
-  onToggle: (k: keyof AnalysisView) => void;
+  onToggle: (k: keyof Pick<AnalysisView, 'heat' | 'territory' | 'best'>) => void;
+  /** Lets the user pick how many candidate moves the list below shows. */
+  onCandidateCount?: (n: number) => void;
   onClose?: () => void;
   closeLabel?: string;
   onHoverPv?: (pv: Loc[] | null) => void;
@@ -367,7 +386,7 @@ export function AnalysisPanel({
       )}
 
       {ev && ev.shown.length > 0 && (
-        <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={8} />
+        <CandidateTable cands={ev.shown} size={size} onPick={(l) => a.play(l)} onHover={(c) => onHoverPv?.(c ? c.pv : null)} max={view.candidateCount} resetKey={a.key} />
       )}
       {guess.length > 0 && <DoppelLine predictions={guess} size={size} who={copy.who} />}
 
@@ -412,6 +431,20 @@ export function AnalysisPanel({
         <label className="toggle">
           <input type="checkbox" checked={view.best} onChange={() => onToggle('best')} /> Best moves
         </label>
+        {onCandidateCount && (
+          <label className="toggle">
+            Top
+            <input
+              className="candidate-count"
+              type="number"
+              min={3}
+              max={20}
+              value={view.candidateCount}
+              onChange={(e) => onCandidateCount(Number(e.target.value) || view.candidateCount)}
+            />
+            moves
+          </label>
+        )}
       </div>
       {note && <p className="tiny muted">{note}</p>}
     </div>

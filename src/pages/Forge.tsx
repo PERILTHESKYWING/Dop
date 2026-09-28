@@ -145,7 +145,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const [explore, setExplore] = useState(false);
   const [assistedFor, setAssistedFor] = useState<string | null>(null);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
-  const [view, toggleView] = useAnalysisView();
+  const [view, toggleView, setCandidateCount] = useAnalysisView();
   const predicted = usePrediction(item);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
   const analysis = useAnalysis(base, explore, item?.eval);
@@ -280,6 +280,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
             a={analysis}
             view={view}
             onToggle={toggleView}
+            onCandidateCount={setCandidateCount}
             onHoverPv={setHoverPv}
             copyColor={item?.toPlay}
             onClose={() => {

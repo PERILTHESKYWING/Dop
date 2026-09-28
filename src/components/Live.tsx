@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { shortCount, type CandidateMark } from './Board';
 import { fmtPct } from './common';
 import { useStore } from '../state/store';
@@ -124,6 +124,7 @@ export function CandidateTable({
   onHover,
   onPick,
   max = 10,
+  resetKey,
 }: {
   cands: ShownCandidate[];
   size: number;
@@ -131,11 +132,40 @@ export function CandidateTable({
   onHover?: (c: ShownCandidate | null) => void;
   onPick?: (loc: Loc) => void;
   max?: number;
+  /** The position shown; a pinned variation is dropped when it changes. */
+  resetKey?: string | number;
 }) {
   const total = cands.reduce((a, c) => a + c.visits, 0) || 1;
   let rows = cands.slice(0, max);
   const playedRow = played != null ? cands.find((c) => c.loc === played) : undefined;
   if (playedRow && !rows.includes(playedRow)) rows = [...rows, playedRow];
+  // Tapping a row pins its variation on the board, like 星阵围棋's review list: no stone is
+  // placed and no hover is needed (mobile included); a second tap clears it. Hover still
+  // works for a mouse, but never fights a pin someone tapped.
+  const [pinned, setPinned] = useState<Loc | null>(null);
+  const hoverRef = useRef(onHover);
+  hoverRef.current = onHover;
+  const sentPv = useRef('');
+  useEffect(() => {
+    setPinned(null);
+    sentPv.current = '';
+  }, [resetKey]);
+  // While KataGo keeps reading, the pinned move's line keeps refining: pass the new line on
+  // (only when it actually changed, so a parent re-render can't loop), and let go of the pin
+  // if the move drops out of the list.
+  const pinnedPv = pinned === null ? '' : (cands.find((c) => c.loc === pinned)?.pv.join(',') ?? 'gone');
+  useEffect(() => {
+    if (pinned === null || pinnedPv === sentPv.current) return;
+    sentPv.current = pinnedPv;
+    if (pinnedPv === 'gone') {
+      setPinned(null);
+      hoverRef.current?.(null);
+      return;
+    }
+    const c = cands.find((x) => x.loc === pinned);
+    if (c) hoverRef.current?.(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned, pinnedPv]);
   if (!rows.length) return null;
   return (
     <table className="data cands live-cands">
@@ -147,6 +177,7 @@ export function CandidateTable({
           <th>Score</th>
           <th>Visits</th>
           <th>Share</th>
+          {onPick && <th />}
         </tr>
       </thead>
       <tbody>
@@ -155,10 +186,15 @@ export function CandidateTable({
           return (
             <tr
               key={c.loc}
-              className={`${onPick ? 'click' : ''} ${rank === 0 ? 'best' : ''} ${c.loc === played ? 'played' : ''}`}
-              onClick={onPick ? () => onPick(c.loc) : undefined}
-              onMouseEnter={onHover ? () => onHover(c) : undefined}
-              onMouseLeave={onHover ? () => onHover(null) : undefined}
+              className={`click ${rank === 0 ? 'best' : ''} ${c.loc === played ? 'played' : ''} ${c.loc === pinned ? 'previewed' : ''}`}
+              onClick={() => {
+                const next = pinned === c.loc ? null : c.loc;
+                sentPv.current = next === null ? '' : c.pv.join(',');
+                setPinned(next);
+                onHover?.(next === null ? null : c);
+              }}
+              onMouseEnter={onHover && pinned === null ? () => onHover(c) : undefined}
+              onMouseLeave={onHover && pinned === null ? () => onHover(null) : undefined}
             >
               <td className="muted">{rank + 1}</td>
               <td className={rank === 0 ? 'kata strong' : c.loc === played ? 'you' : ''}>{c.loc === PASS ? 'pass' : locToGtp(c.loc, size)}</td>
@@ -166,6 +202,20 @@ export function CandidateTable({
               <td className="mono">{`${c.scoreLead >= 0 ? '+' : '−'}${Math.abs(c.scoreLead).toFixed(1)}`}</td>
               <td className="mono">{shortCount(c.visits)}</td>
               <td className="mono muted">{((c.visits / total) * 100).toFixed(1)}</td>
+              {onPick && (
+                <td>
+                  <button
+                    className="btn tiny ghost"
+                    title="Play this move on the board"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPick(c.loc);
+                    }}
+                  >
+                    Play
+                  </button>
+                </td>
+              )}
             </tr>
           );
         })}

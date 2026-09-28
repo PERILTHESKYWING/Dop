@@ -785,10 +785,39 @@ function BoardImpl(p: BoardProps) {
           onPointerMove={(e) => {
             const l = locFromEvent(e);
             setHover(l);
-            const c = l !== null && p.candidates?.some((x) => x.loc === l) ? l : null;
-            if (c !== hoveredCand.current) {
-              hoveredCand.current = c;
-              p.onCandidateHover?.(c);
+            // Distance-based hit test with hysteresis, not exact-cell match: a candidate disc
+            // is wider than one grid cell, and a hover exactly at the cell boundary otherwise
+            // flickers on and off on every tiny pointer move. Once a candidate is hovered, the
+            // pointer has to move clearly past it (keepR) before it lets go.
+            if (p.candidates?.length) {
+              const svg = e.currentTarget.ownerSVGElement;
+              const m = svg?.getScreenCTM();
+              const cur = hoveredCand.current;
+              let next: Loc | null = null;
+              if (m) {
+                const pt = svg!.createSVGPoint();
+                pt.x = e.clientX;
+                pt.y = e.clientY;
+                const q = pt.matrixTransform(m.inverse());
+                let best: Loc | null = null;
+                let bestD = Infinity;
+                for (const c of p.candidates) {
+                  const d = Math.hypot(q.x - (c.loc % size), q.y - Math.floor(c.loc / size));
+                  if (d < bestD) {
+                    bestD = d;
+                    best = c.loc;
+                  }
+                }
+                const hitR = 0.62, keepR = 0.85;
+                next = cur !== null && best === cur && bestD <= keepR ? cur : bestD <= hitR ? best : null;
+              }
+              if (next !== cur) {
+                hoveredCand.current = next;
+                p.onCandidateHover?.(next);
+              }
+            } else if (hoveredCand.current !== null) {
+              hoveredCand.current = null;
+              p.onCandidateHover?.(null);
             }
           }}
           onPointerLeave={() => {
