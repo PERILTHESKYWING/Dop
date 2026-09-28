@@ -28,7 +28,7 @@ import {
 } from '../lib/kifu/kifu';
 import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '../lib/kifu/store';
 import { loadBroadcast } from '../lib/broadcast/data';
-import { findShowing, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
+import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
 import { FocusToggle, gameTitle, useFocusMode } from '../components/common';
 import { href } from '../router';
@@ -60,7 +60,7 @@ async function openKifu(id: string | undefined, query: URLSearchParams): Promise
   const live = query.get('live');
   if (live) {
     const pool = await loadBroadcast();
-    const g = findShowing(makeSchedule(pool), live, query.get('g') ?? '');
+    const g = findShowing(makeSchedule(pool, floorOfKey(live)), live, query.get('g') ?? '');
     if (!g) throw new Error('that live game is no longer being broadcast');
     // Only the moves already played: the rest of the game stays unseen.
     const n = Math.max(0, Math.min(g.total, Number(query.get('n') ?? 0) || 0));

@@ -61,25 +61,43 @@ export function candidatesAt(g: BroadcastGame, index: number): EngineCandidate[]
   return out;
 }
 
-/** The floors a pool can be generated at; 40 is the one always shipped (games.json). The
- * "Broadcast games" workflow can add games-20.json/games-30.json as they're generated. */
-export const BROADCAST_FLOORS = [20, 30, 40] as const;
+/**
+ * The minimum losing-side winrates a viewer can pick, in percent (0: no minimum). The floor
+ * is applied in the browser (schedule.ts): a game leaves its table 10 seconds after the
+ * losing side drops under it, and games that drop under it in the opening are skipped.
+ */
+export const BROADCAST_FLOORS = [0, 10, 20, 25, 30, 35, 40] as const;
+export const DEFAULT_FLOOR = 20;
 
-const loading = new Map<number, Promise<BroadcastFile>>();
+/** Extra pools the "Broadcast games" workflow can add (games-20.json …); merged in when present. */
+const EXTRA_POOLS = ['games-20.json', 'games-30.json'];
 
-/** The broadcast games for a floor (default 40, always present), fetched once per visit
- * per floor. Falls back to the default pool if that floor hasn't been generated yet. */
-export function loadBroadcast(floorPct = 40): Promise<BroadcastFile> {
-  let p = loading.get(floorPct);
-  if (!p) {
-    const name = floorPct === 40 ? 'games.json' : `games-${floorPct}.json`;
-    p = fetch(`/broadcast/${name}`).then((r) => {
-      if (r.ok) return r.json() as Promise<BroadcastFile>;
-      if (floorPct === 40) throw new Error(`broadcast games: HTTP ${r.status}`);
-      return loadBroadcast(40); // that floor hasn't been generated yet
-    });
-    p.catch(() => loading.delete(floorPct));
-    loading.set(floorPct, p);
+let loading: Promise<BroadcastFile> | null = null;
+
+async function fetchPool(name: string): Promise<BroadcastFile | null> {
+  const r = await fetch(`/broadcast/${name}`);
+  // The host answers a missing file with the app's index.html, so check it really is JSON.
+  if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return null;
+  try {
+    const f = (await r.json()) as BroadcastFile;
+    return Array.isArray(f?.games) ? f : null;
+  } catch {
+    return null;
   }
-  return p;
+}
+
+/** Every broadcast game there is, fetched once per visit: games.json plus any extra pools. */
+export function loadBroadcast(): Promise<BroadcastFile> {
+  if (!loading) {
+    loading = (async () => {
+      const [main, ...extra] = await Promise.all([fetchPool('games.json'), ...EXTRA_POOLS.map((n) => fetchPool(n).catch(() => null))]);
+      if (!main) throw new Error('the broadcast games are missing');
+      const seen = new Set(main.games.map((g) => g.id));
+      const games = [...main.games];
+      for (const f of extra) for (const g of f?.games ?? []) if (!seen.has(g.id)) (seen.add(g.id), games.push(g));
+      return { ...main, games };
+    })();
+    loading.catch(() => (loading = null));
+  }
+  return loading;
 }

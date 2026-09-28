@@ -276,3 +276,30 @@
   background: rgb(var(--surface-rgb) / 0.7);
   color: inherit;
 }
+
+/* The losing side fell under the viewer's floor: the game fades and leaves after 10 seconds. */
+.bc-card.leaving .bc-card-board :is(svg, canvas) {
+  animation: bc-leave 10s linear forwards;
+}
+.bc-result.bc-leaving {
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  animation: bc-leave-in 0.4s ease-out;
+}
+@keyframes bc-leave {
+  to {
+    opacity: 0.35;
+    filter: saturate(0.4) blur(1px);
+  }
+}
+@keyframes bc-leave-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-card.leaving .bc-card-board :is(svg, canvas),
+  .bc-result.bc-leaving {
+    animation: none;
+  }
+}
