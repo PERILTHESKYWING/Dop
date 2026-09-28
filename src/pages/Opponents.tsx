@@ -8,6 +8,7 @@ import { DropZone, fmtPct, gameTitle } from '../components/common';
 import type { SequenceStat } from '../lib/opponents/profile';
 import type { OpponentProfile } from '../lib/types';
 import { go, href } from '../router';
+import { BackLink } from '../components/ControlSheet';
 
 function SeqBoard({ seq, size, crop }: { seq: SequenceStat; size: number; crop?: boolean }) {
   const stones = new Int8Array(size * size);
@@ -224,9 +225,7 @@ export function Opponents({ id }: { id?: string }) {
   if (o)
     return (
       <div className="page">
-        <a className="small muted" href={href('opponents')}>
-          ← All opponents
-        </a>
+        <BackLink href={href('opponents')} label="All opponents" />
         <Profile o={o} />
       </div>
     );

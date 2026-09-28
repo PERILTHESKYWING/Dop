@@ -13,6 +13,7 @@ import { colorName, other, type Loc, type Move } from '../lib/go/types';
 import { currentCombo, ensureTexts, historyOf, loadForge, playerRank, recordResult, textOf, useForge, type ProblemResult } from '../state/problems';
 import { go, href } from '../router';
 import '../components/forge.css';
+import { BackLink } from '../components/ControlSheet';
 
 /**
  * Solving a set of Forge problems, 101weiqi style: the task on top, the board, and the
@@ -273,9 +274,7 @@ function Solver({
       <div className="side">
         <div className="panel stack">
           <div className="spread">
-            <a className="small muted" href={href('forge')}>
-              ← Forge
-            </a>
+            <BackLink href={href('forge')} label="Forge" />
             <span className="small muted">
               {index + 1} / {set.length}
               {daily ? ' · daily' : ''}

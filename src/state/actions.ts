@@ -448,6 +448,16 @@ export async function setGameKomi(id: string, komi: number) {
   if (get().settings.autoAnalyze) void runQueue();
 }
 
+/** Rename a game's players (display only: the analysis and your side stay as they are). */
+export async function renameGamePlayers(id: string, black: string, white: string) {
+  const g = get().games.find((x) => x.id === id);
+  if (!g || (g.black === black && g.white === white)) return;
+  const next: GameRecord = { ...g, black, white };
+  const d = await db();
+  await d.put('games', next);
+  set((s) => ({ games: s.games.map((x) => (x.id === id ? next : x)) }));
+}
+
 export async function chooseSide(id: string, color: 1 | 2, remember: boolean) {
   const game = get().games.find((g) => g.id === id);
   if (!game) return;

@@ -25,6 +25,8 @@ import { useLive } from '../state/live';
 import { gradeMoves, insightFacts, moveDifficulty, proAt, proFacts, type MoveTarget } from '../state/insight';
 import { useStore } from '../state/store';
 import './chat.css';
+import { BackLink } from '../components/ControlSheet';
+import { href } from '../router';
 
 /** Where the chat's board comes from. */
 type Source = { kind: 'empty'; size: number } | { kind: 'game'; id: string; move: number } | { kind: 'kifu'; id: string };
@@ -441,6 +443,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
 
       <section className="chat-main">
         <header className="chat-head">
+          {qGame && <BackLink href={href(`review/${qGame}?move=${(Number(qMove) || 0) + 1}`)} label="Review" />}
           <button className="btn small ghost chat-list-toggle" onClick={() => setShowList((v) => !v)} aria-expanded={showList}>
             ☰ Chats
           </button>

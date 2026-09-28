@@ -26,6 +26,7 @@ import {
 } from '../lib/broadcast/schedule';
 import { go, href } from '../router';
 import './broadcast.css';
+import { BackLink } from '../components/ControlSheet';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
@@ -405,9 +406,7 @@ function Watch({
       <div className="side">
         <div className="panel stack">
           <div className="spread bc-watch-head">
-            <a className="btn small ghost" href={href('live')}>
-              ← All tables
-            </a>
+            <BackLink href={href('live')} label="All tables" />
             <span className="bc-watch-title">
               <span className="bc-onair" />
               <strong>Table {table + 1}</strong>

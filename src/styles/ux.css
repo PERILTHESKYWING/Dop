@@ -1,0 +1,960 @@
+/* Round 7 UX: a closable sidebar, easier move navigation (wheel, arrows, themed focus-mode
+ * buttons with sparks), the compact study header with its settings popover, a Control
+ * Center style panel for Doppelgänger, and back arrows. Colours come from theme tokens. */
+
+/* ================================================ closable sidebar */
+.app .shell {
+  --nav-w: 250px;
+  transition: grid-template-columns 0.55s var(--ease);
+}
+@media (min-width: 761px) and (max-width: 1023px) {
+  .app .shell {
+    --nav-w: 78px;
+  }
+}
+@media (min-width: 761px) {
+  .app .shell:not(.booting) {
+    grid-template-columns: var(--nav-w) minmax(0, 1fr);
+  }
+  .app .shell > .nav {
+    width: calc(var(--nav-w) - 14px);
+    transform-origin: left center;
+    transition:
+      transform 0.55s var(--ease),
+      opacity 0.4s ease,
+      filter 0.45s ease;
+  }
+  .app .shell.nav-closed {
+    grid-template-columns: 0px minmax(0, 1fr);
+  }
+  /* The sidebar folds away like a card turned edge-on, its items trailing out one by one. */
+  .app .shell.nav-closed > .nav {
+    transform: perspective(900px) translateX(-86%) rotateY(38deg) scale(0.9);
+    opacity: 0;
+    filter: blur(5px);
+    pointer-events: none;
+  }
+  .app .nav a.item {
+    transition:
+      transform 0.45s var(--ease),
+      opacity 0.35s ease,
+      background 0.2s;
+    transition-delay: calc(var(--i, 0) * 22ms);
+  }
+  .app .shell.nav-closed .nav a.item {
+    transform: translateX(-30px);
+    opacity: 0;
+    transition-delay: calc((12 - var(--i, 0)) * 14ms);
+  }
+}
+
+.app .nav .nav-collapse {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 12px;
+  gap: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.app .nav .nav-collapse svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  transition: transform 0.3s var(--ease);
+}
+.app .nav .nav-collapse:hover {
+  background: var(--nav-hover);
+  color: var(--ink);
+}
+.app .nav .nav-collapse:hover svg {
+  transform: translateX(-3px);
+}
+@media (min-width: 761px) and (max-width: 1023px) {
+  .app .nav .nav-collapse {
+    justify-content: center;
+    padding: 10px 0;
+  }
+}
+
+/* The way back: a small mark at the top left that springs out when the sidebar is away. */
+.nav-reopen {
+  position: fixed;
+  z-index: 30;
+  top: 14px;
+  left: 12px;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 9px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--glass-shadow);
+  color: var(--ink-2);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(-60px) rotate(-90deg) scale(0.6);
+  transition:
+    transform 0.6s var(--spring, ease),
+    opacity 0.3s ease;
+  pointer-events: none;
+}
+.nav-reopen .brand-mark {
+  width: 30px;
+  height: 30px;
+}
+.nav-reopen-chev {
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 600;
+  transition: transform 0.25s var(--ease);
+}
+.nav-reopen:hover .nav-reopen-chev {
+  transform: translateX(3px);
+}
+.nav-reopen:hover .brand-mark {
+  transform: rotate(-12deg) scale(1.06);
+}
+@media (min-width: 761px) {
+  .nav-reopen {
+    display: flex;
+  }
+  .app .shell.nav-closed .nav-reopen {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    transition-delay: 0.25s;
+  }
+  /* Room for the mark so it never sits on a page title. */
+  .app .shell .main {
+    transition: padding-left 0.5s var(--ease);
+  }
+  .app .shell.nav-closed .main {
+    padding-left: 62px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app .shell,
+  .app .shell > .nav,
+  .app .nav a.item,
+  .nav-reopen,
+  .app .shell .main {
+    transition-duration: 0.01s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* ================================================ move stepper (side panels) */
+.move-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.move-stepper button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: 0 2px 6px -3px rgba(60, 30, 5, 0.3);
+  transition:
+    transform 0.2s var(--spring, ease),
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+.move-stepper button.big {
+  width: 50px;
+  height: 42px;
+  color: var(--ink);
+}
+.move-stepper button svg {
+  width: 17px;
+  height: 17px;
+}
+.move-stepper button.big svg {
+  width: 21px;
+  height: 21px;
+}
+.move-stepper button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  color: var(--accent, var(--ink));
+  box-shadow: 0 8px 16px -8px rgb(var(--accent-glow-rgb, 210 90 40) / 0.55);
+}
+.move-stepper button:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.move-stepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.move-stepper-label {
+  min-width: 64px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* ================================================ focus-mode buttons, one object per theme */
+.focus-nav {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.focus-nav-btn {
+  position: absolute;
+  top: 50%;
+  width: 104px;
+  height: 104px;
+  margin-top: -52px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  border-radius: 50%;
+  animation: focus-nav-in 0.6s var(--spring, ease) both;
+  transition:
+    transform 0.3s var(--spring, ease),
+    filter 0.3s,
+    opacity 0.3s;
+  filter: drop-shadow(0 10px 18px rgba(40, 20, 5, 0.3));
+}
+.focus-nav-btn.back {
+  left: max(18px, 2vw);
+}
+.focus-nav-btn.forward {
+  right: max(18px, 2vw);
+  animation-delay: 0.08s;
+}
+.focus-nav-btn .focus-obj {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.focus-nav-btn.back .focus-obj {
+  transform: scaleX(-1);
+}
+.focus-nav-btn:hover:not(:disabled) {
+  transform: scale(1.08);
+}
+.focus-nav-btn:focus-visible {
+  outline: 3px solid var(--accent, #f0673f);
+  outline-offset: 4px;
+}
+.focus-nav-btn:disabled {
+  opacity: 0.3;
+  filter: grayscale(0.7);
+  cursor: default;
+}
+.focus-nav-btn.pressed {
+  animation: focus-nav-press 0.42s var(--spring, ease);
+}
+.fo-chev {
+  filter: drop-shadow(0 1px 2px rgba(60, 20, 30, 0.45));
+  transition: transform 0.25s var(--ease);
+}
+.focus-nav-btn:hover:not(:disabled) .fo-chev {
+  transform: translateX(4px);
+}
+/* Each object has its own idle life. */
+.fo-rays,
+.fo-bloom,
+.fo-gem {
+  transform-origin: 50px 50px;
+  transform-box: view-box;
+}
+.fo-rays {
+  animation: fo-spin 18s linear infinite;
+}
+.focus-nav-btn:hover .fo-rays {
+  animation-duration: 4s;
+}
+.fo-bloom {
+  animation: fo-sway 6s ease-in-out infinite;
+}
+.focus-nav-btn:hover .fo-bloom {
+  animation: fo-spin 3s linear infinite;
+}
+.fo-ripple {
+  transform-origin: 50px 54px;
+  transform-box: view-box;
+  animation: fo-ripple 3.2s ease-out infinite;
+}
+.fo-gem {
+  animation: fo-glow 3.4s ease-in-out infinite;
+}
+.focus-nav-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 5px 14px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--glass-shadow);
+  font-size: 13px;
+  color: var(--ink-2);
+  pointer-events: auto;
+}
+.focus-nav-sparks {
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.focus-nav-sparks.on {
+  background: var(--glass-2);
+  color: var(--accent, var(--ink));
+}
+/* Narrow or tall stages: the buttons move under the board. */
+@media (max-aspect-ratio: 6/5) {
+  .focus-nav-btn {
+    top: auto;
+    bottom: 58px;
+    margin-top: 0;
+    width: 78px;
+    height: 78px;
+  }
+  .focus-nav-bar {
+    bottom: 12px;
+  }
+}
+@keyframes focus-nav-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-40deg);
+  }
+}
+@keyframes focus-nav-press {
+  30% {
+    transform: scale(0.84);
+  }
+  70% {
+    transform: scale(1.12);
+  }
+}
+@keyframes fo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fo-sway {
+  50% {
+    transform: rotate(14deg) scale(1.03);
+  }
+}
+@keyframes fo-ripple {
+  from {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+@keyframes fo-glow {
+  50% {
+    filter: drop-shadow(0 0 10px rgba(126, 242, 208, 0.75)) drop-shadow(0 0 22px rgba(183, 124, 255, 0.5));
+  }
+}
+
+/* ================================================ sparks */
+.spark-layer {
+  position: fixed;
+  z-index: 1000;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.spark-layer i {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: spark-fly 0.85s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.spark-sunrise i {
+  background: radial-gradient(circle, #fff9d6 0 30%, #ffc04d 55%, rgba(240, 103, 63, 0) 72%);
+  box-shadow: 0 0 10px 2px rgba(255, 180, 70, 0.7);
+}
+.spark-sakura i {
+  width: 11px;
+  height: 8px;
+  border-radius: 80% 10% 80% 10%;
+  background: linear-gradient(135deg, #ffe3ee, #f08bb1);
+  animation-duration: 1s;
+}
+.spark-mist i {
+  width: 6px;
+  height: 9px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: linear-gradient(#e9f6f1, #8fc3b4);
+  opacity: 0.9;
+}
+.spark-mist b {
+  position: absolute;
+  left: -40px;
+  top: -40px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(159, 184, 216, 0.8);
+  animation: spark-ring 0.8s ease-out forwards;
+}
+.spark-aurora i {
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  background: linear-gradient(135deg, #7ef2d0, #b77cff);
+  filter: drop-shadow(0 0 4px #7ef2d0);
+}
+@keyframes spark-fly {
+  from {
+    transform: translate(0, 0) rotate(0) scale(var(--s, 1));
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(0.2);
+    opacity: 0;
+  }
+}
+@keyframes spark-ring {
+  from {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fo-rays,
+  .fo-bloom,
+  .fo-ripple,
+  .fo-gem,
+  .focus-nav-btn {
+    animation: none !important;
+  }
+}
+.stage {
+  position: relative;
+}
+
+/* ================================================ Control Center style settings sheet */
+.csheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+.csheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 12, 8, 0.18);
+  backdrop-filter: blur(3px) saturate(1.1);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  animation: csheet-fade 0.3s ease both;
+}
+.csheet {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 14px 14px 16px;
+  border-radius: 30px;
+  background: var(--glass);
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    var(--glass-shadow),
+    0 30px 60px -30px rgba(30, 15, 5, 0.5);
+  transform-origin: calc(100% - 30px) 0;
+  animation: csheet-in 0.42s var(--spring, cubic-bezier(0.2, 0.9, 0.3, 1.2)) both;
+  outline: none;
+}
+.csheet-wrap.closing .csheet {
+  animation: csheet-out 0.26s ease-in both;
+}
+.csheet-wrap.closing .csheet-backdrop {
+  animation: csheet-fade 0.26s ease reverse both;
+}
+.csheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 10px 8px;
+}
+.csheet-head strong {
+  font-family: var(--display, inherit);
+  font-size: 19px;
+}
+.csheet-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--glass-2);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.csheet-close svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+}
+.csheet-body {
+  display: grid;
+  gap: 14px;
+}
+.csheet-section h4 {
+  margin: 0 0 7px 8px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.csheet-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.csheet-section > .csheet-tiles > * {
+  animation: csheet-tile 0.4s var(--ease) both;
+}
+.csheet-section:nth-child(2) .csheet-tiles > * {
+  animation-delay: 0.04s;
+}
+.csheet-section:nth-child(3) .csheet-tiles > * {
+  animation-delay: 0.08s;
+}
+.csheet-section:nth-child(4) .csheet-tiles > * {
+  animation-delay: 0.12s;
+}
+.ctile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--spring, ease),
+    background 0.25s,
+    color 0.25s,
+    box-shadow 0.25s;
+}
+.ctile:hover:not(:disabled) {
+  transform: scale(1.025);
+}
+.ctile:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ctile:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ctile-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font-size: 16px;
+  transition: background 0.25s;
+}
+.ctile-ico svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+.ctile-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ctile-text strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ctile-text span {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.ctile.toggle.on,
+.ctile.action.primary {
+  background: linear-gradient(135deg, var(--accent, #f0673f), color-mix(in srgb, var(--accent, #f0673f) 70%, #ffc04d));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px -12px rgb(var(--accent-glow-rgb, 210 90 40) / 0.8);
+}
+.ctile.toggle.on .ctile-text span,
+.ctile.action.primary .ctile-text span {
+  color: rgba(255, 255, 255, 0.85);
+}
+.ctile.toggle.on .ctile-ico,
+.ctile.action.primary .ctile-ico {
+  background: rgba(255, 255, 255, 0.25);
+}
+.ctile.field {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  cursor: default;
+}
+.ctile.field:hover {
+  transform: none;
+}
+.ctile-label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.ctile-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ctile-control > select,
+.ctile-control > input:not([type='checkbox']):not([type='range']) {
+  flex: 1;
+  min-width: 0;
+}
+.ctile-control > input[type='range'] {
+  flex: 1;
+}
+.csheet-section.wide .csheet-tiles {
+  grid-template-columns: minmax(0, 1fr);
+}
+@keyframes csheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.7);
+    filter: blur(8px);
+  }
+}
+@keyframes csheet-out {
+  to {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.8);
+    filter: blur(6px);
+  }
+}
+@keyframes csheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes csheet-tile {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+}
+@media (max-width: 760px) {
+  .csheet {
+    top: 8px;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 110px);
+  }
+}
+
+.gear-btn,
+.pen-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    transform 0.35s var(--spring, ease),
+    color 0.2s,
+    background 0.2s;
+}
+.gear-btn svg,
+.pen-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+.gear-btn:hover {
+  transform: rotate(60deg);
+  color: var(--accent, var(--ink));
+}
+.pen-btn {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+.pen-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.pen-btn:hover {
+  background: var(--glass-2);
+  color: var(--accent, var(--ink));
+  transform: rotate(-12deg);
+}
+.pen-btn.on {
+  background: var(--accent, #f0673f);
+  color: #fff;
+}
+
+/* ================================================ players' names with the pen */
+.player-names {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.player-names .pn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 15px;
+}
+.player-names .pn strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14ch;
+}
+.pn-vs {
+  font-size: 12px;
+  color: var(--muted);
+}
+.player-names.editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  animation: rise-in 0.3s var(--ease) both;
+}
+.player-names.editing label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.player-names.editing input {
+  flex: 1;
+  min-width: 0;
+}
+.board-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.board-head > .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ================================================ back arrows */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: none;
+  background: var(--glass-2);
+  border: 1px solid var(--glass-edge);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.back-link svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  transition: transform 0.25s var(--ease);
+}
+.back-link:hover {
+  color: var(--ink);
+}
+.back-link:hover svg {
+  transform: translateX(-3px);
+}
+.page > .back-link {
+  margin-bottom: 8px;
+}
+
+/* The focus button sits at the board's top left, clear of the side panel's own buttons. */
+.stage > .focus-toggle {
+  left: 18px;
+  right: auto;
+  top: 10px;
+}
+
+/* ================================================ Doppelgänger: organised controls */
+.dop-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 640px;
+  min-width: 0;
+}
+.dop-head-tools .segmented.dop-tabs {
+  flex: 1 1 auto;
+}
+.dop-head-tools .gear-btn {
+  width: 42px;
+  height: 42px;
+}
+.dop-head .dop-title .back-link {
+  align-self: flex-start;
+}
+.dop-setup-summary {
+  display: grid;
+  gap: 6px;
+}
+.dop-sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--spring, ease),
+    border-color 0.2s;
+}
+.dop-sum:hover {
+  transform: translateX(3px);
+  border-color: var(--glass-edge);
+}
+.dop-sum-k {
+  flex: none;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dop-sum-v {
+  min-width: 0;
+  font-size: 13.5px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dop-sum-v::after {
+  content: ' ›';
+  color: var(--muted);
+}
+.btn.dop-start {
+  padding: 11px 22px;
+  font-size: 15px;
+}
+.dop-toolbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.dop-toolbar button {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 9px 4px 8px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--spring, ease),
+    background 0.2s,
+    color 0.2s;
+}
+.dop-toolbar button span {
+  font-size: 18px;
+  line-height: 1.1;
+}
+.dop-toolbar button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  color: var(--ink);
+}
+.dop-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dop-toolbar button.on {
+  background: linear-gradient(135deg, #7446f0, #b27cff);
+  border-color: transparent;
+  color: #fff;
+}
+@media (max-width: 760px) {
+  .dop-head-tools {
+    flex-basis: 100%;
+  }
+}

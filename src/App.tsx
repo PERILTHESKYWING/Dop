@@ -1,4 +1,4 @@
-import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
@@ -27,6 +27,7 @@ import { Broadcast } from './pages/Broadcast';
 import { Study } from './pages/Study';
 import { Chat } from './pages/Chat';
 import './styles/shell.css';
+import './styles/ux.css';
 
 interface NavItem {
   page: string;
@@ -136,7 +137,7 @@ function StatusCard() {
 function NavLink({ item, current }: { item: NavItem; current: string }) {
   const on = current === item.page;
   return (
-    <a href={href(item.page)} className={`item ${on ? 'active' : ''}`} aria-current={on ? 'page' : undefined} title={item.label}>
+    <a href={href(item.page)} className={`item ${on ? 'active' : ''}`} aria-current={on ? 'page' : undefined} title={item.label} style={{ '--i': ALL_ITEMS.indexOf(item) } as CSSProperties}>
       <Icon name={item.icon} />
       <span className="item-label">{item.label}</span>
     </a>
@@ -247,6 +248,46 @@ function PhoneTopBar() {
   );
 }
 
+const NAV_PREF = 'dop.navClosed';
+
+/** Whether the sidebar is tucked away (desktop and tablet; phones use the tab bar). */
+function useNavClosed() {
+  const [closed, setClosed] = useState(() => {
+    try {
+      return localStorage.getItem(NAV_PREF) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setClosed(v);
+    try {
+      localStorage.setItem(NAV_PREF, v ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  };
+  // Ctrl/⌘ + B, as in most editors.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setClosed((c) => {
+          try {
+            localStorage.setItem(NAV_PREF, c ? '0' : '1');
+          } catch {
+            /* private mode */
+          }
+          return !c;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return [closed, set] as const;
+}
+
 /** Heavy effects (moving light, blur) only where the device can afford them. */
 function useEffectsClass() {
   const effects = useStore((s) => s.settings.effects);
@@ -264,6 +305,7 @@ export function App() {
   const route = useRoute();
   const loaded = useStore((s) => s.loaded);
   const fx = useEffectsClass();
+  const [navClosed, setNavClosed] = useNavClosed();
   const savedTheme = useStore((s) => s.settings.theme) ?? 'sunrise';
   // Until the settings have loaded, keep the theme index.html already painted from this browser's copy.
   const [hint] = useState(storedTheme);
@@ -357,8 +399,8 @@ export function App() {
         </PageGuard>
       ) : (
         <>
-          <div className={`shell ${loaded ? '' : 'booting'}`}>
-            <nav className="nav" aria-label="Main">
+          <div className={`shell ${loaded ? '' : 'booting'} ${navClosed ? 'nav-closed' : ''}`}>
+            <nav className="nav" aria-label="Main" aria-hidden={navClosed || undefined} inert={navClosed || undefined}>
               <a className="brand" href={href('dashboard')} title="Dashboard">
                 <BrandMark />
                 <span className="brand-name">
@@ -382,9 +424,21 @@ export function App() {
                   <Icon name="spark" />
                   <span className="item-label">About</span>
                 </a>
+                <button className="item nav-about nav-collapse" onClick={() => setNavClosed(true)} title="Hide the sidebar (Ctrl+B)">
+                  <Icon name="sidebar" />
+                  <span className="item-label">Hide sidebar</span>
+                </button>
                 <StatusCard />
               </div>
             </nav>
+            {loaded && (
+              <button className="nav-reopen" onClick={() => setNavClosed(false)} title="Show the sidebar (Ctrl+B)" aria-label="Show the sidebar" tabIndex={navClosed ? 0 : -1}>
+                <BrandMark />
+                <span className="nav-reopen-chev" aria-hidden>
+                  ›
+                </span>
+              </button>
+            )}
             {loaded && <PhoneTopBar />}
             <main className="main">
               {loaded ? (
