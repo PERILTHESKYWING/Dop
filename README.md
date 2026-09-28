@@ -103,6 +103,16 @@ KataGo's analysis (candidates, values, lines, groups and their status). The mode
 three lines first, which the browser searches. Any coordinate, winrate or point figure in the answer that is not
 in KataGo's facts sends the answer back once for correction and is otherwise flagged under it (`shared/ask.ts`).
 
+### Go Coach chat
+`#/chat` is a full chat with the coach: positions, your games, study plans, concepts. It is a grounded pipeline,
+not a retrained model (`shared/chat.ts`). Each turn sends the conversation, your profile (level, per-phase levels,
+peer comparisons, costliest weaknesses) and, when a board is attached, KataGo's fact sheet with pro games, move
+difficulty and the game's key moments. Moves you name ("what about D10?") are checked by KataGo before the model is
+called, and the model can ask for up to three more lines, run in one batch. Code then checks every coordinate,
+winrate and point figure, "only move" claims and life-and-death claims against KataGo; a failing answer goes back
+once for correction. Deep mode reads longer and adds one model review of the reasoning. Most turns are one
+Gemini Flash call, which keeps the free tier fast. Chats are kept in the browser (IndexedDB).
+
 ### Best, great and brilliant moves; how hard a move is to find
 Review grades the move played and KataGo's move. **Best** is KataGo's choice (or as good). **Great** is an only
 move: every alternative KataGo read is clearly worse (2+ points or 8%+ winrate). **Brilliant** is an only move that

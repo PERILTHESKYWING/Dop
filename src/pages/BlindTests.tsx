@@ -28,7 +28,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
   const [explore, setExplore] = useState(false);
   const [assistedFor, setAssistedFor] = useState<string | null>(null);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
-  const [view, toggleView] = useAnalysisView();
+  const [view, toggleView, setCandidateCount] = useAnalysisView();
   const item = items[i];
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
@@ -80,6 +80,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
             a={analysis}
             view={view}
             onToggle={toggleView}
+            onCandidateCount={setCandidateCount}
             onHoverPv={setHoverPv}
             copyColor={item?.toPlay}
             onClose={() => {

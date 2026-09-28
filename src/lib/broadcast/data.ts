@@ -61,18 +61,25 @@ export function candidatesAt(g: BroadcastGame, index: number): EngineCandidate[]
   return out;
 }
 
-let loading: Promise<BroadcastFile> | null = null;
+/** The floors a pool can be generated at; 40 is the one always shipped (games.json). The
+ * "Broadcast games" workflow can add games-20.json/games-30.json as they're generated. */
+export const BROADCAST_FLOORS = [20, 30, 40] as const;
 
-/** The broadcast games (fetched once per visit). */
-export function loadBroadcast(): Promise<BroadcastFile> {
-  if (!loading) {
-    loading = fetch('/broadcast/games.json').then((r) => {
-      if (!r.ok) throw new Error(`broadcast games: HTTP ${r.status}`);
-      return r.json() as Promise<BroadcastFile>;
+const loading = new Map<number, Promise<BroadcastFile>>();
+
+/** The broadcast games for a floor (default 40, always present), fetched once per visit
+ * per floor. Falls back to the default pool if that floor hasn't been generated yet. */
+export function loadBroadcast(floorPct = 40): Promise<BroadcastFile> {
+  let p = loading.get(floorPct);
+  if (!p) {
+    const name = floorPct === 40 ? 'games.json' : `games-${floorPct}.json`;
+    p = fetch(`/broadcast/${name}`).then((r) => {
+      if (r.ok) return r.json() as Promise<BroadcastFile>;
+      if (floorPct === 40) throw new Error(`broadcast games: HTTP ${r.status}`);
+      return loadBroadcast(40); // that floor hasn't been generated yet
     });
-    loading.catch(() => {
-      loading = null;
-    });
+    p.catch(() => loading.delete(floorPct));
+    loading.set(floorPct, p);
   }
-  return loading;
+  return p;
 }

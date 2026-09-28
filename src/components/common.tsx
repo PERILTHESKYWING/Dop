@@ -51,6 +51,21 @@ export function DropZone({ onFiles, label, compact }: { onFiles: (f: File[]) => 
   );
 }
 
+/** A board-enlarge/focus toggle for the board-dominant `.stage` layouts (Study, Review, …):
+ * hides the side panel and lets the board fill the space. Esc also leaves focus mode. */
+export function useFocusMode() {
+  const [focused, setFocused] = useState(false);
+  return [focused, setFocused] as const;
+}
+
+export function FocusToggle({ focused, onChange }: { focused: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button className="btn small ghost focus-toggle" onClick={() => onChange(!focused)} title={focused ? 'Show the side panel back (Esc)' : 'Enlarge the board, hide everything else'}>
+      {focused ? '⤡ Exit focus' : '⤢ Focus'}
+    </button>
+  );
+}
+
 export function Stat({ value, label, hint, tone }: { value: ReactNode; label: string; hint?: ReactNode; tone?: string }) {
   return (
     <div className="stat">

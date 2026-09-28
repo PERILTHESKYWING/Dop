@@ -1235,6 +1235,23 @@ details summary {
 .stage .side .panel + .panel {
   margin-top: 0;
 }
+/* Focus mode: hide the side panel and let the board take the whole stage, for a distraction-
+   free look at the position (see the Focus button, common.tsx FocusToggle). */
+.stage.focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+.stage.focused .side {
+  display: none;
+}
+.stage.focused .board-wrap .board {
+  max-height: calc(100vh - 24px);
+}
+.focus-toggle {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  z-index: 5;
+}
 .thumb {
   width: 100%;
   aspect-ratio: 1;
@@ -1807,6 +1824,24 @@ table.live-cands tr.best td {
 }
 table.live-cands tr.played td {
   background: rgba(255, 170, 60, 0.12);
+}
+table.live-cands tr.previewed td {
+  background: rgba(120, 170, 255, 0.16);
+  box-shadow: inset 2px 0 0 rgb(var(--accent-rgb, 120 170 255));
+}
+table.live-cands .btn.tiny {
+  padding: 1px 7px;
+  font-size: 11px;
+}
+.candidate-count {
+  width: 44px;
+  margin: 0 4px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  background: rgb(var(--surface-rgb) / 0.7);
+  color: inherit;
+  text-align: center;
 }
 table.live-cands td:first-child,
 table.live-cands th:first-child {

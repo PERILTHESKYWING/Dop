@@ -1,6 +1,7 @@
 # Plays a fresh set of games for the live AI broadcast with KataGo, in GitHub's cloud, and
-# commits them to public/broadcast/games.json (Vercel then redeploys the site with them).
-# Run it from the Actions tab: "Broadcast games" → "Run workflow".
+# commits them to public/broadcast/games.json, or games-<pct>.json for any floor but the
+# default 0.4 (Vercel then redeploys the site with them). Run it from the Actions tab:
+# "Broadcast games" → "Run workflow".
 name: Broadcast games
 
 on:
@@ -12,6 +13,9 @@ on:
       visits:
         description: KataGo visits per move (more is stronger and slower)
         default: '32'
+      floor:
+        description: Minimum winrate the losing side is held near (0.4 writes games.json, the site's default pool; anything else writes games-<pct>.json as an extra option)
+        default: '0.4'
 
 permissions:
   contents: write
@@ -36,7 +40,7 @@ jobs:
           PARTS=$((4 * CORES))
           for c in $(seq 0 $((CORES - 1))); do
             npx tsx scripts/generate-broadcast.ts --model public/models/g170e-b10c128-s1141046784-d204142634.bin.gz \
-              --games ${{ inputs.games }} --visits ${{ inputs.visits }} --seed ${{ github.run_number }} \
+              --games ${{ inputs.games }} --visits ${{ inputs.visits }} --floor ${{ inputs.floor }} --seed ${{ github.run_number }} \
               --part $((${{ matrix.job }} * CORES + c)) --parts $PARTS &
           done
           wait
@@ -61,11 +65,11 @@ jobs:
           pattern: games-*
           path: .broadcast-parts
           merge-multiple: true
-      - run: npx tsx scripts/generate-broadcast.ts --merge --seed ${{ github.run_number }} --visits ${{ inputs.visits }}
+      - run: npx tsx scripts/generate-broadcast.ts --merge --seed ${{ github.run_number }} --visits ${{ inputs.visits }} --floor ${{ inputs.floor }}
       - name: Commit the new games
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git add public/broadcast/games.json
-          git commit -m "Broadcast: new set of KataGo games (run ${{ github.run_number }})" || echo "nothing to commit"
+          git add public/broadcast/games*.json
+          git commit -m "Broadcast: new set of KataGo games, floor ${{ inputs.floor }} (run ${{ github.run_number }})" || echo "nothing to commit"
           git push

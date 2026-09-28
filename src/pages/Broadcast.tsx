@@ -8,7 +8,7 @@ import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { PASS } from '../lib/go/types';
-import { loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
+import { BROADCAST_FLOORS, loadBroadcast, type BroadcastFile } from '../lib/broadcast/data';
 import {
   allTables,
   makeSchedule,
@@ -24,47 +24,85 @@ import {
   type Phase,
   type Schedule,
 } from '../lib/broadcast/schedule';
-import { canClaimBonus, claimBonus, DAILY_BONUS, loadWallet, oddsFor, placeBet, refill, settleBets, useWallet, type Bet } from '../state/bets';
-import { toast } from '../state/store';
 import { go, href } from '../router';
 import './broadcast.css';
 
-/** The broadcast pool and a clock that ticks with it; open bets settle as their games end. */
-function useBroadcast() {
+const SPEEDS = [0.5, 1, 2, 4];
+
+/** Playback speed for this viewer only: 1x tracks the real wall clock (what everyone else
+ * sees); any other speed runs a private virtual clock, so it never desyncs other viewers. */
+function useSpeed() {
+  const [speed, setSpeed] = useState(() => {
+    const n = Number(localStorage.getItem('dop.broadcastSpeed'));
+    return SPEEDS.includes(n) ? n : 1;
+  });
+  const set = (n: number) => {
+    setSpeed(n);
+    try {
+      localStorage.setItem('dop.broadcastSpeed', String(n));
+    } catch {
+      /* ignore */
+    }
+  };
+  return [speed, set] as const;
+}
+
+/** The floor (minimum losing-side winrate) this viewer wants; 40 always exists, others are
+ * generated on request (see the "Broadcast games" workflow) and fall back to 40 until then. */
+function useFloor() {
+  const [floor, setFloor] = useState(() => {
+    const n = Number(localStorage.getItem('dop.broadcastFloor'));
+    return (BROADCAST_FLOORS as readonly number[]).includes(n) ? n : 40;
+  });
+  const set = (n: number) => {
+    setFloor(n);
+    try {
+      localStorage.setItem('dop.broadcastFloor', String(n));
+    } catch {
+      /* ignore */
+    }
+  };
+  return [floor, set] as const;
+}
+
+/** The broadcast pool and a clock that ticks with it, at the viewer's chosen speed and floor. */
+function useBroadcast(speed: number, floor: number) {
   const [pool, setPool] = useState<BroadcastFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let alive = true;
-    loadBroadcast()
+    setPool(null);
+    loadBroadcast(floor)
       .then((p) => alive && setPool(p))
       .catch((e) => alive && setError((e as Error).message));
-    void loadWallet();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [floor]);
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(t);
-  }, []);
-  const sched = useMemo(() => (pool && pool.games.length ? makeSchedule(pool) : null), [pool]);
-  const loaded = useWallet((s) => s.loaded);
-  const tick = Math.floor(now / 1000);
-  useEffect(() => {
-    if (!sched || !loaded) return;
-    for (const b of settleBets(sched)) {
-      const vs = `${b.black} vs ${b.white}`;
-      if (b.status === 'won') toast(`Bet won: +${(b.payout ?? 0) - b.stake} coins on ${vs} (${b.result}).`, 'info');
-      else if (b.status === 'lost') toast(`Bet lost: −${b.stake} coins on ${vs} (${b.result}).`, 'info');
-      else toast(`The broadcast was refreshed; your ${b.stake} coins on ${vs} were returned.`, 'info');
+    if (speed === 1) {
+      // Track the real clock exactly, so every viewer at 1x sees the same move at once.
+      const t = setInterval(() => setNow(Date.now()), 250);
+      return () => clearInterval(t);
     }
-  }, [sched, loaded, tick]);
+    let last = performance.now();
+    const t = setInterval(() => {
+      const p = performance.now();
+      const dt = p - last;
+      last = p;
+      setNow((n) => n + dt * speed);
+    }, 100);
+    return () => clearInterval(t);
+  }, [speed]);
+  const sched = useMemo(() => (pool && pool.games.length ? makeSchedule(pool) : null), [pool]);
   return { pool, sched, error, now };
 }
 
 export function Broadcast({ table }: { table?: string }) {
-  const { pool, sched, error, now } = useBroadcast();
+  const [speed, setSpeed] = useSpeed();
+  const [floor, setFloor] = useFloor();
+  const { pool, sched, error, now } = useBroadcast(speed, floor);
   const t = table !== undefined && table !== '' ? Number(table) : NaN;
   if (error)
     return (
@@ -80,8 +118,38 @@ export function Broadcast({ table }: { table?: string }) {
         </div>
       </div>
     );
-  if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} />;
-  return <Lobby sched={sched} now={now} engine={pool.engine} />;
+  if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} speed={speed} onSpeed={setSpeed} />;
+  return <Lobby sched={sched} now={now} engine={pool.engine} speed={speed} onSpeed={setSpeed} floor={floor} onFloor={setFloor} />;
+}
+
+/** 0.5x/1x/2x/4x playback for this viewer; 1x is the shared, real-time broadcast. */
+function SpeedControl({ speed, onSpeed }: { speed: number; onSpeed: (n: number) => void }) {
+  return (
+    <div className="segmented bc-speed" role="tablist" aria-label="Playback speed">
+      {SPEEDS.map((s) => (
+        <button key={s} role="tab" aria-selected={speed === s} className={speed === s ? 'on' : ''} onClick={() => onSpeed(s)} title={s === 1 ? 'Real time, same as everyone else' : `${s}x, just for you`}>
+          {s}×
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The minimum winrate the losing side is held to; picking a pool that hasn't been
+ * generated yet falls back to the 40% one until the "Broadcast games" workflow makes it. */
+function FloorControl({ floor, onFloor }: { floor: number; onFloor: (n: number) => void }) {
+  return (
+    <label className="small bc-floor-label">
+      Losing side keeps at least{' '}
+      <select value={floor} onChange={(e) => onFloor(Number(e.target.value))} aria-label="Minimum losing-side winrate">
+        {BROADCAST_FLOORS.map((f) => (
+          <option key={f} value={f}>
+            {f}%
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 // ------------------------------------------------------------------ the lobby: every table at once
@@ -93,7 +161,23 @@ const FILTERS: { id: Phase | 'all'; label: string }[] = [
   { id: 'endgame', label: 'Endgame' },
 ];
 
-function Lobby({ sched, now, engine }: { sched: Schedule; now: number; engine: string }) {
+function Lobby({
+  sched,
+  now,
+  engine,
+  speed,
+  onSpeed,
+  floor,
+  onFloor,
+}: {
+  sched: Schedule;
+  now: number;
+  engine: string;
+  speed: number;
+  onSpeed: (n: number) => void;
+  floor: number;
+  onFloor: (n: number) => void;
+}) {
   const [filter, setFilter] = useState<Phase | 'all'>('all');
   const tables = allTables(sched, now);
   const shown = tables.filter((g) => filter === 'all' || g.phase === filter || (filter === 'endgame' && g.phase === 'finished'));
@@ -106,11 +190,14 @@ function Lobby({ sched, now, engine }: { sched: Schedule; now: number; engine: s
           </div>
           <h1>Live AI games</h1>
           <p className="sub">
-            KataGo plays itself on {TABLES} tables, a move every {MOVE_MS / 1000} seconds. It picks freely among moves that lose nothing, so no two games are alike and none has a blunder. Everyone
-            watching sees the same move at the same moment.
+            KataGo plays itself on {TABLES} tables, a move every {MOVE_MS / 1000} seconds. Both sides choose only among KataGo's own top moves, so no two games are alike and neither side ends up
+            with an overwhelming position. For self-improvement, not betting; a leaderboard may come later.
           </p>
         </div>
-        <WalletChip />
+        <div className="stack tight" style={{ alignItems: 'flex-end' }}>
+          <SpeedControl speed={speed} onSpeed={onSpeed} />
+          <FloorControl floor={floor} onFloor={onFloor} />
+        </div>
       </div>
       <div className="panel bc-filter-wrap">
       <div className="segmented bc-filter" role="tablist" aria-label="Game phase">
@@ -133,10 +220,9 @@ function Lobby({ sched, now, engine }: { sched: Schedule; now: number; engine: s
         ))}
         {!shown.length && <div className="empty">No table is in that phase right now.</div>}
       </div>
-      <BetsPanel />
       <p className="tiny muted">
-        {engine}. Games are played by KataGo ahead of time and broadcast on a shared clock; each one comes round again later in another orientation between other players. Coins are virtual and
-        stay in this browser.
+        {engine}. Games are played by KataGo ahead of time; at 1x everyone watching sees the same move at the same moment, and each game comes round again later in another orientation between
+        other players. Pick a faster or slower speed above to watch at your own pace instead.
       </p>
     </div>
   );
@@ -223,7 +309,7 @@ function MoveTimer({ g }: { g: LiveGame }) {
 
 // ------------------------------------------------------------------ one table
 
-function Watch({ sched, table, now }: { sched: Schedule; table: number; now: number }) {
+function Watch({ sched, table, now, speed, onSpeed }: { sched: Schedule; table: number; now: number; speed: number; onSpeed: (n: number) => void }) {
   const g = tableAt(sched, table, now);
   const { moves, stones, last, captures } = useStones(g);
   const [showCands, setShowCands] = useState(true);
@@ -292,6 +378,12 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
               </button>
             </div>
           </div>
+          <div className="spread">
+            <a className="small" href={href('live')}>
+              Watch a different table
+            </a>
+            <SpeedControl speed={speed} onSpeed={onSpeed} />
+          </div>
           <Players g={g} />
           <WinBar bWin={v.bWin} bLead={v.bLead} />
           <div className="spread tiny muted">
@@ -321,8 +413,6 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
           </div>
         </div>
 
-        <BetSlip g={g} />
-
         {!done && cands.length > 0 && (
           <div className="panel stack">
             <h3>{toPlay === 1 ? g.black : g.white} is weighing</h3>
@@ -335,163 +425,3 @@ function Watch({ sched, table, now }: { sched: Schedule; table: number; now: num
     </div>
   );
 }
-
-// ------------------------------------------------------------------ betting
-
-function WalletChip() {
-  const w = useWallet((s) => s.wallet);
-  const open = w.bets.filter((b) => b.status === 'open').reduce((a, b) => a + b.stake, 0);
-  return (
-    <div className="bc-wallet" title="Virtual coins, kept in this browser">
-      <span className="bc-coin" aria-hidden />
-      <strong className="mono">{w.coins.toLocaleString()}</strong>
-      <span className="tiny muted">coins{open ? ` · ${open} riding` : ''}</span>
-    </div>
-  );
-}
-
-const STAKES = [10, 50, 100, 250];
-
-function BetSlip({ g }: { g: LiveGame }) {
-  const w = useWallet((s) => s.wallet);
-  const [stake, setStake] = useState(50);
-  const done = g.shown >= g.total;
-  const v = valueAt(g.game, g.shown);
-  const mine = w.bets.filter((b) => b.key === g.key);
-  const bet = (side: 1 | 2) => {
-    const err = placeBet(g, side, stake, side === 1 ? v.bWin : 1 - v.bWin);
-    if (err) toast(err, 'error');
-  };
-  return (
-    <div className="panel stack bc-slip">
-      <div className="spread">
-        <h3>Who will win?</h3>
-        <WalletChip />
-      </div>
-      {done ? (
-        <p className="small dim">Betting opens again when the next game starts.</p>
-      ) : (
-        <>
-          <div className="bc-sides">
-            {([1, 2] as const).map((side) => {
-              const p = side === 1 ? v.bWin : 1 - v.bWin;
-              return (
-                <button key={side} className="bc-side" onClick={() => bet(side)} disabled={stake > w.coins || stake <= 0}>
-                  <span>
-                    <i className={`stone-dot ${side === 1 ? 'b' : 'w'}`} /> {side === 1 ? g.black : g.white}
-                  </span>
-                  <strong className="mono">×{oddsFor(p).toFixed(2)}</strong>
-                  <span className="tiny muted">{fmtPct(p)} to win</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="row wrap">
-            <label className="small">
-              Stake{' '}
-              <input type="number" min={1} max={w.coins} value={stake} onChange={(e) => setStake(Math.max(0, Math.floor(Number(e.target.value) || 0)))} style={{ width: 90 }} />
-            </label>
-            {STAKES.map((s) => (
-              <button key={s} className={`chip click ${stake === s ? 'on' : ''}`} onClick={() => setStake(s)} disabled={s > w.coins}>
-                {s}
-              </button>
-            ))}
-            <button className="chip click" onClick={() => setStake(w.coins)} disabled={!w.coins}>
-              all in
-            </button>
-          </div>
-          <p className="tiny muted">Odds are fixed when you bet, from KataGo's winrate at that move. A win pays the stake times the odds.</p>
-        </>
-      )}
-      {mine.length > 0 && (
-        <div className="stack tight">
-          {mine.map((b) => (
-            <BetRow key={b.id} b={b} />
-          ))}
-        </div>
-      )}
-      <Refills />
-    </div>
-  );
-}
-
-function BetRow({ b, showGame }: { b: Bet; showGame?: boolean }) {
-  const side = b.side === 1 ? b.black : b.white;
-  const tone = b.status === 'won' ? 'good' : b.status === 'lost' ? 'bad' : '';
-  return (
-    <div className="bc-bet">
-      <span>
-        <i className={`stone-dot ${b.side === 1 ? 'b' : 'w'}`} /> <strong>{side}</strong>
-        {showGame && (
-          <span className="muted">
-            {' '}
-            · <a href={href(`live/${b.table}`)}>table {b.table + 1}</a>
-          </span>
-        )}
-        <span className="muted tiny">
-          {' '}
-          · {b.stake} at ×{b.odds.toFixed(2)} on move {b.atMove}
-        </span>
-      </span>
-      <span className={`chip ${tone}`}>
-        {b.status === 'open' ? `pays ${Math.floor(b.stake * b.odds)}` : b.status === 'won' ? `+${(b.payout ?? 0) - b.stake}` : b.status === 'lost' ? `−${b.stake}` : 'returned'}
-      </span>
-    </div>
-  );
-}
-
-function Refills() {
-  const w = useWallet((s) => s.wallet);
-  const broke = w.coins < 10 && !w.bets.some((b) => b.status === 'open');
-  if (!canClaimBonus(w) && !broke) return null;
-  return (
-    <div className="row wrap">
-      {canClaimBonus(w) && (
-        <button className="btn small" onClick={claimBonus}>
-          Collect today's {DAILY_BONUS} coins
-        </button>
-      )}
-      {broke && (
-        <button className="btn small" onClick={refill}>
-          Out of coins: start again with 500
-        </button>
-      )}
-    </div>
-  );
-}
-
-function BetsPanel() {
-  const w = useWallet((s) => s.wallet);
-  const open = w.bets.filter((b) => b.status === 'open');
-  const settled = w.bets.filter((b) => b.status !== 'open').slice(0, 12);
-  const wins = w.bets.filter((b) => b.status === 'won').length;
-  const losses = w.bets.filter((b) => b.status === 'lost').length;
-  return (
-    <div className="panel stack">
-      <div className="spread">
-        <h3>Your bets</h3>
-        <span className="small muted">
-          {wins + losses ? `${wins} won · ${losses} lost · net ${w.won - w.lost >= 0 ? '+' : '−'}${Math.abs(w.won - w.lost)}` : 'Open a table to bet on who wins.'}
-        </span>
-      </div>
-      {open.length > 0 && (
-        <div className="stack tight">
-          <div className="tiny muted">Riding</div>
-          {open.map((b) => (
-            <BetRow key={b.id} b={b} showGame />
-          ))}
-        </div>
-      )}
-      {settled.length > 0 && (
-        <div className="stack tight">
-          <div className="tiny muted">Settled</div>
-          {settled.map((b) => (
-            <BetRow key={b.id} b={b} showGame />
-          ))}
-        </div>
-      )}
-      <Refills />
-    </div>
-  );
-}
-

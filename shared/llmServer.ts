@@ -8,6 +8,8 @@
  */
 import { ASK_SYSTEM, buildAskPrompt, parseAskReply, unsupportedFigures, validAskRequest, type AskRequest, type AskResponse } from './ask.js';
 import { handleForgeWrite } from './forgeWriter.js';
+import { buildChatPrompt, CHAT_SYSTEM, checkable, checkAnswer, parseChatReply, parseReview, REVIEW_SYSTEM, validChatRequest, type ChatRequest, type ChatResponse } from './chat.js';
+import { describeFacts } from './ask.js';
 import { buildUserPrompt, resolveLlmConfig, safeJson, SYSTEM_PROMPT, validatePatterns, type DiscoveryRequest, type DiscoveryResponse } from './llm.js';
 
 export interface LlmHttpResult {
@@ -166,6 +168,7 @@ export async function handleLlmRequest(
     const budget = opts.budgetMs ?? 52_000;
     return handleForgeWrite(parsed, (prompt, left) => generateJson(prompt, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, left) }), budget, opts.now);
   }
+  if (parsed?.task === 'chat') return handleChat(parsed, env, fetchImpl, opts);
   const req = parsed as DiscoveryRequest | null;
   if (!req || req.task !== 'discover-patterns' || !Array.isArray(req.clusters) || !req.player) {
     return { status: 400, body: { error: 'invalid request' } };
@@ -193,6 +196,92 @@ export async function handleLlmRequest(
  * in KataGo's facts is sent back once for correction; what remains is reported as
  * unsupported so the page can flag it.
  */
+const failed = (r: GenerateResult): LlmHttpResult => {
+  const overloaded = r.errors.some((e) => /HTTP (429|503)/.test(e));
+  const quota = r.errors.some((e) => /HTTP 429/.test(e) && /quota|per day|per minute|rate/i.test(e));
+  return {
+    status: 502,
+    body: {
+      error: quota
+        ? 'The free Gemini quota is used up for the moment. Wait a minute (or until tomorrow if the daily limit was hit) and ask again.'
+        : overloaded
+          ? 'Google says its Gemini models are overloaded right now. Try again in a minute.'
+          : 'The Gemini call failed.',
+      details: r.errors,
+    },
+  };
+};
+
+/**
+ * One chat turn (see shared/chat.ts): the teacher's reply, or the lines it wants KataGo to
+ * check. Answers are checked in code; a failing answer is sent back once for correction. In
+ * deep mode a checkable answer that passed also gets one review pass by the model.
+ */
+async function handleChat(raw: unknown, env: Record<string, string | undefined>, fetchImpl: FetchLike, opts: CallOptions): Promise<LlmHttpResult> {
+  if (!validChatRequest(raw)) return { status: 400, body: { error: 'invalid request' } };
+  const req: ChatRequest = {
+    ...raw,
+    messages: raw.messages.slice(-12).map((m) => ({ role: m.role, text: m.text.slice(0, 4000) })),
+    probes: (raw.probes ?? []).slice(0, 5),
+  };
+  const now = opts.now ?? Date.now;
+  const start = now();
+  const budget = opts.budgetMs ?? 52_000;
+  const left = () => budget - (now() - start);
+  let calls = 0;
+  const call = (system: string, user: string) => {
+    calls++;
+    return generateJson({ system, user, maxOutputTokens: 3072 }, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, left()) });
+  };
+  const canProbe = !!req.position && !req.final;
+  const size = req.position?.size ?? 19;
+  let r = await call(CHAT_SYSTEM, buildChatPrompt(req));
+  if (!r.ok || !r.text) return failed(r);
+  let reply = parseChatReply(r.text, canProbe, size);
+  if (!reply) {
+    // One retry for a malformed reply, forcing an answer.
+    if (left() < 8000) return { status: 502, body: { error: 'The model gave an answer that could not be read. Try again.' } };
+    r = await call(CHAT_SYSTEM, buildChatPrompt({ ...req, final: true }));
+    reply = r.ok && r.text ? parseChatReply(r.text, false, size) : null;
+    if (!reply) return r.ok ? { status: 502, body: { error: 'The model gave an answer that could not be read. Try again.' } } : failed(r);
+  }
+  if (reply.probes) return { status: 200, body: { probes: reply.probes, model: r.model, calls } satisfies ChatResponse };
+  let answer = reply.answer!;
+  let followups = reply.followups;
+  let bad = checkAnswer(answer, req);
+  let corrected = false;
+  if (bad.length && left() > 12_000) {
+    const r2 = await call(CHAT_SYSTEM, buildChatPrompt({ ...req, final: true }, bad));
+    const reply2 = r2.ok && r2.text ? parseChatReply(r2.text, false, size) : null;
+    if (reply2?.answer) {
+      const bad2 = checkAnswer(reply2.answer, req);
+      if (bad2.length <= bad.length) {
+        answer = reply2.answer;
+        followups = reply2.followups ?? followups;
+        bad = bad2;
+        r = r2;
+        corrected = true;
+      }
+    }
+  }
+  let reviewed = false;
+  if (req.deep && req.position && !bad.length && checkable(answer, size) && left() > 15_000) {
+    const facts = describeFacts(req.position, req.probes).join('\n\n');
+    const q = req.messages[req.messages.length - 1].text;
+    const rv = await call(REVIEW_SYSTEM, `KataGo's facts:\n\n${facts}\n\nStudent's question: ${q}\n\nCoach's answer:\n${answer}`);
+    const review = rv.ok && rv.text ? parseReview(rv.text) : null;
+    if (review) {
+      reviewed = true;
+      if (!review.ok && review.answer && checkAnswer(review.answer, req).length === 0) {
+        answer = review.answer;
+        corrected = true;
+      }
+    }
+  }
+  const body: ChatResponse = { answer, followups, unsupported: bad.length ? bad : undefined, checks: { corrected, reviewed }, model: r.model, calls };
+  return { status: 200, body };
+}
+
 async function handleAsk(raw: unknown, env: Record<string, string | undefined>, fetchImpl: FetchLike, opts: CallOptions): Promise<LlmHttpResult> {
   if (!validAskRequest(raw)) return { status: 400, body: { error: 'invalid request' } };
   const req: AskRequest = { ...raw, history: (raw.history ?? []).slice(-4), probes: (raw.probes ?? []).slice(0, 3) };
