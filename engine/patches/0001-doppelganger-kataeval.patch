@@ -1,5 +1,18 @@
+diff --git a/cpp/kataeval/dispatch.cpp b/cpp/kataeval/dispatch.cpp
+index 995bc757..0a2d164a 100644
+--- a/cpp/kataeval/dispatch.cpp
++++ b/cpp/kataeval/dispatch.cpp
+@@ -42,7 +42,7 @@ ComputeContext* NeuralNet::createComputeContext(
+     } catch(const std::exception&) { /* no WebGPU adapter — fall through to CPU */ }
+   }
+   gGpu = false;
+-  return (ComputeContext*)cpuimpl::createComputeContext(gpuIdxs, logger, nnXLen, nnYLen, homeDir, fp16, (const void*)model, cfg);
++  return (ComputeContext*)cpuimpl::createComputeContext(gpuIdxs, logger, nnXLen, nnYLen, homeDir, enabled_t::False /*DOPPELGANGER PATCH: Eigen has no fp16*/, (const void*)model, cfg);
+ }
+ void NeuralNet::freeComputeContext(ComputeContext* c) { gGpu ? gpuimpl::freeComputeContext((void*)c) : cpuimpl::freeComputeContext((void*)c); }
+ 
 diff --git a/cpp/kataeval/kataeval.cpp b/cpp/kataeval/kataeval.cpp
-index 703702e..9627f05 100644
+index 703702e5..f4ef3d88 100644
 --- a/cpp/kataeval/kataeval.cpp
 +++ b/cpp/kataeval/kataeval.cpp
 @@ -88,6 +88,8 @@ struct SNode {
@@ -42,6 +55,15 @@ index 703702e..9627f05 100644
  // Opt into fp16 for the threaded engine (call BEFORE the first eval/search). Default
  // off; only safe on fp16-stable nets (g170 overflow to garbage). See WEBGPU_STATUS.
  KATAEVAL_EXPORT void kgeSetFp16(int v) { gWantFp16 = (v != 0); }
+@@ -174,7 +200,7 @@ KATAEVAL_EXPORT int kgeLoad(const char* modelPath, int boardSize) {
+     std::vector<int> gpuIdxs = { -1 };
+     gCtx = NeuralNet::createComputeContext(
+       gpuIdxs, /*logger*/nullptr, gXLen, gYLen, /*homeDataDir*/"",
+-      enabled_t::False /*fp32*/, gModel, cfg);
++      gWantFp16 ? enabled_t::True : enabled_t::False /*DOPPELGANGER PATCH: fp16 opt-in*/, gModel, cfg);
+     // createComputeContext picks the backend (WebGPU, else Eigen CPU); match the
+     // input layout to it (Eigen only supports NHWC).
+     gUseNHWC = !kgeBackendIsGpu();
 @@ -227,6 +253,8 @@ static int evalBoardHist(const Board& board, const BoardHistory& hist, Player ne
    valueOut[2] = output.whiteNoResultProb;
    valueOut[3] = output.whiteScoreMean;
@@ -65,7 +87,68 @@ index 703702e..9627f05 100644
    }
    return 1;
  }
-@@ -583,6 +618,16 @@ KATAEVAL_EXPORT int kgeSearch(const int* moveLocs, const int* moveCols, int numM
+@@ -351,6 +386,60 @@ KATAEVAL_EXPORT int kgeEvalSeq(const int* moveLocs, const int* moveCols, int num
+   }
+ }
+ 
++// DOPPELGANGER PATCH: batched move-sequence eval. Like kgeEvalSeq (full move history,
++// ko, recent-move features) for numPos positions in ONE forward pass. Position i replays
++// moveLocs/moveCols[offsets[i] .. offsets[i+1]) and is evaluated for plas[i] under
++// symmetry syms[i] (0..7; the backend un-transforms its outputs, so averaging a position
++// over several symmetries reduces the net's orientation noise). Values are for the side
++// to move, as kgeEvalSeq. ownerOut: numPos*hw (white perspective) or NULL.
++KATAEVAL_EXPORT int kgeEvalSeqBatch(const int* moveLocs, const int* moveCols, const int* offsets,
++                                    const int* plas, const int* syms, int numPos, double komi,
++                                    float* policyOut, float* valueOut, float* ownerOut) {
++  if(gHandle == nullptr) { gErr = "not loaded"; return 0; }
++  if(numPos < 1 || numPos > KGE_MAX_BATCH) { gErr = "batch size out of range"; return 0; }
++  try {
++    const int hw = gXLen * gYLen;
++    std::vector<Board> boards(numPos);
++    std::vector<BoardHistory> hists(numPos);
++    const int spatialLen = NNModelVersion::getNumSpatialFeatures(gModelVersion) * gXLen * gYLen;
++    const int globalLen = NNModelVersion::getNumGlobalFeatures(gModelVersion);
++    std::vector<NNResultBuf> bufs(numPos);
++    std::vector<NNResultBuf*> bufPtrs(numPos);
++    std::vector<NNOutput> outs(numPos);
++    std::vector<NNOutput*> outPtrs(numPos);
++    MiscNNInputParams nnInputParams; nnInputParams.policyOptimism = gPolicyOptimism;
++    for(int i = 0; i < numPos; i++) {
++      const int a = offsets[i], b = offsets[i + 1];
++      buildBoardHist(moveLocs + a, moveCols + a, b - a, komi, boards[i], hists[i]);
++      bufs[i].rowSpatialBuf.resize(spatialLen);
++      bufs[i].rowGlobalBuf.resize(globalLen);
++      bufs[i].hasRowMeta = false;
++      bufs[i].symmetry = syms ? (syms[i] & 7) : 0;
++      bufs[i].policyOptimism = gPolicyOptimism;
++      NNInputs::fillRowV7(boards[i], hists[i], (Player)plas[i], nnInputParams, gXLen, gYLen,
++                          gUseNHWC, bufs[i].rowSpatialBuf.data(), bufs[i].rowGlobalBuf.data());
++      bufPtrs[i] = &bufs[i];
++      outs[i].nnXLen = gXLen; outs[i].nnYLen = gYLen;
++      outs[i].whiteOwnerMap = ownerOut ? ownerOut + (size_t)i * hw : nullptr;
++      outPtrs[i] = &outs[i];
++    }
++    NeuralNet::getOutput(gHandle, gInputs, numPos, bufPtrs.data(), outPtrs);
++    for(int i = 0; i < numPos; i++) {
++      std::memcpy(policyOut + (size_t)i * (hw + 1), outs[i].policyProbs, (hw + 1) * sizeof(float));
++      valueOut[i*5+0] = outs[i].whiteWinProb;
++      valueOut[i*5+1] = outs[i].whiteLossProb;
++      valueOut[i*5+2] = outs[i].whiteNoResultProb;
++      valueOut[i*5+3] = outs[i].whiteScoreMean;
++      valueOut[i*5+4] = outs[i].whiteLead;
++      outs[i].whiteOwnerMap = nullptr;  // caller-owned
++    }
++    return 1;
++  } catch(const std::exception& e) {
++    gErr = e.what();
++    return 0;
++  }
++}
++
+ // Batched stones-only eval — for validating batched vs single. numPos positions,
+ // each a hw stone-grid (stonesBatch[i*hw..]); plas[i] = side to move.
+ //   policyOut: numPos*(hw+1) logits; valueOut: numPos*5.
+@@ -583,6 +672,16 @@ KATAEVAL_EXPORT int kgeSearch(const int* moveLocs, const int* moveCols, int numM
        pvLen++; node = node->children[bi];
      }
      if(pvLenOut) *pvLenOut = pvLen;
@@ -83,15 +166,18 @@ index 703702e..9627f05 100644
      return 1;
    } catch(const std::exception& e) {
 diff --git a/cpp/kataeval/kataeval.h b/cpp/kataeval/kataeval.h
-index 37e0d13..e8bbe52 100644
+index 37e0d13a..ca651d5a 100644
 --- a/cpp/kataeval/kataeval.h
 +++ b/cpp/kataeval/kataeval.h
-@@ -118,6 +118,8 @@ void kgeSetStrength(int maxVisits, float chosenMoveTemp, float policyTemp);
+@@ -118,6 +118,11 @@ void kgeSetStrength(int maxVisits, float chosenMoveTemp, float policyTemp);
  const char* kgeError(void);       // last error message ("" if none)
  int kgeBoardSize(void);           // configured board size
  int kgeModelVersion(void);        // loaded model's version
 +int kgeRootStats(int* movesOut, int* visitsOut, float* winratesOut, float* priorsOut, int cap);  // DOPPELGANGER PATCH
 +int kgePostProcessParams(float* out);  // DOPPELGANGER PATCH
++int kgeEvalSeqBatch(const int* moveLocs, const int* moveCols, const int* offsets, const int* plas,
++                    const int* syms, int numPos, double komi, float* policyOut, float* valueOut,
++                    float* ownerOut);  // DOPPELGANGER PATCH
  
  #ifdef __cplusplus
  }

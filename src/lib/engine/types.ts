@@ -39,6 +39,11 @@ export interface EngineBackend {
   readonly postProcess: PostProcessParams;
   evalRaw(req: EngineRequest, ownership: boolean): Promise<RawNetOutput>;
   searchRaw(req: EngineRequest, visits: number, maxMs: number): Promise<RawSearchResult>;
+  /**
+   * Several positions with their move history (and a board symmetry each), spread over the
+   * engine's workers and network batches. Results are side-to-move, like evalRaw.
+   */
+  evalSeqBatchRaw?(reqs: (EngineRequest & { ownership?: boolean; symmetry?: number })[]): Promise<RawNetOutput[]>;
   /** Several positions in one network call; results are side-to-move, like evalRaw. */
   evalBatchRaw?(size: number, komi: number, positions: StonesPosition[]): Promise<RawNetOutput[]>;
   /** Positions per network call worth batching on this device (1 or undefined = no batching). */

@@ -5,6 +5,7 @@ import { engineMoves } from '../lib/analysis/analyzer';
 import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
 import { getEngine, markInteractive, startEngine } from './actions';
 import { get as getApp } from './store';
+import { ponderCap } from '../lib/engine/governor';
 
 /**
  * Live analysis ("pondering", as in Lizzie): KataGo keeps searching the position on
@@ -137,7 +138,8 @@ async function loop() {
     } else search.setPosition(pos);
     // What the tree already knows about this position shows at once.
     useLive.setState({ key: t.key, snap: search.rootVisits > 0 ? search.snapshot() : null, status: 'thinking', error: undefined });
-    const limit = getApp().settings.ponderLimit || Infinity;
+    // On battery, live analysis stops at a limit instead of reading forever.
+    const limit = getApp().settings.ponderLimit || ponderCap();
     try {
       markInteractive(4000);
       await search.run({

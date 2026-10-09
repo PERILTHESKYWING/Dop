@@ -1,3 +1,4 @@
+import { EngineSpeed } from '../components/EngineSpeed';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import {
@@ -67,6 +68,7 @@ function EngineSection() {
           </span>
         </div>
       )}
+      <EngineSpeed />
       {engine.status === 'loading' && (
         <div className="stack tight">
           <div className="tiny muted">

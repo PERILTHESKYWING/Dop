@@ -180,6 +180,19 @@ cached in the Cache API; they are never committed.
 - kata1 networks are fetched through the same-origin path `/katago-models/…`, which `vercel.json` (and the Vite
   dev proxy) rewrites to `media.katagotraining.org`; the direct URL is tried next.
 - Every stored evaluation records engine build, network, network version and visits.
+- Speed: the engine is built with WebAssembly SIMD (a plain build is kept for browsers without it). On the
+  CPU several engine workers run side by side, one per spare core; on a GPU one worker sends batches of
+  positions per network call, in half precision when the network allows it and it gives the same answers.
+  How many of each pays off is measured on the device the first time and remembered (Settings: Measure again).
+- The tree search shares a symmetry-aware evaluation cache (a mirrored or rotated position reuses the stored
+  evaluation), averages the root over board symmetries when batches make that free, widens its batch as the
+  tree grows, and stops once more visits cannot change the best move. Game analysis spends more visits on
+  costly or surprising moves and fewer on obvious ones. Evaluations of opening positions are kept between visits.
+- Heat and battery: background analysis slows down when the device's network times show thermal throttling
+  or the battery is below half (where the browser reports it), and pauses on a low battery; live analysis
+  stops at a visit limit on battery.
+- Benchmark (Settings): the engine as it ships against the plain setup it replaced, scored against native
+  KataGo's answers on 30 positions (`scripts/engine-reference.ts`; headless run: `scripts/engine-bench.mjs`).
 - Human-style policy (`humanPolicy`) needs KataGo's human SL network, whose metadata encoder this WebGPU build
   cannot load yet; the network is listed as unsupported and the field stays empty.
 
