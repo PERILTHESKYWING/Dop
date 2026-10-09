@@ -83,6 +83,8 @@ export interface PositionEval {
   humanPolicy?: PolicyEntry[];
   /** The network's own first look (before any search), kept for level estimation. */
   net?: { bWin: number; bLead: number };
+  /** The search stopped early at this budget because more visits could not change its best move. */
+  settled?: number;
 }
 
 export interface GameAnalysis {

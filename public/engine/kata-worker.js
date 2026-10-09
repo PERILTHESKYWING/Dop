@@ -30,12 +30,27 @@ let postProcess = { outputScale: 1, scoreMeanMultiplier: 20, leadMultiplier: 20 
 
 const post = (msg, transfer) => self.postMessage(msg, transfer || []);
 
-async function ensureModule() {
+/** WebAssembly SIMD (every current browser; the -compat build is for older ones). */
+function hasSimd() {
+  try {
+    // (module (func (result v128) i32.const 0 i8x16.splat i8x16.popcnt))
+    return WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+  } catch (_) {
+    return false;
+  }
+}
+
+let buildName = 'kataeval';
+
+async function ensureModule(compat) {
   if (M) return M;
-  importScripts(new URL('kataeval.js', self.location.href).href);
+  buildName = compat || !hasSimd() ? 'kataeval-compat' : 'kataeval';
+  // The worker's own ?v= goes on the engine files too, so a new release never mixes with cached old ones.
+  const v = self.location.search;
+  importScripts(new URL(buildName + '.js' + v, self.location.href).href);
   // eslint-disable-next-line no-undef
   M = await createKata({
-    locateFile: (p) => new URL(p, self.location.href).href,
+    locateFile: (p) => new URL(p + v, self.location.href).href,
     print: () => {},
     printErr: (t) => post({ type: 'log', text: String(t) }),
   });
@@ -204,8 +219,22 @@ function allocBuffers() {
     bPlas: M._malloc(BATCH_CAP * 4),
     bPol: M._malloc(BATCH_CAP * (hw + 1) * 4),
     bVal: M._malloc(BATCH_CAP * 5 * 4),
+    sOff: M._malloc((BATCH_CAP + 1) * 4),
+    sSym: M._malloc(BATCH_CAP * 4),
+    sOwn: M._malloc(BATCH_CAP * hw * 4),
   };
+  if (seqMl) {
+    M._free(seqMl);
+    M._free(seqMc);
+  }
+  seqCap = 0;
+  seqMl = seqMc = 0;
 }
+
+/** Move buffers for batched sequence evaluation (grown as needed). */
+let seqCap = 0;
+let seqMl = 0;
+let seqMc = 0;
 
 let modelSource = null; // { id, cacheKey, urls } for reloading on board-size change
 
@@ -229,8 +258,9 @@ async function loadNet(bytes, boardSize) {
 }
 
 async function init(msg) {
-  await ensureModule();
+  await ensureModule(msg.compat);
   if (msg.forceCpu) M.ccall('kgeSetForceCpu', null, ['number'], [1]);
+  if (msg.fp16) M.ccall('kgeSetFp16', null, ['number'], [1]);
   const boardSize = msg.boardSize || 19;
   const modelId = msg.modelId;
   let got = await fetchModel(modelId, msg.cacheKey, msg.urls, false);
@@ -258,6 +288,9 @@ async function init(msg) {
     postProcess,
     modelKey: loadedModelKey,
     source: got.fromCache ? 'cache' : got.url,
+    build: buildName,
+    simd: buildName === 'kataeval',
+    heapBytes: M.HEAPF32.length * 4,
   };
 }
 
@@ -283,6 +316,7 @@ async function evaluate(msg) {
   await ensureSize(msg.size);
   const n = writeMoves(msg.moves);
   const hw = size * size;
+  const t0 = performance.now();
   const ok = await M.ccall(
     'kgeEvalSeq',
     'number',
@@ -296,7 +330,7 @@ async function evaluate(msg) {
   const ownership = msg.ownership ? M.HEAPF32.slice(bufs.own >> 2, (bufs.own >> 2) + hw) : null;
   const transfer = [policy.buffer, value.buffer];
   if (ownership) transfer.push(ownership.buffer);
-  return { result: { policy, value, ownership }, transfer };
+  return { result: { policy, value, ownership, ms: performance.now() - t0 }, transfer };
 }
 
 /**
@@ -335,6 +369,49 @@ async function evaluateBatch(msg) {
     value[v + 4] = -value[v + 4];
   }
   return { result: { policy, value }, transfer: [policy.buffer, value.buffer] };
+}
+
+/**
+ * Several positions with their full move history in one network call (kgeEvalSeqBatch).
+ * msg.locs / msg.cols hold every position's moves back to back, msg.offsets[i] where
+ * position i starts (numPos + 1 entries). Values come back for the side to move, like
+ * evaluate(); ownership (when asked) for every position.
+ */
+async function evaluateSeqBatch(msg) {
+  await ensureSize(msg.size);
+  const hw = size * size;
+  const B = msg.toPlay.length;
+  if (!B || B > BATCH_CAP) throw new Error('batch size out of range');
+  const total = msg.locs.length;
+  if (total > seqCap) {
+    if (seqMl) {
+      M._free(seqMl);
+      M._free(seqMc);
+    }
+    seqCap = Math.max(total, 4096);
+    seqMl = M._malloc(seqCap * 4);
+    seqMc = M._malloc(seqCap * 4);
+  }
+  M.HEAP32.set(msg.locs, seqMl >> 2);
+  M.HEAP32.set(msg.cols, seqMc >> 2);
+  M.HEAP32.set(msg.offsets, bufs.sOff >> 2);
+  M.HEAP32.set(msg.toPlay, bufs.bPlas >> 2);
+  M.HEAP32.set(msg.syms, bufs.sSym >> 2);
+  const t0 = performance.now();
+  const ok = await M.ccall(
+    'kgeEvalSeqBatch',
+    'number',
+    Array(10).fill('number'),
+    [seqMl, seqMc, bufs.sOff, bufs.bPlas, bufs.sSym, B, msg.komi, bufs.bPol, bufs.bVal, msg.ownership ? bufs.sOwn : 0],
+    { async: true },
+  );
+  if (!ok) throw new Error('batch evaluation failed: ' + M.ccall('kgeError', 'string', [], []));
+  const policy = M.HEAPF32.slice(bufs.bPol >> 2, (bufs.bPol >> 2) + B * (hw + 1));
+  const value = M.HEAPF32.slice(bufs.bVal >> 2, (bufs.bVal >> 2) + B * 5);
+  const ownership = msg.ownership ? M.HEAPF32.slice(bufs.sOwn >> 2, (bufs.sOwn >> 2) + B * hw) : null;
+  const transfer = [policy.buffer, value.buffer];
+  if (ownership) transfer.push(ownership.buffer);
+  return { result: { policy, value, ownership, heapBytes: M.HEAPF32.length * 4, ms: performance.now() - t0 }, transfer };
 }
 
 async function search(msg) {
@@ -377,6 +454,9 @@ async function handle(msg) {
     if (type === 'init') post({ id, ok: true, result: await init(msg) });
     else if (type === 'eval') {
       const r = await evaluate(msg);
+      post({ id, ok: true, result: r.result }, r.transfer);
+    } else if (type === 'evalSeqBatch') {
+      const r = await evaluateSeqBatch(msg);
       post({ id, ok: true, result: r.result }, r.transfer);
     } else if (type === 'evalBatch') {
       const r = await evaluateBatch(msg);

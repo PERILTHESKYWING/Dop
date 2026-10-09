@@ -5,6 +5,7 @@ dist/
 !.env.example
 .vercel/
 .engine-build/
+.engine-reference.partial.jsonl
 public/demo/part-*.json
 *.log
 coverage/

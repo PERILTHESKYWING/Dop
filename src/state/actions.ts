@@ -3,6 +3,8 @@ import { Corpus } from '../lib/corpus';
 import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
 import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
 import { bundledModel, modelOrderFor } from '../lib/engine/models';
+import { governEngine, pace } from '../lib/engine/governor';
+import { forgetTunings } from '../lib/engine/tuning';
 import { generateItems } from '../lib/forge/generator';
 import { balancedItems } from '../lib/forge/balance';
 import { practiceItems } from '../lib/forge/worth';
@@ -16,7 +18,8 @@ import { toSgf } from '../lib/go/sgf';
 import { allPositions, type Board } from '../lib/go/board';
 import { decodeOwnership } from '../lib/engine/parse';
 import { ANALYSIS_VERSION, engineMoves, searchedEval } from '../lib/analysis/analyzer';
-import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
+import { engineEvaluator, nnCacheFor, Search, type SearchSnapshot } from '../lib/engine/mcts';
+import type { CacheRow } from '../lib/engine/nncache';
 import { engineKomi, standardKomi } from '../lib/go/rules';
 import { buildDiscoveryRequest, discoverPatterns, llmStatus, mergePatterns } from '../lib/llm/client';
 import { buildExample, trainDoppel, type DoppelExample, type DoppelModel } from '../lib/profile/doppel';
@@ -265,14 +268,21 @@ export async function startEngine(): Promise<BrowserEngine | null> {
         const onGpu = !a.forceCpu;
         if (onGpu && gpuFailed) continue;
         try {
-          const eng = await BrowserEngine.load(a, (progress) => {
-            // Only the GPU start itself can take the tab down, not the download before it.
-            if (onGpu && (progress.stage === 'load' || progress.stage === 'check')) lsSet(GPU_TRYING, String(Date.now()));
-            set((s) => ({ engine: { ...s.engine, status: 'loading', progress, failures: [...failures] } }));
-          });
+          const eng = await BrowserEngine.load(
+            a,
+            (progress) => {
+              // Only the GPU start itself can take the tab down, not the download before it.
+              if (onGpu && (progress.stage === 'load' || progress.stage === 'check')) lsSet(GPU_TRYING, String(Date.now()));
+              set((s) => ({ engine: { ...s.engine, status: 'loading', progress, failures: [...failures] } }));
+            },
+            { tune: !safeMode, retune: retuneNext },
+          );
+          retuneNext = false;
           lsSet(GPU_TRYING, null);
           eng.onDeath = (reason) => onEngineDeath(eng, reason);
           engine = eng;
+          governEngine(eng);
+          void keepOpeningCache(eng);
           set({ engine: { status: 'ready', info: eng.info, evalMs: eng.evalMs, failures } });
           if (failures.length) toast(`Using ${eng.info.modelName}${eng.info.backend === 'cpu' ? ' on CPU' : ''}. ${attempts[0].spec.name} failed (see Settings).`, 'info');
           return eng;
@@ -294,6 +304,41 @@ export async function startEngine(): Promise<BrowserEngine | null> {
     }
   })();
   return engineStarting;
+}
+
+/*
+ * Openings recur from game to game, so the network's evaluations of early positions are
+ * kept between visits (IndexedDB) and loaded into the engine's evaluation cache.
+ */
+const OPENING_STONES = 40;
+const OPENING_ROWS = 6000;
+async function keepOpeningCache(eng: BrowserEngine) {
+  const key = `nncache:${eng.info.modelId}:${eng.info.engine}`;
+  const cache = nnCacheFor(eng);
+  try {
+    const rows = await kvGet<CacheRow[]>(key);
+    if (rows?.length) cache.importRows(rows);
+  } catch {
+    /* storage unavailable */
+  }
+  let saved = cache.stats().misses;
+  const save = () => {
+    const misses = cache.stats().misses;
+    if (misses === saved || engine !== eng) return;
+    saved = misses;
+    void kvSet(key, cache.exportRows(OPENING_STONES, OPENING_ROWS)).catch(() => {});
+  };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save());
+  const timer = setInterval(() => (engine === eng ? save() : clearInterval(timer)), 120_000);
+}
+
+let retuneNext = false;
+
+/** Measure this device again (workers, batch size, half precision) and restart KataGo. */
+export async function retuneEngine() {
+  forgetTunings();
+  retuneNext = true;
+  return restartEngine();
 }
 
 /** Stop KataGo and start it again; `safe` uses only the built-in network on the CPU. */
@@ -635,15 +680,17 @@ export function markInteractive(ms = 6000) {
 const interactiveNow = () => Date.now() < interactiveUntil;
 async function waitForInteractive() {
   while (interactiveNow() && !stopRequested) await new Promise((r) => setTimeout(r, 200));
+  // Heat and battery: background analysis rests between positions (see governor.ts).
+  await pace(() => stopRequested || interactiveNow());
 }
 
 /**
  * Search visits per position for background analysis: the setting, or about two and a
  * half seconds of this device's time per position (12 to 400 visits).
  */
-export function searchVisitsFor(eng: { evalMs: number; batch: number; batchMs?: number }, setting: number): number {
+export function searchVisitsFor(eng: { evalMs: number; batch: number; batchMs?: number; tuning?: { evalsPerSec: number } | null }, setting: number): number {
   if (setting > 0) return setting;
-  const perEval = eng.batch > 1 && eng.batchMs ? eng.batchMs / eng.batch : eng.evalMs || 150;
+  const perEval = eng.tuning?.evalsPerSec ? 1000 / eng.tuning.evalsPerSec : eng.batch > 1 && eng.batchMs ? eng.batchMs / eng.batch : eng.evalMs || 150;
   return Math.max(12, Math.min(400, Math.round(2500 / perEval / 4) * 4));
 }
 

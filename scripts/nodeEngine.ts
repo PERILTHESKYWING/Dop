@@ -37,8 +37,9 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
   M.FS.unlink('/m.bin.gz');
   const hw = size * size;
   const b = {
-    ml: M._malloc(4096 * 4),
-    mc: M._malloc(4096 * 4),
+    // Room for 16 positions' move lists (batched evaluation).
+    ml: M._malloc(16 * 1024 * 4),
+    mc: M._malloc(16 * 1024 * 4),
     board: M._malloc(hw * 4),
     pol: M._malloc((hw + 1) * 4),
     val: M._malloc(32),
@@ -85,6 +86,45 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
     const p = chain.then(fn);
     chain = p.catch(() => undefined);
     return p;
+  };
+  const evalOne = async (req: EngineRequest, ownership: boolean): Promise<RawNetOutput> => {
+    if (req.size !== size) throw new Error('board size mismatch');
+    const n = write(req);
+    const ok = await M.ccall('kgeEvalSeq', 'number', Array(9).fill('number'), [b.ml, b.mc, n, req.toPlay, req.komi, b.board, b.pol, b.val, ownership ? b.own : 0], {
+      async: true,
+    });
+    if (!ok) throw new Error('kgeEvalSeq: ' + M.ccall('kgeError', 'string', [], []));
+    return {
+      policyLogits: M.HEAPF32.slice(b.pol >> 2, (b.pol >> 2) + hw + 1),
+      value: M.HEAPF32.slice(b.val >> 2, (b.val >> 2) + 5),
+      ownership: ownership ? M.HEAPF32.slice(b.own >> 2, (b.own >> 2) + hw) : null,
+    };
+  };
+  // Batched evaluation with move history (kgeEvalSeqBatch), up to 16 positions.
+  const sb = { off: M._malloc(17 * 4), pl: M._malloc(16 * 4), sy: M._malloc(16 * 4), own: M._malloc(16 * hw * 4) };
+  const evalSeq = async (reqs: (EngineRequest & { ownership?: boolean; symmetry?: number })[]): Promise<RawNetOutput[]> => {
+    let k = 0;
+    reqs.forEach((r, j) => {
+      M.HEAP32[(sb.off >> 2) + j] = k;
+      M.HEAP32[(sb.pl >> 2) + j] = r.toPlay;
+      M.HEAP32[(sb.sy >> 2) + j] = (r.symmetry ?? 0) & 7;
+      for (const m of r.moves) {
+        M.HEAP32[(b.ml >> 2) + k] = m.loc;
+        M.HEAP32[(b.mc >> 2) + k] = m.color;
+        k++;
+      }
+    });
+    M.HEAP32[(sb.off >> 2) + reqs.length] = k;
+    const own = reqs.some((r) => r.ownership);
+    const ok = await M.ccall('kgeEvalSeqBatch', 'number', Array(10).fill('number'), [b.ml, b.mc, sb.off, sb.pl, sb.sy, reqs.length, reqs[0].komi, b.bpol, b.bval, own ? sb.own : 0], {
+      async: true,
+    });
+    if (!ok) throw new Error('kgeEvalSeqBatch: ' + M.ccall('kgeError', 'string', [], []));
+    return reqs.map((r, j) => ({
+      policyLogits: M.HEAPF32.slice((b.bpol >> 2) + j * (hw + 1), (b.bpol >> 2) + (j + 1) * (hw + 1)),
+      value: M.HEAPF32.slice((b.bval >> 2) + j * 5, (b.bval >> 2) + j * 5 + 5),
+      ownership: r.ownership ? M.HEAPF32.slice((sb.own >> 2) + j * hw, (sb.own >> 2) + (j + 1) * hw) : null,
+    }));
   };
   return {
     info,
@@ -153,5 +193,11 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
           children,
         };
       }),
+    evalSeqBatchRaw: async (reqs) => {
+      if (batch <= 1) return Promise.all(reqs.map((r) => serial(async () => evalOne(r, !!r.ownership))));
+      const out: RawNetOutput[] = [];
+      for (let a = 0; a < reqs.length; a += 16) out.push(...(await serial(() => evalSeq(reqs.slice(a, a + 16)))));
+      return out;
+    },
   };
 }

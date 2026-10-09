@@ -1,6 +1,6 @@
 import { Board } from '../go/board';
 import { PASS, type Color, type Loc, type Move, other } from '../go/types';
-import { encodeOwnership, moverView, processRawOutput, round, topPolicy } from '../engine/parse';
+import { encodeOwnership, moverView, processRawOutput, round, topPolicy, type RawNetOutput } from '../engine/parse';
 import { engineEvaluator, Search, type SearchCandidate, type SearchSnapshot } from '../engine/mcts';
 import type { EngineBackend, EngineRequest } from '../engine/types';
 import type { Candidate, PositionEval } from '../types';
@@ -60,9 +60,7 @@ export function rootPosition(spec: PositionSpec) {
   return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay, board: spec.board };
 }
 
-/** Fast pass: one network evaluation (policy, value, score, ownership). */
-export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): Promise<PositionEval> {
-  const raw = await engine.evalRaw(request(spec), true);
+function fastEval(engine: EngineBackend, spec: PositionSpec, raw: RawNetOutput): PositionEval {
   const legal = spec.board.legalMask(spec.toPlay);
   const net = processRawOutput(raw, spec.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
   const policy = topPolicy(net.policy, 12);
@@ -80,6 +78,22 @@ export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): P
     engine: engine.info,
     analyzedAt: Date.now(),
   };
+}
+
+/** Fast pass: one network evaluation (policy, value, score, ownership). */
+export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): Promise<PositionEval> {
+  return fastEval(engine, spec, await engine.evalRaw(request(spec), true));
+}
+
+/** The fast pass for many positions at once (spread over the engine's workers and batches). */
+export async function evaluateFastMany(engine: EngineBackend, specs: PositionSpec[]): Promise<PositionEval[]> {
+  if (!engine.evalSeqBatchRaw || specs.length <= 1) {
+    const out: PositionEval[] = [];
+    for (const s of specs) out.push(await evaluateFast(engine, s));
+    return out;
+  }
+  const raws = await engine.evalSeqBatchRaw(specs.map((s) => ({ ...request(s), ownership: true })));
+  return specs.map((s, i) => fastEval(engine, s, raws[i]));
 }
 
 export interface DeepOptions {
