@@ -37,7 +37,7 @@ function Profile({ o }: { o: OpponentProfile }) {
         <div>
           <input className="title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== o.name && void renameOpponent(o.id, name.trim())} />
           <p className="sub">
-            {games.length} games · {analysed} analysed by KataGo
+            {games.length} games · {analysed} analysed
           </p>
         </div>
         <div className="row">
@@ -54,43 +54,40 @@ function Profile({ o }: { o: OpponentProfile }) {
           </button>
         </div>
       </div>
-      <div className="callout small">
-        This profile describes tendencies in the games you gave it, and the copy imitates how {o.name} chooses moves in them. Neither reads {o.name}'s mind, and small samples can mislead.
-      </div>
+      <div className="callout small">Based only on the games you added. Small samples mislead.</div>
       <div className="panel">
-        <h3 style={{ marginBottom: 8 }}>{o.name}'s level</h3>
+        <h3 style={{ marginBottom: 8 }}>Level</h3>
         <LevelPanel targets={opponentTargets(o, games)} who={`${o.name}'s`} auto />
       </div>
       <div className="panel stack">
         <div className="spread">
-          <h3>{o.name}'s copy</h3>
+          <h3>Copy</h3>
           {o.copy && (
             <a className="btn small primary" href={href(`doppel/play?opp=${o.id}`)}>
-              Play against it
+              Play it
             </a>
           )}
         </div>
         {o.copy ? (
           <>
             <p className="small">
-              Predicts {o.name}'s exact move <strong className="doppel">{fmtPct(o.copy.metrics.top1)}</strong> of the time on games it did not learn from (KataGo's policy alone: {fmtPct(o.copy.metrics.baselineTop1)}), and has it in its top three{' '}
-              {fmtPct(o.copy.metrics.top3)} of the time. Learned from {o.copy.moves ?? o.copy.trainedOn} moves in {o.copy.gameIds?.length ?? '?'} games.
+              Exact move <strong className="doppel">{fmtPct(o.copy.metrics.top1)}</strong> (KataGo {fmtPct(o.copy.metrics.baselineTop1)}) · top 3 {fmtPct(o.copy.metrics.top3)} · {o.copy.moves ?? o.copy.trainedOn} moves, {o.copy.gameIds?.length ?? '?'} games
             </p>
-            <p className="tiny muted">It gets more accurate as you add games. When you play it you can set its strength, and it keeps choosing the moves {o.name} tends to choose.</p>
+            <p className="tiny muted">More games, better copy.</p>
           </>
         ) : (
-          <p className="small dim">The copy is learned once KataGo has analysed at least 30 of {o.name}'s moves ({analysed} of {games.length} games analysed so far).</p>
+          <p className="small dim">Needs 30 analysed moves ({analysed}/{games.length} games done).</p>
         )}
       </div>
-      <DropZone compact label={`Add more of ${o.name}'s games`} onFiles={(f) => void importOpponentFiles(f, undefined, o)} />
+      <DropZone compact label="Add games" onFiles={(f) => void importOpponentFiles(f, undefined, o)} />
       {!s ? (
-        <div className="empty">No statistics yet.</div>
+        <div className="empty">No stats yet.</div>
       ) : (
         <>
           <div className="grid cols-4">
             <div className="stat">
               <div className="v">{s.games}</div>
-              <div className="l">games ({s.asBlack} as Black)</div>
+              <div className="l">games ({s.asBlack} B)</div>
             </div>
             <div className="stat">
               <div className="v">{s.games ? fmtPct(s.wins / s.games) : '—'}</div>
@@ -98,16 +95,16 @@ function Profile({ o }: { o: OpponentProfile }) {
             </div>
             <div className="stat">
               <div className="v">{Math.round(s.avgLength)}</div>
-              <div className="l">moves per game</div>
+              <div className="l">moves/game</div>
             </div>
             <div className="stat">
               <div className="v">{s.accuracy ? s.accuracy.avgScoreLoss.toFixed(1) : '—'}</div>
-              <div className="l">points lost per move</div>
+              <div className="l">pts lost/move</div>
             </div>
           </div>
           {s.notes.length > 0 && (
             <div className="panel">
-              <h3>What stands out</h3>
+              <h3>Notes</h3>
               <ul className="notes">
                 {s.notes.map((n) => (
                   <li key={n}>{n}</li>
@@ -123,7 +120,7 @@ function Profile({ o }: { o: OpponentProfile }) {
                 <dd>{fmtPct(s.fighting.contactRate)}</dd>
                 <dt>Ataris</dt>
                 <dd>{fmtPct(s.fighting.atariRate)}</dd>
-                <dt>Captures per game</dt>
+                <dt>Captures/game</dt>
                 <dd>{s.fighting.capturesPerGame.toFixed(1)}</dd>
                 <dt>Answers locally</dt>
                 <dd>{fmtPct(s.fighting.localResponseRate)}</dd>
@@ -132,13 +129,13 @@ function Profile({ o }: { o: OpponentProfile }) {
             <div className="panel stack">
               <h3>Invasions</h3>
               <div className="kv small">
-                <dt>Invasions per game</dt>
+                <dt>Invasions/game</dt>
                 <dd>{s.invasions.perGame.toFixed(1)}</dd>
-                <dt>Reductions per game</dt>
+                <dt>Reductions/game</dt>
                 <dd>{s.invasions.reductionsPerGame.toFixed(1)}</dd>
                 <dt>First invasion</dt>
                 <dd>{s.invasions.firstInvasionMove ? `move ${s.invasions.firstInvasionMove}` : '—'}</dd>
-                <dt>Early 3-3 per game</dt>
+                <dt>Early 3-3/game</dt>
                 <dd>{s.invasions.threeThreeRate.toFixed(1)}</dd>
               </div>
             </div>
@@ -170,7 +167,7 @@ function Profile({ o }: { o: OpponentProfile }) {
           )}
           {s.openingSequences.length > 0 && (
             <div>
-              <h3 style={{ marginBottom: 8 }}>Openings they repeat</h3>
+              <h3 style={{ marginBottom: 8 }}>Openings</h3>
               <div className="card-list">
                 {s.openingSequences.slice(0, 6).map((q) => (
                   <div key={q.key} className="poscard">
@@ -183,14 +180,12 @@ function Profile({ o }: { o: OpponentProfile }) {
           )}
           {s.joseki.length > 0 && (
             <div>
-              <h3 style={{ marginBottom: 8 }}>Corner sequences (joseki)</h3>
+              <h3 style={{ marginBottom: 8 }}>Joseki</h3>
               <div className="card-list">
                 {s.joseki.slice(0, 8).map((q) => (
                   <div key={q.key} className="poscard">
                     <SeqBoard seq={q} size={size} crop />
-                    <div className="tiny muted">
-                      {q.count}× · black = whoever started the corner
-                    </div>
+                    <div className="tiny muted">{q.count}×</div>
                   </div>
                 ))}
               </div>
@@ -225,7 +220,7 @@ export function Opponents({ id }: { id?: string }) {
   if (o)
     return (
       <div className="page">
-        <BackLink href={href('opponents')} label="All opponents" />
+        <BackLink href={href('opponents')} label="Opponents" />
         <Profile o={o} />
       </div>
     );
@@ -233,16 +228,15 @@ export function Opponents({ id }: { id?: string }) {
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Prepare</div>
-          <h1>Opponent Profiles</h1>
-          <p className="sub">Import a rival's games to see their openings, corner sequences, fighting style and invasion habits before you play them.</p>
+          <h1>Opponents</h1>
+          <p className="sub">Scout a rival from their SGFs.</p>
         </div>
       </div>
       <div className="panel stack">
-        <input placeholder="Opponent name (optional, guessed from the SGFs)" value={name} onChange={(e) => setName(e.target.value)} />
+        <input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
         <DropZone
           compact
-          label="Drop an opponent's SGF files"
+          label="Drop SGF files"
           onFiles={async (f) => {
             const p = await importOpponentFiles(f, name.trim() || undefined);
             if (p) go(`opponents/${p.id}`);

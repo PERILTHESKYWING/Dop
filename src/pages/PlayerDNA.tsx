@@ -16,7 +16,7 @@ import type { AxisStats, MoveRecord, Weakness } from '../lib/types';
 function Radar({ axes }: { axes: AxisStats[] }) {
   const shown = axes.filter((a) => a.n >= 8);
   const N = shown.length;
-  if (N < 3) return <p className="small muted">Needs more analysed moves.</p>;
+  if (N < 3) return <p className="small muted">Needs more games.</p>;
   const R = 100, cx = 200, cy = 140;
   const pt = (i: number, v: number) => {
     const a = (Math.PI * 2 * i) / N - Math.PI / 2;
@@ -69,41 +69,40 @@ function DoppelSection() {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doppel, version]);
-  if (!doppel) return <p className="small muted">The Doppelgänger is trained once at least 30 of your moves are analysed.</p>;
+  if (!doppel) return <p className="small muted">Needs 30 analysed moves.</p>;
   const m = doppel.metrics;
   const habits = describeWeights(doppel);
   return (
     <div className="stack">
       <p className="dim small">
-        A behavioural model of which move you choose, learned from {doppel.trainedOn} of your moves (version {doppel.version}). It starts from KataGo's move probabilities and learns how you deviate from them. It
-        predicts habits, not thoughts.
+        Trained on {doppel.trainedOn} of your moves (v{doppel.version}).
       </p>
       <div className="grid cols-3">
         <div className="panel">
           <div className="stat">
             <div className="v doppel">{fmtPct(m.top1)}</div>
-            <div className="l">predicts your exact move</div>
-            <div className="small muted">KataGo policy alone: {fmtPct(m.baselineTop1)}</div>
+            <div className="l">exact move</div>
+            <div className="small muted">KataGo: {fmtPct(m.baselineTop1)}</div>
           </div>
         </div>
         <div className="panel">
           <div className="stat">
             <div className="v doppel">{fmtPct(m.top3)}</div>
-            <div className="l">your move in its top 3</div>
-            <div className="small muted">KataGo policy alone: {fmtPct(m.baselineTop3)}</div>
+            <div className="l">in top 3</div>
+            <div className="small muted">KataGo: {fmtPct(m.baselineTop3)}</div>
           </div>
         </div>
         <div className="panel">
           <div className="stat">
             <div className="v">{m.testSize}</div>
-            <div className="l">held-out test moves</div>
-            <div className="small muted">from games it did not train on</div>
+            <div className="l">test moves</div>
+            <div className="small muted">unseen games</div>
           </div>
         </div>
       </div>
       {habits.length > 0 && (
         <div>
-          <h3 style={{ margin: '6px 0' }}>Learned habits (vs KataGo)</h3>
+          <h3 style={{ margin: '6px 0' }}>Habits vs KataGo</h3>
           <div className="stack">
             {habits.slice(0, 8).map((h) => (
               <div key={h.label} className="grid" style={{ gridTemplateColumns: '220px 1fr 60px', alignItems: 'center', gap: 10 }}>
@@ -121,7 +120,7 @@ function DoppelSection() {
       )}
       {examples.length > 0 && (
         <div>
-          <h3 style={{ margin: '10px 0 8px' }}>KataGo's move vs your likely move</h3>
+          <h3 style={{ margin: '10px 0 8px' }}>KataGo vs you</h3>
           <div className="card-list">
             {examples.map(({ r, dop, p }) => {
               const g = games.find((x) => x.id === r.gameId)!;
@@ -129,10 +128,10 @@ function DoppelSection() {
                 <div key={r.id} className="poscard" onClick={() => go(`review/${r.gameId}?move=${r.index + 1}`)}>
                   <MoveThumb game={g} record={r} extra={[{ loc: dop, kind: 'doppel', label: 'D' }]} />
                   <div className="small">
-                    <span className="kata">KataGo {locToGtp(r.bestLoc, r.size)}</span> · <span className="doppel">you, likely {locToGtp(dop, r.size)} ({fmtPct(p)})</span>
+                    <span className="kata">KataGo {locToGtp(r.bestLoc, r.size)}</span> · <span className="doppel">you {locToGtp(dop, r.size)} ({fmtPct(p)})</span>
                   </div>
                   <div className="tiny muted">
-                    Move {r.index + 1} · you played {locToGtp(r.loc, r.size)} (−{r.scoreLoss.toFixed(1)})
+                    Move {r.index + 1} · played {locToGtp(r.loc, r.size)} (−{r.scoreLoss.toFixed(1)})
                   </div>
                 </div>
               );
@@ -154,12 +153,12 @@ function PeerChip({ peer }: { peer: NonNullable<Weakness['peer']> }) {
   const r = peer.ratio;
   const text =
     r >= 1.4
-      ? `${r.toFixed(1)}× as often as ${rankLabel(peer.rank)} players`
+      ? `${r.toFixed(1)}× ${rankLabel(peer.rank)} avg`
       : r <= 0.75
-        ? `less often than most ${rankLabel(peer.rank)} players`
-        : `about as often as ${rankLabel(peer.rank)} players`;
+        ? `below ${rankLabel(peer.rank)} avg`
+        : `${rankLabel(peer.rank)} avg`;
   return (
-    <span className={`chip ${r >= 1.4 ? 'bad' : r <= 0.75 ? 'good' : ''}`} title={`You: ${fmtPct(peer.playerRate)} of ${peer.opportunities} such decisions. Players around ${rankLabel(peer.rank)}: ${fmtPct(peer.peerRate)} (network-pass counts, so these differ a little from the numbers above).`}>
+    <span className={`chip ${r >= 1.4 ? 'bad' : r <= 0.75 ? 'good' : ''}`} title={`You ${fmtPct(peer.playerRate)} of ${peer.opportunities}. ${rankLabel(peer.rank)}: ${fmtPct(peer.peerRate)}.`}>
       {text}
     </span>
   );
@@ -176,8 +175,8 @@ function WeaknessDetail({ w }: { w: Weakness }) {
         <div>
           <h2>{w.llm?.title ?? w.title}</h2>
           <div className="tiny muted">
-            {AXIS_LABEL[w.category] ?? w.category} · discovered {new Date(w.discoveredAt).toLocaleDateString()}
-            {w.llm && ` · wording by ${w.llm.model}`}
+            {AXIS_LABEL[w.category] ?? w.category} · {new Date(w.discoveredAt).toLocaleDateString()}
+            {w.llm && ` · ${w.llm.model}`}
           </div>
         </div>
         <div className="row">
@@ -188,19 +187,19 @@ function WeaknessDetail({ w }: { w: Weakness }) {
         </div>
       </div>
       <p className="dim small">{w.llm?.description ?? w.description}</p>
-      {w.llm && <p className="tiny muted">Statistics: {w.description}</p>}
+      {w.llm && <p className="tiny muted">Stats: {w.description}</p>}
       {w.llm?.trainingFocus && <div className="callout small">{w.llm.trainingFocus}</div>}
       <div className="row wrap small">
         <span className="chip">
-          {w.occurrences} errors / {w.opportunities} chances ({fmtPct(w.errorRate)})
+          {w.occurrences}/{w.opportunities} errors ({fmtPct(w.errorRate)})
         </span>
         <span className="chip">{w.games} games</span>
-        <span className="chip">confidence {fmtPct(w.confidence)}</span>
+        <span className="chip">{fmtPct(w.confidence)} sure</span>
         {w.peer && <PeerChip peer={w.peer} />}
-        <span className="chip">−{w.totalScoreLoss.toFixed(0)} pts total</span>
+        <span className="chip">−{w.totalScoreLoss.toFixed(0)} pts</span>
         {w.trend.older + w.trend.newer > 0 && (
           <span className={`chip ${w.trend.newer < w.trend.older ? 'good' : 'bad'}`}>
-            older games {fmtPct(w.trend.older)} → recent {fmtPct(w.trend.newer)}
+            {fmtPct(w.trend.older)} → {fmtPct(w.trend.newer)}
           </span>
         )}
       </div>
@@ -220,7 +219,7 @@ function WeaknessDetail({ w }: { w: Weakness }) {
       </div>
       {w.evidence.length > 4 && (
         <button className="btn small ghost" style={{ justifySelf: 'start' }} onClick={() => setOpen(!open)}>
-          {open ? 'Show less' : `Show more evidence (${w.evidence.length})`}
+          {open ? 'Less' : `More (${w.evidence.length})`}
         </button>
       )}
     </div>
@@ -238,21 +237,19 @@ export function PlayerDNA() {
       <div className="page">
         <div className="page-head">
           <div>
-            <div className="eyebrow">Your fingerprint</div>
             <h1>Player DNA</h1>
           </div>
         </div>
-        <div className="empty">Your Player DNA appears after your first analysed game. Make sure the library knows which side you played.</div>
+        <div className="empty">Analyse one of your games first. Set which side you played in the library.</div>
       </div>
     );
   return (
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Your fingerprint</div>
           <h1>Player DNA</h1>
           <p className="sub">
-            {profile.name} · {profile.games} games · {profile.playerMoves} of your moves · model v{profile.version}
+            {profile.name} · {profile.games} games · {profile.playerMoves} moves · v{profile.version}
           </p>
         </div>
         <div className="row">
@@ -262,10 +259,10 @@ export function PlayerDNA() {
           <button
             className="btn primary"
             disabled={!llm?.configured || busy.llm || !settings.useLlm}
-            title={!llm?.configured ? 'Set LLM_API_KEY on the server to enable' : 'Send compressed evidence (not your games) to the LLM'}
+            title={!llm?.configured ? 'Needs LLM_API_KEY on the server' : 'Sends stats, not your games'}
             onClick={() => void runLlmDiscovery()}
           >
-            {busy.llm ? 'Discovering…' : 'Discover patterns with LLM'}
+            {busy.llm ? 'Finding…' : 'Find patterns'}
           </button>
         </div>
       </div>
@@ -277,12 +274,12 @@ export function PlayerDNA() {
 
       <div className="grid cols-2">
         <div className="panel">
-          <h3>Accuracy by area</h3>
+          <h3>Accuracy</h3>
           <Radar axes={profile.axes} />
-          <p className="tiny muted">Share of moves losing less than 1 point, per area. Overall: {fmtPct(profile.overallAccuracy)}.</p>
+          <p className="tiny muted">Moves losing under 1 pt. Overall {fmtPct(profile.overallAccuracy)}</p>
         </div>
         <div className="panel">
-          <h3 style={{ marginBottom: 8 }}>Tendencies vs KataGo in the same positions</h3>
+          <h3 style={{ marginBottom: 8 }}>Tendencies vs KataGo</h3>
           <div className="stack" style={{ maxHeight: 360, overflowY: 'auto' }}>
             {profile.axes
               .filter((a) => a.n >= 8)
@@ -291,7 +288,7 @@ export function PlayerDNA() {
                   <div className="spread">
                     <strong className="small">{a.label}</strong>
                     <span className="tiny muted">
-                      {a.n} moves · −{a.avgScoreLoss.toFixed(2)} pts avg
+                      {a.n} · −{a.avgScoreLoss.toFixed(2)} avg
                     </span>
                   </div>
                   <p className="tiny dim" style={{ margin: '3px 0 5px' }}>
@@ -314,7 +311,7 @@ export function PlayerDNA() {
               ))}
           </div>
           <p className="tiny muted" style={{ marginTop: 6 }}>
-            <span className="you">amber</span>: how often you do it · <span className="kata">teal</span>: how often KataGo's move does
+            <span className="you">amber</span> you · <span className="kata">teal</span> KataGo
           </p>
         </div>
       </div>
@@ -326,10 +323,10 @@ export function PlayerDNA() {
 
       <div style={{ marginTop: 18 }}>
         <div className="spread" style={{ marginBottom: 10 }}>
-          <h3>Recurring weaknesses</h3>
-          <span className="small muted">each one needs 3+ errors across 2+ games and a clearly raised error rate</span>
+          <h3>Weaknesses</h3>
+          <span className="small muted">3+ errors in 2+ games</span>
         </div>
-        {weaknesses.length ? weaknesses.map((w) => <WeaknessDetail key={w.id} w={w} />) : <div className="empty">No recurring weakness confirmed yet.</div>}
+        {weaknesses.length ? weaknesses.map((w) => <WeaknessDetail key={w.id} w={w} />) : <div className="empty">None confirmed yet.</div>}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@
   font-weight: 600;
   width: 100%;
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--ink);
@@ -74,7 +74,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 10px;
+  border-radius: 7px;
 }
 .study-lib-row.on {
   background: var(--row-selected);

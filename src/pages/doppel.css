@@ -57,7 +57,7 @@
   display: grid;
   gap: 9px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 10px;
   background: rgb(var(--surface-rgb) / 0.62);
   border: 1px solid var(--line);
 }
@@ -88,10 +88,10 @@
   font-weight: 600;
 }
 .bar.dop-bar-copy > span {
-  background: linear-gradient(90deg, #a58bff, var(--doppel));
+  background: var(--doppel);
 }
 .bar.dop-bar-less > span {
-  background: linear-gradient(90deg, rgba(138, 119, 102, 0.4), rgba(138, 119, 102, 0.85));
+  background: rgba(138, 119, 102, 0.7);
 }
 .dop-habits {
   display: grid;
@@ -112,7 +112,7 @@
   align-content: start;
   background:
     linear-gradient(var(--glass-2), var(--glass-2)) padding-box,
-    linear-gradient(135deg, rgba(165, 139, 255, 0.9), rgba(116, 70, 240, 0.75)) border-box;
+    linear-gradient(rgba(116, 70, 240, 0.7), rgba(116, 70, 240, 0.7)) border-box;
   border: 1.5px solid transparent;
 }
 .dop-cta-mark {
@@ -236,7 +236,7 @@
   font: inherit;
   color: inherit;
   padding: 7px 10px;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: rgb(var(--surface-rgb) / 0.55);
   cursor: pointer;
@@ -278,7 +278,7 @@
 .dop-play-panel {
   background:
     linear-gradient(var(--glass-2), var(--glass-2)) padding-box,
-    linear-gradient(135deg, rgba(72, 193, 169, 0.9), rgba(116, 70, 240, 0.75)) border-box;
+    linear-gradient(rgba(116, 70, 240, 0.6), rgba(116, 70, 240, 0.6)) border-box;
   border: 1.5px solid transparent;
 }
 .dop-reply {
@@ -290,7 +290,7 @@
   display: grid;
   gap: 1px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid var(--line);
 }
 .dop-reply > div:first-child {

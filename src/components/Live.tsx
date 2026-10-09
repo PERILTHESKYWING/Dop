@@ -99,11 +99,11 @@ export function LiveHeader({ snap, title = 'KataGo' }: { snap: SearchSnapshot | 
   let text: string;
   if (status === 'error') text = error ?? 'KataGo stopped';
   else if (status === 'starting' || engine.status === 'loading' || engine.status === 'detecting')
-    text = engine.progress?.stage === 'download' && engine.progress.total ? `Downloading the network… ${Math.round((engine.progress.loaded / engine.progress.total) * 100)}%` : 'Starting KataGo…';
+    text = engine.progress?.stage === 'download' && engine.progress.total ? `Downloading… ${Math.round((engine.progress.loaded / engine.progress.total) * 100)}%` : 'Starting…';
   else if (!on) text = snap ? `Paused at ${shortCount(snap.visits)} visits` : 'Paused';
-  else if (status === 'limit') text = `${shortCount(snap?.visits ?? 0)} visits (limit reached)`;
+  else if (status === 'limit') text = `${shortCount(snap?.visits ?? 0)} visits (max)`;
   else if (snap) text = `${shortCount(snap.visits)} visits${snap.evalsPerSec ? ` · ${snap.evalsPerSec >= 10 ? Math.round(snap.evalsPerSec) : snap.evalsPerSec.toFixed(1)}/s` : ''}`;
-  else text = 'Reading the position…';
+  else text = 'Analysing…';
   return (
     <div className="live-head">
       <span className="live-dot" data-on={thinking ? '1' : '0'} />
@@ -206,7 +206,7 @@ export function CandidateTable({
                 <td>
                   <button
                     className="btn tiny ghost"
-                    title="Play this move on the board"
+                    title="Play this move"
                     onClick={(e) => {
                       e.stopPropagation();
                       onPick(c.loc);

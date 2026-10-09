@@ -5,13 +5,17 @@ DOPPELGÄNGER includes or downloads the following third-party software and data.
 ## Included in this repository
 
 ### KataGo and katago-webgpu (MIT)
-`public/engine/kataeval.js` and `public/engine/kataeval.wasm` are compiled from
+`public/engine/kataeval.{js,wasm}` and `public/engine/kataeval-compat.{js,wasm}` are compiled from
 [saigo-online/katago-webgpu](https://github.com/saigo-online/katago-webgpu), a WebGPU/WebAssembly port of
 [KataGo](https://github.com/lightvector/KataGo) by David J Wu ("lightvector") and contributors, at commit
 `d5ad1c0423dba989c60a2f06b1848e7eec2b5941` (see `public/engine/SOURCE_COMMIT.txt`). They were built with
 `engine/build-engine.sh`, which applies the small patch in `engine/patches/` (it fixes an ownership-buffer
-double free and a search perspective bug, and exposes root statistics). The full KataGo licence, including
+double free and a search perspective bug, exposes root statistics, and adds batched evaluation with move
+history). The full KataGo licence, including
 its notices for bundled libraries, ships in `public/engine/LICENSE-KataGo.txt`.
+
+`public/engine/bench-positions.json` holds analysis results (moves, winrates, score leads) produced by the
+official KataGo v1.16.4 binary with the built-in network, as the benchmark's reference; no KataGo binary ships.
 
 The compiled engine statically links:
 
@@ -31,9 +35,7 @@ blocked, and it is the default on the CPU.
 ### Fonts (SIL Open Font License 1.1)
 Bundled from the `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
 
-- **Inter**, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
-- **Cormorant Garamond**, Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant)
-- **Cinzel**, Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
+- **Archivo**, Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
 
 ### Artwork (original, no third-party images)
 The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) and the board's wood texture

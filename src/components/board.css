@@ -474,31 +474,28 @@ svg.board .cand-best .cand-rank {
   fill: #0b6a80;
 }
 
-/* a candidate's variation: see-through stones with move numbers */
+/* a candidate's variation: solid stones with bold move numbers, the last one red */
 svg.board .bd-vars {
   pointer-events: none;
 }
-svg.board .bd-var circle {
-  opacity: 0.72;
-}
-svg.board .bd-var.over circle {
-  opacity: 0.35;
-}
 svg.board .bd-var text {
   font-family: var(--font, 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
-  font-size: 0.4px;
-  font-weight: 700;
+  font-size: 0.5px;
+  font-weight: 800;
   text-anchor: middle;
   dominant-baseline: central;
 }
 svg.board .bd-var text.long {
-  font-size: 0.32px;
+  font-size: 0.4px;
 }
 svg.board .bd-var.b text {
-  fill: #fbf6ec;
+  fill: #fff;
 }
 svg.board .bd-var.w text {
-  fill: #1e1812;
+  fill: #000;
+}
+svg.board .bd-var text.cur {
+  fill: #e8231b;
 }
 svg.board .bd-hit.passive {
   cursor: default;
@@ -507,19 +504,30 @@ svg.board .bd-cands {
   pointer-events: none;
 }
 
-/* move numbers on the stones (study board) */
+/* move numbers on the stones: bold, in the opposite colour, never circled; the last move red */
 svg.board .mark-num text {
-  font-size: 0.4px;
-  font-weight: 600;
+  font-size: 0.5px;
+  font-weight: 800;
 }
 svg.board .mark-num text.mk-long {
-  font-size: 0.32px;
+  font-size: 0.4px;
+  letter-spacing: -0.02px;
 }
 svg.board .mark-num.on-b text {
-  fill: #f4efe6;
+  fill: #fff;
 }
 svg.board .mark-num.on-w text {
-  fill: #2a1f16;
+  fill: #000;
+}
+svg.board .mark-num.cur text {
+  fill: #e8231b;
+}
+
+/* the main line's next move, after stepping back: a thin ring */
+svg.board .mark-next {
+  fill: none;
+  stroke: rgba(30, 22, 14, 0.75);
+  stroke-width: 0.045px;
 }
 
 /* where the variations after this move go (study board): lettered, in the accent colour */

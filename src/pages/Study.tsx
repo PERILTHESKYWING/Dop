@@ -27,7 +27,7 @@ import {
   toPlayAt,
   type Kifu,
 } from '../lib/kifu/kifu';
-import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '../lib/kifu/store';
+import { deleteKifu, getKifu, listKifus, saveKifu } from '../lib/kifu/store';
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
@@ -64,7 +64,7 @@ const writePref = (k: string, v: boolean) => {
 };
 const moveKey = (ms: Move[]) => ms.map((m) => `${m.color}${m.loc}`).join(',');
 
-/** Where the study board opens: a saved kifu, a live AI game, one of your games, or the last draft. */
+/** Where the study board opens: a saved kifu, a live AI game, one of your games, or a new empty board. */
 async function openKifu(id: string | undefined, query: URLSearchParams): Promise<Kifu> {
   const live = query.get('live');
   if (live) {
@@ -101,7 +101,8 @@ async function openKifu(id: string | undefined, query: URLSearchParams): Promise
     if (!k) throw new Error('that kifu was deleted');
     return k;
   }
-  return (await loadDraft()) ?? blankKifu();
+  // Opened on its own, the study board always starts empty.
+  return blankKifu();
 }
 
 /** What the panel under the board shows while recording. */
@@ -154,7 +155,6 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     if (!kifu) return;
     const t = setTimeout(() => {
       const k = { ...kifu, cursor };
-      void saveDraft(k).catch(() => undefined);
       if (k.saved) void saveKifu(k).then(refreshLibrary).catch(() => undefined);
     }, 500);
     return () => clearTimeout(t);
@@ -309,17 +309,16 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const unsaved = !k.saved && (countMoves(k) > 0 || k.setup.length > 0);
 
   const marks: Mark[] = [];
-  if (numbers) {
-    // The number of the last move played on each point along this line.
+  if (numbers && !hoverPv?.length) {
+    // The number of the last move played on each point along this line; the latest in red.
     const at = new Map<Loc, number>();
     played.forEach((m, i) => m.loc !== PASS && at.set(m.loc, i + 1));
-    for (const [loc, n] of at) if (board.stones[loc]) marks.push({ loc, kind: 'num', label: String(n) });
+    for (const [loc, n] of at) if (board.stones[loc]) marks.push({ loc, kind: 'num', label: String(n), current: n === played.length });
   }
-  if (mode === 'play' && !hoverPv?.length) {
-    node.children.forEach((c, i) => {
-      const m = k.nodes[c].move!;
-      if (node.children.length > 1 && m.loc !== PASS) marks.push({ loc: m.loc, kind: 'var', label: String.fromCharCode(65 + i) });
-    });
+  // After stepping back: a thin ring where the main line goes next.
+  if (mode === 'play' && !hoverPv?.length && node.children.length) {
+    const m = k.nodes[node.children[0]].move;
+    if (m && m.loc !== PASS && !board.stones[m.loc]) marks.push({ loc: m.loc, kind: 'next' });
   }
   const candidates = analysis && view.best && !hoverPv?.length && mode === 'play' && shown.length ? candidateMarks(shown) : null;
   // Black's winrate at every position along the line: the live search where you are, a
@@ -516,7 +515,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
             <span className="tiny muted">Variations here:</span>
             {node.children.map((c, i) => (
               <button key={c} className="chip click" onClick={() => setCursor(c)}>
-                {String.fromCharCode(65 + i)} {k.nodes[c].move!.loc === PASS ? 'pass' : locToGtp(k.nodes[c].move!.loc, size)}
+                {i === 0 ? 'Main: ' : ''}{k.nodes[c].move!.loc === PASS ? 'pass' : locToGtp(k.nodes[c].move!.loc, size)}
               </button>
             ))}
           </div>
@@ -538,16 +537,14 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
           })}
           {line.length === 1 && <span className="tiny muted">Tap the board to play. Every move you try is kept; playing a different move starts a variation.</span>}
         </div>
-        {cursor !== 0 && line.some((nid) => nid !== 0 && k.nodes[k.nodes[nid].parent!].children[0] !== nid) && (
-          <button className="btn small" onClick={() => setKifu(promote(k, cursor))}>
-            Make this the main line
-          </button>
-        )}
         <textarea className="study-comment" value={node.comment ?? ''} onChange={(e) => setKifu(setComment(k, cursor, e.target.value))} placeholder={cursor ? 'Notes on this move' : 'Notes on the game'} rows={2} />
       </>
     );
   }
 
+  // On a side variation: one tap makes it the main line.
+  const offMain = cursor !== 0 && line.some((nid) => nid !== 0 && k.nodes[k.nodes[nid].parent!].children[0] !== nid);
+  const mainTool: ScreenTool[] = offMain ? [{ id: 'main', label: 'Make main line', icon: 'check', onClick: () => setKifu(promote(k, cursor)) }] : [];
   const paneTool = (p: Pane, label: string, icon: ScreenTool['icon']): ScreenTool => ({ id: p, label, icon, on: pane === p, onClick: () => (setPane(pane === p ? 'notes' : p), p !== 'setup' && setMode('play')) });
   const tools: ScreenTool[] = analysis
     ? [
@@ -556,6 +553,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
         { id: 'heat', label: 'Heat map', icon: 'spark', on: view.heat, onClick: () => toggleView('heat') },
         { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
         { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS) },
+        ...mainTool,
         { id: 'ai', label: 'AI analysis', icon: 'ai', on: true, onClick: () => setAnalysisPref(false), title: 'Back to recording' },
       ]
     : [
@@ -565,6 +563,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
         paneTool('info', 'Edit info', 'pen'),
         { ...paneTool('setup', 'Setup stones', 'setup'), onClick: () => (pane === 'setup' ? (setPane('notes'), setMode('play')) : (setPane('setup'), setMode('black'), setCursor(0))) },
         { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS), disabled: mode !== 'play' },
+        ...mainTool,
         paneTool('kifu', 'Your kifu', 'library'),
       ];
 

@@ -16,9 +16,8 @@ export function Account() {
     <div className="page account-page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Your data, on every device</div>
           <h1>Account &amp; Sync</h1>
-          <p className="sub">Everything works without an account and stays in this browser. Sign in to carry your kifu, games, player profile and copy to another phone or computer.</p>
+          <p className="sub">Optional. Sign in to sync across devices.</p>
         </div>
       </div>
       <div className="cols-2">
@@ -41,10 +40,10 @@ function NotSetUp() {
   return (
     <div className="panel stack">
       <h3 className="with-icon">
-        <Icon name="user" style={{ width: 16, height: 16 }} /> Accounts aren't switched on for this site yet
+        <Icon name="user" style={{ width: 16, height: 16 }} /> Accounts not enabled
       </h3>
       <p className="small">
-        Signing in needs a small free database on the site's host. Whoever runs this copy of the app can add one in two steps (they're in the project's README under "Accounts"). Until then, use a backup file to move your data.
+        The site owner must add a database (README, "Accounts"). Use a backup file meanwhile.
       </p>
     </div>
   );
@@ -58,7 +57,7 @@ function SignInForm() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const submit = async () => {
-    if (mode === 'register' && pw !== pw2) return setErr("The two passwords don't match.");
+    if (mode === 'register' && pw !== pw2) return setErr('Passwords differ.');
     setBusy(true);
     setErr(null);
     try {
@@ -84,7 +83,7 @@ function SignInForm() {
           <strong>Sign in</strong>
         </button>
         <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'on' : ''} onClick={() => (setMode('register'), setErr(null))}>
-          <strong>Create account</strong>
+          <strong>Register</strong>
         </button>
       </div>
       <label>
@@ -97,18 +96,18 @@ function SignInForm() {
       </label>
       {mode === 'register' && (
         <label>
-          Password again
+          Confirm password
           <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" required minLength={8} />
         </label>
       )}
       {err && <div className="callout bad small">{err}</div>}
       <button className="btn primary" type="submit" disabled={busy}>
-        {busy ? 'One moment…' : mode === 'login' ? 'Sign in and sync' : 'Create account and sync'}
+        {busy ? 'Wait…' : mode === 'login' ? 'Sign in' : 'Register'}
       </button>
       <p className="tiny muted">
         {mode === 'register'
-          ? 'At least 8 characters. There is no email and no password reset, so keep the password somewhere safe; a backup file is a good extra.'
-          : 'Signing in brings your account’s data into this browser and keeps both in step.'}
+          ? '8+ characters. No password reset.'
+          : 'Merges account data into this browser.'}
       </p>
     </form>
   );
@@ -123,29 +122,28 @@ function SignedIn() {
     <div className="panel stack">
       <div className="spread">
         <h3 className="with-icon">
-          <Icon name="user" style={{ width: 16, height: 16 }} /> Signed in as {a.user!.name}
+          <Icon name="user" style={{ width: 16, height: 16 }} /> {a.user!.name}
         </h3>
         <button className="btn small ghost" onClick={() => void signOut()}>
           Sign out
         </button>
       </div>
       <dl className="kv">
-        <dt>Last sync here</dt>
+        <dt>Last sync</dt>
         <dd>{a.lastSync ? when(a.lastSync) : 'not yet'}</dd>
-        <dt>Account copy</dt>
-        <dd>{a.snapshot ? `${(a.snapshot.size / 1.37 / 1_048_576).toFixed(1)} MB, from ${a.snapshot.device ?? 'a device'}, ${when(a.snapshot.updatedAt)}` : 'empty'}</dd>
+        <dt>Server copy</dt>
+        <dd>{a.snapshot ? `${(a.snapshot.size / 1.37 / 1_048_576).toFixed(1)} MB, ${a.snapshot.device ?? 'unknown device'}, ${when(a.snapshot.updatedAt)}` : 'empty'}</dd>
       </dl>
       <button className="btn primary" onClick={() => void syncNow()} disabled={!!a.syncing}>
         <Icon name="sync" /> {a.syncing === 'download' ? `Downloading… ${a.progress ?? ''}` : a.syncing === 'upload' ? `Uploading… ${a.progress ?? ''}` : 'Sync now'}
       </button>
       {a.error && <div className="callout bad small">Last sync failed: {a.error}</div>}
       <p className="tiny muted">
-        It syncs by itself when you open the app and when you leave it. Syncing adds what each side is missing and keeps the newer copy of anything changed in both places; deleting something on one device does not delete it on the
-        others.
+        Syncs on open and close. Newer copies win. Deletions do not sync.
       </p>
       {!confirmDelete ? (
         <button className="btn small ghost" onClick={() => setConfirmDelete(true)}>
-          Delete this account…
+          Delete account…
         </button>
       ) : (
         <form
@@ -153,12 +151,12 @@ function SignedIn() {
           onSubmit={(e) => {
             e.preventDefault();
             deleteAccount(pw)
-              .then(() => toast('Account deleted. Your data in this browser is untouched.', 'ok'))
+              .then(() => toast('Account deleted. Local data kept.', 'ok'))
               .catch((err) => toast((err as Error).message, 'error'));
           }}
         >
-          <span className="small">This deletes the account and its copy on the server. This browser keeps everything.</span>
-          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Your password" autoComplete="current-password" />
+          <span className="small">Deletes the account and server copy. Local data stays.</span>
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" autoComplete="current-password" />
           <div className="row">
             <button type="button" className="btn small ghost" onClick={() => setConfirmDelete(false)}>
               Cancel
@@ -186,7 +184,7 @@ function BackupPanel() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     } catch (e) {
-      toast(`The backup could not be made: ${(e as Error).message}`, 'error');
+      toast(`Backup failed: ${(e as Error).message}`, 'error');
     } finally {
       setBusy(false);
     }
@@ -196,9 +194,9 @@ function BackupPanel() {
     try {
       const r = await mergeSnapshot(await readSnapshotFile(f));
       await init();
-      toast(`Backup opened: ${r.added} added, ${r.updated} updated, ${r.kept} already here.`, 'ok');
+      toast(`Restored: ${r.added} added, ${r.updated} updated, ${r.kept} kept.`, 'ok');
     } catch (e) {
-      toast(`That file could not be opened: ${(e as Error).message}`, 'error');
+      toast(`Cannot open file: ${(e as Error).message}`, 'error');
     } finally {
       setBusy(false);
     }
@@ -206,15 +204,15 @@ function BackupPanel() {
   return (
     <div className="panel stack">
       <h3 className="with-icon">
-        <Icon name="download" style={{ width: 16, height: 16 }} /> Backup file
+        <Icon name="download" style={{ width: 16, height: 16 }} /> Backup
       </h3>
-      <p className="small">One file with your kifu, games and analyses, player profile, copy, opponents and settings. Open it on another device to bring everything there; nothing already on that device is lost.</p>
+      <p className="small">All your data in one file. Restoring merges; nothing is lost.</p>
       <div className="row wrap">
         <button className="btn" onClick={() => void download()} disabled={busy}>
-          <Icon name="download" /> Download backup
+          <Icon name="download" /> Download
         </button>
         <button className="btn" onClick={() => file.current?.click()} disabled={busy}>
-          <Icon name="upload" /> Open a backup
+          <Icon name="upload" /> Restore
         </button>
         <input
           ref={file}

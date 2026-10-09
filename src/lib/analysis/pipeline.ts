@@ -3,7 +3,7 @@ import { engineKomi } from '../go/rules';
 import { engineEvaluator, Search } from '../engine/mcts';
 import type { EngineBackend } from '../engine/types';
 import type { GameAnalysis, GameRecord, PositionEval } from '../types';
-import { ANALYSIS_VERSION, evaluateFast, positionKey, rootPosition, searchedEval, toPlayAt, type PositionSpec } from './analyzer';
+import { ANALYSIS_VERSION, evaluateFastMany, positionKey, rootPosition, searchedEval, toPlayAt, type PositionSpec } from './analyzer';
 
 /** Where analysis results live. IndexedDB in the browser, memory in tests and scripts. */
 export interface AnalysisStore {
@@ -27,6 +27,40 @@ export interface PipelineOptions {
   yieldTo?: () => Promise<void>;
   /** A search in progress gives way when this turns true, and resumes after yieldTo. */
   interrupted?: () => boolean;
+  /**
+   * Spend the visits where they matter (default on): more on positions where the move
+   * played looks costly or surprising, fewer on obvious ones, and stop a search once more
+   * visits cannot change its best move. Off gives every position the same budget.
+   */
+  adaptive?: boolean;
+}
+
+/** A searched evaluation that is good enough for `want` visits. */
+function isSearched(e: PositionEval, want: number) {
+  return !!e.searched && (e.visits >= want || (e.settled ?? 0) >= want);
+}
+
+/**
+ * Visits for position i, from the network's first look at the game: half for an obvious
+ * move (the network is sure and the game followed it), one and a half for a position
+ * where the move played lost 6% or more or was not among the network's top three
+ * choices, four times for the model lab's hard examples.
+ */
+export function visitBudget(analysis: GameAnalysis, game: GameRecord, i: number, base: number, adaptive = true): number {
+  if (analysis.deepTargets.includes(i)) return base * 4;
+  if (!adaptive || i >= game.moves.length) return base;
+  const before = analysis.evals[i];
+  const after = analysis.evals[i + 1];
+  if (!before || !after) return base;
+  const mover = before.toPlay;
+  const winBefore = mover === 1 ? before.bWin : 1 - before.bWin;
+  const winAfter = mover === 1 ? after.bWin : 1 - after.bWin;
+  const loss = winBefore - winAfter;
+  const played = game.moves[i].loc;
+  const top = before.policy[0];
+  if (loss >= 0.06 || !before.policy.slice(0, 3).some((p) => p.loc === played)) return Math.round(base * 1.5);
+  if (top && top.p >= 0.8 && top.loc === played && loss < 0.02) return Math.max(8, Math.round(base * 0.5));
+  return base;
 }
 
 export class AnalysisStopped extends Error {}
@@ -40,14 +74,6 @@ function specAt(game: GameRecord, boards: Board[], i: number): PositionSpec {
     toPlay: toPlayAt(game.setup, game.moves, i, game.handicap),
     board: boards[i],
   };
-}
-
-async function cachedOr(store: AnalysisStore, key: string, compute: () => Promise<PositionEval>) {
-  const hit = await store.getCached(key);
-  if (hit) return hit;
-  const e = await compute();
-  await store.putCached(e);
-  return e;
 }
 
 function freshAnalysis(game: GameRecord, komi: number): GameAnalysis {
@@ -97,14 +123,25 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   game.error = undefined;
   game.progress = { ...game.progress, total: n + 1, fast: analysis.evals.filter(Boolean).length };
   let since = 0;
-  for (let i = 0; i <= n; i++) {
-    if (analysis.evals[i]) continue;
+  // Positions go to the engine in groups, so all its workers and batches are busy.
+  const group = Math.max(1, Math.min(32, (engine.batch ?? 1) * 2));
+  const todo: number[] = [];
+  for (let i = 0; i <= n; i++) if (!analysis.evals[i]) todo.push(i);
+  for (let a = 0; a < todo.length; a += group) {
     await opts.yieldTo?.();
     stop();
-    const spec = specAt(game, boards, i);
-    analysis.evals[i] = await cachedOr(store, positionKey(spec, engine.info.modelId), () => evaluateFast(engine, spec));
+    const idx = todo.slice(a, a + group);
+    const specs = idx.map((i) => specAt(game, boards, i));
+    const keys = specs.map((sp) => positionKey(sp, engine.info.modelId));
+    const hits = await Promise.all(keys.map((k) => store.getCached(k)));
+    const need = idx.map((_, j) => j).filter((j) => !hits[j]);
+    const fresh = await evaluateFastMany(engine, need.map((j) => specs[j]));
+    need.forEach((j, k) => (hits[j] = fresh[k]));
+    for (const e of fresh) await store.putCached(e);
+    idx.forEach((i, j) => (analysis.evals[i] = hits[j]!));
     game.progress.fast = analysis.evals.filter(Boolean).length;
-    if (++since >= checkpoint) {
+    since += idx.length;
+    if (since >= checkpoint) {
       since = 0;
       await save();
     }
@@ -125,12 +162,12 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   since = 0;
   for (let i = 0; i <= n; i++) {
     const current = analysis.evals[i]!;
-    const want = analysis.deepTargets.includes(i) ? opts.visits * 4 : opts.visits;
-    if (current.searched && current.visits >= want) continue;
+    const want = visitBudget(analysis, game, i, opts.visits, opts.adaptive !== false);
+    if (isSearched(current, want)) continue;
     const spec = specAt(game, boards, i);
     const played = game.moves[i]?.loc;
     const cached = await store.getCached(current.key);
-    if (cached?.searched && cached.visits >= want) {
+    if (cached && isSearched(cached, want)) {
       analysis.evals[i] = cached;
     } else {
       search.setPosition(rootPosition(spec));
@@ -138,11 +175,18 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
       for (;;) {
         await opts.yieldTo?.();
         stop();
-        snap = await search.run({ visits: want, forced: played, forcedShare: 0.1, shouldStop: () => !!opts.interrupted?.() || !!opts.shouldStop?.() });
-        if (snap.visits >= want || search.rootVisits >= want) break;
+        snap = await search.run({
+          visits: want,
+          forced: played,
+          forcedShare: 0.1,
+          earlyStop: opts.adaptive !== false,
+          shouldStop: () => !!opts.interrupted?.() || !!opts.shouldStop?.(),
+        });
+        if (snap.settled || snap.visits >= want || search.rootVisits >= want) break;
         if (!opts.interrupted?.() && !opts.shouldStop?.()) break; // nothing left to search
       }
       analysis.evals[i] = searchedEval(current, snap, { played });
+      if (snap.settled) analysis.evals[i] = { ...analysis.evals[i]!, settled: want };
       await store.putCached(analysis.evals[i]!);
     }
     game.progress.deep = searchedCount();

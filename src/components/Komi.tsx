@@ -23,7 +23,7 @@ export function KomiPicker({
   const [custom, setCustom] = useState(!KOMI_CHOICES.includes(komi));
   const territory = rules === 'japanese';
   return (
-    <span className="komi-picker row" title={`KataGo scores with komi ${engineKomi(komi, territory ? 'japanese' : 'chinese')}${territory ? ' (territory counted by area)' : ''}`}>
+    <span className="komi-picker row" title={`Engine komi ${engineKomi(komi, territory ? 'japanese' : 'chinese')}${territory ? ' (area scoring)' : ''}`}>
       <label className="small">
         Komi{' '}
         {custom ? (
@@ -59,9 +59,9 @@ export function KomiPicker({
         )}
       </label>
       {onRules && (
-        <select value={territory ? 'japanese' : 'chinese'} onChange={(e) => onRules(e.target.value)} aria-label="Scoring rules">
-          <option value="chinese">{compact ? 'Area' : 'Chinese (area)'}</option>
-          <option value="japanese">{compact ? 'Territory' : 'Japanese (territory)'}</option>
+        <select value={territory ? 'japanese' : 'chinese'} onChange={(e) => onRules(e.target.value)} aria-label="Rules">
+          <option value="chinese">{compact ? 'Area' : 'Chinese'}</option>
+          <option value="japanese">{compact ? 'Territory' : 'Japanese'}</option>
         </select>
       )}
     </span>

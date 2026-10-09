@@ -13,9 +13,9 @@ const loadProgress = () =>
 function ago(iso: string) {
   const h = (Date.now() - Date.parse(iso)) / 36e5;
   if (!Number.isFinite(h)) return '';
-  if (h < 1) return 'less than an hour ago';
+  if (h < 1) return '<1 h ago';
   if (h < 36) return `${Math.round(h)} h ago`;
-  return `${Math.round(h / 24)} days ago`;
+  return `${Math.round(h / 24)} d ago`;
 }
 
 /** Tiny growth line of what the coach has measured, run by run. */
@@ -53,11 +53,11 @@ export function CoachTraining() {
     <div className="coach-training">
       <span className="coach-live" aria-hidden />
       <div className="tiny">
-        <b>The coach keeps learning in the cloud, every day.</b> It has measured {games?.toLocaleString() ?? '–'} ranked games and {positions?.toLocaleString() ?? '–'} positions
-        {err10 ? `; from 10 games it places a player within about ${err10.toFixed(1)} ranks` : ''}.{' '}
+        <b>Coach trains daily.</b> {games?.toLocaleString() ?? '–'} games, {positions?.toLocaleString() ?? '–'} positions
+        {err10 ? `, ±${err10.toFixed(1)} ranks from 10 games` : ''}.{' '}
         <span className="muted">
-          {last ? `Last lesson ${ago(last.at)}` : 'The first daily lesson runs tonight'}
-          {first && last && first !== last && positions && first.positions < positions ? ` · +${(positions - first.positions).toLocaleString()} positions since ${new Date(first.at).toLocaleDateString()}` : ''}
+          {last ? `Updated ${ago(last.at)}` : 'First run tonight'}
+          {first && last && first !== last && positions && first.positions < positions ? ` · +${(positions - first.positions).toLocaleString()} since ${new Date(first.at).toLocaleDateString()}` : ''}
         </span>
       </div>
       <Growth values={(prog?.entries ?? []).map((e) => e.positions + e.rankGames * 40)} />

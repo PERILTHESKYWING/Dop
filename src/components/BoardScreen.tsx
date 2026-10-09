@@ -85,6 +85,8 @@ export function BoardScreen({
         <a
           className="bs-btn bs-home"
           href={homeHref}
+          aria-label={homeLabel}
+          title={homeLabel}
           onClick={(e) => {
             if (onHome) {
               e.preventDefault();
@@ -296,7 +298,7 @@ export const REPORT_TABS: ScreenTab[] = [
 export function StageHead({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
     <header className="bs-head stage-head">
-      <a className="bs-btn bs-home" href={href('dashboard')}>
+      <a className="bs-btn bs-home" href={href('dashboard')} aria-label="Home" title="Home">
         <Icon name="home" />
         <span>Home</span>
       </a>

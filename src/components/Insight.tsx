@@ -59,7 +59,7 @@ function Rates({ i, own }: { i: MoveInsightResult; own?: number }) {
   return (
     <span className="rates">
       {i.rates.map((r) => (
-        <span key={r.rank} className={own !== undefined && r.rank === Math.round(own) && r.rank < PRO_RANK ? 'own' : ''} title={`${r.label} players play this here ${pct(r.rate)} of the time`}>
+        <span key={r.rank} className={own !== undefined && r.rank === Math.round(own) && r.rank < PRO_RANK ? 'own' : ''} title={`${r.label}: ${pct(r.rate)}`}>
           {r.label} {pct(r.rate)}
         </span>
       ))}
@@ -84,43 +84,43 @@ export function InsightPanel({ state, size, ownRank, comments, playedLoc }: { st
           </div>
           {(i.label === 'brilliant' || i.label === 'great') && i.gap && (
             <div className="tiny muted">
-              Every other move KataGo read is at least {i.gap.points.toFixed(1)} points or {pct(i.gap.win)} worse.
+              Next best is {i.gap.points.toFixed(1)} pts or {pct(i.gap.win)} worse.
             </div>
           )}
           <div className="tiny">
-            <span className="muted">How often players find it here: </span>
+            <span className="muted">Found by: </span>
             <Rates i={i} own={ownRank} />
           </div>
         </div>
       ))}
-      {!insights && busy && <div className="tiny muted">Working out how hard these moves are to find…</div>}
-      {error && <div className="tiny warn-text">Move difficulty unavailable: {error}</div>}
-      {played && best && played.loc !== best.loc && best.label === 'brilliant' && <div className="tiny">KataGo’s move here was brilliant: missing it is normal below strong dan level.</div>}
+      {!insights && busy && <div className="tiny muted">Rating difficulty…</div>}
+      {error && <div className="tiny warn-text">Difficulty unavailable: {error}</div>}
+      {played && best && played.loc !== best.loc && best.label === 'brilliant' && <div className="tiny">Brilliant move. Rarely found below high dan.</div>}
       {pro && (
         <div className="tiny">
-          <span className="muted">Pros from this position ({pro.games} games, 1940–2017): </span>
+          <span className="muted">Pros ({pro.games} games, 1940 to 2017): </span>
           {pro.moves.slice(0, 4).map((m, k) => (
             <span key={m.loc} className={m.loc === playedLoc ? 'you' : ''}>
               {k ? ' · ' : ''}
               <b className="mono">{locToGtp(m.loc, size)}</b> {Math.round((100 * m.count) / pro.games)}%
             </span>
           ))}
-          {playedLoc !== undefined && !pro.moves.some((m) => m.loc === playedLoc) && <span className="muted"> · the move played is not among them</span>}
+          {playedLoc !== undefined && !pro.moves.some((m) => m.loc === playedLoc) && <span className="muted"> · played move not seen</span>}
         </div>
       )}
       {comments.lastMove && (
         <div className="comment tiny">
-          <span className="muted">Comment on the last move: </span>
+          <span className="muted">Last move: </span>
           {comments.lastMove}
         </div>
       )}
       {comments.nextMove && (
         <div className="comment tiny">
-          <span className="muted">Comment on this move: </span>
+          <span className="muted">This move: </span>
           {comments.nextMove}
         </div>
       )}
-      {ownRank !== undefined && insights?.length ? <div className="tiny muted">Highlighted: players near your level (about {rankLabel(ownRank)}).</div> : null}
+      {ownRank !== undefined && insights?.length ? <div className="tiny muted">Highlighted: your level (~{rankLabel(ownRank)}).</div> : null}
     </div>
   );
 }

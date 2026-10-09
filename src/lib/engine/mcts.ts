@@ -1,6 +1,7 @@
 import type { Board } from '../go/board';
 import { PASS, type Color, type Loc, type Move, other } from '../go/types';
-import { processRawOutput, type NetEval } from './parse';
+import { NNCache, positionHash } from './nncache';
+import { processRawOutput, type NetEval, type RawNetOutput } from './parse';
 import type { EngineBackend } from './types';
 
 /**
@@ -22,10 +23,15 @@ export interface LeafRequest {
   toPlay: Color;
   board: Board;
   ownership: boolean;
+  /** Average the network over this many board symmetries (the root, for accuracy). */
+  symmetries?: number;
 }
 
-/** Evaluates positions for the search (several at once when the backend batches). */
-export type LeafEvaluator = (leaves: LeafRequest[]) => Promise<NetEval[]>;
+/**
+ * Evaluates positions for the search (several at once when the backend batches).
+ * `batch`, when present, says how many leaves are worth sending per call right now.
+ */
+export type LeafEvaluator = ((leaves: LeafRequest[]) => Promise<NetEval[]>) & { batch?: () => number; rootSymmetries?: () => number };
 
 export interface RootPosition {
   size: number;
@@ -52,6 +58,17 @@ export interface SearchParams {
   maxDepth: number;
   /** Stop growing the tree past this many nodes (memory guard for long pondering). */
   maxNodes: number;
+  /** Network symmetries averaged at the root (1 = KataGo's default single evaluation). */
+  rootSymmetries: number;
+  /** Leaves per network call grow as batchGrowth * sqrt(root visits), up to the engine's batch. */
+  batchGrowth: number;
+  /**
+   * How hard leaves in flight push the next ones elsewhere (1 = a full loss each, KataGo's
+   * default). Measured against native KataGo at 100 visits (public/engine/bench-positions.json),
+   * a full virtual loss cost score accuracy (3.1 vs 2.0 points error) for 13% more speed; 0
+   * matched the one-leaf-at-a-time search.
+   */
+  virtualLoss: number;
 }
 
 export const DEFAULT_SEARCH: SearchParams = {
@@ -66,6 +83,9 @@ export const DEFAULT_SEARCH: SearchParams = {
   maxChildren: 64,
   maxDepth: 80,
   maxNodes: 400_000,
+  rootSymmetries: 1,
+  batchGrowth: 2,
+  virtualLoss: 0,
 };
 
 export interface SearchCandidate {
@@ -95,6 +115,8 @@ export interface SearchSnapshot {
   nodes: number;
   evalsPerSec: number;
   elapsedMs: number;
+  /** The run ended early because more visits could not change the best move. */
+  settled?: boolean;
 }
 
 export interface RunOptions {
@@ -109,6 +131,12 @@ export interface RunOptions {
   forcedShare?: number;
   /** Also evaluate root ownership (one extra evaluation when the root came from a reused tree). */
   ownership?: boolean;
+  /**
+   * Stop as soon as the most-visited move can no longer change: its lead in visits over
+   * the runner-up exceeds the visits left (KataGo's "futile visits" check). The answer is
+   * the same as with the full budget; the time saved goes to the next position.
+   */
+  earlyStop?: boolean;
 }
 
 class SNode {
@@ -159,7 +187,7 @@ export class Search {
   private evalTime = 0;
 
   constructor(evaluator: LeafEvaluator, pos: RootPosition, params: Partial<SearchParams> = {}) {
-    this.params = { ...DEFAULT_SEARCH, ...params };
+    this.params = { ...DEFAULT_SEARCH, rootSymmetries: evaluator.rootSymmetries?.() ?? 1, ...params };
     this.evaluator = evaluator;
     this.pos = pos;
     this.setScales(pos.size);
@@ -252,6 +280,7 @@ export class Search {
 
   private async loop(opts: RunOptions): Promise<SearchSnapshot> {
     const t0 = now();
+    let settled = false;
     let lastUpdate = t0;
     const updateMs = opts.updateMs ?? 250;
     if (opts.ownership && this.root.evaluated && !this.rootOwnership) {
@@ -264,6 +293,10 @@ export class Search {
       if (opts.maxMs !== undefined && now() - t0 >= opts.maxMs) break;
       if (opts.shouldStop?.()) break;
       if (this.nodes >= this.params.maxNodes) break;
+      if (opts.earlyStop && this.futile(opts)) {
+        settled = true;
+        break;
+      }
       const leaves = this.collect(opts);
       if (!leaves.length) continue;
       let evals: NetEval[];
@@ -282,8 +315,35 @@ export class Search {
       }
     }
     const snap = this.snapshot(now() - t0);
+    if (settled) snap.settled = true;
     opts.onUpdate?.(snap);
     return snap;
+  }
+
+  /** True when the visits left cannot overtake the most-visited root move. */
+  private futile(opts: RunOptions): boolean {
+    const r = this.root;
+    const left = opts.visits - r.visits;
+    if (!r.moves || r.visits < Math.max(16, opts.visits * 0.25) || left <= 0) return false;
+    let first = 0;
+    let second = 0;
+    let firstIdx = -1;
+    for (let i = 0; i < r.span; i++) {
+      const v = r.kids[i]?.visits ?? 0;
+      if (v > first) {
+        second = first;
+        first = v;
+        firstIdx = i;
+      } else if (v > second) second = v;
+    }
+    if (first - second <= left) return false;
+    // The played move still gets its share before the search may end.
+    if (opts.forced !== undefined) {
+      const i = r.moves.indexOf(opts.forced);
+      const k = i >= 0 ? r.kids[i] : undefined;
+      if (i !== firstIdx && (!k || k.visits < Math.floor((opts.forcedShare ?? 0.15) * (opts.visits - 1)))) return false;
+    }
+    return true;
   }
 
   private async evaluate(reqs: LeafRequest[]): Promise<NetEval[]> {
@@ -302,7 +362,11 @@ export class Search {
   /** Select up to `batch` leaves, applying virtual loss so they differ. */
   private collect(opts: RunOptions): Leaf[] {
     const out: Leaf[] = [];
-    const want = Math.max(1, Math.min(this.params.batch, opts.visits - this.root.visits));
+    // A wide batch spreads leaves with virtual loss, which wastes visits in a small tree:
+    // grow it with the tree (about 2*sqrt(visits)), up to what the engine can take.
+    const cap = this.evaluator.batch?.() ?? this.params.batch;
+    const grow = Math.max(1, Math.floor(this.params.batchGrowth * Math.sqrt(this.root.visits)));
+    const want = Math.max(1, Math.min(cap, grow, opts.visits - this.root.visits));
     for (let b = 0; b < want; b++) {
       const leaf = this.descend(opts);
       if (leaf === 'collision') break;
@@ -369,6 +433,7 @@ export class Search {
         toPlay: pla,
         board: board ?? this.pos.board,
         ownership: isRoot,
+        symmetries: isRoot ? this.params.rootSymmetries : undefined,
       },
     };
   }
@@ -439,7 +504,12 @@ export class Search {
         n = 0;
       } else {
         n = k.visits + k.inflight;
-        if (k.visits > 0) q = (s * this.nodeUtility(k) * k.visits - k.inflight) / n;
+        if (k.visits > 0) {
+          // Leaves in flight below this child count as losses (virtual loss), scaled by
+          // virtualLoss: 1 spreads a batch widely, 0 keeps the child's value and only adds visits.
+          const own = s * this.nodeUtility(k);
+          q = (own * k.visits + k.inflight * (own - p.virtualLoss * (own + 1))) / n;
+        }
         else q = k.inflight > 0 ? -1 : fpuValue;
       }
       const score = q + (scale * priors[i]) / (1 + n);
@@ -565,34 +635,105 @@ function countNodes(n: SNode): number {
   return c;
 }
 
+const caches = new WeakMap<object, NNCache>();
+
+/** The evaluation cache shared by every search on this engine. */
+export function nnCacheFor(engine: object): NNCache {
+  let c = caches.get(engine);
+  if (!c) {
+    c = new NNCache();
+    caches.set(engine, c);
+  }
+  return c;
+}
+
+/** Symmetries spread over the 8 (identity first) for averaging k of them. */
+const SYM_ORDER = [0, 7, 3, 4, 1, 6, 2, 5];
+
+function average(evals: NetEval[]): NetEval {
+  if (evals.length === 1) return evals[0];
+  const n = evals.length;
+  const policy = new Float32Array(evals[0].policy.length);
+  let bWin = 0;
+  let bLead = 0;
+  const own = evals[0].ownership ? new Float32Array(evals[0].ownership.length) : undefined;
+  for (const e of evals) {
+    for (let i = 0; i < policy.length; i++) policy[i] += e.policy[i] / n;
+    bWin += e.bWin / n;
+    bLead += e.bLead / n;
+    if (own && e.ownership) for (let i = 0; i < own.length; i++) own[i] += e.ownership[i] / n;
+  }
+  return { policy, bWin, bLead, ownership: own };
+}
+
+export interface EvaluatorOptions {
+  /** Reuse evaluations across searches (default: the engine's shared cache). null: no cache. */
+  cache?: NNCache | null;
+  /** false: one network call per leaf, as before batching (the benchmark's baseline). */
+  batched?: boolean;
+}
+
 /**
- * Evaluate leaves with a loaded engine: one at a time with move history, or, when the
- * engine batches (a GPU), several per network call from their stones.
+ * Evaluate leaves with a loaded engine. Positions already evaluated (or a mirror image of
+ * one) come from the cache; the rest go to the engine together, with move history, spread
+ * over its workers and network batches. Engines without batched evaluation get one call
+ * per leaf.
  */
-export function engineEvaluator(engine: EngineBackend): LeafEvaluator {
-  const finish = (l: LeafRequest, raw: Parameters<typeof processRawOutput>[0]) => {
+export function engineEvaluator(engine: EngineBackend, opts: EvaluatorOptions = {}): LeafEvaluator {
+  const cache = opts.cache === undefined ? nnCacheFor(engine) : opts.cache;
+  const finish = (l: LeafRequest, raw: RawNetOutput) => {
     const legal = l.board.legalMask(l.toPlay);
     return processRawOutput(raw, l.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
   };
-  return async (leaves) => {
+  const seq = opts.batched === false ? undefined : engine.evalSeqBatchRaw?.bind(engine);
+  const evaluator: LeafEvaluator = async (leaves) => {
     const out: NetEval[] = new Array(leaves.length);
-    const batched: number[] = [];
-    const canBatch = leaves.length > 1 && (engine.batch ?? 1) > 1 && !!engine.evalBatchRaw;
+    const keys = leaves.map((l) => (cache ? positionHash(l.board, l.toPlay, l.moves, l.komi) : null));
+    const misses: number[] = [];
     for (let i = 0; i < leaves.length; i++) {
-      const l = leaves[i];
-      if (canBatch && !l.ownership) batched.push(i);
-      else out[i] = finish(l, await engine.evalRaw({ size: l.size, komi: l.komi, moves: l.moves, toPlay: l.toPlay }, l.ownership));
+      const k = keys[i];
+      const hit = k && (leaves[i].symmetries ?? 1) <= 1 ? cache!.get(k, leaves[i].size, leaves[i].ownership) : null;
+      if (hit) out[i] = hit;
+      else misses.push(i);
     }
-    for (let k = 0; k < batched.length; k += 16) {
-      const chunk = batched.slice(k, k + 16);
-      const first = leaves[chunk[0]];
-      const raws = await engine.evalBatchRaw!(
-        first.size,
-        first.komi,
-        chunk.map((i) => ({ stones: leaves[i].board.stones, toPlay: leaves[i].toPlay })),
-      );
-      chunk.forEach((i, j) => (out[i] = finish(leaves[i], raws[j])));
+    if (misses.length) {
+      if (seq) {
+        const reqs: Parameters<typeof seq>[0] = [];
+        const owner: number[] = [];
+        for (const i of misses) {
+          const l = leaves[i];
+          const k = Math.max(1, Math.min(8, l.symmetries ?? 1));
+          for (let s = 0; s < k; s++) {
+            reqs.push({ size: l.size, komi: l.komi, moves: l.moves, toPlay: l.toPlay, ownership: l.ownership, symmetry: SYM_ORDER[s] });
+            owner.push(i);
+          }
+        }
+        const raws = await seq(reqs);
+        const parts = new Map<number, NetEval[]>();
+        raws.forEach((raw, j) => {
+          const i = owner[j];
+          const list = parts.get(i) ?? [];
+          list.push(finish(leaves[i], raw));
+          parts.set(i, list);
+        });
+        for (const [i, list] of parts) out[i] = average(list);
+      } else {
+        for (const i of misses) {
+          const l = leaves[i];
+          out[i] = finish(l, await engine.evalRaw({ size: l.size, komi: l.komi, moves: l.moves, toPlay: l.toPlay }, l.ownership));
+        }
+      }
+      // Averaged evaluations are stored too: they are the better estimate of the same position.
+      if (cache) for (const i of misses) cache.put(keys[i]!, leaves[i].size, out[i]);
     }
     return out;
   };
+  evaluator.batch = () => (seq ? Math.max(1, engine.batch ?? 1) : 1);
+  // Averaging the root over symmetries costs one round of network calls when the engine
+  // evaluates that many positions at once anyway.
+  evaluator.rootSymmetries = () => {
+    const b = evaluator.batch!();
+    return b >= 8 ? 8 : b >= 4 ? 4 : b >= 2 ? 2 : 1;
+  };
+  return evaluator;
 }

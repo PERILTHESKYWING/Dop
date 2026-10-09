@@ -5,7 +5,7 @@
 .app .shell {
   /* About a third of the pre-round-7 250px sidebar: an icon rail, same width whether the
    * window is tablet- or desktop-sized. "Hide sidebar" (or Ctrl+B) folds it away entirely. */
-  --nav-w: 84px;
+  --nav-w: 104px;
   transition: grid-template-columns 0.55s var(--ease);
 }
 @media (min-width: 761px) {
@@ -53,7 +53,7 @@
   padding: 8px 12px;
   gap: 12px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   background: transparent;
   font: inherit;
   font-size: 13px;
@@ -179,7 +179,7 @@
   overflow-y: auto;
   scrollbar-width: thin;
   padding: 14px 14px 16px;
-  border-radius: 30px;
+  border-radius: 12px;
   background: var(--glass);
   backdrop-filter: blur(28px) saturate(1.5);
   -webkit-backdrop-filter: blur(28px) saturate(1.5);
@@ -258,7 +258,7 @@
   gap: 10px;
   min-height: 58px;
   padding: 10px 12px;
-  border-radius: 20px;
+  border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--glass-2);
   color: var(--ink);
@@ -314,10 +314,10 @@
 }
 .ctile.toggle.on,
 .ctile.action.primary {
-  background: linear-gradient(135deg, var(--accent, #f0673f), color-mix(in srgb, var(--accent, #f0673f) 70%, #ffc04d));
-  color: #fff;
-  border-color: transparent;
-  box-shadow: 0 10px 20px -12px rgb(var(--accent-glow-rgb, 210 90 40) / 0.8);
+  background: var(--fill);
+  color: var(--fill-ink);
+  border-color: var(--fill-edge);
+  box-shadow: 0 2px 0 var(--fill-edge);
 }
 .ctile.toggle.on .ctile-text span,
 .ctile.action.primary .ctile-text span {
@@ -552,7 +552,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--glass-2);
   font: inherit;
@@ -601,7 +601,7 @@
   justify-items: center;
   gap: 2px;
   padding: 9px 4px 8px;
-  border-radius: 16px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--glass-2);
   font: inherit;
@@ -626,8 +626,8 @@
   cursor: default;
 }
 .dop-toolbar button.on {
-  background: linear-gradient(135deg, #7446f0, #b27cff);
-  border-color: transparent;
+  background: #6a3fe0;
+  border-color: #4f2bb3;
   color: #fff;
 }
 @media (max-width: 760px) {

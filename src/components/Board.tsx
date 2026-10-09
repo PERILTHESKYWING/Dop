@@ -4,12 +4,14 @@ import type { MoveClass } from '../lib/coach/classify';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
 
-export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var';
+export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var' | 'next';
 
 export interface Mark {
   loc: Loc;
   kind: MarkKind;
   label?: string;
+  /** A move number on the move just played: drawn red. */
+  current?: boolean;
 }
 
 /** A candidate move drawn Lizzie-style: winrate, visits and score on a coloured disc. */
@@ -623,7 +625,7 @@ function BoardImpl(p: BoardProps) {
     const x = m.loc % size, y = Math.floor(m.loc / size);
     if (!inWin(x, y)) return null;
     const on = board[m.loc] === 1 ? ' on-b' : board[m.loc] === 2 ? ' on-w' : '';
-    const cls = `mark mark-${m.kind}${on}`;
+    const cls = `mark mark-${m.kind}${on}${m.current ? ' cur' : ''}`;
     const label = m.label ? (
       <text className={m.label.length > 1 ? 'mk-long' : undefined} x={x} y={y + 0.015}>
         {m.label}
@@ -638,6 +640,8 @@ function BoardImpl(p: BoardProps) {
         </g>
       );
     }
+    if (m.kind === 'num') return <g key={`m${k}`} className={cls}>{label}</g>;
+    if (m.kind === 'next') return <circle key={`m${k}`} className="mark mark-next" cx={x} cy={y} r={0.36} />;
     const r = m.kind === 'best' ? 0.34 : m.kind === 'played' || m.kind === 'you' ? 0.3 : m.kind === 'pv' ? 0.31 : 0.34;
     return (
       <g key={`m${k}`} className={cls}>
@@ -696,6 +700,7 @@ function BoardImpl(p: BoardProps) {
   const varEls: JSX.Element[] = [];
   if (p.variation?.length) {
     const seen = new Set<Loc>();
+    const lastVar = p.variation.length - 1;
     p.variation.forEach((m, i) => {
       if (m.loc === PASS || seen.has(m.loc)) return;
       seen.add(m.loc);
@@ -704,7 +709,7 @@ function BoardImpl(p: BoardProps) {
       varEls.push(
         <g key={`v${i}`} className={`bd-var ${m.color === 1 ? 'b' : 'w'}${board[m.loc] ? ' over' : ''}`}>
           <circle cx={x} cy={y} r={m.color === 1 ? R_B : R_W} fill={`url(#${id}-${m.color === 1 ? 'sb' : 'sw0'})`} />
-          <text x={x} y={y + 0.015} className={i + 1 >= 10 ? 'long' : undefined}>
+          <text x={x} y={y + 0.015} className={`${i + 1 >= 10 ? 'long' : ''}${i === lastVar ? ' cur' : ''}`}>
             {i + 1}
           </text>
         </g>,
@@ -712,7 +717,9 @@ function BoardImpl(p: BoardProps) {
     });
   }
 
-  const last = p.lastMove != null && p.lastMove !== PASS && inWin(p.lastMove % size, Math.floor(p.lastMove / size)) ? p.lastMove : null;
+  // With move numbers showing, the red number marks the last move instead of the ring.
+  const numbered = p.marks?.some((m) => m.kind === 'num') ?? false;
+  const last = !numbered && p.lastMove != null && p.lastMove !== PASS && inWin(p.lastMove % size, Math.floor(p.lastMove / size)) ? p.lastMove : null;
   const pending = p.pending != null && p.pending !== PASS ? p.pending : null;
   const showGhost = interactive && hover !== null && hover !== pending && !board[hover] && !!p.toPlay;
 

@@ -15,9 +15,9 @@ import { uid } from '../lib/util/hash';
 import { go, href } from '../router';
 
 const VERDICT: Record<'learned' | 'partial' | 'not-yet', { text: string; tone: string; explain: string }> = {
-  learned: { text: 'You know this', tone: 'good', explain: 'Your decisions were right well above what a fixed habit would score. The pattern is learned.' },
-  partial: { text: 'Partly learned', tone: 'warn', explain: 'Better than chance, but not reliable yet. Keep training this in the Forge.' },
-  'not-yet': { text: 'Not yet', tone: 'bad', explain: 'Your decisions are still close to your old habit. The Forge will keep bringing this back.' },
+  learned: { text: 'You know this', tone: 'good', explain: 'Well above your old habit. Learned.' },
+  partial: { text: 'Partly learned', tone: 'warn', explain: 'Better than chance, not yet reliable.' },
+  'not-yet': { text: 'Not yet', tone: 'bad', explain: 'Still close to your old habit.' },
 };
 
 function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[]; onDone: (t: BlindTest) => void }) {
@@ -89,7 +89,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
               setExplore(false);
               setHoverPv(null);
             }}
-            note="Answers given after opening the analysis board are kept but do not count in the test result."
+            note="Answers with analysis open don't count."
           />
         )}
         <div className="panel stack">
@@ -103,11 +103,11 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
             <span style={{ width: `${(i / items.length) * 100}%` }} />
           </div>
           <strong>{item.toPlay === 1 ? 'Black' : 'White'} to play</strong>
-          <p className="small dim">No hints and no feedback until the end. Some positions call for your usual instinct, some for the opposite.</p>
-          {assisted && <p className="tiny warn">Analysis board used: this answer will not count in the result.</p>}
+          <p className="small dim">No feedback until the end.</p>
+          {assisted && <p className="tiny warn">Analysis used: not counted.</p>}
           <div className="row wrap">
             <button className="btn primary big" disabled={pending === null || busy || explore} onClick={() => void commit()}>
-              {busy ? 'Saving…' : pending === null ? 'Select a move' : `Commit ${locToGtp(pending, item.size)}`}
+              {busy ? 'Saving…' : pending === null ? 'Pick a move' : `Play ${locToGtp(pending, item.size)}`}
             </button>
             {!explore && (
               <button
@@ -117,7 +117,7 @@ function Runner({ test, items, onDone }: { test: BlindTest; items: TrainingItem[
                   setExplore(true);
                 }}
               >
-                Analysis board
+                Analyse
               </button>
             )}
           </div>
@@ -145,15 +145,15 @@ function Results({ test, items }: { test: BlindTest; items: TrainingItem[] }) {
         <div className="grid cols-3">
           <div className="stat">
             <div className="v">{fmtPct(r.conceptAccuracy)}</div>
-            <div className="l">right decisions</div>
+            <div className="l">right</div>
           </div>
           <div className="stat">
             <div className="v">{fmtPct(r.baseline)}</div>
-            <div className="l">what a fixed habit scores</div>
+            <div className="l">habit baseline</div>
           </div>
           <div className="stat">
             <div className="v">{fmtPct(r.accuracy)}</div>
-            <div className="l">moves within 1.5 points of KataGo</div>
+            <div className="l">within 1.5 pts</div>
           </div>
         </div>
       </div>
@@ -176,9 +176,9 @@ function Results({ test, items }: { test: BlindTest; items: TrainingItem[] }) {
                 />
               </div>
               <div className="small">
-                <span className={`chip ${a.conceptCorrect ? 'good' : 'bad'}`}>{a.conceptCorrect ? 'right decision' : 'wrong decision'}</span>{' '}
+                <span className={`chip ${a.conceptCorrect ? 'good' : 'bad'}`}>{a.conceptCorrect ? 'right' : 'wrong'}</span>{' '}
                 <span className={`grade-${a.grade}`}>{a.grade}</span>
-                {a.assisted && <span className="chip warn">analysis board, not counted</span>}
+                {a.assisted && <span className="chip warn">not counted</span>}
               </div>
               <div className="tiny muted">
                 you {locToGtp(a.loc, it.size)} · KataGo {locToGtp(it.eval.bestLoc, it.size)} · {(a.timeMs / 1000).toFixed(1)} s
@@ -210,7 +210,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
     const items = practice[wid] ?? [];
     const set = buildBlindSet(items, attempts, 14);
     if (set.length < 6) {
-      alert('Not enough positions worth drilling for a blind test on this weakness yet (early-opening choices and small losses are left out). Analyse more games first.');
+      alert('Not enough positions yet. Analyse more games.');
       return;
     }
     const t: BlindTest = { id: uid('bt-'), weaknessId: wid, itemIds: set.map((x) => x.id), startedAt: Date.now(), attempts: [] };
@@ -238,8 +238,8 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
       <div className="page-head">
         <div>
           <div className="eyebrow">Blind tests</div>
-          <h1>Do I really know this?</h1>
-          <p className="sub">10–20 blind positions per weakness. No hints, no feedback until the end, scored against what your old habit would get right by default.</p>
+          <h1>Blind test</h1>
+          <p className="sub">Blind positions per weakness, scored against your old habit.</p>
         </div>
       </div>
       {finished && (
@@ -249,7 +249,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
       )}
       {!weaknesses.length ? (
         <div className="empty">
-          No confirmed weaknesses yet. <a href={href('library')}>Analyse your games</a> or <a href={href('dashboard')}>load the demo</a>.
+          No weaknesses yet. <a href={href('library')}>Analyse games</a> or <a href={href('dashboard')}>load demo</a>.
         </div>
       ) : (
         <div className="panel" style={{ padding: 0 }}>
@@ -259,7 +259,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
                 <tr>
                   <th>Weakness</th>
                   <th>Positions</th>
-                  <th>Last result</th>
+                  <th>Last</th>
                   <th />
                 </tr>
               </thead>
@@ -280,12 +280,12 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
                             {VERDICT[last.result.verdict].text} · {fmtPct(last.result.conceptAccuracy)}
                           </span>
                         ) : (
-                          <span className="muted small">never tested</span>
+                          <span className="muted small">none</span>
                         )}
                       </td>
                       <td className="row">
                         <button className="btn small primary" disabled={n < 6} onClick={() => void start(w.id)}>
-                          Start test
+                          Start
                         </button>
                         <button className="btn small ghost" onClick={() => go(`forge/${w.id}`)}>
                           Train
@@ -311,7 +311,7 @@ export function BlindTests({ weaknessId }: { weaknessId?: string }) {
                     return (
                       <tr key={t.id} className="click" onClick={() => setFinished({ test: t, items: allItems.filter((x) => t.itemIds.includes(x.id)) })}>
                         <td className="small dim">{new Date(t.startedAt).toLocaleDateString()}</td>
-                        <td>{w?.llm?.title ?? w?.title ?? 'Removed weakness'}</td>
+                        <td>{w?.llm?.title ?? w?.title ?? 'Removed'}</td>
                         <td>
                           <span className={`chip ${VERDICT[t.result!.verdict].tone}`}>{VERDICT[t.result!.verdict].text}</span>
                         </td>
