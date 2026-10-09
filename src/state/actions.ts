@@ -274,7 +274,7 @@ export async function startEngine(): Promise<BrowserEngine | null> {
           eng.onDeath = (reason) => onEngineDeath(eng, reason);
           engine = eng;
           set({ engine: { status: 'ready', info: eng.info, evalMs: eng.evalMs, failures } });
-          if (failures.length) toast(`Using ${eng.info.modelName}${eng.info.backend === 'cpu' ? ' on the CPU' : ''}: ${attempts[0].spec.name} could not be used (details in Engine & Settings).`, 'info');
+          if (failures.length) toast(`Using ${eng.info.modelName}${eng.info.backend === 'cpu' ? ' on CPU' : ''}. ${attempts[0].spec.name} failed (see Settings).`, 'info');
           return eng;
         } catch (e) {
           const msg = (e as Error).message;
@@ -287,7 +287,7 @@ export async function startEngine(): Promise<BrowserEngine | null> {
         }
       }
       set({ engine: { status: 'error', error: failures.join('\n'), failures } });
-      toast('KataGo could not start. See Engine & Settings for details.', 'error');
+      toast('KataGo could not start. See Settings.', 'error');
       return null;
     } finally {
       engineStarting = null;
@@ -374,7 +374,7 @@ export async function importFiles(files: File[]) {
       names = [guess];
       await saveSettings({ playerNames: names });
       for (const g of games) g.playerColor = g.black === guess ? 1 : g.white === guess ? 2 : null;
-      toast(`Studying "${guess}" (appears in most games). Change it in Engine & Settings.`, 'info');
+      toast(`Studying "${guess}". Change in Settings.`, 'info');
     }
   }
   const existing = new Set(s.games.map((g) => g.id));
@@ -899,7 +899,7 @@ export function rebuildProfile(): Promise<void> {
 export async function runLlmDiscovery() {
   const s = get();
   if (!s.settings.useLlm) {
-    toast('Pattern discovery is switched off in Engine & Settings.', 'info');
+    toast('Pattern discovery is off (Settings).', 'info');
     return;
   }
   set((st) => ({ busy: { ...st.busy, llm: true } }));

@@ -94,7 +94,7 @@ export function DoppelLine({
       )}
       {played != null && played !== PASS && (
         <span className={`tiny ${played === top.loc ? 'doppel' : 'muted'}`}>
-          {played === top.loc ? '· played to type' : playedP !== undefined ? `· played ${locToGtp(played, size)} (${fmtPct(playedP)} for the copy)` : `· played ${locToGtp(played, size)}, a surprise`}
+          {played === top.loc ? '· as predicted' : playedP !== undefined ? `· played ${locToGtp(played, size)} (${fmtPct(playedP)})` : `· played ${locToGtp(played, size)}, unexpected`}
         </span>
       )}
     </div>

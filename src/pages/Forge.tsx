@@ -21,10 +21,10 @@ import { go, href } from '../router';
 import { BackLink } from '../components/ControlSheet';
 
 export const KIND_TEXT: Record<TrainingKind, { label: string; explain: string }> = {
-  original: { label: 'From your game', explain: 'You played this position in a real game and made the error here.' },
-  similar: { label: 'Similar position', explain: 'Same kind of decision, from your games.' },
-  counterexample: { label: 'Counterexample', explain: 'Looks like the usual pattern, but here the opposite decision is right.' },
-  boundary: { label: 'Boundary case', explain: 'Both decisions are close. Precision matters here.' },
+  original: { label: 'From your game', explain: 'Your mistake, from a real game.' },
+  similar: { label: 'Similar position', explain: 'Same decision type.' },
+  counterexample: { label: 'Counterexample', explain: 'Opposite answer is right here.' },
+  boundary: { label: 'Boundary case', explain: 'Close call.' },
 };
 
 const REASONS = ['Looked urgent', 'Biggest point', 'Safety first', 'Attack', 'Shape', 'Instinct'];
@@ -48,7 +48,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
     <div className="stack">
       <div className="spread">
         <span className={`reveal-grade grade-${grade.grade}`}>{grade.grade}</span>
-        <span className={`chip ${grade.conceptCorrect ? 'good' : 'bad'}`}>{grade.conceptCorrect ? 'right decision' : 'wrong decision'}</span>
+        <span className={`chip ${grade.conceptCorrect ? 'good' : 'bad'}`}>{grade.conceptCorrect ? 'right idea' : 'wrong idea'}</span>
       </div>
       <div className="kv">
         <dt>Your move</dt>
@@ -63,7 +63,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
             <dt>Your copy</dt>
             <dd className="doppel">
               expected {locToGtp(predicted.loc, item.size)} ({fmtPct(predicted.p)})
-              {predicted.loc === attempt.loc ? ' · you played to type' : ' · you broke your pattern'}
+              {predicted.loc === attempt.loc ? ' · as expected' : ' · off pattern'}
             </dd>
           </>
         )}
@@ -72,15 +72,15 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
       </div>
       {grade.bestLabel && grade.playedLabel && (
         <div className={`callout ${grade.conceptCorrect ? 'kata' : 'bad'} small`}>
-          The position called for <strong>{grade.bestLabel}</strong>; you chose <strong>{grade.playedLabel}</strong>.
-          {grade.repeatedError && ' This is the same error as in your games.'}
+          Needed <strong>{grade.bestLabel}</strong>, played <strong>{grade.playedLabel}</strong>.
+          {grade.repeatedError && ' Same error as in your games.'}
         </div>
       )}
       {sig && <p className="small dim">{sig.focus}</p>}
       <div className="small">
         <span className="chip">{kind.label}</span> <span className="muted">{kind.explain}</span>
       </div>
-      {item.modification && <p className="tiny muted">Variation: {item.modification.note}. Re-analysed by KataGo.</p>}
+      {item.modification && <p className="tiny muted">Variation: {item.modification.note}.</p>}
       {cands.length > 0 && (
         <table className="data">
           <tbody>
@@ -96,7 +96,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
       )}
       <div>
         <div className="tiny muted" style={{ marginBottom: 4 }}>
-          Why did you play it? (optional, one tap)
+          Why? (optional)
         </div>
         <div className="row wrap">
           {REASONS.map((r) => (
@@ -114,7 +114,7 @@ export function Reveal({ item, grade, attempt, predicted }: { item: TrainingItem
         </div>
       </div>
       <a className="tiny muted" href={href(`review/${item.gameId}?move=${item.index + 1}`)}>
-        Open the source game at move {item.index + 1} →
+        Source game, move {item.index + 1}
       </a>
     </div>
   );
@@ -212,7 +212,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
           </div>
         </div>
         <div className="empty">
-          Forge trains your recurring weaknesses. None are confirmed yet: analyse more of your games, or <a href={href('dashboard')}>load the demo data</a>.
+          No weaknesses yet. Analyse more games or <a href={href('dashboard')}>load demo data</a>.
         </div>
       </div>
     );
@@ -226,22 +226,19 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
         <div className="empty stack" style={{ justifyItems: 'center' }}>
           {skipped ? (
             <span>
-              None of the {skipped.total} positions found for {title} are worth drilling: {describeSkipped(skipped)}. Forge only asks about positions where
-              a wrong move costs real points and one answer stands out, so early-opening choices and small differences are left out. Analyse more of
-              your games to find more.
+              None of {skipped.total} positions for {title} qualify: {describeSkipped(skipped)}. Analyse more games.
             </span>
           ) : (
             <span>
-              No training positions for {title} yet. Practice only uses positions where a wrong move costs real points and the side that is behind still
-              has at least {Math.round(minWin * 100)}% to win, so early-opening choices and decided games give none.
+              No positions for {title} yet. Only costly mistakes with the trailing side above {Math.round(minWin * 100)}% count.
             </span>
           )}
           <span className="row wrap" style={{ justifyContent: 'center' }}>
             <a className="btn small" href={href('library')}>
-              Analyse more games
+              Analyse games
             </a>
             <a className="btn small" href={href('settings')}>
-              Change the winrate limit
+              Winrate limit
             </a>
           </span>
         </div>
@@ -290,8 +287,8 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
               setExplore(false);
               setHoverPv(null);
             }}
-            closeLabel={result ? 'Back to the result' : 'Back to the problem'}
-            note={assisted && !result ? 'You opened the analysis board, so your answer to this position will not count toward mastery.' : undefined}
+            closeLabel={result ? 'Result' : 'Problem'}
+            note={assisted && !result ? 'Analysis open: this answer won\'t count.' : undefined}
           />
         )}
         <div className="panel stack">
@@ -320,17 +317,17 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
             <>
               <div className="spread">
                 <strong>{item.toPlay === 1 ? 'Black' : 'White'} to play</strong>
-                <span className="chip">{item.kind === 'original' ? 'from your game' : 'blind position'}</span>
+                <span className="chip">{item.kind === 'original' ? 'your game' : 'blind'}</span>
               </div>
               <WinBar bWin={item.eval.bWin} bLead={item.eval.bLead} />
-              <p className="tiny muted" title="Why this position is worth drilling">
+              <p className="tiny muted" title="Why this position">
                 {assessItem(item).reason}
               </p>
-              <p className="small dim">Find the best move. Tap a point to select it, tap again (or press Enter) to commit.</p>
-              {assisted && <p className="tiny warn">Analysis board used: this answer will not count toward mastery.</p>}
+              <p className="small dim">Find the best move. Tap twice or press Enter.</p>
+              {assisted && <p className="tiny warn">Analysis used: not counted.</p>}
               <div className="row wrap">
                 <button className="btn primary big" disabled={pending === null || busy || explore} onClick={() => void commit()}>
-                  {busy ? 'Checking…' : pending === null ? 'Select a move' : `Commit ${locToGtp(pending, item.size)}`}
+                  {busy ? 'Checking…' : pending === null ? 'Pick a move' : `Play ${locToGtp(pending, item.size)}`}
                 </button>
                 {pending !== null && (
                   <button className="btn ghost" onClick={() => setPending(null)}>
@@ -338,8 +335,8 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                   </button>
                 )}
                 {!explore && (
-                  <button className="btn" onClick={openAnalysis} title="Try moves with live KataGo winrates and heat map">
-                    Analysis board
+                  <button className="btn" onClick={openAnalysis} title="Live KataGo analysis">
+                    Analyse
                   </button>
                 )}
               </div>
@@ -347,14 +344,14 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
           ) : (
             <>
               <Reveal item={item} grade={result.grade} attempt={result.attempt} predicted={predicted} />
-              {result.attempt.assisted && <p className="tiny warn">Answered with the analysis board open: not counted toward mastery.</p>}
+              {result.attempt.assisted && <p className="tiny warn">Analysis used: not counted.</p>}
               <div className="row wrap">
                 <button className="btn primary big" onClick={next}>
-                  Next position <span className="kbd">Enter</span>
+                  Next <span className="kbd">Enter</span>
                 </button>
                 {!explore && (
                   <button className="btn" onClick={openAnalysis}>
-                    Explore on the analysis board
+                    Analyse
                   </button>
                 )}
               </div>
@@ -363,25 +360,25 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
         </div>
 
         <div className="panel stack">
-          <h3>This session</h3>
+          <h3>Session</h3>
           <div className="row wrap small">
             <span className="chip">{session.length} positions</span>
             {session.length > 0 && (
               <>
-                <span className="chip good">{fmtPct(session.filter((a) => a.conceptCorrect).length / session.length)} right decision</span>
+                <span className="chip good">{fmtPct(session.filter((a) => a.conceptCorrect).length / session.length)} right</span>
                 <span className="chip">{(session.reduce((a, x) => a + x.timeMs, 0) / session.length / 1000).toFixed(1)} s avg</span>
-                <span className="chip bad">{session.filter((a) => a.repeatedError).length} repeated errors</span>
+                <span className="chip bad">{session.filter((a) => a.repeatedError).length} repeats</span>
               </>
             )}
           </div>
           <div className="row wrap">
             <a className="btn small" href={href(`blind/${weakness.id}`)}>
-              Do I really know this?
+              Blind test
             </a>
             <button
               className="btn small"
               disabled={varBusy || engine.status === 'loading'}
-              title="KataGo re-analyses shifted versions of your positions"
+              title="Shifted versions of your positions"
               onClick={async () => {
                 setVarBusy(true);
                 try {
@@ -391,7 +388,7 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
                 }
               }}
             >
-              {varBusy ? 'KataGo is building variations…' : 'Generate engine variations'}
+              {varBusy ? 'Building…' : 'Variations'}
             </button>
           </div>
         </div>

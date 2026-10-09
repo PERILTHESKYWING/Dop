@@ -112,14 +112,14 @@ export function Broadcast({ table }: { table?: string }) {
   if (error)
     return (
       <div className="page">
-        <div className="empty">The live games could not be loaded ({error}).</div>
+        <div className="empty">Live games failed to load ({error}).</div>
       </div>
     );
   if (!sched || !pool)
     return (
       <div className="page">
         <div className="empty">
-          <BrandSpinner /> Tuning in…
+          <BrandSpinner /> Loading…
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ export function Broadcast({ table }: { table?: string }) {
           </div>
           <FloorControl floor={floor} onFloor={setFloor} />
         </div>
-        <div className="empty">No game keeps the losing side above {floor}% past the opening. Pick a lower minimum.</div>
+        <div className="empty">No game stays above {floor}%. Lower the minimum.</div>
       </div>
     );
   if (Number.isInteger(t) && t >= 0 && t < TABLES) return <Watch sched={sched} table={t} now={now} speed={speed} onSpeed={setSpeed} floor={floor} onFloor={setFloor} />;
@@ -144,7 +144,7 @@ function SpeedControl({ speed, onSpeed }: { speed: number; onSpeed: (n: number) 
   return (
     <div className="segmented bc-speed" role="tablist" aria-label="Playback speed">
       {SPEEDS.map((s) => (
-        <button key={s} role="tab" aria-selected={speed === s} className={speed === s ? 'on' : ''} onClick={() => onSpeed(s)} title={s === 1 ? 'Real time, same as everyone else' : `${s}x, just for you`}>
+        <button key={s} role="tab" aria-selected={speed === s} className={speed === s ? 'on' : ''} onClick={() => onSpeed(s)} title={s === 1 ? 'Real time (shared)' : `${s}x (just you)`}>
           {s}×
         </button>
       ))}
@@ -156,12 +156,12 @@ function SpeedControl({ speed, onSpeed }: { speed: number; onSpeed: (n: number) 
  * the losing side drops under it, and the next game takes its place. */
 function FloorControl({ floor, onFloor }: { floor: number; onFloor: (n: number) => void }) {
   return (
-    <label className="small bc-floor-label" title="A game leaves its table 10 seconds after the losing side drops under this">
-      Losing side keeps at least{' '}
+    <label className="small bc-floor-label" title="Games end 10 s after the losing side drops below this">
+      Min. winrate{' '}
       <select value={floor} onChange={(e) => onFloor(Number(e.target.value))} aria-label="Minimum losing-side winrate">
         {BROADCAST_FLOORS.map((f) => (
           <option key={f} value={f}>
-            {f ? `${f}%` : 'no minimum'}
+            {f ? `${f}%` : 'none'}
           </option>
         ))}
       </select>
@@ -186,9 +186,9 @@ function Leaving({ g, floor, big }: { g: LiveGame; floor: number; big?: boolean 
 // ------------------------------------------------------------------ the lobby: every table at once
 
 const FILTERS: { id: Phase | 'all'; label: string }[] = [
-  { id: 'all', label: 'All tables' },
+  { id: 'all', label: 'All' },
   { id: 'opening', label: 'Opening' },
-  { id: 'middle', label: 'Middle game' },
+  { id: 'middle', label: 'Middle' },
   { id: 'endgame', label: 'Endgame' },
 ];
 
@@ -217,12 +217,11 @@ function Lobby({
       <div className="page-head">
         <div>
           <div className="eyebrow">
-            <span className="bc-onair" /> Live broadcast
+            <span className="bc-onair" /> Live
           </div>
           <h1>Live AI games</h1>
           <p className="sub">
-            KataGo plays itself on {TABLES} tables, a move every {MOVE_MS / 1000} seconds. Both sides choose only among KataGo's own top moves, so no two games are alike and neither side ends up
-            with an overwhelming position. For self-improvement, not betting; a leaderboard may come later.
+            KataGo self-play on {TABLES} tables, one move every {MOVE_MS / 1000} s.
           </p>
         </div>
         <div className="stack tight" style={{ alignItems: 'flex-end' }}>
@@ -249,11 +248,10 @@ function Lobby({
         {shown.map((g) => (
           <TableCard key={g.table} g={g} floor={sched.floor} />
         ))}
-        {!shown.length && <div className="empty">No table is in that phase right now.</div>}
+        {!shown.length && <div className="empty">No tables in this phase.</div>}
       </div>
       <p className="tiny muted">
-        {engine}. Games are played by KataGo ahead of time; at 1x everyone watching sees the same move at the same moment, and each game comes round again later in another orientation between
-        other players. Pick a faster or slower speed above to watch at your own pace instead.
+        {engine}. At 1× all viewers see the same move.
       </p>
     </div>
   );
@@ -311,7 +309,7 @@ const TableCard = memo(function TableCard({ g, floor }: { g: LiveGame; floor: nu
 function resultText(g: LiveGame) {
   const r = g.game.result;
   const who = r.startsWith('B') ? g.black : g.white;
-  return r.endsWith('+R') ? `${who} wins by resignation` : `${who} wins by ${r.slice(2)} points`;
+  return r.endsWith('+R') ? `${who} wins by resignation` : `${who} wins by ${r.slice(2)}`;
 }
 
 
@@ -379,7 +377,7 @@ function Watch({
   const save = async (title: string) => {
     const k = kifuFromMoves({ size, komi: g.game.komi, rules: 'chinese', black: g.black, white: g.white, title: title.trim() || `Live table ${table + 1}: ${g.black} vs ${g.white}`, event: 'Live AI broadcast', date: new Date(g.start).toISOString().slice(0, 10) }, [], shownMoves);
     await saveKifu({ ...k, source: 'live', saved: true });
-    toast(`Saved "${k.title}" (${shownMoves.length} moves) to Your kifu.`, 'ok');
+    toast(`Saved "${k.title}" (${shownMoves.length} moves)`, 'ok');
   };
   const report = { values, moves: shownMoves, size, black: g.black, white: g.white, cursor: g.shown, onPick: () => undefined };
 
@@ -395,21 +393,20 @@ function Watch({
           </span>
           {lastClass && (
             <span className="row small">
-              <span className="dim">Last move</span>
+              <span className="dim">Last</span>
               <ClassPill cls={lastClass} />
             </span>
           )}
         </div>
         <div className="tiny muted">
           Move {g.shown}
-          {g.shown > 0 && moves[g.shown - 1] !== undefined && ` · ${g.shown % 2 === 1 ? 'Black' : 'White'} ${locToGtp(moves[g.shown - 1], size)}`} · komi {g.game.komi}, area scoring
+          {g.shown > 0 && moves[g.shown - 1] !== undefined && ` · ${g.shown % 2 === 1 ? 'Black' : 'White'} ${locToGtp(moves[g.shown - 1], size)}`} · komi {g.game.komi}
         </div>
         {!done && <MoveTimer g={g} />}
         {!done && cands.length > 0 && (
           <>
-            <h3>{toPlay === 1 ? g.black : g.white} is weighing</h3>
+            <h3>{toPlay === 1 ? g.black : g.white} candidates</h3>
             <CandidateTable cands={cands} size={size} max={4} />
-            <p className="tiny muted">Every move listed loses almost nothing; the players choose among them, so the most visited one is not always played.</p>
           </>
         )}
         <div className="bs-row">
@@ -423,11 +420,11 @@ function Watch({
   else if (tab === 'performance') panel = <PerformancePanel {...report} />;
 
   const tools: ScreenTool[] = [
-    { id: 'all', label: 'All tables', icon: 'broadcast', onClick: () => go('live') },
-    { id: 'prev', label: 'Previous table', icon: 'back', onClick: () => go(`live/${(table + TABLES - 1) % TABLES}`) },
-    { id: 'next', label: 'Next table', icon: 'play', onClick: () => go(`live/${(table + 1) % TABLES}`) },
+    { id: 'all', label: 'Tables', icon: 'broadcast', onClick: () => go('live') },
+    { id: 'prev', label: 'Previous', icon: 'back', onClick: () => go(`live/${(table + TABLES - 1) % TABLES}`) },
+    { id: 'next', label: 'Next', icon: 'play', onClick: () => go(`live/${(table + 1) % TABLES}`) },
     { id: 'cands', label: 'Candidates', icon: 'target', on: showCands, onClick: () => setShowCands(!showCands) },
-    { id: 'study', label: 'Study board', icon: 'kifu', onClick: () => go(`study?live=${encodeURIComponent(g.key)}&g=${encodeURIComponent(g.game.id)}&n=${g.shown}`) },
+    { id: 'study', label: 'Study', icon: 'kifu', onClick: () => go(`study?live=${encodeURIComponent(g.key)}&g=${encodeURIComponent(g.game.id)}&n=${g.shown}`) },
   ];
 
   return (
@@ -435,7 +432,7 @@ function Watch({
       className="bc-watch"
       title={`Live table ${table + 1}`}
       sub={`${PHASE_LABEL[g.phase]} · move ${g.shown}`}
-      head={<HeadButton icon="save" label="Save" onClick={() => (setSaveTitle(`Live table ${table + 1}: ${g.black} vs ${g.white}`), setSaving(true))} title="Save the moves so far to Your kifu" />}
+      head={<HeadButton icon="save" label="Save" onClick={() => (setSaveTitle(`Live table ${table + 1}: ${g.black} vs ${g.white}`), setSaving(true))} title="Save to Your kifu" />}
       players={<PlayersBar black={g.black} white={g.white} captures={captures} showEval bWin={v.bWin} bLead={v.bLead} black2={!done && toPlay === 1 ? 'to play' : undefined} white2={!done && toPlay === 2 ? 'to play' : undefined} />}
       board={
         <div className="bc-board-frame">
@@ -466,7 +463,7 @@ function Watch({
       notice={
         saving ? (
           <Notice
-            title="Save this game so far"
+            title="Save game"
             onClose={() => setSaving(false)}
             actions={
               <>
@@ -483,7 +480,7 @@ function Watch({
               Name
               <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (setSaving(false), void save(saveTitle))} />
             </label>
-            <span className="small">The {shownMoves.length} moves played so far go to Your kifu.</span>
+            <span className="small">{shownMoves.length} moves to Your kifu.</span>
           </Notice>
         ) : null
       }

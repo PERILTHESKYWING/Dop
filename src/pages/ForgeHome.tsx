@@ -74,13 +74,13 @@ export function ForgeHome() {
         <div>
           <div className="eyebrow">Training</div>
           <h1>Forge</h1>
-          <p className="dim small">Problems found in real games and proved by KataGo, at your level. Solve them, keep your streak, climb.</p>
+          <p className="dim small">Real-game problems, verified by KataGo, at your level.</p>
         </div>
         <div className="fh-rating">
           {progress.rating !== null ? (
             <>
               <div className="fh-rank">{levelLabel(ratingToRank(progress.rating))}</div>
-              <div className="tiny muted">problem level · {Math.round(progress.rating)}</div>
+              <div className="tiny muted">rating {Math.round(progress.rating)}</div>
               <Sparkline points={progress.ratingHistory.map((h) => h.rating)} />
             </>
           ) : (
@@ -93,43 +93,43 @@ export function ForgeHome() {
         <div className={`fh-streak ${streakAlive && progress.streak.days ? 'on' : ''}`}>
           <Icon name="flame" />
           <strong>{streakAlive ? progress.streak.days : 0}</strong>
-          <span className="tiny muted">day streak{progress.streak.best > 1 ? ` · best ${progress.streak.best}` : ''}</span>
+          <span className="tiny muted">streak{progress.streak.best > 1 ? ` · best ${progress.streak.best}` : ''}</span>
         </div>
         <div className="fh-mini">
           <strong>{todayCount}</strong>
-          <span className="tiny muted">solved today</span>
+          <span className="tiny muted">today</span>
         </div>
         <div className="fh-mini">
           <strong>{currentCombo(progress)}</strong>
-          <span className="tiny muted">in a row · best {progress.bestCombo}</span>
+          <span className="tiny muted">combo · best {progress.bestCombo}</span>
         </div>
         <div className="fh-mini">
           <strong>{progress.results.length}</strong>
-          <span className="tiny muted">problems done</span>
+          <span className="tiny muted">total</span>
         </div>
       </div>
 
-      {bankError && <div className="callout bad small">The problem bank could not be loaded ({bankError}). Reload the page to try again.</div>}
+      {bankError && <div className="callout bad small">Problem bank failed to load ({bankError}). Reload to retry.</div>}
 
       <div className="fh-grid">
         <section className="panel stack fh-daily">
           <div className="spread">
-            <h3>Daily eight</h3>
+            <h3>Daily 8</h3>
             <span className="chip">{dailyDone}/{daily.length}</span>
           </div>
-          <p className="small dim">Eight problems around your level, the same all day. Keep the streak going.</p>
+          <p className="small dim">Eight problems at your level, reset daily.</p>
           <div className="fh-daily-dots">
             {daily.map((p) => (
               <span key={p.id} className={`fh-dot ${progress.daily.day === today && progress.daily.done.includes(p.id) ? 'done' : ''}`} title={`${CATEGORY_TEXT[p.cat].label}, ${levelLabel(p.level)}`} />
             ))}
           </div>
           <button className="btn primary big" disabled={!daily.length} onClick={() => go('forge/set?daily=1')}>
-            <Icon name="play" /> {dailyDone >= daily.length && daily.length ? 'Play again' : dailyDone ? 'Continue' : "Start today's set"}
+            <Icon name="play" /> {dailyDone >= daily.length && daily.length ? 'Replay' : dailyDone ? 'Continue' : 'Start'}
           </button>
         </section>
 
         <section className="panel stack fh-settings">
-          <h3>Practice settings</h3>
+          <h3>Practice</h3>
 
           <Field label="Type" zh="题型">
             <div className="fh-cats">
@@ -145,7 +145,7 @@ export function ForgeHome() {
                 <strong>
                   {CATEGORY_TEXT.mine.label} <span className="fh-zh">{CATEGORY_TEXT.mine.zh}</span>
                 </strong>
-                <span>{mistakes ? `${mistakes} weaknesses to drill` : 'from your analysed games'}</span>
+                <span>{mistakes ? `${mistakes} weaknesses` : 'from your games'}</span>
               </a>
             </div>
           </Field>
@@ -168,7 +168,7 @@ export function ForgeHome() {
                 ))}
               </select>
               <button className="btn small ghost" onClick={aroundMe}>
-                Around my level ({levelLabel(rank)})
+                My level ({levelLabel(rank)})
               </button>
             </div>
           </Field>
@@ -177,15 +177,15 @@ export function ForgeHome() {
             <Seg value={prefs.count} options={[5, 10, 20, 30].map((n) => [n, String(n)])} onChange={(count) => set({ count })} />
           </Field>
 
-          <Field label="Time per problem" zh="限时">
-            <Seg value={prefs.timeLimit} options={[[0, 'No limit'], [30, '30 s'], [60, '1 min'], [180, '3 min']]} onChange={(timeLimit) => set({ timeLimit })} />
+          <Field label="Time limit" zh="限时">
+            <Seg value={prefs.timeLimit} options={[[0, 'None'], [30, '30 s'], [60, '1 min'], [180, '3 min']]} onChange={(timeLimit) => set({ timeLimit })} />
           </Field>
 
           <Field label="Answer length" zh="手数">
-            <Seg value={prefs.maxMoves} options={[[0, 'Any'], [1, '1 move'], [3, 'Up to 3'], [5, 'Up to 5']]} onChange={(maxMoves) => set({ maxMoves })} />
+            <Seg value={prefs.maxMoves} options={[[0, 'Any'], [1, '1'], [3, '≤3'], [5, '≤5']]} onChange={(maxMoves) => set({ maxMoves })} />
           </Field>
 
-          <Field label="The side that is behind keeps at least" zh="胜率">
+          <Field label="Min. trailing winrate" zh="胜率">
             <div className="row">
               <input
                 type="range"
@@ -199,27 +199,26 @@ export function ForgeHome() {
               <strong className="mono">{Math.round(prefs.minLosingWinrate * 100)}%</strong>
             </div>
             <p className="tiny muted">
-              Whole-board problems come from games that were still close. Life-and-death problems are set up as even games (the right answer
-              leaves both sides at about 50%), so they always qualify.
+              Filters whole-board problems. Life-and-death always qualifies.
             </p>
           </Field>
 
           <details className="fh-options">
             <summary className="small">Options</summary>
             <div className="stack tight small">
-              <Toggle on={prefs.confirmMove} onChange={(confirmMove) => set({ confirmMove })} label="Confirm moves (tap a point, then tap it again)" />
-              <Toggle on={prefs.autoNext} onChange={(autoNext) => set({ autoNext })} label="Go to the next problem after a right answer" />
-              <Toggle on={prefs.onWrong === 'retry'} onChange={(v) => set({ onWrong: v ? 'retry' : 'answer' })} label="After a wrong move, let me try again (instead of showing the answer)" />
-              <Toggle on={prefs.coords} onChange={(coords) => set({ coords })} label="Show coordinates" />
+              <Toggle on={prefs.confirmMove} onChange={(confirmMove) => set({ confirmMove })} label="Confirm moves (tap twice)" />
+              <Toggle on={prefs.autoNext} onChange={(autoNext) => set({ autoNext })} label="Auto-next after a right answer" />
+              <Toggle on={prefs.onWrong === 'retry'} onChange={(v) => set({ onWrong: v ? 'retry' : 'answer' })} label="Retry after a wrong move" />
+              <Toggle on={prefs.coords} onChange={(coords) => set({ coords })} label="Coordinates" />
               <Toggle on={prefs.sound} onChange={(sound) => set({ sound })} label="Sounds" />
-              <Toggle on={prefs.llmText} onChange={(llmText) => set({ llmText })} label="Hints and explanations written by the AI coach (checked against KataGo)" />
+              <Toggle on={prefs.llmText} onChange={(llmText) => set({ llmText })} label="Coach hints" />
             </div>
           </details>
 
           <div className="spread fh-go">
-            <span className="small muted">{available} problems match</span>
+            <span className="small muted">{available} match</span>
             <button className="btn primary big" disabled={!available} onClick={() => go('forge/set')}>
-              <Icon name="play" /> Start {Math.min(prefs.count, available)} problems
+              <Icon name="play" /> Start {Math.min(prefs.count, available)}
             </button>
           </div>
         </section>
@@ -227,7 +226,7 @@ export function ForgeHome() {
 
       {progress.results.length > 0 && (
         <section className="panel stack">
-          <h3>Your results</h3>
+          <h3>Results</h3>
           <div className="fh-catstats">
             {CATS.filter((c) => stats[c]).map((c) => {
               const s = stats[c]!;
@@ -235,25 +234,22 @@ export function ForgeHome() {
                 <div key={c} className="fh-catstat">
                   <strong>{CATEGORY_TEXT[c].label}</strong>
                   <span className="small">
-                    {s.ok}/{s.tried} at the first try
+                    {s.ok}/{s.tried} first try
                   </span>
-                  {s.ok > 0 && <span className="tiny muted">solving around {levelLabel(s.level)}</span>}
+                  {s.ok > 0 && <span className="tiny muted">~{levelLabel(s.level)}</span>}
                 </div>
               );
             })}
           </div>
           <div className="fh-recent">
             {progress.results.slice(-40).map((r, i) => (
-              <span key={i} className={`fh-res ${r.ok ? 'ok' : r.solved ? 'half' : 'bad'}`} title={`${CATEGORY_TEXT[r.cat].label}, ${levelLabel(r.level)}: ${r.ok ? 'solved' : r.solved ? 'solved after a retry or hint' : 'missed'}`} />
+              <span key={i} className={`fh-res ${r.ok ? 'ok' : r.solved ? 'half' : 'bad'}`} title={`${CATEGORY_TEXT[r.cat].label}, ${levelLabel(r.level)}: ${r.ok ? 'solved' : r.solved ? 'solved with help' : 'missed'}`} />
             ))}
           </div>
         </section>
       )}
       <p className="tiny muted fs-source">
-        How problems are made: KataGo scans real games (Fox games from 15k to 7d and professional games) for fights where one move decides,
-        cuts the fight out, proves the answer with a full search and searches out how the opponent resists and how tempting wrong moves fail. Levels
-        come from how often players of each rank find those moves in real games. The AI coach only writes the words and judges which problems teach
-        something; it never decides an answer. New problems are added every night.
+        Problems come from Fox (15k to 7d) and pro games. KataGo proves every answer and refutation. Levels reflect how often each rank finds the move. New problems nightly.
       </p>
     </div>
   );
@@ -297,7 +293,7 @@ function StartLevel({ suggested }: { suggested: number | null }) {
   const [r, setR] = useState(suggested ?? -5);
   return (
     <div className="stack tight fh-start">
-      <span className="small">What is your level?</span>
+      <span className="small">Your level</span>
       <div className="row">
         <select value={r} onChange={(e) => setR(Number(e.target.value))}>
           {LEVELS.map((x) => (
@@ -316,7 +312,7 @@ function StartLevel({ suggested }: { suggested: number | null }) {
           Set
         </button>
       </div>
-      <span className="tiny muted">{suggested !== null ? 'Suggested from your games. ' : ''}It adjusts as you solve problems.</span>
+      <span className="tiny muted">{suggested !== null ? 'From your games. ' : ''}Adjusts as you solve.</span>
     </div>
   );
 }

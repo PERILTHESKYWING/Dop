@@ -25,14 +25,14 @@ function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
     const p = g.status === 'deep' ? g.progress.deep / Math.max(1, g.progress.deepTotal) : g.progress.fast / Math.max(1, g.progress.total);
     return (
       <div style={{ minWidth: 120 }}>
-        <div className="tiny muted">{g.status === 'deep' ? `searching ${g.progress.deep}/${g.progress.deepTotal}` : `first look ${g.progress.fast}/${g.progress.total}`}</div>
+        <div className="tiny muted">{g.status === 'deep' ? `deep ${g.progress.deep}/${g.progress.deepTotal}` : `scan ${g.progress.fast}/${g.progress.total}`}</div>
         <div className="progress">
           <span style={{ width: `${p * 100}%` }} />
         </div>
       </div>
     );
   }
-  if (g.status === 'fast') return <span className="chip">{g.progress.deep > 0 ? 'search paused' : 'search queued'}</span>;
+  if (g.status === 'fast') return <span className="chip">{g.progress.deep > 0 ? 'paused' : 'queued'}</span>;
   return <span className="chip">{g.progress.fast > 0 ? 'paused' : 'queued'}</span>;
 }
 
@@ -58,7 +58,7 @@ function KifuSection() {
       <div className="panel" style={{ marginTop: 14, padding: '10px 14px' }}>
         <div className="spread">
           <h3 style={{ margin: 0 }}>Your kifu</h3>
-          <span className="small muted">Save a position from the study board to see it here.</span>
+          <span className="small muted">None saved.</span>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ function KifuSection() {
       <div className="spread" style={{ padding: '8px 8px 0' }}>
         <h3 style={{ margin: 0 }}>Your kifu</h3>
         <span className="small muted">
-          {items.length} saved · {items.reduce((a, k) => a + countMoves(k), 0)} moves total
+          {items.length} · {items.reduce((a, k) => a + countMoves(k), 0)} moves
         </span>
       </div>
       <div className="table-scroll">
@@ -88,21 +88,21 @@ function KifuSection() {
                   <div className="tiny muted">
                     {k.size}×{k.size}
                     {k.black || k.white ? ` · ${k.black || '?'} vs ${k.white || '?'}` : ''}
-                    {k.source === 'live' ? ' · from the live broadcast' : ''}
+                    {k.source === 'live' ? ' · live' : ''}
                   </div>
                 </td>
                 <td className="small dim narrow-hide">{new Date(k.updatedAt).toLocaleDateString()}</td>
                 <td className="small mono narrow-hide">{countMoves(k)}</td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="row">
-                    <button className="btn small ghost" title="Save to your own files as an .sgf" onClick={() => downloadKifu(k)}>
+                    <button className="btn small ghost" title="Download .sgf" onClick={() => downloadKifu(k)}>
                       Export
                     </button>
                     <button
                       className="btn small ghost"
-                      title="Remove from your kifu"
+                      title="Delete"
                       onClick={() => {
-                        if (confirm(`Remove ${k.title || 'this kifu'}?`)) void deleteKifu(k.id).then(refresh);
+                        if (confirm(`Delete ${k.title || 'this kifu'}?`)) void deleteKifu(k.id).then(refresh);
                       }}
                     >
                       ✕
@@ -138,16 +138,15 @@ export function Library() {
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Your games</div>
-          <h1>Game Library</h1>
+          <h1>Library</h1>
           <p className="sub">
-            {games.length} game{games.length === 1 ? '' : 's'} · {pending ? `${pending} waiting for analysis` : 'all analysed'}
+            {games.length} game{games.length === 1 ? '' : 's'} · {pending ? `${pending} queued` : 'all analysed'}
           </p>
         </div>
         <div className="row">
           {queue.running ? (
             <button className="btn" onClick={pauseQueue}>
-              Pause analysis
+              Pause
             </button>
           ) : (
             pending > 0 && (
@@ -158,8 +157,8 @@ export function Library() {
           )}
           <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
             <option value="mine">My games</option>
-            <option value="opponents">Opponents' games</option>
-            <option value="all">All games</option>
+            <option value="opponents">Opponents</option>
+            <option value="all">All</option>
           </select>
         </div>
       </div>
@@ -177,7 +176,7 @@ export function Library() {
                 <th>You</th>
                 <th>Result</th>
                 <th className="narrow-hide">Moves</th>
-                <th className="narrow-hide">Costly moves</th>
+                <th className="narrow-hide">Errors</th>
                 <th>Status</th>
                 <th />
               </tr>
@@ -193,7 +192,7 @@ export function Library() {
                       {g.handicap > 1 && ` · H${g.handicap}`}
                     </div>
                   </td>
-                  <td className="small dim narrow-hide">{g.date ?? '—'}</td>
+                  <td className="small dim narrow-hide">{g.date ?? '–'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {g.source === 'user' || g.source === 'demo' ? (
                       <select
@@ -213,18 +212,18 @@ export function Library() {
                       <span className="muted small">opponent</span>
                     )}
                   </td>
-                  <td className="small">{g.result ?? '—'}</td>
+                  <td className="small">{g.result ?? '–'}</td>
                   <td className="small mono narrow-hide">{g.moves.length}</td>
-                  <td className="small mono narrow-hide">{g.status === 'done' && g.playerColor ? mistakes.get(g.id) ?? 0 : '—'}</td>
+                  <td className="small mono narrow-hide">{g.status === 'done' && g.playerColor ? mistakes.get(g.id) ?? 0 : '–'}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <StatusCell g={g} current={queue.currentGameId === g.id} />
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <button
                       className="btn small ghost"
-                      title="Remove from library"
+                      title="Delete"
                       onClick={() => {
-                        if (confirm(`Remove ${gameTitle(g)} and its analysis?`)) void removeGames([g.id]);
+                        if (confirm(`Delete ${gameTitle(g)}?`)) void removeGames([g.id]);
                       }}
                     >
                       ✕
@@ -237,7 +236,7 @@ export function Library() {
           </div>
         ) : (
           <div className="empty" style={{ margin: 16 }}>
-            No games here yet.
+            No games.
           </div>
         )}
       </div>

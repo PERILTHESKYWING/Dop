@@ -50,8 +50,8 @@ const pts = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)}`;
 function ago(t: number) {
   const s = Math.max(0, (Date.now() - t) / 1000);
   if (s < 90) return 'just now';
-  if (s < 3600) return `${Math.round(s / 60)} minutes ago`;
-  if (s < 36 * 3600) return `${Math.round(s / 3600)} hour${Math.round(s / 3600) === 1 ? '' : 's'} ago`;
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 36 * 3600) return `${Math.round(s / 3600)} h ago`;
   return new Date(t).toLocaleDateString();
 }
 
@@ -105,19 +105,19 @@ function Head({ copy, onSettings }: { copy: CopyInfo; onSettings?: () => void })
       <div className="dop-title">
         <BrandMark className="dop-emblem" />
         <div>
-          <div className="eyebrow">{demo ? 'The demo player, copied' : 'The copy of you'}</div>
+          <div className="eyebrow">{demo ? 'Demo player' : 'Your copy'}</div>
           <h1>{demo && copy.demoName ? `${copy.demoName}'s Doppelgänger` : 'Your Doppelgänger'}</h1>
           <p className="sub">
             {m
-              ? `It has studied ${plural(m.moves ?? m.trainedOn + m.metrics.testSize, 'move')} of ${demo ? `${copy.demoName ?? 'the demo player'}'s` : 'yours'} and predicts what ${demo ? copy.demoName ?? 'the player' : 'you'} would play, not what is best.`
-              : 'A model that studies your games and predicts what you would play, not what is best.'}
+              ? `Trained on ${plural(m.moves ?? m.trainedOn + m.metrics.testSize, 'move')}. Predicts ${demo ? `${copy.demoName ?? 'the player'}'s` : 'your'} moves, not the best ones.`
+              : 'Predicts your moves, not the best ones.'}
             {busy && ' Updating…'}
           </p>
         </div>
       </div>
       {m && onSettings && (
         <div className="dop-head-tools">
-          <GearButton onClick={onSettings} label="Doppelgänger settings" />
+          <GearButton onClick={onSettings} label="Settings" />
         </div>
       )}
     </div>
@@ -148,16 +148,16 @@ function DopSettings({ copy, onNav }: { copy: CopyInfo; onNav?: () => void }) {
   };
   return (
     <>
-      <SheetSection title="The copy">
-        <ActionTile onClick={() => void rebuildProfile()} disabled={busy} icon="↻" label={busy ? 'Retraining…' : 'Retrain now'} sub="From every analysed game" />
-        <ActionTile onClick={() => nav('library')} icon={<Icon name="upload" />} label="Import games" sub={copy.owner === 'demo' ? 'Make it yours' : 'Teach it more'} />
+      <SheetSection title="Copy">
+        <ActionTile onClick={() => void rebuildProfile()} disabled={busy} icon="↻" label={busy ? 'Retraining…' : 'Retrain'} sub="All analysed games" />
+        <ActionTile onClick={() => nav('library')} icon={<Icon name="upload" />} label="Import games" sub={copy.owner === 'demo' ? 'Make it yours' : 'Add games'} />
       </SheetSection>
-      <SheetSection title="Opponents' copies">
+      <SheetSection title="Opponents">
         {opponents.length ? (
-          <FieldTile label="Play a copy of an opponent">
+          <FieldTile label="Play an opponent">
             <select defaultValue="" onChange={(e) => e.target.value && nav(`doppel/play?opp=${e.target.value}`)} aria-label="Opponent">
               <option value="" disabled>
-                Choose an opponent…
+                Choose…
               </option>
               {opponents.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -167,12 +167,12 @@ function DopSettings({ copy, onNav }: { copy: CopyInfo; onNav?: () => void }) {
             </select>
           </FieldTile>
         ) : (
-          <ActionTile onClick={() => nav('opponents')} icon={<Icon name="swords" />} label="Opponents" sub="Train a copy of anyone" />
+          <ActionTile onClick={() => nav('opponents')} icon={<Icon name="swords" />} label="Opponents" sub="Copy anyone" />
         )}
       </SheetSection>
-      <SheetSection title="More about the copy">
-        <ActionTile onClick={() => nav('doppel/copy')} icon={<Icon name="stones" />} label="The copy" sub="What it learned" />
-        <ActionTile onClick={() => nav('doppel/differences')} icon={<Icon name="target" />} label="Where it differs" sub="From KataGo" />
+      <SheetSection title="More">
+        <ActionTile onClick={() => nav('doppel/copy')} icon={<Icon name="stones" />} label="Copy" sub="What it learned" />
+        <ActionTile onClick={() => nav('doppel/differences')} icon={<Icon name="target" />} label="Differences" sub="vs KataGo" />
       </SheetSection>
     </>
   );
@@ -182,13 +182,11 @@ function DemoBanner({ copy }: { copy: CopyInfo }) {
   return (
     <div className="banner info">
       <div className="grow stack tight">
-        <strong>This is {copy.demoName ?? 'the demo player'}'s copy, not yours</strong>
-        <span className="small dim">
-          It learned from the demo games. Yours is built from your own games once about {MIN_COPY_MOVES} of your moves are analysed: one full game is enough to start, more games make it sharper.
-        </span>
+        <strong>{copy.demoName ?? 'Demo player'}'s copy, not yours</strong>
+        <span className="small dim">Yours trains after {MIN_COPY_MOVES} analysed moves (about one game).</span>
       </div>
       <a className="btn" href={href('library')}>
-        <Icon name="upload" /> Import your games
+        <Icon name="upload" /> Import games
       </a>
     </div>
   );
@@ -229,52 +227,52 @@ function NotReady({ copy }: { copy: CopyInfo }) {
   return (
     <div className="grid cols-hero">
       <div className="panel accent stack">
-        <h2>{copy.state === 'foreign' ? 'Your copy is not trained yet' : 'Your copy has not been trained yet'}</h2>
+        <h2>Copy not trained</h2>
         <p className="dim small">
-          It learns how you choose among KataGo's candidate moves, from your own analysed games: whether you answer locally or play elsewhere, save weak stones or give them up, and so on. It needs about {MIN_COPY_MOVES} of your moves.
-          {copy.state === 'foreign' && ' The copy on file learned from other games than yours (the demo player’s, or games since removed), so it stays hidden until yours is trained.'}
+          Needs about {MIN_COPY_MOVES} of your analysed moves.
+          {copy.state === 'foreign' && ' The stored copy learned from other games, so it stays hidden.'}
         </p>
         <div className="dop-steps">
           <Step
             done={own.length > 0}
-            title="Import your games"
-            detail={own.length ? `${plural(own.length, 'game')} in the library.` : 'Add your SGF files in the Game Library.'}
+            title="Import games"
+            detail={own.length ? `${plural(own.length, 'game')} in library.` : 'Add SGF files.'}
             action={
               !own.length && (
                 <a className="btn small primary" href={href('library')}>
-                  Open the Game Library
+                  Library
                 </a>
               )
             }
           />
           <Step
             done={sided.length > 0}
-            title="Say which side you played"
+            title="Set your side"
             detail={
               own.length === 0
-                ? 'The library asks when a game does not say.'
+                ? 'Asked on import if missing.'
                 : sided.length === own.length
-                  ? 'Known in every game.'
-                  : `Known in ${sided.length} of ${own.length} games. Only those count.`
+                  ? 'All set.'
+                  : `Set in ${sided.length}/${own.length} games.`
             }
             action={
               own.length > sided.length && (
                 <a className="btn small" href={href('library')}>
-                  Choose sides
+                  Set sides
                 </a>
               )
             }
           />
           <Step
             done={analysed.length > 0 ? true : queue.running && waiting.length ? 'busy' : false}
-            title="Let KataGo analyse them"
+            title="Analyse"
             detail={
               <>
                 {analysed.length ? `${plural(analysed.length, 'game')} analysed. ` : ''}
                 {waiting.length ? `${plural(waiting.length, 'game')} waiting. ` : ''}
-                {failed.length ? `${plural(failed.length, 'game')} failed (retry in the library). ` : ''}
-                {queue.running && cur ? `Now: ${gameTitle(cur)}, ${cur.status === 'deep' ? `searching ${cur.progress.deep}/${cur.progress.deepTotal}` : `first look ${cur.progress.fast}/${cur.progress.total}`}.` : ''}
-                {!analysed.length && !waiting.length && !failed.length ? 'Nothing to analyse yet.' : ''}
+                {failed.length ? `${plural(failed.length, 'game')} failed. ` : ''}
+                {queue.running && cur ? `Now: ${gameTitle(cur)}, ${cur.status === 'deep' ? `deep ${cur.progress.deep}/${cur.progress.deepTotal}` : `fast ${cur.progress.fast}/${cur.progress.total}`}.` : ''}
+                {!analysed.length && !waiting.length && !failed.length ? 'Nothing yet.' : ''}
               </>
             }
             action={
@@ -288,10 +286,10 @@ function NotReady({ copy }: { copy: CopyInfo }) {
           />
           <Step
             done={enough}
-            title={`About ${MIN_COPY_MOVES} of your moves`}
+            title={`${MIN_COPY_MOVES} moves`}
             detail={
               <div className="stack tight">
-                <span>{enough ? `${moves.toLocaleString()} of your moves are analysed.` : `${moves} of ${MIN_COPY_MOVES} so far.`}</span>
+                <span>{enough ? `${moves.toLocaleString()} analysed.` : `${moves}/${MIN_COPY_MOVES}`}</span>
                 {!enough && (
                   <div className="progress">
                     <span style={{ width: `${Math.min(100, (moves / MIN_COPY_MOVES) * 100)}%` }} />
@@ -303,12 +301,12 @@ function NotReady({ copy }: { copy: CopyInfo }) {
           {enough && (
             <Step
               done={busy ? 'busy' : false}
-              title="Train the copy"
-              detail={busy ? 'Training…' : 'Enough moves: it trains with your profile.'}
+              title="Train"
+              detail={busy ? 'Training…' : 'Ready.'}
               action={
                 !busy && (
                   <button className="btn small primary" onClick={() => void rebuildProfile()}>
-                    Train now
+                    Train
                   </button>
                 )
               }
@@ -317,16 +315,16 @@ function NotReady({ copy }: { copy: CopyInfo }) {
         </div>
       </div>
       <div className="panel stack">
-        <h3>What it will show</h3>
+        <h3>You get</h3>
         <ul className="notes small">
-          <li>How often it names your exact move, compared with KataGo's own guess.</li>
-          <li>Your habits in plain words, measured against KataGo in the same positions.</li>
-          <li>The positions where your habit and KataGo part ways, and what that costs.</li>
-          <li>A game against it: it answers with the moves it expects you to play.</li>
+          <li>Move prediction accuracy</li>
+          <li>Your habits vs KataGo</li>
+          <li>Where habits cost points</li>
+          <li>A game against yourself</li>
         </ul>
         {!games.some((g) => g.source === 'demo') && !own.length && (
           <button className="btn" style={{ justifySelf: 'start' }} onClick={() => void loadDemo().catch((e) => alert((e as Error).message))}>
-            <Icon name="stones" /> Meet the demo player's copy first
+            <Icon name="stones" /> Try the demo
           </button>
         )}
       </div>
@@ -408,7 +406,7 @@ function useRanked(model: DoppelModel) {
 function Computing({ progress, positions }: { progress: number; positions?: number }) {
   return (
     <div className="stack tight">
-      <span className="small dim">Comparing the copy with KataGo{positions ? ` on ${plural(positions, 'position')}` : ''}…</span>
+      <span className="small dim">Comparing with KataGo{positions ? ` (${plural(positions, 'position')})` : ''}…</span>
       <div className="progress">
         <span style={{ width: `${Math.round(progress * 100)}%` }} />
       </div>
@@ -429,12 +427,10 @@ function Overview({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
         <DifferencesPreview copy={copy} model={model} />
         <div className="panel dop-cta stack">
           <BrandMark className="dop-cta-mark" />
-          <h2>Play against {copy.owner === 'demo' ? copy.who : 'your copy'}</h2>
-          <p className="small dim">
-            It answers with the moves it expects {copy.owner === 'demo' ? `${copy.demoName ?? 'the player'} to play` : 'you to play'}, picked at random in proportion to its probabilities so it varies the way a person does. Next to every reply you see what KataGo would have played.
-          </p>
+          <h2>Play {copy.owner === 'demo' ? copy.who : 'your copy'}</h2>
+          <p className="small dim">It plays like {copy.owner === 'demo' ? copy.demoName ?? 'the player' : 'you'}. KataGo's choice is shown beside each reply.</p>
           <a className="btn primary" href={href('doppel/play')} style={{ justifySelf: 'start' }}>
-            <Icon name="play" /> Play {copy.owner === 'demo' ? 'the copy' : 'your copy'}
+            <Icon name="play" /> Play
           </a>
           <OpponentCopyPicker />
         </div>
@@ -450,16 +446,15 @@ function OpponentCopyPicker() {
   if (!opponents.length)
     return (
       <p className="tiny muted">
-        It can mimic any opponent too, not just you: analyse enough of someone's games on their{' '}
-        <a href={href('opponents')}>opponent page</a> to train a copy of them, style and strength dial included.
+        Copy any rival from their <a href={href('opponents')}>opponent page</a>.
       </p>
     );
   return (
     <label className="stack tight">
-      <span className="field-label">Or play a copy of an opponent</span>
+      <span className="field-label">Or play an opponent</span>
       <select defaultValue="" onChange={(e) => e.target.value && go(`doppel/play?opp=${e.target.value}`)}>
         <option value="" disabled>
-          Choose an opponent…
+          Choose…
         </option>
         {opponents.map((o) => (
           <option key={o.id} value={o.id}>
@@ -503,56 +498,56 @@ function StatusCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
   const you = copy.owner === 'demo' ? copy.demoName ?? 'the player' : 'you';
   return (
     <div className="panel accent stack">
-      <h3>How well it knows {copy.whose} moves</h3>
+      <h3>Accuracy</h3>
       <h2>
-        Names {copy.whose} exact move <span className="doppel">{fmtPct(m.top1)}</span> of the time
+        Exact move <span className="doppel">{fmtPct(m.top1)}</span>
       </h2>
       <div className="dop-compare">
         <div className="dop-compare-legend tiny">
-          <span className="doppel">● the copy</span>
-          <span className="kata">● KataGo's policy alone</span>
+          <span className="doppel">● Copy</span>
+          <span className="kata">● KataGo policy</span>
         </div>
         <CompareRow label="Exact move" copy={m.top1} kata={m.baselineTop1} />
-        <CompareRow label="In its top 3" copy={m.top3} kata={m.baselineTop3} />
+        <CompareRow label="Top 3" copy={m.top3} kata={m.baselineTop3} />
       </div>
       <p className="small dim">
         {m.testSize < 20
-          ? `Checked on only ${plural(m.testSize, 'move')} so far, so these numbers are rough.`
+          ? `Only ${plural(m.testSize, 'test move')}. Rough numbers.`
           : gain >= 0.02
-            ? `${Math.round(gain * 100)} points better than KataGo's own guess at naming what ${you} play${copy.owner === 'demo' ? 's' : ''}: that gap is the habits it learned.`
+            ? `${Math.round(gain * 100)} pts better than KataGo at predicting ${you}.`
             : gain > -0.02
-              ? `About as good as KataGo's own guess so far. More games give it more of ${copy.whose} habits to learn.`
-              : `Not yet better than KataGo's own guess: it needs more of ${copy.whose} games.`}
+              ? `Level with KataGo. Add games.`
+              : `Behind KataGo. Add more of ${copy.whose} games.`}
       </p>
       <dl className="kv">
-        <dt>Learned from</dt>
+        <dt>Trained on</dt>
         <dd>
           {plural(moves, 'move')}
           {gamesN ? ` in ${plural(gamesN, 'game')}` : ''}
-          {copy.newGames > 0 && <span className="muted"> · {plural(copy.newGames, 'newer game')} not learned yet</span>}
+          {copy.newGames > 0 && <span className="muted"> · {plural(copy.newGames, 'new game')} pending</span>}
         </dd>
-        <dt>Checked on</dt>
+        <dt>Tested on</dt>
         <dd>
-          {plural(m.testSize, 'move')} {(gamesN ?? 0) >= 5 ? 'from games it had not seen' : 'it had not learned from'}
+          {plural(m.testSize, 'unseen move')}
         </dd>
         {model.outsideRate !== undefined && (
           <>
             <dt>Off KataGo's list</dt>
             <dd>
-              {fmtPct(model.outsideRate)} of {copy.whose} moves <span className="muted">(not among KataGo's top 10, so a copy cannot name them)</span>
+              {fmtPct(model.outsideRate)} <span className="muted">(outside top 10)</span>
             </dd>
           </>
         )}
         <dt>Updated</dt>
         <dd>
-          {ago(model.trainedAt)} · version {model.version}
+          {ago(model.trainedAt)} · v{model.version}
         </dd>
       </dl>
       {old && (
         <div className="callout small">
-          This copy was trained with an earlier method whose numbers were too kind (it counted moves outside KataGo's list as findable).{' '}
+          Trained with an old method. Numbers are inflated.{' '}
           <button className="btn small" disabled={busy} onClick={() => void rebuildProfile()}>
-            {busy ? 'Retraining…' : 'Retrain now'}
+            {busy ? 'Retraining…' : 'Retrain'}
           </button>
         </div>
       )}
@@ -565,13 +560,13 @@ function HabitsCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
   const max = Math.max(0.5, ...habits.map((h) => Math.abs(h.weight)));
   return (
     <div className="panel stack">
-      <h3>{copy.owner === 'demo' ? 'Its habits' : 'Your habits, as it sees them'}</h3>
+      <h3>{copy.owner === 'demo' ? 'Habits' : 'Your habits'}</h3>
       {habits.length ? (
         <>
-          <p className="small dim">Compared with KataGo in the same positions, {copy.owner === 'demo' ? copy.demoName ?? 'the player' : 'you'}:</p>
+          <p className="small dim">vs KataGo, {copy.owner === 'demo' ? copy.demoName ?? 'the player' : 'you'}:</p>
           <div className="dop-habits">
             {habits.map((h) => (
-              <div key={h.feature} className="dop-habit" title={`${h.odds >= 1 ? h.odds.toFixed(1) + '× as likely' : (1 / h.odds).toFixed(1) + '× less likely'} as KataGo's policy suggests, all else equal`}>
+              <div key={h.feature} className="dop-habit" title={`${h.odds >= 1 ? h.odds.toFixed(1) + '× more' : (1 / h.odds).toFixed(1) + '× less'} likely than KataGo policy`}>
                 <span className="small">{h.text}</span>
                 <div className={`bar ${h.weight > 0 ? 'dop-bar-copy' : 'dop-bar-less'}`}>
                   <span style={{ width: `${Math.min(100, (Math.abs(h.weight) / max) * 100)}%` }} />
@@ -580,10 +575,9 @@ function HabitsCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
               </div>
             ))}
           </div>
-          <p className="tiny muted">Each habit is a learned weight: how much more or less likely such a move is for {copy.owner === 'demo' ? 'the player' : 'you'} than KataGo's policy suggests, with everything else equal.</p>
         </>
       ) : (
-        <p className="small dim">No clear habit yet: so far {copy.owner === 'demo' ? 'the player chooses' : 'you choose'} among KataGo's candidates much as KataGo's policy would. More games may show some.</p>
+        <p className="small dim">No clear habit yet.</p>
       )}
     </div>
   );
@@ -596,10 +590,10 @@ function DifferencesPreview({ copy, model }: { copy: CopyInfo; model: DoppelMode
   return (
     <div className="panel stack">
       <div className="spread">
-        <h3>Where {copy.owner === 'demo' ? 'its habits' : 'your habits'} cost the most</h3>
+        <h3>Costliest habits</h3>
         {ranked.length > 3 && (
           <a className="small muted" href={href('doppel/differences')}>
-            all {ranked.length} →
+            All {ranked.length}
           </a>
         )}
       </div>
@@ -608,8 +602,8 @@ function DifferencesPreview({ copy, model }: { copy: CopyInfo; model: DoppelMode
       ) : (
         <>
           <p className="small dim">
-            In {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} positions its first choice is not KataGo's.{' '}
-            {ranked.length ? `These cost the most (likelihood × points lost):` : 'None of those cost a point or more in a game that was still open.'}
+            Differs from KataGo in {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} positions.
+            {ranked.length ? '' : ' None cost a point.'}
           </p>
           {ranked.length > 0 && (
             <div className="card-list dop-cards">
@@ -688,7 +682,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
   if (!ranked.length)
     return (
       <div className="empty">
-        In {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} {plural(report.positions, 'position')} the copy's first choice is not KataGo's, but none of those, where KataGo measured it, cost a point or more in a game that was still open. More analysed games (and deeper searches of them) will show more.
+        Differs from KataGo in {fmtPct(report.positions ? report.disagreements / report.positions : 0)} of {copy.whose} {plural(report.positions, 'position')}, but none cost a point. Analyse more games.
       </div>
     );
 
@@ -704,7 +698,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
       <div className="dop-board">
         {sel && game && board && (
           <>
-            <Board size={game.size} stones={board.stones} lastMove={sel.index > 0 ? game.moves[sel.index - 1].loc : null} marks={marks} coords ariaLabel="Position from your game" />
+            <Board size={game.size} stones={board.stones} lastMove={sel.index > 0 ? game.moves[sel.index - 1].loc : null} marks={marks} coords ariaLabel="Game position" />
             <div className="dop-board-legend dop-caption">
               <Legend />
             </div>
@@ -727,17 +721,17 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
               <span className="chip bad">−{sel.cost!.scoreLoss.toFixed(1)} pts</span>
             </div>
             <p className="small">
-              Here the copy expects <strong className="doppel">{locToGtp(sel.copy.loc, sel.size)}</strong> ({fmtPct(sel.copy.p)} likely for {you}). KataGo plays{' '}
-              <strong className="kata">{locToGtp(sel.kata.loc, sel.size)}</strong>, which the copy gives {fmtPct(sel.kata.p)}.
+              Copy <strong className="doppel">{locToGtp(sel.copy.loc, sel.size)}</strong> ({fmtPct(sel.copy.p)} for {you}) · KataGo{' '}
+              <strong className="kata">{locToGtp(sel.kata.loc, sel.size)}</strong> ({fmtPct(sel.kata.p)})
             </p>
             <table className="data dop-table">
               <thead>
                 <tr>
                   <th />
                   <th>Move</th>
-                  <th title="The copy's probability that the player picks this move">Likely</th>
-                  <th title="KataGo's network policy for this move">Policy</th>
-                  <th title="Winrate and score for the player after the move">After</th>
+                  <th title="Copy's probability">Likely</th>
+                  <th title="KataGo policy">Policy</th>
+                  <th title="Winrate and score after">After</th>
                 </tr>
               </thead>
               <tbody>
@@ -758,14 +752,14 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
               </tbody>
             </table>
             <div className="small dim">
-              Following the habit here costs <strong className="bad">{sel.cost!.scoreLoss.toFixed(1)} points</strong>
-              {sel.cost!.winrateLoss >= 0.005 ? ` and ${fmtPct(sel.cost!.winrateLoss, 1)} of the winning chances` : ''}
-              {sel.cost!.from === 'candidates' ? ', by KataGo’s evaluation of both moves.' : ', measured on the move actually played.'}
+              Costs <strong className="bad">{sel.cost!.scoreLoss.toFixed(1)} pts</strong>
+              {sel.cost!.winrateLoss >= 0.005 ? `, ${fmtPct(sel.cost!.winrateLoss, 1)} winrate` : ''}
+              {sel.cost!.from === 'candidates' ? '' : ' (move played)'}
             </div>
-            <DoppelLine predictions={sel.top} size={sel.size} who="The copy's top 3" played={sel.played} />
+            <DoppelLine predictions={sel.top} size={sel.size} who="Copy top 3" played={sel.played} />
             <div className="row wrap">
               <a className="btn small primary" href={href(`review/${sel.gameId}?move=${sel.index + 1}`)}>
-                <Icon name="board" /> Open in Game Review
+                <Icon name="board" /> Review
               </a>
               <button
                 className="btn small"
@@ -773,7 +767,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
                   startFromPosition(game, sel.index, other(sel.color), true);
                   go('doppel/play');
                 }}
-                title="The copy takes this side from here; you play the other"
+                title="Copy takes this side"
               >
                 <Icon name="play" /> Play from here
               </button>
@@ -789,12 +783,10 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
         )}
         <div className="panel stack">
           <div className="spread">
-            <h3>Most expensive habits</h3>
+            <h3>Costliest habits</h3>
             <span className="chip">{ranked.length}</span>
           </div>
-          <p className="tiny muted">
-            Positions from {copy.whose} analysed games where the copy's first choice is not KataGo's, ranked by what the habit costs: its probability × the points its move loses. Only games that were still open, and in the early opening only losses of 3 points or more.
-          </p>
+          <p className="tiny muted">Ranked by probability × points lost.</p>
           <div className="dop-list" ref={listRef} role="listbox" aria-label="Disagreements">
             {ranked.slice(0, shown).map((d, i) => (
               <button key={d.id} role="option" aria-selected={i === idx} className={`dop-row ${i === idx ? 'on' : ''}`} onClick={() => select(d)}>
@@ -808,7 +800,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
                     Move {d.index + 1} · {games.find((g) => g.id === d.gameId)?.date ?? ''}
                   </span>
                 </span>
-                <span className="dop-row-cost mono" title={`Expected cost ${habitCost(d).toFixed(2)} points`}>
+                <span className="dop-row-cost mono" title={`Expected cost ${habitCost(d).toFixed(2)} pts`}>
                   −{d.cost!.scoreLoss.toFixed(1)}
                 </span>
               </button>
@@ -816,7 +808,7 @@ function Differences({ copy, model, at }: { copy: CopyInfo; model: DoppelModel; 
           </div>
           {ranked.length > shown && (
             <button className="btn small ghost" style={{ justifySelf: 'start' }} onClick={() => setShown((n) => n + 25)}>
-              Show more ({ranked.length - shown})
+              More ({ranked.length - shown})
             </button>
           )}
         </div>
@@ -1101,16 +1093,16 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     return (
       <BoardScreen
         className="dop-screen"
-        title={`Play against ${demoMode ? copy.who : 'your copy'}`}
-        sub={opponent ? 'An opponent’s copy' : 'Doppelgänger'}
+        title={`Play ${demoMode ? copy.who : 'your copy'}`}
+        sub={opponent ? 'Opponent' : 'Doppelgänger'}
         homeHref={opponent ? href(`opponents/${opponent.id}`) : undefined}
         homeLabel={opponent ? 'Back' : undefined}
         players={<PlayersBar black={setup.user === 1 ? 'You' : whoLabel} white={setup.user === 1 ? whoLabel : 'You'} />}
         board={<Board size={size} stones={preview ? preview.stones : new Int8Array(size * size)} lastMove={preview && setup.move > 0 ? source!.moves[setup.move - 1]?.loc : null} coords ariaLabel="Starting position" />}
         tools={[
-          { id: 'settings', label: 'The copy', icon: 'twin', on: settingsOpen, onClick: () => setSettingsOpen(!settingsOpen) },
-          { id: 'analysis', label: 'Analysis', icon: 'trend', on: showAnalysis, onClick: () => setShowAnalysis(!showAnalysis), title: 'Show winrates and the report tabs during the game' },
-          { id: 'hints', label: 'Hints', icon: 'eye', on: hints, onClick: () => setHints(!hints), title: 'Show the move the copy expects from you' },
+          { id: 'settings', label: 'Copy', icon: 'twin', on: settingsOpen, onClick: () => setSettingsOpen(!settingsOpen) },
+          { id: 'analysis', label: 'Analysis', icon: 'trend', on: showAnalysis, onClick: () => setShowAnalysis(!showAnalysis), title: 'Winrates and reports' },
+          { id: 'hints', label: 'Hints', icon: 'eye', on: hints, onClick: () => setHints(!hints), title: 'Your predicted move' },
         ]}
         panel={
           settingsOpen ? (
@@ -1125,28 +1117,28 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
                       <strong>
                         <i className={`stone-dot ${c === 1 ? 'b' : 'w'}`} /> {c === 1 ? 'Black' : 'White'}
                       </strong>
-                      <span>the copy plays {c === 1 ? 'White' : 'Black'}</span>
+                      <span>vs {c === 1 ? 'White' : 'Black'}</span>
                     </button>
                   ))}
                 </div>
               </div>
               {unavailable ? (
                 <div className="callout bad small">
-                  KataGo could not start on this device, and the copy chooses among KataGo's candidate moves, so it cannot play here. <a href={href('settings')}>Engine &amp; Settings</a> has the details and fixes.
+                  KataGo failed to start, so the copy cannot play. See <a href={href('settings')}>Settings</a>.
                 </div>
               ) : (
                 <button className="btn primary dop-start" onClick={start}>
-                  <Icon name="play" /> Start the game
+                  <Icon name="play" /> Start
                 </button>
               )}
-              {!unavailable && engine.status !== 'ready' && <p className="tiny muted">KataGo loads when the game starts (it supplies the candidate moves the copy chooses from).</p>}
-              <SheetSection title="Game setup">
+              {!unavailable && engine.status !== 'ready' && <p className="tiny muted">KataGo loads on start.</p>}
+              <SheetSection title="Setup">
                 <ToggleTile on={setup.from === 'empty'} onChange={() => setSetup({ ...setup, from: 'empty' })} icon="◻" label="Empty board" sub="Black moves first" />
                 <ToggleTile
                   on={setup.from === 'game'}
                   onChange={() => sources.length && setSetup({ ...setup, from: 'game', gameId: source?.id, move: setup.move || Math.min(60, source?.moves.length ?? 0) })}
                   icon="◧"
-                  label={demoMode ? 'One of the games' : 'One of your games'}
+                  label={demoMode ? 'From a game' : 'From your game'}
                   sub={sources.length ? 'Any position' : 'No games yet'}
                 />
                 {setup.from === 'empty' ? (
@@ -1181,24 +1173,23 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
                   )
                 )}
               </SheetSection>
-              <SheetSection title="The copy's play">
+              <SheetSection title="Copy">
                 <FieldTile label="Strength">
                   <select value={setup.strength === null ? 'natural' : String(setup.strength)} onChange={(e) => setSetup({ ...setup, strength: e.target.value === 'natural' ? null : Number(e.target.value) })} aria-label="Strength">
-                    <option value="natural">As {demoMode ? 'the player' : 'you'} play (no limit)</option>
+                    <option value="natural">Natural ({demoMode ? 'player' : 'you'})</option>
                     {STRENGTHS.map((r) => (
                       <option key={r} value={r}>
-                        {r === FULL_STRENGTH ? 'Full strength, same style' : `About ${rankLabel(r)}, same style`}
+                        {r === FULL_STRENGTH ? 'Full strength' : `~${rankLabel(r)}`}
                       </option>
                     ))}
                   </select>
                   {setup.strength !== null && (
                     <span className="tiny muted">
-                      Picks the moves its player would, but each move's cost is held to what a {setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)} typically loses (about{' '}
-                      {lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} points a move).
+                      Same style, capped at ~{lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} pts lost per move ({setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)}).
                     </span>
                   )}
                 </FieldTile>
-                <ToggleTile on={setup.sample} onChange={(v) => setSetup({ ...setup, sample: v })} icon="⚄" label="Vary its moves" sub="Like a person would" />
+                <ToggleTile on={setup.sample} onChange={(v) => setSetup({ ...setup, sample: v })} icon="⚄" label="Vary moves" sub="Like a person" />
               </SheetSection>
             </>
           )
@@ -1242,14 +1233,14 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     if (kata && kata.loc !== guess?.loc) marks.push({ loc: kata.loc, kind: 'best', label: String(Math.round(kata.p * 100)) });
     caption =
       guess && kata && guess.loc === kata.loc
-        ? `The copy expects ${locToGtp(guess.loc, size)} from you (${fmtPct(guess.p)}), which is also KataGo's first choice.`
-        : `Purple: the move the copy expects from you (%). Teal: KataGo's first choice (policy %).`;
+        ? `Copy and KataGo agree: ${locToGtp(guess.loc, size)} (${fmtPct(guess.p)})`
+        : `Purple: your predicted move. Teal: KataGo.`;
   } else if (showAnalysis && lastCopy !== undefined && lastCopy === ply - 1 && copyRead) {
     const mv = game.moves[lastCopy].loc;
     const kata = copyRead.policy.find((e) => e.loc !== PASS);
     if (mv !== PASS) marks.push({ loc: mv, kind: 'doppel' });
     if (kata && kata.loc !== mv) marks.push({ loc: kata.loc, kind: 'best', label: 'K' });
-    if (kata && mv !== PASS) caption = kata.loc === mv ? "The copy's reply is KataGo's first choice too." : "Dashed purple: the copy's reply. K: where KataGo would have played.";
+    if (kata && mv !== PASS) caption = kata.loc === mv ? 'Same as KataGo.' : 'Purple: copy. K: KataGo.';
   }
 
   const onPlay = (loc: Loc) => {
@@ -1292,7 +1283,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     setSaving(true);
     try {
       await saveGame();
-      toast('Saved to your Game Library.', 'ok');
+      toast('Saved to library', 'ok');
     } finally {
       setSaving(false);
     }
@@ -1328,15 +1319,15 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
 
   const status = error ? (
     <span className="bad">
-      {/not available/.test(error) ? 'KataGo is not available, so the copy cannot answer. ' : `KataGo stopped: ${error}. `}
+      {/not available/.test(error) ? 'KataGo unavailable. ' : `KataGo stopped: ${error}. `}
       <button className="btn small" onClick={() => setRetry((r) => r + 1)}>
-        Try again
+        Retry
       </button>{' '}
-      <a href={href('settings')}>Engine &amp; Settings</a>
+      <a href={href('settings')}>Settings</a>
     </span>
   ) : loadingEngine ? (
     engine.progress?.stage === 'download' ? (
-      `Loading KataGo's network… ${engine.progress.total ? Math.round((engine.progress.loaded / engine.progress.total) * 100) + '%' : Math.round(engine.progress.loaded / 1e6) + ' MB'}`
+      `Loading KataGo… ${engine.progress.total ? Math.round((engine.progress.loaded / engine.progress.total) * 100) + '%' : Math.round(engine.progress.loaded / 1e6) + ' MB'}`
     ) : (
       'Starting KataGo…'
     )
@@ -1345,20 +1336,20 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
       <>{game.resigned === game.user ? 'You resigned.' : `${whoName} resigned.`}</>
     ) : (
       <>
-        Game over: both passed.{' '}
+        Game over.{' '}
         {current && (
           <>
-            KataGo's estimate: <strong>{current.bLead >= 0 ? 'B' : 'W'}+{Math.abs(current.bLead).toFixed(1)}</strong>.
+            Est. <strong>{current.bLead >= 0 ? 'B' : 'W'}+{Math.abs(current.bLead).toFixed(1)}</strong>.
           </>
         )}
       </>
     )
   ) : viewing !== null ? (
-    <>Looking back at move {game.prefix.length + viewing}. Step to the end to play on.</>
+    <>Move {game.prefix.length + viewing}. Go to end to play.</>
   ) : yourTurn ? (
-    <>Your move ({game.user === 1 ? 'Black' : 'White'}). Tap the board.</>
+    <>Your move ({game.user === 1 ? 'Black' : 'White'})</>
   ) : (
-    <>{whoName} is choosing a move…</>
+    <>{whoName} thinking…</>
   );
 
   const playing = (
@@ -1369,7 +1360,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
       {caption && <div className="small dop-caption">{caption}</div>}
       {over && (
         <button className="btn primary" onClick={() => void reviewGame()} disabled={saving}>
-          <Icon name="board" /> {saving ? 'Saving…' : 'Review this game'}
+          <Icon name="board" /> {saving ? 'Saving…' : 'Review'}
         </button>
       )}
     </>
@@ -1381,22 +1372,22 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
         {playing}
         {lastCopy !== undefined && (
           <div className="stack">
-            <h3>Its last reply</h3>
+            <h3>Last reply</h3>
             {copyRead ? <ReplyCompare read={copyRead} played={game.moves[lastCopy].loc} size={size} who={whoName} /> : <p className="small muted">…</p>}
           </div>
         )}
         {lastUser !== undefined && game.moves[lastUser].loc !== PASS && (
           <div className="stack">
-            <h3>Your last move</h3>
+            <h3>Your move</h3>
             {userRead ? (
               <>
-                <DoppelLine predictions={userRead.preds.slice(0, 3)} size={size} who={demoMode ? `${copy.who} expected` : 'Your copy expected'} played={game.moves[lastUser].loc} />
+                <DoppelLine predictions={userRead.preds.slice(0, 3)} size={size} who="Expected" played={game.moves[lastUser].loc} />
                 <div className="small dim">
-                  KataGo's first choice: <span className="kata">{locToGtp(userRead.policy.find((e) => e.loc !== PASS)?.loc ?? PASS, size)}</span>
+                  KataGo: <span className="kata">{locToGtp(userRead.policy.find((e) => e.loc !== PASS)?.loc ?? PASS, size)}</span>
                 </div>
               </>
             ) : (
-              <p className="small muted">KataGo is reading that position…</p>
+              <p className="small muted">Reading…</p>
             )}
           </div>
         )}
@@ -1412,9 +1403,9 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           <dl className="kv">
             {replies > 0 && (
               <>
-                <dt>The copy</dt>
+                <dt>Copy</dt>
                 <dd>
-                  played KataGo's first choice in {kataReplies} of {plural(replies, 'reply', 'replies')}
+                  matched KataGo {kataReplies}/{replies}
                 </dd>
               </>
             )}
@@ -1422,7 +1413,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
               <>
                 <dt>You</dt>
                 <dd>
-                  played the move {demoMode ? 'it' : 'your copy'} expected {guessed} of {plural(userMoves, 'time')}
+                  matched the copy {guessed}/{userMoves}
                 </dd>
               </>
             )}
@@ -1432,22 +1423,22 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     );
 
   const tools: ScreenTool[] = [
-    { id: 'undo', label: 'Take back', icon: 'back', onClick: undo, disabled: lastUser === undefined, title: 'Take back your last move' },
+    { id: 'undo', label: 'Undo', icon: 'back', onClick: undo, disabled: lastUser === undefined, title: 'Undo your last move' },
     { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => onPlay(PASS), disabled: !yourTurn || viewing !== null },
     over ? { id: 'new', label: 'New game', icon: 'plus', onClick: () => setGame(() => null) } : { id: 'resign', label: 'Resign', icon: 'close', onClick: () => setNotice('resign') },
-    { id: 'hints', label: 'Hints', icon: 'eye', on: hints, onClick: () => setHints(!hints), title: 'Show the move the copy expects from you' },
-    { id: 'analysis', label: 'Analysis', icon: 'trend', on: showAnalysis, onClick: () => setShowAnalysis(!showAnalysis), title: 'Show the evaluation bar and the Data, Trend, Blunder and Performance tabs' },
+    { id: 'hints', label: 'Hints', icon: 'eye', on: hints, onClick: () => setHints(!hints), title: 'Your predicted move' },
+    { id: 'analysis', label: 'Analysis', icon: 'trend', on: showAnalysis, onClick: () => setShowAnalysis(!showAnalysis), title: 'Eval bar and report tabs' },
   ];
 
   return (
     <BoardScreen
       className="dop-screen"
-      title={demoMode ? `Playing ${copy.who}` : 'Playing your copy'}
-      sub={`${game.size}×${game.size} · komi ${game.komi}${game.strength !== null ? ` · ${game.strength === FULL_STRENGTH ? 'full strength' : `about ${rankLabel(game.strength)}`}` : ''}`}
+      title={demoMode ? copy.who : 'Your copy'}
+      sub={`${game.size}×${game.size} · komi ${game.komi}${game.strength !== null ? ` · ${game.strength === FULL_STRENGTH ? 'full strength' : `~${rankLabel(game.strength)}`}` : ''}`}
       homeHref={href(home)}
       homeLabel={opponent ? 'Back' : 'Home'}
       onHome={unsaved && !over ? () => setNotice('leave') : undefined}
-      head={<HeadButton icon="save" label={saved ? 'Saved' : 'Save'} onClick={() => (saved ? toast('Already in your Game Library.', 'info') : setNotice('save'))} disabled={saving || !game.moves.length} title="Save this game to your Game Library" />}
+      head={<HeadButton icon="save" label={saved ? 'Saved' : 'Save'} onClick={() => (saved ? toast('Already saved', 'info') : setNotice('save'))} disabled={saving || !game.moves.length} title="Save to library" />}
       players={
         <PlayersBar
           black={black}
@@ -1461,7 +1452,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           pending={!shownRead}
         />
       }
-      board={<Board size={size} stones={shownBoard.stones} lastMove={shownLast} toPlay={yourTurn && viewing === null ? game.user : undefined} onPlay={yourTurn && viewing === null ? onPlay : undefined} marks={marks} coords ariaLabel="Game against your copy" />}
+      board={<Board size={size} stones={shownBoard.stones} lastMove={shownLast} toPlay={yourTurn && viewing === null ? game.user : undefined} onPlay={yourTurn && viewing === null ? onPlay : undefined} marks={marks} coords ariaLabel="Game board" />}
       steps={{ pos: viewing ?? ply, total: ply, onGo: goPly }}
       tabs={showAnalysis ? REPORT_TABS : null}
       tab={tab}
@@ -1471,7 +1462,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
       notice={
         notice === 'resign' ? (
           <Notice
-            title="Resign this game?"
+            title="Resign?"
             onClose={() => setNotice(null)}
             actions={
               <>
@@ -1486,7 +1477,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           />
         ) : notice === 'save' ? (
           <Notice
-            title="Save this game?"
+            title="Save game?"
             onClose={() => setNotice(null)}
             actions={
               <>
@@ -1500,12 +1491,12 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
             }
           >
             <span>
-              It goes to your Game Library as a game against {demoMode ? copy.who : 'your copy'}, with the {history.length} moves played so far. Saving again later updates it. It does not retrain the copy.
+              Saves {history.length} moves to your library. Saving again updates it.
             </span>
           </Notice>
         ) : notice === 'leave' ? (
           <Notice
-            title="Leave without saving?"
+            title="Leave unsaved?"
             onClose={() => setNotice(null)}
             actions={
               <>
@@ -1513,15 +1504,15 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
                   Stay
                 </button>
                 <button className="btn" onClick={() => (setGame(() => null), go(home))}>
-                  Leave without saving
+                  Leave
                 </button>
                 <button className="btn primary" onClick={() => void saveGame().then(() => go(home))}>
-                  Save and leave
+                  Save &amp; leave
                 </button>
               </>
             }
           >
-            <span>{game.savedId ? 'The moves since you last saved are not in your Game Library.' : "This game isn't in your Game Library."} Leaving without saving ends it here.</span>
+            <span>{game.savedId ? 'Recent moves are unsaved.' : 'This game is unsaved.'}</span>
           </Notice>
         ) : null
       }
@@ -1531,7 +1522,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
 
 /** The copy's reply next to KataGo's choice: the candidates with both sets of probabilities. */
 function ReplyCompare({ read, played, size, who }: { read: PositionRead; played: Loc; size: number; who: string }) {
-  if (played === PASS) return <p className="small">{who} passed{read.policy[0]?.loc === PASS ? ', as KataGo would.' : '.'}</p>;
+  if (played === PASS) return <p className="small">{who} passed{read.policy[0]?.loc === PASS ? ' (same as KataGo)' : ''}</p>;
   const kata = read.policy.find((e) => e.loc !== PASS);
   const rank = read.preds.findIndex((p) => p.loc === played);
   const p = read.preds[rank]?.p;
@@ -1544,19 +1535,19 @@ function ReplyCompare({ read, played, size, who }: { read: PositionRead; played:
         <div>
           <span className="tiny muted">{who} played</span>
           <strong className="doppel dop-big">{locToGtp(played, size)}</strong>
-          <span className="tiny dim">{p !== undefined ? `${rank === 0 ? 'its first choice' : `its choice #${rank + 1}`} · ${fmtPct(p)}` : 'KataGo’s move (no prediction)'}</span>
+          <span className="tiny dim">{p !== undefined ? `#${rank + 1} · ${fmtPct(p)}` : 'KataGo move'}</span>
         </div>
         <div>
-          <span className="tiny muted">KataGo would play</span>
+          <span className="tiny muted">KataGo</span>
           <strong className="kata dop-big">{kata ? locToGtp(kata.loc, size) : 'pass'}</strong>
-          <span className="tiny dim">{kata ? (kata.loc === played ? 'the same move' : `policy ${fmtPct(kata.p)}`) : ''}</span>
+          <span className="tiny dim">{kata ? (kata.loc === played ? 'same' : `policy ${fmtPct(kata.p)}`) : ''}</span>
         </div>
       </div>
       <table className="data dop-cands">
         <thead>
           <tr>
             <th>Move</th>
-            <th className="doppel">The copy</th>
+            <th className="doppel">Copy</th>
             <th className="kata">KataGo</th>
           </tr>
         </thead>
@@ -1587,7 +1578,6 @@ function ReplyCompare({ read, played, size, who }: { read: PositionRead; played:
           })}
         </tbody>
       </table>
-      <p className="tiny muted">The copy's probabilities are for the player it copies; KataGo's are its network's first impressions (policy).</p>
     </>
   );
 }

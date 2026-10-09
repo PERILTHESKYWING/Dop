@@ -210,10 +210,10 @@ function LiveShowcase() {
       <div className="lp-board-card">
         <div className="lp-board-head">
           <span className="lp-live">
-            <i data-on={total > 0 ? '1' : '0'} /> Live analysis
+            <i data-on={total > 0 ? '1' : '0'} /> Live
           </span>
           <span className="lp-board-game">Mira vs Arin · move 55</span>
-          <span className="lp-visits">{total ? `${shortCount(total)} visits` : 'starting…'}</span>
+          <span className="lp-visits">{total ? `${shortCount(total)} visits` : 'starting'}</span>
         </div>
         <div className={`lp-board ${phone ? 'phone' : ''}`}>
           <Board
@@ -223,7 +223,7 @@ function LiveShowcase() {
             candidates={marks}
             crop={phone ? PHONE_CROP : DESK_CROP}
             detail="full"
-            ariaLabel="Demo position with KataGo's candidate moves"
+            ariaLabel="Demo position, KataGo candidates"
           />
         </div>
         <div className="lp-board-foot">
@@ -233,15 +233,15 @@ function LiveShowcase() {
       <div className={`lp-float lp-float-best ${!searching ? 'show' : ''}`}>
         <span className="lp-disc best" />
         <span>
-          <strong>KataGo: {locToGtp(best.loc, SIZE)}</strong>
-          <small>{(best.winrate * 100).toFixed(1)}% for Black</small>
+          <strong>KataGo {locToGtp(best.loc, SIZE)}</strong>
+          <small>B {(best.winrate * 100).toFixed(1)}%</small>
         </span>
       </div>
       <div className={`lp-float lp-float-you ${!searching ? 'show' : ''}`}>
         <span className="lp-disc you" />
         <span>
-          <strong>Mira played {locToGtp(SHOW_PLAYED, SIZE)}</strong>
-          <small>−{(best.scoreLead - played.scoreLead).toFixed(1)} points</small>
+          <strong>Played {locToGtp(SHOW_PLAYED, SIZE)}</strong>
+          <small>−{(best.scoreLead - played.scoreLead).toFixed(1)} pts</small>
         </span>
       </div>
     </div>
@@ -265,24 +265,24 @@ function CopyVisual() {
   return (
     <div className="lp-copy-visual">
       <div className="lp-mini-board">
-        <Board size={SIZE} stones={DUO_STONES} marks={marks} crop={crop} lastMove={243} animate={false} ariaLabel="The copy's guess and KataGo's move" />
+        <Board size={SIZE} stones={DUO_STONES} marks={marks} crop={crop} lastMove={243} animate={false} ariaLabel="Copy vs KataGo" />
       </div>
       <div className="lp-copy-bars">
         <div className="lp-copy-row">
           <span className="lp-tag doppel">D</span>
           <span>
             <strong>Your copy</strong>
-            <small>guesses the move you would play</small>
+            <small>your likely move</small>
           </span>
         </div>
         <div className="lp-copy-row">
           <span className="lp-tag kata">K</span>
           <span>
             <strong>KataGo</strong>
-            <small>plays the best move</small>
+            <small>best move</small>
           </span>
         </div>
-        <p className="lp-note">Where the two part ways is where your points go.</p>
+        <p className="lp-note">The gap is your lost points.</p>
       </div>
     </div>
   );
@@ -312,7 +312,7 @@ function DnaVisual() {
     .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
     .join(' ');
   return (
-    <svg className="lp-radar" viewBox="0 0 200 200" role="img" aria-label="Player DNA radar chart (demo player)">
+    <svg className="lp-radar" viewBox="0 0 200 200" role="img" aria-label="Player DNA radar">
       <defs>
         <linearGradient id="lp-radar-fill" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" style={{ stopColor: 'rgb(var(--accent-rgb, 255 142 82))', stopOpacity: 0.7 }} />
@@ -354,16 +354,16 @@ function ForgeVisual() {
   return (
     <div className="lp-forge-visual">
       <div className="lp-mini-board small">
-        <Board size={SIZE} stones={DUO_STONES} marks={marks} crop={crop} lastMove={243} animate={false} ariaLabel="A training position" />
+        <Board size={SIZE} stones={DUO_STONES} marks={marks} crop={crop} lastMove={243} animate={false} ariaLabel="Training position" />
       </div>
       <div className="lp-forge-side">
         <span className="lp-grade">
-          <Icon name="check" /> Right idea
+          <Icon name="check" /> Correct
         </span>
         <div className="lp-meter" aria-label="Mastery 72%">
           <span style={{ '--v': 0.72 } as CSSProperties} />
         </div>
-        <small>mastery of this weakness</small>
+        <small>mastery</small>
       </div>
     </div>
   );
@@ -383,7 +383,7 @@ function BlindVisual() {
         <strong>
           {right}/{results.length}
         </strong>
-        <small>right decisions</small>
+        <small>correct</small>
       </div>
       <div className="lp-blind-dots">
         {results.map((r, i) => (
@@ -415,17 +415,17 @@ function Feature({ icon, eyebrow, title, children, visual, className }: { icon: 
 // ------------------------------------------------------------------ page
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'upload', title: 'Import your games', text: 'Drop your SGF files, many at once, in any common encoding.' },
-  { icon: 'board', title: 'KataGo reads them', text: 'Every position is analysed on your graphics card or CPU, right in the browser.' },
-  { icon: 'dna', title: 'Meet your pattern', text: 'Player DNA, the mistakes you repeat, and a copy that plays like you.' },
-  { icon: 'flame', title: 'Train and prove it', text: 'Forge drills each weakness on your own positions; blind tests show it stuck.' },
+  { icon: 'upload', title: 'Import', text: 'Drop your SGF files.' },
+  { icon: 'board', title: 'Analyse', text: 'KataGo reads every move on your GPU or CPU.' },
+  { icon: 'dna', title: 'Profile', text: 'Your style, repeat mistakes and a copy of you.' },
+  { icon: 'flame', title: 'Train', text: 'Drill each weakness, then test it blind.' },
 ];
 
 const PRIVACY: { glyph: keyof typeof GLYPHS; title: string; text: string }[] = [
-  { glyph: 'device', title: 'Stays in this browser', text: 'Games, analyses, your profile and training live on this device. Nothing is uploaded.' },
-  { glyph: 'user', title: 'No account', text: 'No sign-up, no email, no tracking. Open the page and start.' },
-  { glyph: 'key', title: 'Keys stay on the server', text: 'The optional pattern-naming LLM goes through a server function; its key never reaches the browser.' },
-  { glyph: 'sigma', title: 'Numbers from KataGo', text: 'Weaknesses are counted from KataGo’s analysis. The LLM only puts names to them.' },
+  { glyph: 'device', title: 'On this device', text: 'Nothing is uploaded.' },
+  { glyph: 'user', title: 'No account', text: 'No sign-up or tracking.' },
+  { glyph: 'key', title: 'Keys on the server', text: 'The optional LLM key never reaches the browser.' },
+  { glyph: 'sigma', title: 'Numbers from KataGo', text: 'The LLM only names patterns.' },
 ];
 
 function ThemePicker({ compact }: { compact?: boolean }) {
@@ -501,7 +501,7 @@ export function Landing() {
       await loadDemo();
       await enter();
     } catch (e) {
-      toast(`The demo could not be loaded: ${(e as Error).message}`, 'error');
+      toast(`Demo failed: ${(e as Error).message}`, 'error');
     } finally {
       setBusy(null);
     }
@@ -509,19 +509,19 @@ export function Landing() {
   const pickFiles = () => input.current?.click();
   const scrollTo = (id: string) => root.current?.querySelector(`#${id}`)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
 
-  const importBtn = (primary: boolean, label = 'Import your games') => (
+  const importBtn = (primary: boolean, label = 'Import games') => (
     <button className={`btn big ${primary ? 'primary' : ''}`} onClick={pickFiles} disabled={!!busy}>
-      {busy === 'import' ? <BrandSpinner /> : <Icon name="upload" />} {busy === 'import' ? 'Importing…' : label}
+      {busy === 'import' ? <BrandSpinner /> : <Icon name="upload" />} {busy === 'import' ? 'Importing' : label}
     </button>
   );
   const demoBtn = (
     <button className="btn big" onClick={() => void demo()} disabled={!!busy}>
-      {busy === 'demo' ? <BrandSpinner /> : <Icon name="stones" />} {busy === 'demo' ? 'Loading the demo…' : 'Try the demo'}
+      {busy === 'demo' ? <BrandSpinner /> : <Icon name="stones" />} {busy === 'demo' ? 'Loading' : 'Demo'}
     </button>
   );
   const labBtn = (primary: boolean) => (
     <button className={`btn big ${primary ? 'primary' : 'lp-quiet'}`} onClick={() => void enter()} disabled={!!busy}>
-      Open the lab <Glyph name="arrow" />
+      Open lab <Glyph name="arrow" />
     </button>
   );
 
@@ -562,14 +562,14 @@ export function Landing() {
           <span>DOPPELGÄNGER</span>
         </a>
         <nav className="lp-links" aria-label="Sections">
-          <button onClick={() => scrollTo('features')}>What it does</button>
-          <button onClick={() => scrollTo('how')}>How it works</button>
+          <button onClick={() => scrollTo('features')}>Features</button>
+          <button onClick={() => scrollTo('how')}>How</button>
           <button onClick={() => scrollTo('privacy')}>Privacy</button>
         </nav>
         <div className="lp-top-end">
           <ThemePicker compact />
           <button className="btn small lp-top-cta" onClick={() => void enter()}>
-            {returning ? 'Open the lab' : 'Skip to the lab'} <Glyph name="arrow" />
+            Open lab <Glyph name="arrow" />
           </button>
         </div>
       </header>
@@ -578,15 +578,13 @@ export function Landing() {
         <div className="lp-hero-text lp-halo">
           <div className="lp-hero-brand">
             <BrandMark className="brand-mark lp-mark" />
-            <span className="lp-kicker">Go training lab</span>
+            <span className="lp-kicker">Go training</span>
           </div>
           <h1 className="lp-title">DOPPELGÄNGER</h1>
           <p className="lp-tagline">
-            Find the mistakes <em>you</em> keep making, and train them away.
+            Find <em>your</em> repeat mistakes. Train them out.
           </p>
-          <p className="lp-promise">
-            KataGo reads every position of your own games, right in your browser. DOPPELGÄNGER finds the habits that cost you points, builds a copy that plays like you, and drills you until the numbers change.
-          </p>
+          <p className="lp-promise">KataGo reviews your games in the browser and drills the habits that cost you points.</p>
           <div className="lp-cta">
             {returning ? (
               <>
@@ -604,10 +602,10 @@ export function Landing() {
           </div>
           <ul className="lp-trust">
             <li>
-              <Glyph name="lock" /> Local-first
+              <Glyph name="lock" /> Local
             </li>
             <li>
-              <Icon name="cpu" /> KataGo in the browser
+              <Icon name="cpu" /> In-browser KataGo
             </li>
             <li>
               <Glyph name="user" /> No account
@@ -615,29 +613,28 @@ export function Landing() {
           </ul>
         </div>
         <LiveShowcase />
-        <button className="lp-scroll" onClick={() => scrollTo('features')} aria-label="See what it does">
+        <button className="lp-scroll" onClick={() => scrollTo('features')} aria-label="Features">
           <Glyph name="down" />
         </button>
       </section>
 
       <section className="lp-section" id="features">
         <div className="lp-head lp-halo">
-          <div className="lp-eyebrow-lg reveal">What it does</div>
-          <h2 className="reveal">Everything a coach would notice, from your own games.</h2>
-          <p className="reveal">Not generic lessons: every page is built from the positions you actually played.</p>
+          <div className="lp-eyebrow-lg reveal">Features</div>
+          <h2 className="reveal">Built from your own games.</h2>
         </div>
         <div className="lp-bento">
-          <Feature className="wide" icon="twin" eyebrow="The Doppelgänger" title="A copy of how you play" visual={<CopyVisual />}>
-            It learns which moves you really choose, predicts your next one and plays you a game in your own style. Its differences from KataGo show exactly where your points go.
+          <Feature className="wide" icon="twin" eyebrow="Doppelgänger" title="A copy of you" visual={<CopyVisual />}>
+            Predicts your moves and plays in your style. Compare it with KataGo.
           </Feature>
-          <Feature icon="dna" eyebrow="Player DNA" title="Your style, measured" visual={<DnaVisual />}>
-            Accuracy across openings, fights, territory and endgame, and the areas where the points leak.
+          <Feature icon="dna" eyebrow="Player DNA" title="Your style" visual={<DnaVisual />}>
+            Accuracy by area and phase.
           </Feature>
-          <Feature icon="flame" eyebrow="Forge" title="Train each weakness" visual={<ForgeVisual />}>
-            Positions from your own games where the habit shows up. Choose, then see KataGo’s answer.
+          <Feature icon="flame" eyebrow="Forge" title="Drill weaknesses" visual={<ForgeVisual />}>
+            Your own positions. Pick a move, see KataGo’s.
           </Feature>
-          <Feature icon="eyeOff" eyebrow="Blind tests" title="Prove it stuck" visual={<BlindVisual />}>
-            Fresh positions, no hints. A statistical check tells you whether the lesson really changed your play.
+          <Feature icon="eyeOff" eyebrow="Blind tests" title="Check progress" visual={<BlindVisual />}>
+            Fresh positions, no hints, a real statistical check.
           </Feature>
           <article className="lp-feature lp-also reveal">
             <div className="lp-feature-text">
@@ -645,25 +642,25 @@ export function Landing() {
                 <span className="lp-ico">
                   <Icon name="spark" />
                 </span>
-                Also in the lab
+                More tools
               </div>
               <ul className="lp-also-list">
                 <li>
                   <Icon name="board" />
                   <span>
-                    <strong>Game Review</strong> with live Lizzie-style analysis
+                    <strong>Game Review</strong> with live analysis
                   </span>
                 </li>
                 <li>
                   <Icon name="search" />
                   <span>
-                    <strong>Position Search</strong> across all your games
+                    <strong>Position Search</strong>
                   </span>
                 </li>
                 <li>
                   <Icon name="swords" />
                   <span>
-                    <strong>Opponent profiles</strong> to prepare for a rival
+                    <strong>Opponent profiles</strong>
                   </span>
                 </li>
               </ul>
@@ -674,8 +671,8 @@ export function Landing() {
 
       <section className="lp-section" id="how">
         <div className="lp-head lp-halo">
-          <div className="lp-eyebrow-lg reveal">How it works</div>
-          <h2 className="reveal">From a folder of SGFs to a training plan.</h2>
+          <div className="lp-eyebrow-lg reveal">How</div>
+          <h2 className="reveal">SGFs in, training plan out.</h2>
         </div>
         <ol className="lp-steps">
           {STEPS.map((st, i) => (
@@ -693,9 +690,8 @@ export function Landing() {
 
       <section className="lp-section">
         <div className="lp-head lp-halo">
-          <div className="lp-eyebrow-lg reveal">Make it yours</div>
-          <h2 className="reveal">Pick your scenery.</h2>
-          <p className="reveal">Four painted, slowly moving backdrops. Change it any time in Engine &amp; Settings.</p>
+          <div className="lp-eyebrow-lg reveal">Theme</div>
+          <h2 className="reveal">Pick a backdrop.</h2>
         </div>
         <ThemePicker />
       </section>
@@ -706,9 +702,8 @@ export function Landing() {
             <span className="lp-lock">
               <Glyph name="lock" />
             </span>
-            <div className="lp-eyebrow-lg">Private by design</div>
-            <h2>Your games never leave this browser.</h2>
-            <p>DOPPELGÄNGER is a local-first app. The engine, your data and your training all run and stay on this device.</p>
+            <div className="lp-eyebrow-lg">Privacy</div>
+            <h2>Your games stay in this browser.</h2>
           </div>
           <ul className="lp-privacy-list">
             {PRIVACY.map((p) => (
@@ -728,8 +723,7 @@ export function Landing() {
 
       <section className="lp-final lp-halo">
         <BrandMark className="brand-mark lp-final-mark" />
-        <h2 className="reveal">Ready to meet your double?</h2>
-        <p className="reveal">Bring a few of your games, or look around with the demo player first.</p>
+        <h2 className="reveal">Start with your games.</h2>
         <div className="lp-cta center reveal">
           {returning ? labBtn(true) : importBtn(true)}
           {!hasDemo ? demoBtn : returning ? importBtn(false, 'Import games') : labBtn(false)}
@@ -741,26 +735,26 @@ export function Landing() {
           <BrandMark className="brand-mark lp-foot-mark" />
           <span>
             <strong>DOPPELGÄNGER</strong>
-            <small>A local-first Go training lab</small>
+            <small>Go training lab</small>
           </span>
         </div>
         <nav className="lp-foot-links" aria-label="Footer">
-          <button onClick={() => void enter()}>Open the lab</button>
+          <button onClick={() => void enter()}>Open lab</button>
           <a href={href('settings')} onClick={() => void saveSettings({ onboarded: true })}>
-            Engine &amp; Settings
+            Settings
           </a>
           <a href="/engine/LICENSE-KataGo.txt" target="_blank" rel="noreferrer">
             KataGo licence
           </a>
         </nav>
-        <p className="lp-credit">Analysis by KataGo (David J Wu and contributors), running in your browser through katago-webgpu.</p>
+        <p className="lp-credit">Analysis by KataGo (David J Wu and contributors) via katago-webgpu.</p>
       </footer>
 
       {drag && (
         <div className="lp-drop" aria-hidden>
           <div>
             <Icon name="upload" />
-            <strong>Drop your SGF files to import them</strong>
+            <strong>Drop SGF files</strong>
           </div>
         </div>
       )}

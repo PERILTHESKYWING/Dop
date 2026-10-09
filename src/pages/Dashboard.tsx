@@ -60,11 +60,11 @@ function Check({ state, label, detail }: { state: 'ok' | 'err' | 'warn' | 'off' 
 }
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'upload', title: 'Import', text: 'Drop your SGF games. Many at once is fine.' },
-  { icon: 'board', title: 'Analyse', text: 'KataGo takes a first look at every position, then searches each one.' },
-  { icon: 'dna', title: 'Profile', text: 'Your Player DNA and recurring weaknesses, from repeated evidence.' },
-  { icon: 'flame', title: 'Forge', text: 'Train each weakness on positions from your own games.' },
-  { icon: 'eyeOff', title: 'Test', text: 'Blind tests check that the lesson really stuck.' },
+  { icon: 'upload', title: 'Import', text: 'Drop your SGF files.' },
+  { icon: 'board', title: 'Analyse', text: 'KataGo reads every move.' },
+  { icon: 'dna', title: 'Profile', text: 'Your style and repeat mistakes.' },
+  { icon: 'flame', title: 'Forge', text: 'Drill each weakness.' },
+  { icon: 'eyeOff', title: 'Test', text: 'Confirm it stuck.' },
 ];
 
 function FirstRun() {
@@ -80,19 +80,19 @@ function FirstRun() {
       <header className="dash-hero">
         <div className="dash-hero-main">
           <div className="eyebrow">Welcome</div>
-          <h1>Let’s set up your lab</h1>
-          <p className="sub">KataGo studies your own games, finds the mistakes you repeat, and trains them away. Everything stays in this browser.</p>
-          <More to="welcome">What is DOPPELGÄNGER?</More>
+          <h1>Set up your lab</h1>
+          <p className="sub">KataGo finds your repeat mistakes. Everything stays in this browser.</p>
+          <More to="welcome">About</More>
         </div>
         <ol className="fr-track" aria-label="Getting started">
           <li className="on">
-            <span>1</span> Import your games
+            <span>1</span> Import
           </li>
           <li className={ready ? 'done' : ''}>
-            <span>2</span> KataGo analyses them
+            <span>2</span> Analyse
           </li>
           <li>
-            <span>3</span> Train what it finds
+            <span>3</span> Train
           </li>
         </ol>
       </header>
@@ -102,8 +102,8 @@ function FirstRun() {
       <div className="fr-grid">
         <section className="panel accent fr-start">
           <div className="fr-tag">Start here</div>
-          <h2>Bring your games</h2>
-          <p className="small dim">SGF files from any server or program, in any common encoding. The lab works out which player is you.</p>
+          <h2>Import games</h2>
+          <p className="small dim">SGF from any server. Your side is detected.</p>
           <DropZone onFiles={(f) => void importFiles(f)} />
           <div className="fr-or">
             <span>or</span>
@@ -113,11 +113,11 @@ function FirstRun() {
               <Icon name="stones" />
             </span>
             <div className="fr-demo-text">
-              <strong>Not ready yet?</strong>
-              <span>A demo player with real KataGo analyses, so every page works right away.</span>
+              <strong>No games yet?</strong>
+              <span>Try a demo player with full analyses.</span>
             </div>
             <button className="btn" onClick={() => void loadDemo().catch((e) => alert(e.message))}>
-              <Icon name="stones" /> Explore the demo first
+              <Icon name="stones" /> Demo
             </button>
           </div>
         </section>
@@ -125,11 +125,11 @@ function FirstRun() {
         <section className="panel fr-device">
           <div className="dash-card-head">
             <h3>This device</h3>
-            <span className={`chip ${ready ? 'good' : ''}`}>{ready ? 'KataGo ready' : caps ? (caps.webgpu && !settings.forceCpu ? 'will use WebGPU' : 'will use the CPU') : 'checking…'}</span>
+            <span className={`chip ${ready ? 'good' : ''}`}>{ready ? 'KataGo ready' : caps ? (caps.webgpu && !settings.forceCpu ? 'WebGPU' : 'CPU') : 'checking'}</span>
           </div>
           <div className="fr-checks">
-            <Check state={caps ? (caps.webgpu ? 'ok' : 'warn') : 'busy'} label="Graphics card (WebGPU)" detail={caps ? (caps.webgpu ? caps.webgpuAdapter ?? 'available' : 'not available: the CPU is used') : 'checking…'} />
-            <Check state={caps ? (caps.wasm ? 'ok' : 'err') : 'busy'} label="CPU engine" detail={caps ? (caps.wasm ? 'available' : 'missing') : 'checking…'} />
+            <Check state={caps ? (caps.webgpu ? 'ok' : 'warn') : 'busy'} label="GPU (WebGPU)" detail={caps ? (caps.webgpu ? caps.webgpuAdapter ?? 'available' : 'unavailable, using CPU') : 'checking'} />
+            <Check state={caps ? (caps.wasm ? 'ok' : 'err') : 'busy'} label="CPU engine" detail={caps ? (caps.wasm ? 'available' : 'missing') : 'checking'} />
             <Check
               state={engine.status === 'ready' ? 'ok' : engine.status === 'error' || engine.status === 'unsupported' ? 'err' : engine.status === 'off' ? 'off' : 'busy'}
               label="KataGo"
@@ -140,14 +140,14 @@ function FirstRun() {
                     ? prog?.stage === 'download'
                       ? `downloading ${Math.round(prog.loaded / 1e6)}${prog.total ? ` / ${Math.round(prog.total / 1e6)}` : ''} MB`
                       : prog?.stage === 'check'
-                        ? 'testing…'
-                        : 'loading…'
+                        ? 'testing'
+                        : 'loading'
                     : engine.status === 'error'
                       ? 'could not start'
                       : `ready to load${order[0] ? `: ${order[0].name}` : ''}`
               }
             />
-            <Check state={llm ? (llm.available ? 'ok' : llm.configured ? 'err' : 'off') : 'busy'} label="Pattern discovery (LLM)" detail={llm ? (llm.available ? llm.model ?? 'connected' : llm.configured ? 'not answering' : 'optional, off') : 'checking…'} />
+            <Check state={llm ? (llm.available ? 'ok' : llm.configured ? 'err' : 'off') : 'busy'} label="LLM (optional)" detail={llm ? (llm.available ? llm.model ?? 'connected' : llm.configured ? 'not answering' : 'off') : 'checking'} />
           </div>
           {engine.status === 'loading' && (
             <div className={`progress ${prog?.stage === 'download' && prog.total ? '' : 'indeterminate'}`}>
@@ -156,9 +156,9 @@ function FirstRun() {
           )}
           <div className="fr-device-foot">
             <button className="btn" onClick={() => void startEngine()} disabled={engine.status === 'loading' || ready}>
-              <Icon name={ready ? 'check' : 'cpu'} /> {ready ? 'KataGo is ready' : engine.status === 'loading' ? 'Loading KataGo…' : 'Load KataGo now'}
+              <Icon name={ready ? 'check' : 'cpu'} /> {ready ? 'Ready' : engine.status === 'loading' ? 'Loading' : 'Load KataGo'}
             </button>
-            <span className="tiny muted">It also starts by itself when the first game needs it.</span>
+            <span className="tiny muted">Starts on its own when needed.</span>
           </div>
           <div className="fr-private">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -166,14 +166,14 @@ function FirstRun() {
               <path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" />
             </svg>
             <span>
-              <strong>Everything runs on this device.</strong> KataGo analyses in this browser, and your games, profile and training are stored here. No account, nothing uploaded.
+              <strong>Runs on this device.</strong> No account, nothing uploaded.
             </span>
           </div>
         </section>
       </div>
 
       <section className="panel fr-steps">
-        <h3>How it works</h3>
+        <h3>How</h3>
         <ol>
           {STEPS.map((st, i) => (
             <li key={st.title}>
@@ -221,8 +221,8 @@ function useNextStep(practice: Record<string, number>): Step {
     return {
       icon: 'board',
       title: `Analyse ${pending.length} new game${pending.length > 1 ? 's' : ''}`,
-      text: 'KataGo takes a first look at every position, then searches each one. The lab stays usable meanwhile.',
-      action: 'Start the analysis',
+      text: 'Runs in the background.',
+      action: 'Analyse',
       actionIcon: 'play',
       run: () => void runQueue(),
     };
@@ -236,9 +236,9 @@ function useNextStep(practice: Record<string, number>): Step {
   if (recent && Date.now() - recentAt < 3 * DAY && recentAt > lastTrained)
     return {
       icon: 'board',
-      title: 'Review your latest game',
-      text: `${recent.black} vs ${recent.white}${recent.result ? ` (${recent.result})` : ''}: see where it turned, with KataGo’s candidate moves.`,
-      action: 'Review the game',
+      title: 'Review latest game',
+      text: `${recent.black} vs ${recent.white}${recent.result ? ` (${recent.result})` : ''}`,
+      action: 'Review',
       actionIcon: 'board',
       to: `review/${recent.id}`,
     };
@@ -252,9 +252,9 @@ function useNextStep(practice: Record<string, number>): Step {
     if (m && m.mastery >= 0.6 && !tested)
       return {
         icon: 'eyeOff',
-        title: `Test yourself: ${w.llm?.title ?? w.title}`,
-        text: `Mastery is at ${fmtPct(m.mastery)}. A blind test on fresh positions shows whether the habit has really changed.`,
-        action: 'Take a blind test',
+        title: `Blind test: ${w.llm?.title ?? w.title}`,
+        text: `Mastery ${fmtPct(m.mastery)}. Check it on fresh positions.`,
+        action: 'Blind test',
         actionIcon: 'eyeOff',
         to: `blind/${w.id}`,
       };
@@ -262,8 +262,8 @@ function useNextStep(practice: Record<string, number>): Step {
       return {
         icon: 'flame',
         title: `Train ${who} top weakness`,
-        text: `${w.llm?.title ?? w.title}: ${w.occurrences}× in ${w.games} games, −${w.avgScoreLoss.toFixed(1)} points each time.${m ? ` Mastery ${fmtPct(m.mastery)}.` : ''}`,
-        action: 'Train in Forge',
+        text: `${w.llm?.title ?? w.title}: ${w.occurrences}× in ${w.games} games, −${w.avgScoreLoss.toFixed(1)} pts each.${m ? ` Mastery ${fmtPct(m.mastery)}.` : ''}`,
+        action: 'Train',
         actionIcon: 'flame',
         to: `forge/${w.id}`,
       };
@@ -272,17 +272,17 @@ function useNextStep(practice: Record<string, number>): Step {
   if (queue.running)
     return {
       icon: 'board',
-      title: 'KataGo is reading your games',
-      text: 'Your profile, weaknesses and copy update as each game is finished.',
-      action: 'Watch the progress',
+      title: 'Analysing games',
+      text: 'Your profile updates per game.',
+      action: 'Progress',
       actionIcon: 'library',
       to: 'library',
     };
   if (!weaknesses.some((w) => w.status !== 'resolved'))
     return {
       icon: 'upload',
-      title: 'Add more of your games',
-      text: 'A weakness needs the same kind of error at least 3 times in 2 or more games. More games sharpen the picture.',
+      title: 'Add more games',
+      text: 'A weakness needs 3+ errors across 2+ games.',
       action: 'Import games',
       actionIcon: 'upload',
       to: 'library',
@@ -290,8 +290,8 @@ function useNextStep(practice: Record<string, number>): Step {
   return {
     icon: 'twin',
     title: 'Play your Doppelgänger',
-    text: 'A game against a copy of how you choose moves: see your habits from the other side of the board.',
-    action: 'Play the copy',
+    text: 'Face your own habits.',
+    action: 'Play',
     actionIcon: 'play',
     to: 'doppel/play',
   };
@@ -301,7 +301,7 @@ function NextStep({ step }: { step: Step }) {
   return (
     <div className="next-step">
       <div className="next-label">
-        <Icon name="spark" /> Next step
+        <Icon name="spark" /> Next
       </div>
       <div className="next-body">
         <span className="next-ico">
@@ -335,7 +335,7 @@ function QueueCard() {
     <div className="panel dash-queue">
       <div className="spread">
         <h3 className="with-icon">
-          <span className="live-dot" data-on={queue.running ? '1' : '0'} /> Game analysis
+          <span className="live-dot" data-on={queue.running ? '1' : '0'} /> Analysis
         </h3>
         {!queue.running && pending.length > 0 && (
           <button className="btn small" onClick={() => void runQueue()}>
@@ -350,22 +350,22 @@ function QueueCard() {
               <strong>
                 {cur.black} vs {cur.white}
               </strong>{' '}
-              <span className="muted">{cur.status === 'deep' ? `searching positions ${cur.progress.deep}/${cur.progress.deepTotal}` : `first look ${cur.progress.fast}/${cur.progress.total}`}</span>
+              <span className="muted">{cur.status === 'deep' ? `deep ${cur.progress.deep}/${cur.progress.deepTotal}` : `quick ${cur.progress.fast}/${cur.progress.total}`}</span>
             </span>
-            <span className="muted">{pending.length - 1 > 0 ? `${pending.length - 1} more waiting` : 'last one'}</span>
+            <span className="muted">{pending.length - 1 > 0 ? `${pending.length - 1} queued` : 'last'}</span>
           </div>
           <div className="progress">
             <span style={{ width: `${Math.round(p * 100)}%` }} />
           </div>
         </>
       ) : queue.running ? (
-        <div className="small dim">{engine.status === 'loading' ? (engine.progress?.stage === 'download' ? 'Downloading the KataGo network…' : 'Starting KataGo…') : 'Preparing…'}</div>
+        <div className="small dim">{engine.status === 'loading' ? (engine.progress?.stage === 'download' ? 'Downloading network' : 'Starting KataGo') : 'Preparing'}</div>
       ) : (
-        <div className="small dim">{pending.length ? `${pending.length} game${pending.length > 1 ? 's' : ''} waiting.` : ''}</div>
+        <div className="small dim">{pending.length ? `${pending.length} queued` : ''}</div>
       )}
       {failed.length > 0 && (
         <div className="small bad">
-          {failed.length} game{failed.length > 1 ? 's' : ''} failed: {failed[0].error} <a href={href('library')}>open the Game Library to retry</a>
+          {failed.length} failed: {failed[0].error} <a href={href('library')}>Retry in Library</a>
         </div>
       )}
     </div>
@@ -396,7 +396,7 @@ function WeaknessExample({ w }: { w: Weakness }) {
   const rec = ex && corpus().byId.get(ex.moveId);
   if (!ex || !game || !rec) return null;
   return (
-    <a className="wk-example" href={href(`review/${game.id}?move=${ex.index}`)} title="Open this position in Game Review">
+    <a className="wk-example" href={href(`review/${game.id}?move=${ex.index}`)} title="Open in Review">
       <MoveThumb game={game} record={rec} />
       <span className="wk-example-cap">
         <span>
@@ -419,7 +419,7 @@ function WeaknessCard({ w, practice }: { w: Weakness; practice: number }) {
     <section className="panel dash-card dash-weak">
       <div className="dash-weak-text">
         <div className="dash-card-head">
-          <h3>Your biggest recurring weakness</h3>
+          <h3>Top weakness</h3>
           <span className={`chip ${w.status === 'improving' ? 'good' : 'bad'}`}>{w.status}</span>
         </div>
         <h2>{w.llm?.title ?? w.title}</h2>
@@ -431,7 +431,7 @@ function WeaknessCard({ w, practice }: { w: Weakness; practice: number }) {
           </div>
           <div>
             <strong>−{w.avgScoreLoss.toFixed(1)}</strong>
-            <span>points each time</span>
+            <span>pts each</span>
           </div>
           <div>
             <strong>{m ? fmtPct(m.mastery) : '0%'}</strong>
@@ -439,10 +439,10 @@ function WeaknessCard({ w, practice }: { w: Weakness; practice: number }) {
           </div>
         </div>
         <div className="dash-card-actions">
-          <button className="btn" onClick={() => go(`forge/${w.id}`)} disabled={!practice} title={practice ? undefined : 'No practice positions within the winrate limit yet'}>
-            <Icon name="flame" /> Train in Forge
+          <button className="btn" onClick={() => go(`forge/${w.id}`)} disabled={!practice} title={practice ? undefined : 'No practice positions yet'}>
+            <Icon name="flame" /> Train
           </button>
-          <button className="btn" onClick={() => go(`blind/${w.id}`)} disabled={!practice} title="Do I really know this? A blind test on fresh positions">
+          <button className="btn" onClick={() => go(`blind/${w.id}`)} disabled={!practice} title="Test on fresh positions">
             <Icon name="eyeOff" /> Blind test
           </button>
         </div>
@@ -457,10 +457,10 @@ function NoWeaknessCard() {
     <section className="panel dash-card dash-weak empty">
       <div className="dash-weak-text">
         <div className="dash-card-head">
-          <h3>Recurring weaknesses</h3>
+          <h3>Weaknesses</h3>
         </div>
-        <h2>Nothing confirmed yet</h2>
-        <p className="dim small">A weakness needs the same kind of error at least 3 times in 2 or more games. Analyse more of your games to sharpen the picture.</p>
+        <h2>None yet</h2>
+        <p className="dim small">Needs 3+ similar errors across 2+ games.</p>
         <div className="dash-card-actions">
           <a className="btn" href={href('library')}>
             <Icon name="upload" /> Import games
@@ -476,7 +476,7 @@ function LevelCard() {
   return (
     <section className="panel dash-card dash-level">
       <div className="dash-card-head">
-        <h3>{usesDemoData() ? "The demo player's level" : 'Your level'}</h3>
+        <h3>{usesDemoData() ? 'Demo level' : 'Your level'}</h3>
         <More to="dna">Details</More>
       </div>
       <LevelPanel targets={targets} compact />
@@ -499,7 +499,7 @@ function CopyCard() {
       {doppel ? (
         <>
           <h2>
-            Predicts {copy.whose} move <span className="doppel">{fmtPct(doppel.metrics.top1)}</span> of the time
+            Predicts {copy.whose} move <span className="doppel">{fmtPct(doppel.metrics.top1)}</span>
           </h2>
           <div className="copy-bars">
             <div>
@@ -517,9 +517,7 @@ function CopyCard() {
               <b>{fmtPct(doppel.metrics.baselineTop1)}</b>
             </div>
           </div>
-          <p className="dim small">
-            A model of how {demo ? 'the player chooses' : 'you choose'} moves, learned from {doppel.moves ?? doppel.trainedOn} of {copy.whose} moves.
-          </p>
+          <p className="dim small">Trained on {doppel.moves ?? doppel.trainedOn} moves.</p>
           {habits.length > 0 && (
             <div className="row wrap copy-habits">
               {habits.map((h) => (
@@ -531,20 +529,20 @@ function CopyCard() {
           )}
           <div className="dash-card-actions">
             <a className="btn" href={href('doppel')}>
-              <Icon name="twin" /> Meet {demo ? 'the copy' : 'your copy'}
+              <Icon name="twin" /> Open
             </a>
             <a className="btn" href={href('doppel/play')}>
-              <Icon name="play" /> Play it
+              <Icon name="play" /> Play
             </a>
           </div>
         </>
       ) : (
         <>
           <h2>Not trained yet</h2>
-          <p className="dim small">A copy of how you choose moves, trained once about 30 of your moves are analysed.</p>
+          <p className="dim small">Needs about 30 analysed moves.</p>
           <div className="dash-card-actions">
             <a className="btn" href={href('doppel')}>
-              <Icon name="twin" /> What it needs
+              <Icon name="twin" /> Open
             </a>
           </div>
         </>
@@ -589,9 +587,9 @@ function DnaCard() {
       {profile ? (
         <>
           <p className="tiny muted dna-legend">
-            Accuracy in each area, and where the points go: the share of your moves in each phase that cost 2.5 points or more.
+            Accuracy by area, and share of moves losing 2.5+ pts per phase.
           </p>
-          <div className="dna-grid" role="table" aria-label="Player DNA and where the points go">
+          <div className="dna-grid" role="table" aria-label="Player DNA">
             <div className="dna-row dna-headrow" role="row">
               <span role="columnheader">Area</span>
               <span role="columnheader" data-short="Acc.">
@@ -610,7 +608,7 @@ function DnaCard() {
                 <div key={a.axis} className={`dna-row ${flagged.has(a.axis) ? 'flagged' : ''}`} role="row">
                   <span className="dna-area" role="rowheader">
                     {a.label}
-                    {flagged.has(a.axis) && <i className="dna-flag" title="A recurring weakness is in this area" />}
+                    {flagged.has(a.axis) && <i className="dna-flag" title="Weakness here" />}
                   </span>
                   <span className="dna-acc" role="cell">
                     {known ? (
@@ -619,7 +617,7 @@ function DnaCard() {
                         <b>{fmtPct(ax.accuracy)}</b>
                       </>
                     ) : (
-                      <span className="tiny muted">too few moves</span>
+                      <span className="tiny muted">too few</span>
                     )}
                   </span>
                   {cells[i].map((c, j) => (
@@ -633,7 +631,7 @@ function DnaCard() {
           </div>
         </>
       ) : (
-        <p className="small muted">Appears after the first analysed game.</p>
+        <p className="small muted">After your first analysed game.</p>
       )}
     </section>
   );
@@ -646,7 +644,7 @@ function WeaknessList({ practice }: { practice: Record<string, number> }) {
   return (
     <section className="panel dash-card dash-list">
       <div className="dash-card-head">
-        <h3>All weaknesses</h3>
+        <h3>Weaknesses</h3>
         <span className="chip">{active.length}</span>
       </div>
       {active.length ? (
@@ -659,7 +657,7 @@ function WeaknessList({ practice }: { practice: Record<string, number> }) {
                 <span className="wk-body">
                   <strong>{w.llm?.title ?? w.title}</strong>
                   <small>
-                    {AXIS_LABEL[w.category] ?? w.category} · {w.occurrences}× · {fmtPct(w.errorRate)} of {w.opportunities} chances
+                    {AXIS_LABEL[w.category] ?? w.category} · {w.occurrences}× · {fmtPct(w.errorRate)} of {w.opportunities}
                   </small>
                   {m && (
                     <span className="wk-mastery">
@@ -674,7 +672,7 @@ function WeaknessList({ practice }: { practice: Record<string, number> }) {
           })}
         </div>
       ) : (
-        <p className="small muted">Nothing repeated often enough yet.</p>
+        <p className="small muted">None yet.</p>
       )}
     </section>
   );
@@ -700,7 +698,7 @@ function TrainingCard() {
   return (
     <section className="panel dash-card dash-train">
       <div className="dash-card-head">
-        <h3>Training history</h3>
+        <h3>Training</h3>
         {attempts.length > 0 && <More to="forge">Forge</More>}
       </div>
       {attempts.length ? (
@@ -709,22 +707,22 @@ function TrainingCard() {
           <div className="train-figs">
             <div>
               <strong>{attempts.length}</strong>
-              <span>positions trained</span>
+              <span>trained</span>
             </div>
             <div>
               <strong>{fmtPct(attempts.filter((a) => a.conceptCorrect).length / attempts.length)}</strong>
-              <span>right decisions</span>
+              <span>correct</span>
             </div>
             <div>
               <strong>
                 {learned}/{finished.length}
               </strong>
-              <span>blind tests passed</span>
+              <span>tests passed</span>
             </div>
           </div>
           <div className="history train-chart">
             {days.map(([d, x]) => (
-              <div key={d} className="history-day" title={`${d}: ${x.n} positions, ${fmtPct(x.ok / x.n)} right decision`}>
+              <div key={d} className="history-day" title={`${d}: ${x.n} positions, ${fmtPct(x.ok / x.n)} correct`}>
                 <div className="history-bar" style={{ height: `${(x.n / max) * 100}%` }}>
                   <span style={{ height: `${(x.ok / x.n) * 100}%` }} />
                 </div>
@@ -732,18 +730,16 @@ function TrainingCard() {
             ))}
           </div>
           </div>
-          <p className="tiny muted">
-            {attempts.length} positions trained · {fmtPct(attempts.filter((a) => a.conceptCorrect).length / attempts.length)} right decisions · last {days.length} training day{days.length > 1 ? 's' : ''}
-          </p>
+          <p className="tiny muted">Last {days.length} day{days.length > 1 ? 's' : ''}</p>
         </>
       ) : (
         <div className="train-empty">
           <span className="train-empty-ico">
             <Icon name="flame" />
           </span>
-          <p className="small muted">No training yet. Forge sessions and blind tests will show up here.</p>
+          <p className="small muted">No training yet.</p>
           <a className="btn" href={href('forge')}>
-            <Icon name="flame" /> Start in Forge
+            <Icon name="flame" /> Forge
           </a>
         </div>
       )}
@@ -790,18 +786,18 @@ function Home() {
           <div className="eyebrow">{greeting()}</div>
           <h1>{profile?.name && profile.name !== 'You' ? profile.name : 'Your lab'}</h1>
           <p className="sub" title={profile ? new Date(profile.updatedAt).toLocaleString() : undefined}>
-            {profile ? `Player model v${profile.version} · updated ${ago(profile.updatedAt)}` : 'Your profile appears once your games are analysed.'}
-            {busy.profile && ' · updating…'}
+            {profile ? `Updated ${ago(profile.updatedAt)}` : 'Profile appears after analysis.'}
+            {busy.profile && ' · updating'}
           </p>
           <div className="dash-actions" role="group" aria-label="Quick actions">
             <a className="btn" href={href('library')}>
               <Icon name="upload" /> Import games
             </a>
             <a className="btn" href={href('review')}>
-              <Icon name="board" /> Review a game
+              <Icon name="board" /> Review
             </a>
             <a className="btn" href={href('doppel/play')}>
-              <Icon name="twin" /> Play the copy
+              <Icon name="twin" /> Play copy
             </a>
           </div>
         </div>
@@ -814,10 +810,10 @@ function Home() {
       <QueueCard />
 
       <div className="dash-stats">
-        <StatTile icon="library" value={`${analysed}/${mine.length}`} label="Games analysed" hint={analysed < mine.length ? `${mine.length - analysed} to go` : 'all analysed'} />
-        <StatTile icon="board" tone="sky" value={positions.toLocaleString()} label="Positions read" hint="by KataGo" />
-        <StatTile icon="target" tone="meadow" value={profile ? fmtPct(profile.overallAccuracy) : '–'} label="Accurate moves" hint={profile ? `avg loss ${profile.avgScoreLoss.toFixed(2)} pts/move` : undefined} />
-        <StatTile icon="flame" tone="dusk" value={active.length} label="Recurring weaknesses" hint={active.length ? `${improving} improving` : 'needs repeated evidence'} />
+        <StatTile icon="library" value={`${analysed}/${mine.length}`} label="Games analysed" hint={analysed < mine.length ? `${mine.length - analysed} left` : undefined} />
+        <StatTile icon="board" tone="sky" value={positions.toLocaleString()} label="Positions" />
+        <StatTile icon="target" tone="meadow" value={profile ? fmtPct(profile.overallAccuracy) : '–'} label="Accuracy" hint={profile ? `${profile.avgScoreLoss.toFixed(2)} pts/move lost` : undefined} />
+        <StatTile icon="flame" tone="dusk" value={active.length} label="Weaknesses" hint={active.length ? `${improving} improving` : undefined} />
       </div>
 
       <div className="dash-grid">
