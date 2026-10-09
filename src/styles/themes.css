@@ -5,6 +5,10 @@
 /* ------------------------------------------------ sakura dusk: plum ink, blossom-pink accent */
 :root[data-theme='sakura'],
 [data-theme='sakura'] {
+  --fill: #c8457b;
+  --fill-edge: #93305a;
+  --fill-ink: #fff;
+  --button-base: rgba(130, 60, 100, 0.3);
   --ink: #2e1f2c;
   --ink-2: #5e4459;
   --muted: #8e7489;
@@ -14,22 +18,19 @@
   --glass-2: rgba(255, 251, 253, 0.9);
   --glass-edge: rgba(255, 255, 255, 0.82);
   --glass-shadow: 0 1px 1px rgba(80, 20, 60, 0.04), 0 12px 32px -10px rgba(90, 30, 70, 0.2), 0 30px 70px -30px rgba(120, 40, 90, 0.22);
-  --sunrise: linear-gradient(135deg, #ffb59a 0%, #f27aa0 48%, #b5549f 100%);
-  --sunrise-soft: linear-gradient(135deg, rgba(255, 181, 154, 0.22), rgba(181, 84, 159, 0.16));
   --accent: #e2588a;
   --accent-ink: #c2457a;
   --accent-rgb: 242 122 160;
   --accent-edge-rgb: 226 100 150;
   --accent-glow-rgb: 200 70 130;
   --accent-end-rgb: 181 84 159;
-  --accent-border: linear-gradient(135deg, rgba(255, 181, 154, 0.9), rgba(181, 84, 159, 0.8));
   --on-accent-shadow: rgba(120, 30, 80, 0.35);
   --selection: rgba(242, 122, 160, 0.3);
   --row-hover: rgba(242, 150, 180, 0.14);
   --row-selected: rgba(242, 150, 180, 0.12);
   --glass-rgb: 255 248 251;
   --tint-rgb: 130 70 110;
-  --button-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 242, 247, 0.85));
+  --button-bg: #fff8fb;
   --button-edge: rgba(170, 90, 130, 0.22);
   --dash-edge: rgba(210, 110, 150, 0.35);
   --drop-edge: rgba(226, 110, 150, 0.45);
@@ -42,6 +43,10 @@
 /* ------------------------------------------------ misty peaks: slate ink, dawn-blue accent */
 :root[data-theme='mist'],
 [data-theme='mist'] {
+  --fill: #3f58a6;
+  --fill-edge: #2b3e7a;
+  --fill-ink: #fff;
+  --button-base: rgba(40, 56, 90, 0.28);
   --ink: #1c2433;
   --ink-2: #445066;
   --muted: #6f7a8e;
@@ -51,22 +56,19 @@
   --glass-2: rgba(250, 251, 254, 0.9);
   --glass-edge: rgba(255, 255, 255, 0.8);
   --glass-shadow: 0 1px 1px rgba(20, 30, 60, 0.04), 0 12px 32px -10px rgba(20, 34, 70, 0.2), 0 30px 70px -30px rgba(30, 44, 90, 0.22);
-  --sunrise: linear-gradient(135deg, #f4b48a 0%, #cf7690 46%, #5a6cb4 100%);
-  --sunrise-soft: linear-gradient(135deg, rgba(244, 180, 138, 0.2), rgba(90, 108, 180, 0.16));
   --accent: #4f68b6;
   --accent-ink: #3c55a2;
   --accent-rgb: 90 108 180;
   --accent-edge-rgb: 104 124 196;
   --accent-glow-rgb: 50 70 140;
   --accent-end-rgb: 90 108 180;
-  --accent-border: linear-gradient(135deg, rgba(244, 180, 138, 0.9), rgba(90, 108, 180, 0.8));
   --on-accent-shadow: rgba(30, 40, 90, 0.35);
   --selection: rgba(90, 108, 180, 0.25);
   --row-hover: rgba(60, 80, 130, 0.07);
   --row-selected: rgba(90, 108, 180, 0.1);
   --glass-rgb: 246 248 252;
   --tint-rgb: 40 56 90;
-  --button-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 244, 250, 0.88));
+  --button-bg: #f8faff;
   --button-edge: rgba(40, 56, 90, 0.18);
   --dash-edge: rgba(70, 90, 140, 0.3);
   --drop-edge: rgba(90, 108, 180, 0.4);
@@ -79,6 +81,10 @@
 /* ------------------------------------------------ aurora night: dark glass, light text */
 :root[data-theme='aurora'],
 [data-theme='aurora'] {
+  --fill: #36cdb2;
+  --fill-edge: #1d8a77;
+  --fill-ink: #04221c;
+  --button-base: rgba(0, 0, 0, 0.45);
   color-scheme: dark;
   --ink: #eaf0fa;
   --ink-2: #bcc7da;
@@ -90,8 +96,6 @@
   --glass-edge: rgba(150, 190, 255, 0.15);
   --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 12px 32px -10px rgba(0, 0, 0, 0.5), 0 30px 70px -30px rgba(0, 20, 40, 0.6);
   --blur: saturate(140%) blur(22px);
-  --sunrise: linear-gradient(135deg, #1fb99b 0%, #2a8fd0 50%, #7457e8 100%);
-  --sunrise-soft: linear-gradient(135deg, rgba(95, 230, 190, 0.16), rgba(139, 108, 255, 0.16));
   --you: #ffa94d;
   --you-soft: rgba(255, 169, 77, 0.16);
   --kata: #3fd8bf;
@@ -115,7 +119,6 @@
   --accent-edge-rgb: 90 220 210;
   --accent-glow-rgb: 30 170 190;
   --accent-end-rgb: 116 87 232;
-  --accent-border: linear-gradient(135deg, rgba(95, 230, 190, 0.75), rgba(139, 108, 255, 0.75));
   --on-accent-shadow: rgba(5, 30, 50, 0.45);
   --selection: rgba(82, 224, 198, 0.3);
   --row-hover: rgba(120, 200, 255, 0.08);
@@ -123,7 +126,7 @@
   --surface-rgb: 42 56 88;
   --glass-rgb: 14 21 38;
   --tint-rgb: 160 190 240;
-  --button-bg: linear-gradient(180deg, rgba(50, 66, 102, 0.92), rgba(33, 45, 73, 0.92));
+  --button-bg: #2a3a5e;
   --button-edge: rgba(150, 190, 255, 0.2);
   --button-hi: rgba(255, 255, 255, 0.08);
   --dash-edge: rgba(120, 200, 230, 0.3);

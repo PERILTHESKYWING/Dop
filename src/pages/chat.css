@@ -51,7 +51,7 @@
 .chat-list-item {
   display: flex;
   align-items: center;
-  border-radius: 10px;
+  border-radius: 7px;
 }
 .chat-list-item.on,
 .chat-list-item:hover {
@@ -193,7 +193,7 @@
 }
 .msg-body {
   padding: 10px 14px;
-  border-radius: 16px;
+  border-radius: 10px;
   font-size: 14px;
   line-height: 1.55;
   background: rgb(var(--surface-rgb) / 0.75);
@@ -295,7 +295,7 @@
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgb(var(--tint-rgb) / 0.08);
   border: 1px solid var(--line);
 }
@@ -305,7 +305,7 @@
   color: var(--ink-2);
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: 7px;
   padding: 4px 12px;
   cursor: pointer;
 }

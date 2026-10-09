@@ -16,7 +16,7 @@ export function SideChooser({ limit = 4 }: { limit?: number }) {
       <div className="grow stack tight">
         <strong>Which side did you play?</strong>
         <span className="small dim">
-          {unknown.length === 1 ? 'This game does' : `${unknown.length} games do`} not say which player is you. Your profile and training use only games where your side is known.
+          {unknown.length === 1 ? '1 game needs' : `${unknown.length} games need`} your side to count.
         </span>
         <div>
           {unknown.slice(0, limit).map((g) => (
@@ -26,19 +26,19 @@ export function SideChooser({ limit = 4 }: { limit?: number }) {
                 <div className="tiny muted">{[g.date, g.result, g.fileName].filter(Boolean).join(' · ')}</div>
               </div>
               <div className="side-pick">
-                <button className="btn small" onClick={() => void chooseSide(g.id, 1, remember)} title="I played Black">
+                <button className="btn small" onClick={() => void chooseSide(g.id, 1, remember)} title="Black">
                   <i className="stone-dot b" /> {g.black || 'Black'}
                 </button>
-                <button className="btn small" onClick={() => void chooseSide(g.id, 2, remember)} title="I played White">
+                <button className="btn small" onClick={() => void chooseSide(g.id, 2, remember)} title="White">
                   <i className="stone-dot w" /> {g.white || 'White'}
                 </button>
               </div>
             </div>
           ))}
         </div>
-        {unknown.length > limit && <span className="tiny muted">and {unknown.length - limit} more (use the "You" column in the Game Library).</span>}
+        {unknown.length > limit && <span className="tiny muted">+{unknown.length - limit} more in Library.</span>}
         <label className="check small">
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember that name, so future games are matched automatically
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember name
         </label>
       </div>
     </div>
@@ -53,15 +53,15 @@ export function EngineNotice() {
     return (
       <div className="banner bad">
         <div className="grow stack tight">
-          <strong>KataGo could not start on this device</strong>
+          <strong>KataGo failed to start</strong>
           <span className="small dim">
             {engine.status === 'unsupported'
               ? engine.error
-              : 'Game analysis needs it. The built-in network on the CPU works in every modern browser, even when downloads are blocked.'}
+              : 'The built-in CPU network works in any modern browser.'}
           </span>
           {engine.error && engine.status === 'error' && (
             <button className="btn small ghost" style={{ justifySelf: 'start' }} onClick={() => setOpen(!open)}>
-              {open ? 'Hide details' : 'Show details'}
+              {open ? 'Hide details' : 'Details'}
             </button>
           )}
           {open && <pre className="tiny muted" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{engine.error}</pre>}
@@ -69,10 +69,10 @@ export function EngineNotice() {
         {engine.status === 'error' && (
           <div className="row wrap">
             <button className="btn" onClick={() => void restartEngine()}>
-              Try again
+              Retry
             </button>
             <button className="btn primary" onClick={() => void restartEngine({ safe: true })}>
-              Use the built-in network
+              Use built-in
             </button>
           </div>
         )}
@@ -102,23 +102,23 @@ export function DemoNotice() {
         <Icon name="stones" />
       </span>
       <div className="grow">
-        <strong>{showing ? 'You are looking at the demo player, Mira' : 'Demo games are hidden from your profile'}</strong>
+        <strong>{showing ? 'Demo player: Mira' : 'Demo games hidden'}</strong>
         <span className="small dim">
           {showing
             ? own
-              ? 'Your own games take over as soon as one of them is analysed and your side is known.'
-              : 'Import your own SGF games and the lab switches to you once they are analysed.'
-            : 'Your profile, weaknesses and training now come from your own games only.'}
+              ? 'Switches to you once a game is analysed.'
+              : 'Import SGFs to switch to you.'
+            : 'Profile uses your games only.'}
         </span>
       </div>
       <div className="demo-strip-actions">
         {showing && !own && (
           <a className="btn small" href={href('library')}>
-            <Icon name="upload" /> Import yours
+            <Icon name="upload" /> Import
           </a>
         )}
         <button className="btn small ghost" onClick={() => void removeDemo()}>
-          Remove demo data
+          Remove demo
         </button>
       </div>
     </div>

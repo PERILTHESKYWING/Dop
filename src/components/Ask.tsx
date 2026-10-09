@@ -58,7 +58,7 @@ export function AskPanel({
     const b = base();
     if (!input || !b || !question.trim()) return;
     const key = positionKey;
-    setBusy('Reading KataGo’s analysis…');
+    setBusy('Reading…');
     setError(null);
     try {
       const more = extra ? await extra().catch(() => ({})) : {};
@@ -67,7 +67,7 @@ export function AskPanel({
         question.trim(),
         f,
         async (p) => {
-          if (keyRef.current === key) setBusy(`KataGo is checking ${p.moves.join(' ')}…`);
+          if (keyRef.current === key) setBusy(`Checking ${p.moves.join(' ')}…`);
           return runProbe(b, p);
         },
         turns.map(({ question, answer }) => ({ question, answer })),
@@ -82,24 +82,24 @@ export function AskPanel({
     }
   };
 
-  const off = !useLlm ? 'The language model is switched off in Settings.' : llm && !llm.configured ? 'The language model is not configured on the server (LLM_API_KEY).' : null;
+  const off = !useLlm ? 'LLM is off in Settings.' : llm && !llm.configured ? 'LLM_API_KEY is not set on the server.' : null;
   const quick = [
-    'Why is KataGo’s top move best here?',
-    ...(hasPlayed ? ['How good was the move played, and how hard was the right move to find?'] : []),
-    'Is there a brilliant or only move here, and why is it hard to see?',
-    'Which groups are weak, and what should each side do about them?',
-    'What should I be thinking about in this position?',
-    'What were the key moments of this game?',
+    'Why is the top move best?',
+    ...(hasPlayed ? ['How good was the played move?'] : []),
+    'Is there an only move here?',
+    'Which groups are weak?',
+    'What matters here?',
+    'Key moments of this game?',
   ];
 
   return (
     <div className="panel stack ask">
       <div className="spread">
-        <h3>Ask about this position</h3>
+        <h3>Ask</h3>
         <div className="row">
           {chatHref && (
-            <a className="btn small ghost" href={chatHref} title="Discuss this position in a full chat: follow-up questions, study plans, other positions">
-              Open in Coach chat
+            <a className="btn small ghost" href={chatHref} title="Open in Coach">
+              Coach
             </a>
           )}
           {turns.length > 0 && (
@@ -119,14 +119,14 @@ export function AskPanel({
               <div className="ask-a small">{t.answer}</div>
               {t.probes.length > 0 && (
                 <div className="tiny muted">
-                  KataGo checked:{' '}
+                  Checked:{' '}
                   {t.probes
                     .map((p) => (p.legal && p.blackWinrate !== undefined ? `${p.moves.join(' ')} → Black ${p.blackWinrate.toFixed(0)}%, ${p.blackLead! >= 0 ? 'B' : 'W'}+${Math.abs(p.blackLead!).toFixed(1)}` : `${p.moves.join(' ')} (${p.note ?? 'not playable'})`))
                     .join(' · ')}
                 </div>
               )}
               {t.unsupported.length > 0 && (
-                <div className="tiny warn-text">Not found in KataGo’s analysis, treat with care: {t.unsupported.join(', ')}</div>
+                <div className="tiny warn-text">Unverified: {t.unsupported.join(', ')}</div>
               )}
             </div>
           ))}
@@ -150,7 +150,7 @@ export function AskPanel({
                   void ask(q);
                 }}
               >
-                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. Is my group at D16 alive?" maxLength={500} aria-label="Your question" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is D16 alive?" maxLength={500} aria-label="Question" />
                 <button className="btn small primary" disabled={!q.trim()}>
                   Ask
                 </button>
@@ -158,7 +158,6 @@ export function AskPanel({
             </>
           )}
           {error && <div className="tiny bad-text">{error}</div>}
-          <p className="tiny muted">Answers use only KataGo’s numbers and lines; figures it can’t find there are flagged.</p>
         </>
       )}
     </div>

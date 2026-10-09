@@ -92,8 +92,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [navItem('opponents', 'Opponents', 'Opponents', 'swords')],
   },
 ];
-const SETTINGS_ITEM: NavItem = navItem('settings', 'Engine & Settings', 'Settings', 'sliders');
-const ACCOUNT_ITEM: NavItem = navItem('account', 'Account & Sync', 'Account', 'user');
+const SETTINGS_ITEM: NavItem = navItem('settings', 'Settings', 'Settings', 'sliders');
+const ACCOUNT_ITEM: NavItem = navItem('account', 'Account', 'Account', 'user');
 const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ACCOUNT_ITEM, SETTINGS_ITEM];
 /** The phone tab bar: the three main pages, bigger; everything else is in "More". */
 const TABS = ['dashboard', 'study', 'doppel'];
@@ -142,7 +142,7 @@ function useStatus() {
 function StatusCard() {
   const s = useStatus();
   return (
-    <a className="status" href={href('settings')} title="Engine & Settings">
+    <a className="status" href={href('settings')} title="Settings">
       <div className="status-row">
         <span className={`dot ${s.engDot}`} />
         <span className="status-text">
@@ -167,9 +167,12 @@ function NavLink({ item, current }: { item: NavItem; current: string }) {
   const route = useRoute();
   const on = navActive(item, current, route.params[0] ?? '');
   return (
-    <a href={href(item.path)} className={`item ${on ? 'active' : ''}`} aria-current={on ? 'page' : undefined} title={item.label} style={{ '--i': ALL_ITEMS.indexOf(item) } as CSSProperties}>
+    <a href={href(item.path)} className={`item ${on ? 'active' : ''} ${TABS.includes(item.id) ? 'main' : ''}`} aria-current={on ? 'page' : undefined} title={item.label} style={{ '--i': ALL_ITEMS.indexOf(item) } as CSSProperties}>
       <Icon name={item.icon} />
       <span className="item-label">{item.label}</span>
+      <span className="item-short" aria-hidden>
+        {item.short}
+      </span>
     </a>
   );
 }

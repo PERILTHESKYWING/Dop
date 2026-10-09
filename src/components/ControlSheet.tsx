@@ -149,7 +149,7 @@ export function PlayerNames({ black, white, onSave, extra }: { black: string; wh
           <i className="stone-dot w" />
           <input value={w} onChange={(e) => setW(e.target.value)} aria-label="White player" />
         </label>
-        <button type="submit" className="pen-btn on" aria-label="Keep the names" title="Done">
+        <button type="submit" className="pen-btn on" aria-label="Save names" title="Save">
           <Icon name="check" />
         </button>
       </form>
@@ -164,7 +164,7 @@ export function PlayerNames({ black, white, onSave, extra }: { black: string; wh
         <i className="stone-dot w" /> <strong>{white || 'White'}</strong>
       </span>
       {onSave && (
-        <button className="pen-btn" onClick={() => setEditing(true)} aria-label="Edit the players' names" title="Edit the names">
+        <button className="pen-btn" onClick={() => setEditing(true)} aria-label="Edit names" title="Edit names">
           <Icon name="pen" />
         </button>
       )}

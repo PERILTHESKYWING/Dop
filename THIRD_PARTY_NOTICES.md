@@ -31,9 +31,7 @@ blocked, and it is the default on the CPU.
 ### Fonts (SIL Open Font License 1.1)
 Bundled from the `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
 
-- **Inter**, Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
-- **Cormorant Garamond**, Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant)
-- **Cinzel**, Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
+- **Archivo**, Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
 
 ### Artwork (original, no third-party images)
 The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) and the board's wood texture

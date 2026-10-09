@@ -9,7 +9,7 @@
   justify-self: end;
   max-width: 90%;
   padding: 6px 10px;
-  border-radius: 12px 12px 4px 12px;
+  border-radius: 8px 12px 4px 12px;
   background: var(--you-soft);
   color: var(--ink);
 }

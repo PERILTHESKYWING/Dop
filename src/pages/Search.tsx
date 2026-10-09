@@ -51,14 +51,13 @@ export function Search({ query }: { query: URLSearchParams }) {
       <div className="page">
         <div className="page-head">
           <div>
-            <div className="eyebrow">Search</div>
             <h1>Position Search</h1>
-            <p className="sub">Pick a position to find the ones most like it across your games. You can also use "Find similar" from any move in Game Review.</p>
+            <p className="sub">Pick a position to find similar ones.</p>
           </div>
         </div>
         {recent.length ? (
           <>
-            <h3 style={{ marginBottom: 8 }}>Your costliest moves</h3>
+            <h3 style={{ marginBottom: 8 }}>Biggest losses</h3>
             <div className="card-list">
               {recent.map((r) => {
                 const g = c.games.get(r.gameId)!;
@@ -66,16 +65,16 @@ export function Search({ query }: { query: URLSearchParams }) {
                   <a key={r.id} className="poscard" href={href(`search?game=${r.gameId}&move=${r.index + 1}`)}>
                     <MoveThumb game={g} record={r} />
                     <div className="small">
-                      {gameTitle(g)} · move {r.index + 1}
+                      {gameTitle(g)} · {r.index + 1}
                     </div>
-                    <div className="tiny muted">−{r.scoreLoss.toFixed(1)} points</div>
+                    <div className="tiny muted">−{r.scoreLoss.toFixed(1)} pts</div>
                   </a>
                 );
               })}
             </div>
           </>
         ) : (
-          <div className="empty">No analysed games yet.</div>
+          <div className="empty">No analysed games.</div>
         )}
       </div>
     );
@@ -86,19 +85,18 @@ export function Search({ query }: { query: URLSearchParams }) {
   const qw = weaknessOf(q);
   return (
     <div className="page">
-      <BackLink href={href(`review/${q.gameId}?move=${q.index + 1}`)} label="Back to the game" />
+      <BackLink href={href(`review/${q.gameId}?move=${q.index + 1}`)} label="Back" />
       <div className="page-head">
         <div>
-          <div className="eyebrow">Search</div>
-          <h1>Positions like this one</h1>
-          <p className="sub">Similarity combines the local shape around the last move, the kind of decision (distance, safety, phase) and the whole-board layout.</p>
+          <h1>Similar positions</h1>
+          <p className="sub">By local shape, decision type and whole board.</p>
         </div>
         <div className="row">
           <Legend />
           <select value={scope} onChange={(e) => setScope(e.target.value as Scope)}>
             <option value="mine">My moves</option>
-            <option value="mistakes">My mistakes only</option>
-            <option value="all">All moves (both sides)</option>
+            <option value="mistakes">My mistakes</option>
+            <option value="all">All moves</option>
           </select>
         </div>
       </div>
@@ -126,7 +124,7 @@ export function Search({ query }: { query: URLSearchParams }) {
             <dd className="you">{locToGtp(q.loc, q.size)}</dd>
             <dt>KataGo</dt>
             <dd className="kata">{locToGtp(q.bestLoc, q.size)}</dd>
-            <dt>Difference</dt>
+            <dt>Loss</dt>
             <dd className="mono">{q.scoreLoss < 0.05 ? 'none' : `−${q.scoreLoss.toFixed(1)} pts`}</dd>
             {qw && (
               <>
@@ -137,7 +135,7 @@ export function Search({ query }: { query: URLSearchParams }) {
               </>
             )}
           </div>
-          <p className="small dim">{results.length} most similar positions below.</p>
+          <p className="small dim">{results.length} matches</p>
         </div>
       </div>
       <div className="card-list" style={{ marginTop: 16 }}>
@@ -162,7 +160,7 @@ export function Search({ query }: { query: URLSearchParams }) {
               </div>
               {w && <div className="tiny warn">{w.llm?.title ?? w.title}</div>}
               <a className="tiny muted" href={href(`search?game=${r.gameId}&move=${r.index + 1}`)} onClick={(e) => e.stopPropagation()}>
-                search from here
+                search
               </a>
             </div>
           );

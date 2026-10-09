@@ -46,13 +46,13 @@ const baseKey = (b: AnalysisBase) => `${b.size}|${b.komi}|${b.setup.map((m) => `
 const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> => Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
 
 const START_GENERAL = [
-  'Make me a two-week study plan for my weaknesses',
-  'How do I get better at life and death?',
-  'Explain sente and gote with an example',
-  'How should I review my own games?',
-  'What is the difference between thickness and territory?',
+  'Two-week study plan',
+  'Improve life and death',
+  'Explain sente and gote',
+  'How to review my games',
+  'Thickness vs territory',
 ];
-const START_BOARD = ['What is the best move here, and why?', 'Which groups are weak, and what should each side do?', 'What is the plan for both sides?', 'What did professionals play here?'];
+const START_BOARD = ['Best move and why?', 'Which groups are weak?', 'Plan for both sides?', 'What did pros play?'];
 
 /** Text with **bold**, "- " lists and clickable coordinates. */
 function Rich({ text, size, onCoord }: { text: string; size?: number; onCoord?: (gtp: string) => void }) {
@@ -71,7 +71,7 @@ function Rich({ text, size, onCoord }: { text: string; size?: number; onCoord?: 
           pieces.push(body.slice(last, m.index));
           const g = m[0];
           pieces.push(
-            <button key={`${key}-${i}-${m.index}`} className="coord" onClick={() => onCoord(g)} title={`Show ${g} on the board`}>
+            <button key={`${key}-${i}-${m.index}`} className="coord" onClick={() => onCoord(g)} title={`Show ${g}`}>
               {g}
             </button>,
           );
@@ -196,10 +196,10 @@ export function Chat({ query }: { query: URLSearchParams }) {
   flatRef.current = flat;
   const positionLabel = (): string => {
     if (!flat) return '';
-    const tried = a.played.length ? `, then ${a.played.length} move${a.played.length > 1 ? 's' : ''} tried` : '';
+    const tried = a.played.length ? ` +${a.played.length}` : '';
     if (source?.kind === 'game' && game) return `Move ${source.move + 1} of ${gameTitle(game)}${tried}`;
     if (source?.kind === 'kifu') return `${kifus.find((k) => k.id === source.id)?.title ?? 'Kifu'}${tried}`;
-    return `${flat.size}×${flat.size} board${flat.moves.length ? ` after ${flat.moves.length} moves` : ''}`;
+    return `${flat.size}×${flat.size}${flat.moves.length ? `, move ${flat.moves.length}` : ''}`;
   };
 
   /** KataGo's fact sheet for the board: its own read (deeper in deep mode), pro games, difficulty, the game's key moments. */
@@ -212,7 +212,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
     let live = same() ? evRef.current : null;
     if (same() && useLive.getState().on && (!live || live.visits < want)) {
       // Live analysis is already reading this position: let it read on rather than start a second search.
-      setBusy(`KataGo is reading the position${useDeep ? ' deeply' : ''}…`);
+      setBusy(`Reading${useDeep ? ' deep' : ''}…`);
       const until = Date.now() + (useDeep ? 10_000 : 4000);
       while (Date.now() < until && same() && (!evRef.current || evRef.current.visits < want)) await new Promise((r) => setTimeout(r, 250));
       live = same() ? evRef.current : null;
@@ -221,9 +221,9 @@ export function Chat({ query }: { query: URLSearchParams }) {
       ({ bWin, bLead, visits, ownership } = live);
       cands = live.shown;
     } else {
-      setBusy(`KataGo is reading the position${useDeep ? ' deeply' : ''}…`);
+      setBusy(`Reading${useDeep ? ' deep' : ''}…`);
       const snap = await searchPosition(pos, want, useDeep ? 10_000 : 4000);
-      if (!snap || !snap.candidates.length) throw new Error('KataGo could not read the position (see Engine & Settings).');
+      if (!snap || !snap.candidates.length) throw new Error('KataGo failed to read the position. Check Settings.');
       ({ bWin, bLead, visits, ownership } = snap);
       cands = fromSnapshot(snap);
     }
@@ -248,7 +248,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
       played: next && rec ? { loc: next.loc, winrateLoss: rec.winrateLoss, scoreLoss: rec.scoreLoss, bestLoc: rec.bestLoc } : null,
       level: level ? `about ${rankLabel(level.overall.rank)}` : undefined,
     });
-    setBusy('Looking up pro games and how hard the moves are to find…');
+    setBusy('Checking pro games…');
     const best = cands[0];
     const tgts: MoveTarget[] = [];
     if (best && best.loc !== PASS) tgts.push({ loc: best.loc, role: 'KataGo', input: { scoreLoss: 0, winrateLoss: 0, isBest: true, gap: nextBestGap(cands, visits) } });
@@ -291,7 +291,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
     const useDeep = deep;
     appendMessage(id, { role: 'user', text: q, at: Date.now(), pos });
     setText('');
-    setBusy(pos ? 'KataGo is reading the position…' : 'The coach is thinking…');
+    setBusy(pos ? 'Reading…' : 'Thinking…');
     try {
       const facts = pos ? await gatherFacts(pos.base, from, useDeep) : undefined;
       const board = pos ? replay(pos.base.size, pos.base.setup, pos.base.moves) : null;
@@ -321,7 +321,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
         meta: { deep: useDeep, corrected: out.corrected, reviewed: out.reviewed, calls: out.calls, model: out.model, visits: facts?.visits },
       });
     } catch (e) {
-      appendMessage(id, { role: 'coach', text: (e as Error).message || 'Something went wrong.', at: Date.now(), error: true });
+      appendMessage(id, { role: 'coach', text: (e as Error).message || 'Error.', at: Date.now(), error: true });
     } finally {
       setBusy(null);
     }
@@ -352,7 +352,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
     } else act();
   };
 
-  const off = !useLlm ? 'The language model is switched off in Settings.' : llm && !llm.configured ? 'The language model is not configured on the server (LLM_API_KEY), so the coach cannot answer yet.' : null;
+  const off = !useLlm ? 'LLM is off in Settings.' : llm && !llm.configured ? 'LLM_API_KEY is not set on the server.' : null;
 
   // Board marks.
   const ev = a.eval;
@@ -394,15 +394,15 @@ export function Chat({ query }: { query: URLSearchParams }) {
             ⟲ Start
           </button>
           <label className="toggle small">
-            <input type="checkbox" checked={showBest} onChange={(e) => setShowBest(e.target.checked)} /> KataGo's moves
+            <input type="checkbox" checked={showBest} onChange={(e) => setShowBest(e.target.checked)} /> Hints
           </label>
           {shownLine && (
             <button className="btn small ghost" onClick={() => setShownLine(null)}>
-              Hide line
+              Hide
             </button>
           )}
         </div>
-        <div className="tiny muted">{a.toPlay === 1 ? 'Black' : 'White'} to play · {positionLabel()}. Tap the board to try moves; your next message is about this position.</div>
+        <div className="tiny muted">{a.toPlay === 1 ? 'Black' : 'White'} to play · {positionLabel()}</div>
       </div>
     </div>
   );
@@ -418,7 +418,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
             inputRef.current?.focus();
           }}
         >
-          + New chat
+          + New
         </button>
         <div className="chat-list-items">
           {list.map((c) => (
@@ -432,12 +432,12 @@ export function Chat({ query }: { query: URLSearchParams }) {
               >
                 {c.title}
               </button>
-              <button className="chat-list-del" onClick={() => deleteConversation(c.id)} title="Delete this chat" aria-label={`Delete ${c.title}`}>
+              <button className="chat-list-del" onClick={() => deleteConversation(c.id)} title="Delete" aria-label={`Delete ${c.title}`}>
                 ×
               </button>
             </div>
           ))}
-          {loaded && !list.length && <div className="tiny muted">Your chats are kept in this browser.</div>}
+          {loaded && !list.length && <div className="tiny muted">No chats.</div>}
         </div>
       </aside>
 
@@ -450,8 +450,8 @@ export function Chat({ query }: { query: URLSearchParams }) {
           <div className="chat-title">
             <Icon name="chat" />
             <div>
-              <strong>Go Coach</strong>
-              <span className="tiny muted">{conv && conv.messages.length ? conv.title : 'Grounded in KataGo, pro games and your own games'}</span>
+              <strong>Coach</strong>
+              <span className="tiny muted">{conv && conv.messages.length ? conv.title : 'Backed by KataGo'}</span>
             </div>
           </div>
           <div className="row">
@@ -469,17 +469,17 @@ export function Chat({ query }: { query: URLSearchParams }) {
                 } else pickSource({ kind: 'kifu', id });
                 setBoardOn(true);
               }}
-              aria-label="Board to discuss"
+              aria-label="Board"
             >
               <option value="">No board</option>
-              {boardOn && !source && <option value="">{positionLabel() || 'Position from the chat'}</option>}
-              <optgroup label="Empty board">
+              {boardOn && !source && <option value="">{positionLabel() || 'Chat position'}</option>}
+              <optgroup label="Empty">
                 <option value="empty:19">19×19</option>
                 <option value="empty:13">13×13</option>
                 <option value="empty:9">9×9</option>
               </optgroup>
               {sortedGames.length > 0 && (
-                <optgroup label="Your games">
+                <optgroup label="Games">
                   {sortedGames.map((g) => (
                     <option key={g.id} value={`game:${g.id}`}>
                       {gameTitle(g)}
@@ -488,7 +488,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
                 </optgroup>
               )}
               {kifus.length > 0 && (
-                <optgroup label="Saved kifu">
+                <optgroup label="Kifu">
                   {kifus.map((k) => (
                     <option key={k.id} value={`kifu:${k.id}`}>
                       {k.title}
@@ -505,7 +505,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
                   min={1}
                   max={game.moves.length + 1}
                   value={source.move + 1}
-                  title="The move about to be played"
+                  title="Next move"
                   onChange={(e) => pickSource({ kind: 'game', id: game.id, move: Math.max(0, Math.min(game.moves.length, (Number(e.target.value) || 1) - 1)) })}
                 />
               </label>
@@ -516,11 +516,8 @@ export function Chat({ query }: { query: URLSearchParams }) {
         <div className="chat-log" ref={logRef}>
           {(!conv || conv.messages.length === 0) && (
             <div className="chat-empty">
-              <h2>Ask your Go coach anything</h2>
-              <p className="small dim">
-                Positions, your games and weaknesses, study plans, concepts. When a board is attached, KataGo reads it first and the coach may ask KataGo to check extra lines before
-                answering. Every coordinate, winrate and point figure is checked against KataGo; anything it can't match is flagged.
-              </p>
+              <h2>Ask the coach</h2>
+              <p className="small dim">Every number is checked against KataGo.</p>
               <div className="chat-starters">
                 {(boardOn ? START_BOARD : START_GENERAL).map((s) => (
                   <button key={s} className="chip click" onClick={() => void send(s)} disabled={!!off || !!busy}>
@@ -530,7 +527,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
               </div>
               {!boardOn && (
                 <button className="btn small" onClick={() => (pickSource({ kind: 'empty', size: 19 }), setBoardOn(true))}>
-                  Attach a board
+                  Add board
                 </button>
               )}
             </div>
@@ -540,7 +537,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
             return (
               <div key={i} className={`msg ${m.role} ${m.error ? 'error' : ''}`}>
                 {m.role === 'user' && m.pos && (
-                  <button className="msg-pos tiny" onClick={() => showPosition(m.pos!)} title="Show this position on the board">
+                  <button className="msg-pos tiny" onClick={() => showPosition(m.pos!)} title="Show position">
                     ◉ {m.pos.label}
                   </button>
                 )}
@@ -553,7 +550,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
                 </div>
                 {m.probes && m.pos && (
                   <div className="msg-probes">
-                    <span className="tiny muted">KataGo checked:</span>
+                    <span className="tiny muted">Checked:</span>
                     {m.probes.map((p, k) => (
                       <button
                         key={k}
@@ -566,26 +563,26 @@ export function Chat({ query }: { query: URLSearchParams }) {
                             setShownLine(lineOf(locs, m.pos!.base.toPlay));
                           })
                         }
-                        title="Show this line on the board"
+                        title="Show line"
                       >
                         {probeText(p)}
                       </button>
                     ))}
                   </div>
                 )}
-                {m.unsupported && <div className="tiny warn-text">Not found in KataGo's analysis, treat with care: {m.unsupported.join('; ')}</div>}
+                {m.unsupported && <div className="tiny warn-text">Unverified: {m.unsupported.join('; ')}</div>}
                 {m.meta && (
                   <div className="msg-meta tiny muted">
-                    {m.meta.visits ? `KataGo ${m.meta.visits} visits · ` : ''}
+                    {m.meta.visits ? `${m.meta.visits} visits · ` : ''}
                     {m.meta.deep ? 'deep · ' : ''}
                     {m.meta.reviewed ? 'reviewed · ' : ''}
-                    {m.meta.corrected ? 'corrected by the checker · ' : 'checked · '}
-                    {m.meta.calls} model call{m.meta.calls === 1 ? '' : 's'}
+                    {m.meta.corrected ? 'corrected · ' : 'checked · '}
+                    {m.meta.calls} call{m.meta.calls === 1 ? '' : 's'}
                   </div>
                 )}
                 {m.error && isLast && (
                   <button className="btn small" onClick={retry} disabled={!!busy}>
-                    Try again
+                    Retry
                   </button>
                 )}
                 {m.followups && isLast && !busy && (
@@ -625,7 +622,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
                 value={text}
                 rows={2}
                 maxLength={1800}
-                placeholder={boardOn ? 'Ask about this position… (Enter to send, Shift+Enter for a new line)' : 'Ask about Go, your games or how to train… (Enter to send)'}
+                placeholder={boardOn ? 'Ask about this position…' : 'Ask anything…'}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -633,14 +630,14 @@ export function Chat({ query }: { query: URLSearchParams }) {
                     void send(text);
                   }
                 }}
-                aria-label="Your message"
+                aria-label="Message"
               />
               <div className="chat-compose-bar">
                 <div className="chat-mode" role="radiogroup" aria-label="Answer mode">
                   {(
                     [
-                      [false, 'Fast', 'one model call, usually a few seconds'],
-                      [true, 'Deep', 'KataGo reads 4x longer and checks more lines; a second pass reviews the answer'],
+                      [false, 'Fast', 'One call, a few seconds'],
+                      [true, 'Deep', '4x longer read, answer reviewed'],
                     ] as const
                   ).map(([v, label, title]) => (
                     <button
@@ -670,7 +667,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
                 )}
                 {boardOn && (
                   <button type="button" className="btn small ghost" onClick={() => setBoardOn(false)}>
-                    Detach board
+                    Hide board
                   </button>
                 )}
                 <button className="btn small primary" disabled={!text.trim() || !!busy}>
@@ -679,7 +676,7 @@ export function Chat({ query }: { query: URLSearchParams }) {
               </div>
             </>
           )}
-          <p className="tiny muted">The coach explains what KataGo finds; it never reads better than KataGo. Chats stay in this browser; messages go to Gemini through this site's server.</p>
+          <p className="tiny muted">Chats stay local. Messages go to Gemini via this server.</p>
         </form>
       </section>
 

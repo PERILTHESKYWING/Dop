@@ -72,9 +72,9 @@ export function ProblemSet({ daily }: { daily: boolean }) {
     return (
       <div className="page">
         <div className="empty stack" style={{ justifyItems: 'center' }}>
-          <span>No problems match these settings yet. Widen the level range or pick more types.</span>
+          <span>No matching problems. Widen the level range or add types.</span>
           <a className="btn" href={href('forge')}>
-            Back to the settings
+            Settings
           </a>
         </div>
       </div>
@@ -202,7 +202,7 @@ function Solver({
         });
       } else {
         setPhase('solving');
-        setProgressNote(pick(['Good. Keep going.', 'Right so far. What now?', 'That works. Your move again.']));
+        setProgressNote(pick(['Good. Continue.', 'Right. Next move.']));
       }
     };
     if (reply !== null) {
@@ -308,8 +308,7 @@ function Solver({
           {phase === 'solving' && (
             <>
               <p className="small dim">
-                {progressNote ?? (prefs.confirmMove ? 'Tap a point, then tap it again to play.' : `Play ${colorName(me)}'s move.`)}
-                {view ? ' The rest of the board is settled.' : ''}
+                {progressNote ?? (prefs.confirmMove ? 'Tap twice to play.' : `${colorName(me)} to play.`)}
               </p>
               {hinted ? (
                 <div className="callout kata small">
@@ -317,17 +316,17 @@ function Solver({
                 </div>
               ) : (
                 <div className="row wrap">
-                  <button className="btn small" onClick={() => setHinted(true)} title="A hint: solving afterwards counts as half">
+                  <button className="btn small" onClick={() => setHinted(true)} title="Counts as half">
                     Hint <span className="kbd">H</span>
                   </button>
                   <button className="btn small ghost" onClick={showAnswer}>
-                    Show the answer
+                    Answer
                   </button>
                 </div>
               )}
               {hinted && (
                 <button className="btn small ghost" onClick={showAnswer}>
-                  Show the answer
+                  Answer
                 </button>
               )}
             </>
@@ -336,7 +335,7 @@ function Solver({
           {phase === 'right' && (
             <>
               <div className="fs-verdict ok">
-                <Icon name="check" /> {firstTry ? pick(['Right!', 'Correct!', 'Well read!', 'Exactly.']) : 'Solved.'}
+                <Icon name="check" /> {firstTry ? 'Correct' : 'Solved.'}
               </div>
               {text.title && text.title !== CATEGORY_TEXT[p.cat].label && <strong>{text.title}</strong>}
               <p className="small">{text.explanation}</p>
@@ -345,54 +344,51 @@ function Solver({
           )}
           {phase === 'wrong' && (
             <>
-              <div className="fs-verdict bad">Not quite.</div>
+              <div className="fs-verdict bad">Wrong</div>
               <p className="small">
-                {wrongNote ?? (variation ? `${colorName(other(me))} answers at ${locToGtp(variation[0].loc, p.size)}; the numbered stones show how it goes.` : "KataGo's answer is different.")}
+                {wrongNote ?? (variation ? `${colorName(other(me))} answers ${locToGtp(variation[0].loc, p.size)}.` : 'KataGo disagrees.')}
               </p>
               <div className="row wrap">
                 {prefs.onWrong === 'retry' && !done && (
                   <button className="btn primary" onClick={retry}>
-                    Try again <span className="kbd">R</span>
+                    Retry <span className="kbd">R</span>
                   </button>
                 )}
                 <button className="btn" onClick={showAnswer}>
-                  Show the answer
+                  Answer
                 </button>
               </div>
             </>
           )}
           {phase === 'answer' && (
             <>
-              <div className="fs-verdict">The answer</div>
+              <div className="fs-verdict">Answer</div>
               {text.title && text.title !== CATEGORY_TEXT[p.cat].label && <strong>{text.title}</strong>}
               <p className="small">{text.explanation}</p>
-              <p className="tiny muted">The numbered stones show KataGo's line from the start.</p>
               <Tags p={p} />
             </>
           )}
           {done && phase !== 'solving' && phase !== 'reply' && (
             <div className="row wrap">
               <button className="btn primary big" onClick={onNext}>
-                {index + 1 >= set.length ? 'Finish' : 'Next problem'} <span className="kbd">Enter</span>
+                {index + 1 >= set.length ? 'Finish' : 'Next'} <span className="kbd">Enter</span>
               </button>
               {phase === 'right' && variation === null && (
                 <button className="btn small ghost" onClick={showAnswerAgain(p, me, setAnswerBoard, setVariation)}>
-                  Replay the answer
+                  Replay
                 </button>
               )}
             </div>
           )}
           {done && recorded && (
             <p className="tiny muted">
-              Problem level {levelLabel(ratingToRank(recorded.after))} ({recorded.after - recorded.before >= 0 ? '+' : ''}
+              Level {levelLabel(ratingToRank(recorded.after))} ({recorded.after - recorded.before >= 0 ? '+' : ''}
               {Math.round(recorded.after - recorded.before)})
             </p>
           )}
         </div>
         <p className="tiny muted fs-source">
-          From {p.src.kind === 'pro' ? 'a professional game' : p.src.rank !== undefined ? `a ${levelLabel(p.src.rank)} game on Fox` : 'a real game'}, move {p.src.move}. Answer
-          proved by KataGo.
-          {textReady ? ' Text written by the AI coach and checked against KataGo.' : ''}
+          {p.src.kind === 'pro' ? 'Pro game' : p.src.rank !== undefined ? `Fox ${levelLabel(p.src.rank)} game` : 'Real game'}, move {p.src.move}. Verified by KataGo.
         </p>
       </div>
     </div>
@@ -435,18 +431,18 @@ function Summary({ set, slots, daily }: { set: Problem[]; slots: Slot[]; daily: 
     <div className="page forge-summary">
       {perfect && <Confetti />}
       <div className="panel stack fs-summary">
-        <div className="eyebrow">{daily ? 'Daily eight' : 'Problem set'} finished</div>
+        <div className="eyebrow">{daily ? 'Daily 8' : 'Set'} done</div>
         <h1>
           {ok} / {set.length}
         </h1>
-        <p className="dim">{perfect ? 'A perfect set.' : ok >= set.length * 0.7 ? 'Strong set.' : ok >= set.length * 0.4 ? 'Good work. The misses come back later.' : 'Tough set. The misses come back later, so you can learn them.'}</p>
+        <p className="dim">{perfect ? 'Perfect.' : ok >= set.length * 0.7 ? 'Strong set.' : 'Misses will come back later.'}</p>
         <div className="row wrap">
-          <span className="chip you">problem level {levelLabel(ratingToRank(last))}</span>
+          <span className="chip you">level {levelLabel(ratingToRank(last))}</span>
           <span className={`chip ${last >= first ? 'good' : 'bad'}`}>
             {last - first >= 0 ? '+' : ''}
             {Math.round(last - first)} rating
           </span>
-          <span className="chip">{Math.round(ms / 1000 / Math.max(1, results.length))} s per problem</span>
+          <span className="chip">{Math.round(ms / 1000 / Math.max(1, results.length))} s each</span>
         </div>
         <div className="fs-list">
           {set.map((p, i) => {
@@ -464,7 +460,7 @@ function Summary({ set, slots, daily }: { set: Problem[]; slots: Slot[]; daily: 
         </div>
         <div className="row wrap">
           <button className="btn primary big" onClick={() => (daily ? go('forge') : location.reload())}>
-            <Icon name="play" /> {daily ? 'Back to Forge' : 'Another set'}
+            <Icon name="play" /> {daily ? 'Forge' : 'New set'}
           </button>
           <a className="btn" href={href('forge')}>
             Settings

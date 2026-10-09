@@ -124,7 +124,7 @@ async function loop() {
       useLive.setState({ status: 'starting' });
       eng = await startEngine();
       if (!eng) {
-        useLive.setState({ status: 'error', error: 'KataGo could not start. See Engine & Settings.' });
+        useLive.setState({ status: 'error', error: 'KataGo could not start. See Settings.' });
         return;
       }
       if (my !== gen) continue;
