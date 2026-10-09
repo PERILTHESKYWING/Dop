@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StageHead } from '../components/BoardScreen';
 import { useStore } from '../state/store';
 import { addReason, generateVariations, submitAnswer } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
 import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
-import { fmtPct, FocusToggle, useFocusMode } from '../components/common';
+import { fmtPct } from '../components/common';
 import { itemBoard, lastOpponentMove, type GradeResult } from '../lib/forge/grading';
 import { newMastery, pickItem, pickWeakness } from '../lib/forge/scheduler';
 import { assessItem, describeSkipped, practiceItems, summarizePractice } from '../lib/forge/worth';
@@ -147,7 +148,6 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
   const [assistedFor, setAssistedFor] = useState<string | null>(null);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [view, toggleView, setCandidateCount] = useAnalysisView();
-  const [focused, setFocused] = useFocusMode();
   const predicted = usePrediction(item);
   const base = useMemo(() => (item ? { size: item.size, komi: item.komi, rules: item.rules, setup: item.setup, moves: item.moves, toPlay: item.toPlay } : null), [item]);
   const analysis = useAnalysis(base, explore, item?.eval);
@@ -193,14 +193,11 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
         e.preventDefault();
         if (result) next();
         else void commit();
-      } else if (e.key === 'Escape') {
-        if (focused) setFocused(false);
-        else setPending(null);
-      }
+      } else if (e.key === 'Escape') setPending(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [commit, next, result, explore, focused, setFocused]);
+  }, [commit, next, result, explore]);
 
   const board = useMemo(() => (item ? itemBoard(item) : null), [item]);
   const session = attempts.filter((a) => a.sessionId === sessionId);
@@ -262,8 +259,8 @@ export function Forge({ weaknessId }: { weaknessId?: string }) {
 
   const assisted = assistedFor === item.id;
   return (
-    <div className={`stage ${focused ? 'focused' : ''}`}>
-      <FocusToggle focused={focused} onChange={setFocused} />
+    <div className="stage">
+      <StageHead title="Forge" />
       <div className="board-wrap">
         {explore ? (
           <AnalysisBoard a={analysis} view={view} hoverPv={hoverPv} onHoverPv={setHoverPv} />

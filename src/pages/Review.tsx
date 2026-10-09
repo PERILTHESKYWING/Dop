@@ -1,5 +1,10 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useWheelSteps } from '../components/MoveNav';
+import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
+import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import type { PosValue } from '../lib/analysis/lineStats';
+import { kifuFromMoves } from '../lib/kifu/kifu';
+import { saveKifu } from '../lib/kifu/store';
 import { AskPanel } from '../components/Ask';
 import { InsightPanel, useMoveInsight } from '../components/Insight';
 import { useLevelOf, usePlayerTargets } from '../components/Level';
@@ -11,15 +16,15 @@ import { classInputs, useGameClasses } from '../state/classes';
 import { mainLineComments } from '../lib/go/sgf';
 import { insightFacts, proFacts, type MoveTarget } from '../state/insight';
 import type { GameRecord, MoveRecord } from '../lib/types';
-import { useStore } from '../state/store';
+import { toast, useStore } from '../state/store';
 import { commitLiveAnalysis, corpus, renameGamePlayers, retryGame, runQueue, setGameKomi } from '../state/actions';
-import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
+import { ActionTile, FieldTile, PlayerNames, SheetSection } from '../components/ControlSheet';
 import { Icon } from '../components/Icons';
 import type { LiveTarget } from '../state/live';
 import { Board, type Mark } from '../components/Board';
-import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView, WinBar } from '../components/Analysis';
+import { AnalysisBoard, AnalysisPanel, useAnalysis, useAnalysisView } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, fromStored, LiveHeader, lineOf, useLiveAnalysis, type ShownCandidate } from '../components/Live';
-import { FocusEval, FocusToggle, fmtPct, gameTitle, Legend, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
+import { fmtPct, gameTitle, Legend } from '../components/common';
 import { allPositions } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { engineKomi, isTerritoryScoring } from '../lib/go/rules';
@@ -48,16 +53,10 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const [showPolicy, setShowPolicy] = useState(false);
   const [explore, setExplore] = useState(false);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
-  const [focused, setFocused] = useFocusMode();
-  const [evalOn, setEvalOn] = useEvalPref();
-  const [sheet, setSheet] = useState(false);
-  const closeSheet = useCallback(() => setSheet(false), []);
-  useEffect(() => {
-    if (!focused) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [focused, setFocused]);
+  const [tab, setTab] = useState<string | null>('data');
+  const [pane, setPane] = useState<'info' | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
   // A candidate clicked on the game board: open the analysis board with that move played.
   const [pendingPlay, setPendingPlay] = useState<Loc | null>(null);
   const [aView, toggleView, setCandidateCount] = useAnalysisView();
@@ -215,142 +214,130 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     if (next && next.loc !== PASS) marks.push({ loc: next.loc, kind: 'played' });
   }
 
-  const wr = (analysis?.evals ?? []).map((e, i) => (i === cur && useLive ? snap!.bWin : e ? searchedValue(e).bWin : null));
-  const scores = (analysis?.evals ?? []).map((e, i) => (i === cur && useLive ? snap!.bLead : e ? searchedValue(e).bLead : null));
-  const errs = [...records.values()].filter((r) => r.isPlayer && (r.severity === 'mistake' || r.severity === 'blunder')).map((r) => r.index);
   const view = value ? moverView(value.bWin, value.bLead, toPlay) : null;
   const sigs = (rec?.errors ?? []).map((id: string) => signatureById.get(id)).filter((s) => s !== undefined);
   const linked = weaknesses.filter((w) => w.evidence.some((e) => e.moveId === rec?.id));
   const komiNote = engineKomi(game.komi, game.rules) !== game.komi ? ` (scored as area ${engineKomi(game.komi, game.rules)})` : '';
   const hoverShown = (loc: Loc | null) => setHoverPv(loc === null ? null : shown.find((c) => c.loc === loc)?.pv ?? null);
 
-  return (
-    <div className={`stage ${focused ? 'focused' : ''}`}>
-      <FocusToggle focused={focused} onChange={setFocused} />
-      {focused && !explore && (
-        <FocusNav
-          onBack={() => setCur((c) => Math.max(0, c - 1))}
-          onForward={() => setCur((c) => Math.min(n, c + 1))}
-          canBack={cur > 0}
-          canForward={cur < n}
-          label={`Move ${cur} / ${n}`}
-          evalOn={evalOn}
-          onEvalChange={setEvalOn}
-        />
-      )}
-      {focused && evalOn && (
-        <FocusEval>
-          <WinBar bWin={value?.bWin ?? null} bLead={value?.bLead ?? null} pending={!useLive && !ev?.searched} />
-          <WinrateGraph values={wr} scores={scores} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
-        </FocusEval>
-      )}
-      <div className="board-wrap" ref={boardWrap}>
-        {explore ? (
-          <AnalysisBoard a={analysisBoard} view={aView} hoverPv={hoverPv} onHoverPv={setHoverPv} />
-        ) : (
-          <Board
-            size={game.size}
-            stones={board.stones}
-            lastMove={cur > 0 ? game.moves[cur - 1].loc : null}
-            marks={marks}
-            ownership={own}
-            heat={heat}
-            candidates={candidates}
-            onCandidateHover={hoverShown}
-            onCandidateClick={(l) => {
-              setPendingPlay(l);
-              setExplore(true);
-            }}
-            variation={hoverPv ? lineOf(hoverPv, toPlay) : null}
-            badge={cur > 0 && classes.get(cur - 1) ? { loc: game.moves[cur - 1].loc, cls: classes.get(cur - 1)! } : null}
-            coords
-          />
-        )}
-      </div>
-      <div className="side">
-        {explore && (
-          <AnalysisPanel
-            a={analysisBoard}
-            view={aView}
-            onToggle={toggleView}
-            onCandidateCount={setCandidateCount}
-            onHoverPv={setHoverPv}
-            copyColor={game.playerColor}
-            onClose={() => {
-              setExplore(false);
-              setHoverPv(null);
-            }}
-            closeLabel="Back to the game"
-          />
-        )}
-        <div className="panel stack">
-          <div className="stack tight">
-            <div className="board-head">
-              <BackLink href={href('library')} label="Games" />
-              <span className="grow" />
-              <GearButton onClick={() => setSheet(true)} label="Game, komi and board settings" />
-            </div>
-            <PlayerNames black={game.black} white={game.white} onSave={(b, w) => void renameGamePlayers(game.id, b, w)} />
-            <div className="tiny muted">
-              {[game.date, game.event, game.result].filter(Boolean).join(' · ')}
-              {game.date || game.event || game.result ? ' · ' : ''}komi {game.komi}
-            </div>
-            {game.warnings.some((w) => w.startsWith('komi')) && <div className="tiny warn-text">{game.warnings.find((w) => w.startsWith('komi'))}</div>}
-          </div>
-          <WinrateGraph values={wr} scores={scores} cursor={cur} errors={errs} onPick={(i) => setCur(Math.max(0, Math.min(n, i)))} />
-          <div className="graph-legend">
-            <span>
-              <i /> Black's winrate
-            </span>
-            <span>
-              <i className="score" /> Black's lead
-            </span>
-          </div>
-          <MoveStepper
-            onFirst={() => setCur(0)}
-            onBack={() => setCur((c) => Math.max(0, c - 1))}
-            onForward={() => setCur((c) => Math.min(n, c + 1))}
-            onLast={() => setCur(n)}
-            canBack={cur > 0}
-            canForward={cur < n}
-            label={`${cur} / ${n}`}
-          />
-          {analysis === undefined && (
-            <div className="callout small">
-              {game.status === 'error' ? (
-                <>
-                  Analysis failed: {game.error}{' '}
-                  <button className="btn small" onClick={() => void retryGame(game.id)}>
-                    Retry
-                  </button>
-                </>
-              ) : (
-                <>
-                  Not analysed yet.{' '}
-                  <button className="btn small" onClick={() => void runQueue()}>
-                    Analyse now
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+  const goTo = (i: number) => setCur(Math.max(0, Math.min(n, i)));
+  const values: (PosValue | null)[] = (analysis?.evals ?? []).map((e, i) => {
+    if (i === cur && useLive) return { bWin: snap!.bWin, bLead: snap!.bLead, best: snap!.candidates[0]?.loc ?? null };
+    if (!e) return null;
+    const v = searchedValue(e);
+    return { bWin: v.bWin, bLead: v.bLead, best: e.bestLoc };
+  });
+  const report = { values, moves: game.moves, size: game.size, black: game.black, white: game.white, cursor: cur, onPick: goTo };
+  const downloadSgf = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([game.sgf], { type: 'application/x-go-sgf' }));
+    a.download = `${gameTitle(game).replace(/[\\/:*?"<>|]+/g, ' ')}.sgf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const saveCopy = async (title: string) => {
+    const k = kifuFromMoves(
+      { size: game.size, komi: game.komi, rules: game.rules && /jap|kor|territory/i.test(game.rules) ? 'japanese' : 'chinese', black: game.black, white: game.white, title: title.trim() || gameTitle(game), result: game.result, date: game.date, event: game.event },
+      game.setup,
+      game.moves,
+      cur,
+    );
+    await saveKifu({ ...k, source: 'review', saved: true });
+    toast(`Saved "${k.title}" to Your kifu.`, 'ok');
+  };
+
+  let panel: ReactNode = null;
+  if (explore)
+    panel = (
+      <AnalysisPanel
+        a={analysisBoard}
+        view={aView}
+        onToggle={toggleView}
+        onCandidateCount={setCandidateCount}
+        onHoverPv={setHoverPv}
+        copyColor={game.playerColor}
+        onClose={() => {
+          setExplore(false);
+          setHoverPv(null);
+        }}
+        closeLabel="Back to the game"
+      />
+    );
+  else if (pane === 'info')
+    panel = (
+      <>
+        <h3>Game</h3>
+        <PlayerNames black={game.black} white={game.white} onSave={(b, w) => void renameGamePlayers(game.id, b, w)} />
+        <div className="tiny muted">
+          {[game.date, game.event, game.result].filter(Boolean).join(' · ')}
+          {game.date || game.event || game.result ? ' · ' : ''}komi {game.komi}
         </div>
-
-        {!explore && (
-          <div className="panel stack live-panel">
-            <LiveHeader snap={snap} />
-            <WinBar bWin={value?.bWin ?? null} bLead={value?.bLead ?? null} pending={!useLive && !ev?.searched} />
-            <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={aView.candidateCount} resetKey={`${game.id}:${cur}`} />
-            {!shown.length && <div className="tiny muted">KataGo's candidate moves appear here as it reads.</div>}
-            <p className="tiny muted">
-              {useLive ? 'Live' : ev?.searched ? 'Stored analysis' : ev ? 'Network only' : 'Not analysed'} · {visits ? `${visits} visits` : ''}{' '}
-              {ev ? `· ${ev.engine.modelName} · ${ev.engine.backend === 'webgpu' ? 'WebGPU' : 'CPU'}` : ''}
-            </p>
+        {game.warnings.some((w) => w.startsWith('komi')) && <div className="tiny warn-text">{game.warnings.find((w) => w.startsWith('komi'))}</div>}
+        <SheetSection title="Game">
+          {games.length > 1 && (
+            <FieldTile label="Switch game">
+              <select value={game.id} onChange={(e) => go(`review/${e.target.value}`)} aria-label="Switch game">
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {gameTitle(g)} {g.date ?? ''}
+                  </option>
+                ))}
+              </select>
+            </FieldTile>
+          )}
+          <FieldTile label={`Komi${game.rules ? ` · ${game.rules} rules` : ''}`}>
+            <select value={game.komi} onChange={(e) => void setGameKomi(game.id, Number(e.target.value))} aria-label="Komi" title={`Komi KataGo scores with: ${engineKomi(game.komi, game.rules)}${isTerritoryScoring(game.rules, game.komi) ? ' (territory scoring counted by area)' : ''}`}>
+              {[...new Set([game.komi, ...KOMI_CHOICES])].map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+            {komiNote && <span className="tiny muted">{komiNote.trim()}</span>}
+          </FieldTile>
+          <FieldTile label={`Candidate list: top ${aView.candidateCount} moves`}>
+            <input type="range" min={3} max={20} value={aView.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves shown" />
+          </FieldTile>
+        </SheetSection>
+        <SheetSection title="Take it further">
+          <ActionTile onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)} icon={<Icon name="search" />} label="Similar positions" sub="From your games" />
+          <ActionTile onClick={() => go(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)} icon={<Icon name="chat" />} label="Ask the coach" sub="About this position" />
+          <ActionTile onClick={downloadSgf} icon={<Icon name="download" />} label="Download SGF" sub="To your own files" />
+          <ActionTile href={href('library')} icon={<Icon name="library" />} label="Game library" sub="All your games" />
+        </SheetSection>
+      </>
+    );
+  else if (tab === 'data')
+    panel = (
+      <>
+        <LiveHeader snap={snap} />
+        {analysis === undefined && (
+          <div className="callout small">
+            {game.status === 'error' ? (
+              <>
+                Analysis failed: {game.error}{' '}
+                <button className="btn small" onClick={() => void retryGame(game.id)}>
+                  Retry
+                </button>
+              </>
+            ) : (
+              <>
+                Not analysed yet.{' '}
+                <button className="btn small" onClick={() => void runQueue()}>
+                  Analyse now
+                </button>
+              </>
+            )}
           </div>
         )}
-
+        <CandidateTable cands={shown} size={game.size} played={next?.loc} onHover={(c) => setHoverPv(c ? c.pv : null)} max={aView.candidateCount} resetKey={`${game.id}:${cur}`} />
+        {!shown.length && <div className="tiny muted">KataGo's candidate moves appear here as it reads. Tap one to see its line.</div>}
+        <p className="tiny muted">
+          {useLive ? 'Live' : ev?.searched ? 'Stored analysis' : ev ? 'Network only' : 'Not analysed'} · {visits ? `${visits} visits` : ''}{' '}
+          {ev ? `· ${ev.engine.modelName} · ${ev.engine.backend === 'webgpu' ? 'WebGPU' : 'CPU'}` : ''}
+        </p>
         {next && (
-          <div className="panel stack">
+          <div className="stack">
             <div className="spread">
               <h3>
                 Move {cur + 1} · {next.color === 1 ? 'Black' : 'White'}
@@ -411,82 +398,59 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
               </div>
             )}
             <InsightPanel state={insight} size={game.size} ownRank={ownLevel?.overall.rank} comments={moveComments} playedLoc={next.loc} />
-            <div className="row wrap">
-              <button className="btn small" onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)}>
-                Find similar positions
-              </button>
-              <button className="btn small" onClick={() => go(`study?game=${encodeURIComponent(game.id)}&move=${cur}`)} title="Record variations and notes, and save them as a kifu">
-                Open in study board
-              </button>
-              {!explore && (
-                <button className="btn small" onClick={() => setExplore(true)}>
-                  Try moves here
-                </button>
-              )}
-            </div>
             <Legend />
           </div>
         )}
-
-        {!explore && (
-          <AskPanel
-            positionKey={`${game.id}|${cur}`}
-            chatHref={href(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)}
-            hasPlayed={!!next && next.loc !== PASS}
-            facts={() =>
-              value
-                ? {
-                    board,
-                    komi: engineKomi(game.komi, game.rules),
-                    moveNumber: cur + 1,
-                    toPlay,
-                    lastMove: cur > 0 ? game.moves[cur - 1].loc : null,
-                    bWin: value.bWin,
-                    bLead: value.bLead,
-                    visits,
-                    candidates: shown,
-                    ownership: useLive && snap?.ownership ? snap.ownership : decodeOwnership(ev?.ownership),
-                    played: next && rec ? { loc: next.loc, winrateLoss: rec.winrateLoss, scoreLoss: rec.scoreLoss, bestLoc: rec.bestLoc } : null,
-                  }
-                : null
-            }
-            base={() => ({ size: game.size, komi: engineKomi(game.komi, game.rules), setup: game.setup, moves: game.moves.slice(0, cur), toPlay, board })}
-            extra={async () => {
-              const clip = (t?: string) => (t ? t.slice(0, 700) : undefined);
-              return {
-                insights: insight.insights ? insightFacts(insight.insights, game.size) : undefined,
-                pro: insight.pro ? proFacts(insight.pro, game.size) : undefined,
-                keyMoments: moments.map((k) => ({
-                  move: k.index + 1,
-                  player: k.color === 1 ? ('Black' as const) : ('White' as const),
-                  kind: k.kind === 'only-move' ? ('only move' as const) : ('turning point' as const),
-                  played: locToGtp(k.played, game.size),
-                  kataGo: locToGtp(k.best, game.size),
-                  found: k.found,
-                  winrateLoss: Math.round(k.winrateLoss * 1000) / 10,
-                  pointsLost: Math.round(k.scoreLoss * 10) / 10,
-                  gap: k.gap ? { points: Math.round(k.gap.points * 10) / 10, winrate: Math.round(k.gap.win * 1000) / 10 } : undefined,
-                })),
-                comments: moveComments.lastMove || moveComments.nextMove ? { lastMove: clip(moveComments.lastMove), nextMove: clip(moveComments.nextMove) } : undefined,
-              };
-            }}
-          />
-        )}
-
-        {classes.size > 0 && (
-          <ClassReport
-            classes={classes}
-            game={game}
-            onPick={(cls, color) => {
-              const hits = [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).map(([i]) => i).sort((a, b) => a - b);
-              const next = hits.find((i) => i > cur) ?? hits[0];
-              if (next !== undefined) setCur(next);
-            }}
-          />
-        )}
-
+        <AskPanel
+          positionKey={`${game.id}|${cur}`}
+          chatHref={href(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)}
+          hasPlayed={!!next && next.loc !== PASS}
+          facts={() =>
+            value
+              ? {
+                  board,
+                  komi: engineKomi(game.komi, game.rules),
+                  moveNumber: cur + 1,
+                  toPlay,
+                  lastMove: cur > 0 ? game.moves[cur - 1].loc : null,
+                  bWin: value.bWin,
+                  bLead: value.bLead,
+                  visits,
+                  candidates: shown,
+                  ownership: useLive && snap?.ownership ? snap.ownership : decodeOwnership(ev?.ownership),
+                  played: next && rec ? { loc: next.loc, winrateLoss: rec.winrateLoss, scoreLoss: rec.scoreLoss, bestLoc: rec.bestLoc } : null,
+                }
+              : null
+          }
+          base={() => ({ size: game.size, komi: engineKomi(game.komi, game.rules), setup: game.setup, moves: game.moves.slice(0, cur), toPlay, board })}
+          extra={async () => {
+            const clip = (t?: string) => (t ? t.slice(0, 700) : undefined);
+            return {
+              insights: insight.insights ? insightFacts(insight.insights, game.size) : undefined,
+              pro: insight.pro ? proFacts(insight.pro, game.size) : undefined,
+              keyMoments: moments.map((k) => ({
+                move: k.index + 1,
+                player: k.color === 1 ? ('Black' as const) : ('White' as const),
+                kind: k.kind === 'only-move' ? ('only move' as const) : ('turning point' as const),
+                played: locToGtp(k.played, game.size),
+                kataGo: locToGtp(k.best, game.size),
+                found: k.found,
+                winrateLoss: Math.round(k.winrateLoss * 1000) / 10,
+                pointsLost: Math.round(k.scoreLoss * 10) / 10,
+                gap: k.gap ? { points: Math.round(k.gap.points * 10) / 10, winrate: Math.round(k.gap.win * 1000) / 10 } : undefined,
+              })),
+              comments: moveComments.lastMove || moveComments.nextMove ? { lastMove: clip(moveComments.lastMove), nextMove: clip(moveComments.nextMove) } : undefined,
+            };
+          }}
+        />
+      </>
+    );
+  else if (tab === 'trend')
+    panel = (
+      <>
+        <TrendPanel {...report} />
         {moments.length > 0 && (
-          <div className="panel stack tight">
+          <div className="stack tight">
             <h3>Key moments</h3>
             <div className="moments">
               {moments.map((k) => (
@@ -512,9 +476,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             </div>
           </div>
         )}
-
-        <div className="panel">
-          <h3 style={{ marginBottom: 6 }}>Moves</h3>
+        <div className="stack tight">
+          <h3>Moves</h3>
           <div className="movelist">
             {game.moves.map((m, i) => {
               const r = records.get(i);
@@ -533,58 +496,110 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
             })}
           </div>
         </div>
-      </div>
-
-      <ControlSheet open={sheet} onClose={closeSheet} title="Game review">
-        <SheetSection title="Game">
-          {games.length > 1 && (
-            <FieldTile label="Switch game">
-              <select value={game.id} onChange={(e) => (setSheet(false), go(`review/${e.target.value}`))} aria-label="Switch game">
-                {games.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {gameTitle(g)} {g.date ?? ''}
-                  </option>
-                ))}
-              </select>
-            </FieldTile>
-          )}
-          <FieldTile label={`Komi${game.rules ? ` · ${game.rules} rules` : ''}`}>
-            <select value={game.komi} onChange={(e) => void setGameKomi(game.id, Number(e.target.value))} aria-label="Komi" title={`Komi KataGo scores with: ${engineKomi(game.komi, game.rules)}${isTerritoryScoring(game.rules, game.komi) ? ' (territory scoring counted by area)' : ''}`}>
-              {[...new Set([game.komi, ...KOMI_CHOICES])].map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-            {komiNote && <span className="tiny muted">{komiNote.trim()}</span>}
-          </FieldTile>
-        </SheetSection>
-        <SheetSection title="On the board">
-          <ToggleTile on={showOwn} onChange={setShowOwn} icon="◩" label="Territory" sub="Who owns what" />
-          <ToggleTile on={showPolicy} onChange={setShowPolicy} icon="▦" label="Policy" sub="KataGo's instinct" />
-          <FieldTile label={`Candidate list: top ${aView.candidateCount} moves`}>
-            <input type="range" min={3} max={20} value={aView.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves shown" />
-          </FieldTile>
-        </SheetSection>
-        <SheetSection title="Take it further">
-          <ActionTile onClick={() => go(`study?game=${encodeURIComponent(game.id)}&move=${cur}`)} icon={<Icon name="kifu" />} label="Study board" sub="Variations and notes" />
-          <ActionTile onClick={() => go(`search?game=${game.id}&move=${cur + 1}`)} icon={<Icon name="search" />} label="Similar positions" sub="From your games" />
-          <ActionTile onClick={() => go(`chat?game=${encodeURIComponent(game.id)}&move=${cur}`)} icon={<Icon name="chat" />} label="Ask the coach" sub="About this position" />
-          <ActionTile
-            onClick={() => {
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(new Blob([game.sgf], { type: 'application/x-go-sgf' }));
-              a.download = `${gameTitle(game).replace(/[\\/:*?"<>|]+/g, ' ')}.sgf`;
-              a.click();
-              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      </>
+    );
+  else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
+  else if (tab === 'performance')
+    panel = (
+      <>
+        <PerformancePanel {...report} />
+        {classes.size > 0 && (
+          <ClassReport
+            classes={classes}
+            game={game}
+            onPick={(cls, color) => {
+              const hits = [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).map(([i]) => i).sort((a, b) => a - b);
+              const next = hits.find((i) => i > cur) ?? hits[0];
+              if (next !== undefined) setCur(next);
             }}
-            icon={<Icon name="download" />}
-            label="Download SGF"
-            sub="To your own files"
           />
-        </SheetSection>
-      </ControlSheet>
-    </div>
+        )}
+      </>
+    );
+
+  const tools: ScreenTool[] = [
+    { id: 'try', label: 'Try moves', icon: 'play', on: explore, onClick: () => (setExplore(!explore), setHoverPv(null)) },
+    { id: 'territory', label: 'Territory', icon: 'territory', on: showOwn, onClick: () => setShowOwn(!showOwn) },
+    { id: 'policy', label: 'Heat map', icon: 'spark', on: showPolicy, onClick: () => setShowPolicy(!showPolicy) },
+    { id: 'study', label: 'Study board', icon: 'kifu', onClick: () => go(`study?game=${encodeURIComponent(game.id)}&move=${cur}`) },
+    { id: 'info', label: 'Game info', icon: 'info', on: pane === 'info', onClick: () => setPane(pane === 'info' ? null : 'info') },
+  ];
+  const you = (c: 1 | 2) => (game.playerColor === c ? 'you' : undefined);
+
+  return (
+    <BoardScreen
+      className="review"
+      title={gameTitle(game)}
+      sub={[game.date, game.result, `komi ${game.komi}`].filter(Boolean).join(' · ')}
+      head={<HeadButton icon="save" label="Save" onClick={() => (setSaveTitle(gameTitle(game)), setSaving(true))} title="Save a copy to Your kifu" />}
+      players={
+        <PlayersBar
+          black={game.black}
+          white={game.white}
+          black2={you(1)}
+          white2={you(2)}
+          captures={explore ? undefined : board.captures}
+          showEval
+          bWin={explore ? (analysisBoard.eval?.bWin ?? null) : (value?.bWin ?? null)}
+          bLead={explore ? (analysisBoard.eval?.bLead ?? null) : (value?.bLead ?? null)}
+          pending={explore ? !analysisBoard.eval?.searched : !useLive && !ev?.searched}
+        />
+      }
+      boardRef={boardWrap}
+      board={
+        explore ? (
+          <AnalysisBoard a={analysisBoard} view={aView} hoverPv={hoverPv} onHoverPv={setHoverPv} />
+        ) : (
+          <Board
+            size={game.size}
+            stones={board.stones}
+            lastMove={cur > 0 ? game.moves[cur - 1].loc : null}
+            marks={marks}
+            ownership={own}
+            heat={heat}
+            candidates={candidates}
+            onCandidateHover={hoverShown}
+            onCandidateClick={(l) => {
+              setPendingPlay(l);
+              setExplore(true);
+            }}
+            variation={hoverPv ? lineOf(hoverPv, toPlay) : null}
+            badge={cur > 0 && classes.get(cur - 1) ? { loc: game.moves[cur - 1].loc, cls: classes.get(cur - 1)! } : null}
+            coords
+          />
+        )
+      }
+      steps={explore ? { pos: analysisBoard.cursor, total: analysisBoard.line.length, onGo: analysisBoard.goTo } : { pos: cur, total: n, onGo: goTo }}
+      tabs={explore ? null : REPORT_TABS}
+      tab={pane ? null : tab}
+      onTab={(t) => (setPane(null), setTab(t))}
+      panel={panel}
+      tools={tools}
+      notice={
+        saving ? (
+          <Notice
+            title="Save a copy to Your kifu"
+            onClose={() => setSaving(false)}
+            actions={
+              <>
+                <button className="btn ghost" onClick={() => setSaving(false)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={() => (setSaving(false), void saveCopy(saveTitle))}>
+                  Save
+                </button>
+              </>
+            }
+          >
+            <label>
+              Name
+              <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (setSaving(false), void saveCopy(saveTitle))} />
+            </label>
+            <span className="small">The game itself stays in your library; the copy opens in the study board for variations and notes.</span>
+          </Notice>
+        ) : null
+      }
+    />
   );
 }
 

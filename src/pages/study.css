@@ -102,3 +102,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Edit info, in the panel under the board. */
+.study-info {
+  display: grid;
+  gap: 10px;
+}
+.study-info > label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.study-info input,
+.study-info select {
+  width: 100%;
+  min-width: 0;
+}

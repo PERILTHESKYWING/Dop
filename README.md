@@ -218,6 +218,22 @@ played and analysed by the real engine (`npm run demo:generate` rebuilds them).
 Any static host works for the site itself. Without the `/katago-models` rewrite the kata1 networks need
 CORS from katagotraining.org; the small networks work anywhere.
 
+## Accounts (optional)
+
+Signing in with a username and password carries kifu, games, analyses, the player profile, the copy,
+opponents and settings to another device. Without it the app stays fully local, and **Account & Sync**
+still offers a backup file to move data by hand.
+
+To switch accounts on for a Vercel deployment (free Hobby plan is enough):
+
+1. In the Vercel project open **Storage → Create Database → Upstash for Redis** (free plan) and connect it
+   to this project. That adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` to the environment by itself.
+2. Redeploy.
+
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` from an Upstash account work too. Passwords are
+hashed with scrypt on the server and never stored or logged; the session is an HttpOnly cookie. For
+local development, `ACCOUNT_STORE=memory npm run dev` keeps accounts in memory until the server stops.
+
 ## Browser support
 
 Chrome/Edge 113+ (WebGPU), Safari 18+/Firefox with WebGPU enabled; other modern browsers use the CPU

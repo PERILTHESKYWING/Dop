@@ -473,6 +473,8 @@ export async function saveDoppelGame(g: {
   black: string;
   white: string;
   result?: string;
+  /** An earlier save of the same game (fewer moves), replaced by this one. */
+  replaces?: string;
 }): Promise<string> {
   const parsed = { size: g.size, komi: g.komi, handicap: 0, setup: g.setup, moves: g.moves, black: g.black, white: g.white, result: g.result, event: 'Played against a Doppelgänger copy', warnings: [] };
   const sgf = toSgf(parsed);
@@ -500,7 +502,9 @@ export async function saveDoppelGame(g: {
   if (existing) return existing.id;
   const d = await db();
   await d.put('games', rec);
-  set((st) => ({ games: [...st.games, rec] }));
+  const old = g.replaces && g.replaces !== rec.id && get().games.some((x) => x.id === g.replaces && x.source === 'doppel') ? g.replaces : null;
+  if (old) await deleteGames([old]);
+  set((st) => ({ games: [...st.games.filter((x) => x.id !== old), rec] }));
   if (get().settings.autoAnalyze) void runQueue();
   return rec.id;
 }

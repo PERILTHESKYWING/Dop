@@ -125,7 +125,6 @@
 }
 
 /* ------------------------------------------------ phone chrome (hidden on larger screens) */
-.app .topbar,
 .app .tabbar,
 .app .sheet-wrap {
   display: none;
@@ -198,69 +197,20 @@
   }
 }
 
-/* ------------------------------------------------ phones: top bar, tab bar and sheet */
+/* ------------------------------------------------ phones: tab bar and sheet (no top bar) */
 @media (max-width: 760px) {
   .app .shell > .nav {
     display: none;
   }
   .app .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
   .app .main {
-    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
   }
   .app .toasts {
     bottom: calc(88px + env(safe-area-inset-bottom));
-  }
-
-  .app .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 8px 10px 2px;
-    padding: 7px 8px 7px 10px;
-    border-radius: 18px;
-    background: var(--glass);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
-    border: 1px solid var(--glass-edge);
-    box-shadow: var(--glass-shadow);
-  }
-  .app .topbar .brand {
-    padding: 0;
-    gap: 9px;
-    min-width: 0;
-  }
-  .app .topbar .brand-mark {
-    width: 30px;
-    height: 30px;
-  }
-  .app .topbar .brand-name {
-    display: block;
-    font-size: 13px;
-    letter-spacing: 0.11em;
-  }
-  .app .topbar-status {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-    max-width: 52%;
-    padding: 5px 11px 5px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--ink-2);
-    text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    background: color-mix(in srgb, var(--glass-2) 70%, transparent);
-    border: 1px solid var(--line);
-  }
-  .app .topbar-status .dot {
-    margin-right: 6px;
   }
 
   .app .tabbar {
@@ -270,7 +220,8 @@
     right: 10px;
     bottom: calc(10px + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    /* Home, Study board and Doppelgänger, bigger; More, smaller. */
+    grid-template-columns: repeat(3, minmax(0, 1.35fr)) minmax(0, 0.85fr);
     gap: 2px;
     padding: 6px;
     border-radius: 24px;
@@ -322,11 +273,22 @@
     color: var(--nav-accent);
     background: var(--sunrise-soft);
   }
+  /* Labels always show in full: they may wrap, never cut off. */
   .app .tab span {
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.15;
+    text-align: center;
+    overflow-wrap: normal;
+  }
+  .app .tab.main {
+    min-height: 62px;
+    font-size: 12.5px;
+    font-weight: 650;
+  }
+  .app .tab.main svg {
+    width: 52px;
+    height: 32px;
+    padding: 4px 13px;
   }
 
   .app .sheet-wrap {
