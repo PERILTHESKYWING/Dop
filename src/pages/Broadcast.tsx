@@ -4,6 +4,7 @@ import { candidateMarks, CandidateTable, type ShownCandidate } from '../componen
 import { fmtPct } from '../components/common';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import { SkillPanel } from '../components/Skill';
 import type { PosValue } from '../lib/analysis/lineStats';
 import { kifuFromMoves } from '../lib/kifu/kifu';
 import { saveKifu } from '../lib/kifu/store';
@@ -418,6 +419,7 @@ function Watch({
   else if (tab === 'trend') panel = <TrendPanel {...report} />;
   else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
   else if (tab === 'performance') panel = <PerformancePanel {...report} />;
+  else if (tab === 'skill') panel = <SkillPanel size={size} komi={g.game.komi} rules="chinese" moves={shownMoves} black={g.black} white={g.white} />;
 
   const tools: ScreenTool[] = [
     { id: 'all', label: 'Tables', icon: 'broadcast', onClick: () => go('live') },

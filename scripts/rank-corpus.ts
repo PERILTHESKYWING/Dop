@@ -6,7 +6,9 @@
  *   npx tsx scripts/rank-corpus.ts --list files.txt --part 0 --parts 4 --out corpus/part-0.jsonl
  *
  * `files.txt` holds one SGF path per line. Ranks come from the SGF's BR/WR (Fox writes
- * them as 3级 / 5段). Resumable: games already in the output file are skipped.
+ * them as 3级 / 5段). With `--jsonl picks.jsonl` (from scripts/elite-pick.ts) each line
+ * carries the game and both sides' ranks instead. Resumable: games already in the output
+ * file are skipped.
  * The fitted calibration is made by scripts/rank-fit.ts.
  */
 import { readFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
@@ -31,7 +33,18 @@ const MODEL = path.join(here, '..', 'public', 'models', 'g170e-b10c128-s11410467
 export const CORPUS_MODEL_ID = 'g170e-b10c128';
 
 async function main() {
-  const files = readFileSync(arg('list')!, 'utf8').split('\n').map((s) => s.trim()).filter(Boolean);
+  type Source = { file: string; sgf: () => string; ranks?: [number | null, number | null] };
+  const files: Source[] = arg('jsonl')
+    ? readFileSync(arg('jsonl')!, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { file: string; b: number | null; w: number | null; sgf: string })
+        .map((p) => ({ file: p.file, sgf: () => p.sgf, ranks: [p.b, p.w] }))
+    : readFileSync(arg('list')!, 'utf8')
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((f) => ({ file: path.basename(f), sgf: () => readFileSync(f, 'utf8') }));
   const part = Number(arg('part', '0'));
   const parts = Number(arg('parts', '1'));
   const out = arg('out')!;
@@ -45,30 +58,31 @@ async function main() {
         /* a line cut off by a stopped run */
       }
     }
-  const mine = files.filter((_, i) => i % parts === part).filter((f) => !done.has(path.basename(f)));
+  const mine = files.filter((_, i) => i % parts === part).filter((f) => !done.has(f.file));
   const engine = await loadNodeEngine(MODEL, CORPUS_MODEL_ID, 19, 1, WINRATE_FROM_SCORE);
   let k = 0;
-  for (const file of mine) {
+  for (const src of mine) {
+    const file = src.file;
     const t0 = Date.now();
     try {
-      const parsed = parseSgfFile(readFileSync(file, 'utf8')).games[0];
+      const parsed = parseSgfFile(src.sgf()).games[0];
       if (!parsed || parsed.size !== 19) throw new Error('not a 19x19 game');
-      const game = gameFromParsed(parsed, path.basename(file), 'opponent', []);
+      const game = gameFromParsed(parsed, file, 'opponent', []);
       game.playerColor = null;
       const store = new MemoryStore();
       const analysis = await analyzeGame(game, engine, store, { visits: 0 });
       const records = networkRecords(game, analysis);
       const lines: string[] = [];
       for (const color of [1, 2] as const) {
-        const rank = parseRank(color === 1 ? parsed.blackRank : parsed.whiteRank);
+        const rank = src.ranks ? src.ranks[color - 1] : parseRank(color === 1 ? parsed.blackRank : parsed.whiteRank);
         const sample = gameLevelSample(records, color);
         if (rank === null || !sample) continue;
-        lines.push(JSON.stringify({ file: path.basename(file), color, rank, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
+        lines.push(JSON.stringify({ file, color, rank, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
       }
-      if (!lines.length) lines.push(JSON.stringify({ file: path.basename(file), skipped: 'no ranks' }));
+      if (!lines.length) lines.push(JSON.stringify({ file, skipped: 'no ranks' }));
       appendFileSync(out, lines.join('\n') + '\n');
     } catch (e) {
-      appendFileSync(out, JSON.stringify({ file: path.basename(file), skipped: String((e as Error).message ?? e) }) + '\n');
+      appendFileSync(out, JSON.stringify({ file, skipped: String((e as Error).message ?? e) }) + '\n');
     }
     k++;
     if (k % 10 === 0) console.log(`part ${part}: ${k}/${mine.length} (${((Date.now() - t0) / 1000).toFixed(1)} s last game)`);

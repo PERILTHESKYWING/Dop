@@ -282,12 +282,13 @@ export function Notice({ title, children, actions, onClose }: { title: string; c
   );
 }
 
-/** Data, Trend, Blunder and Performance: the four report tabs every analysed board offers. */
+/** Data, Trend, Blunder, Performance and Skill: the report tabs every analysed board offers. */
 export const REPORT_TABS: ScreenTab[] = [
   { id: 'data', label: 'Data', icon: 'data' },
   { id: 'trend', label: 'Trend', icon: 'trend' },
   { id: 'blunder', label: 'Blunder', icon: 'blunder' },
   { id: 'performance', label: 'Performance', icon: 'performance' },
+  { id: 'skill', label: 'Skill', icon: 'skill' },
 ];
 
 /**

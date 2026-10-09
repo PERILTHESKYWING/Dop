@@ -36,6 +36,7 @@ import { ActionTile, SheetSection } from '../components/ControlSheet';
 import { useWheelSteps } from '../components/MoveNav';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import { SkillPanel } from '../components/Skill';
 import type { PosValue } from '../lib/analysis/lineStats';
 import { useQuickValues, type QuickItem } from '../state/quickValues';
 import { Icon } from '../components/Icons';
@@ -410,6 +411,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     else if (tab === 'trend') panel = <TrendPanel {...report} />;
     else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
     else if (tab === 'performance') panel = <PerformancePanel {...report} />;
+    else if (tab === 'skill') panel = <SkillPanel size={size} komi={k.komi} rules={rules} setup={k.setup} moves={lineMoves} black={k.black} white={k.white} />;
   } else if (pane === 'info') {
     panel = (
       <div className="study-info">

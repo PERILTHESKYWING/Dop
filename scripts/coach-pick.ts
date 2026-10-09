@@ -2,8 +2,10 @@
  * Pick rank-labelled Fox games for the coach's corpora: 19x19, even (or no-komi) games of
  * 100+ moves whose players both have a readable rank, at most `--per-rank` games per rank,
  * skipping games already measured. Used by .github/workflows/coach-training.yml.
+ * `--newest` takes the newest games first (Fox file names start with the game's Unix
+ * time) instead of a random sample.
  *
- *   npx tsx scripts/coach-pick.ts --dir extracted/ --per-rank 40 --seen seen.txt --seed 7 --out list.txt
+ *   npx tsx scripts/coach-pick.ts --dir extracted/ --per-rank 40 --seen seen.txt --seed 7 [--newest] --out list.txt
  */
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -39,10 +41,12 @@ const perRank = Number(arg('per-rank', '40'));
 const seen = new Set(existsSync(arg('seen', '') ?? '') ? readFileSync(arg('seen')!, 'utf8').split('\n').filter(Boolean) : []);
 const files = walk(arg('dir')!);
 const r = rng(Number(arg('seed', '1')));
-for (let i = files.length - 1; i > 0; i--) {
-  const j = Math.floor(r() * (i + 1));
-  [files[i], files[j]] = [files[j], files[i]];
-}
+if (args.includes('--newest')) files.sort((a, b) => path.basename(b).localeCompare(path.basename(a)));
+else
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
 const count = new Map<number, number>();
 const kept: string[] = [];
 for (const f of files) {

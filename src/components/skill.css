@@ -1,0 +1,111 @@
+/* The Skill tab (Skill.tsx). */
+.sk {
+  display: grid;
+  gap: 8px;
+}
+.sk-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+}
+.sk-row {
+  display: contents;
+}
+.sk-row > * {
+  padding: 9px 8px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.1));
+}
+.sk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.sk-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sk-stone {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid #111;
+}
+.sk-stone.b {
+  background: #111;
+}
+.sk-stone.w {
+  background: #fff;
+}
+.sk-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.sk-row.total .sk-label {
+  color: var(--ink, inherit);
+  font-weight: 800;
+}
+.sk-val {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.sk-val b {
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.sk-val.big b {
+  font-size: 30px;
+}
+.sk-tier {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1f2937;
+  color: #fff;
+}
+.sk-none {
+  color: var(--ink-3, #999);
+  font-size: 19px;
+}
+.sk-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3, #888);
+}
+.sk-msg {
+  display: grid;
+  gap: 8px;
+  padding: 12px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sk-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line, rgba(0, 0, 0, 0.1));
+  overflow: hidden;
+}
+.sk-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #2f6fde);
+  transition: width 0.3s;
+}

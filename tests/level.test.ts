@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseRank, rankLabel, rankRangeLabel } from '../src/lib/level/ranks';
+import { parseRank, rankLabel, rankRangeLabel, rankTier } from '../src/lib/level/ranks';
 import { levelFeatures, poolFeatures, type LevelFeatures } from '../src/lib/level/stats';
-import { combine, estimateLevel, predictOne, type LevelCalibration, type LevelModel } from '../src/lib/level/model';
+import { combine, estimateLevel, predictOne, ridgeFeatures, type LevelCalibration, type RidgeModel } from '../src/lib/level/model';
 import { peerComparison, weaknessPriority } from '../src/lib/level/peers';
 import { chooseStyled, FULL_STRENGTH, lossBudget } from '../src/lib/profile/strength';
 import type { MoveRecord, Weakness } from '../src/lib/types';
@@ -13,14 +13,23 @@ describe('ranks', () => {
     expect(parseRank('5段')).toBe(5);
     expect(parseRank('3 dan')).toBe(3);
     expect(parseRank('P9')).toBe(10);
+    expect(parseRank('P9段')).toBe(10);
+    expect(parseRank('10d')).toBeNull();
     expect(parseRank('')).toBeNull();
     expect(parseRank('?')).toBeNull();
   });
-  it('labels ranks and ranges', () => {
-    expect(rankLabel(0.4)).toBe('1k');
-    expect(rankLabel(2.6)).toBe('3d');
-    expect(rankLabel(-4.2)).toBe('5k');
-    expect(rankRangeLabel(-1.4, 1.2)).toBe('2k – 1d');
+  it('labels ranks and ranges with one decimal, up to 12d', () => {
+    expect(rankLabel(0.4)).toBe('1.0k');
+    expect(rankLabel(0.6)).toBe('1.0d');
+    expect(rankLabel(2.64)).toBe('2.6d');
+    expect(rankLabel(8.74)).toBe('8.7d');
+    expect(rankLabel(-4.2)).toBe('5.2k');
+    expect(rankLabel(14)).toBe('12.0d');
+    expect(rankRangeLabel(-1.4, 1.2)).toBe('2.4k – 1.2d');
+    expect(rankTier(9.2)).toBeNull();
+    expect(rankTier(10.1)).toBe('Pro');
+    expect(rankTier(11)).toBe('Top pro');
+    expect(rankTier(11.8)).toBe('AI');
   });
 });
 
@@ -43,30 +52,37 @@ describe('level statistics', () => {
   });
 });
 
-const VAR = [0.01, 0.01, 0.25, 0.25, 0.0025, 0.0009];
-const model: LevelModel = {
-  mu: [[0.4, 0.015], [0.6, 0.01], [-2, 0.05], [1, -0.05], [0.1, -0.004], [0.03, -0.002]],
-  bands: [{ upTo: 99, prec: VAR.flatMap((v, i) => VAR.map((_, j) => (i === j ? 1 / v : 0))), logdet: VAR.reduce((a, v) => a + Math.log(v), 0) }],
-  nRef: 60,
-  residualSd: 3,
-  maeGame: 2.4,
-};
-const feats = (top1: number, loss: number, n = 60): LevelFeatures => ({ n, top1, top3: 0.6, logp: -2, loss, mistakes: 0.1, blunders: 0.03 });
+/** A toy model: a game's score is 40·top1 − 16 on the rank scale (top1 0.4 is 1k), ±3 ranks. */
+function toyModel(): RidgeModel {
+  const shape = { phase: null, sigs: [] as string[] };
+  const d = ridgeFeatures(shape, { all: feats(0.4, 1), phases: {}, signatures: {} }).length;
+  const beta = new Array(d + 1).fill(0);
+  beta[0] = 0.4 * 40 - 16;
+  beta[1] = 40; // top1 is the first feature; mean 0.4, sd 1 below
+  const mean = new Array(d).fill(0);
+  mean[0] = 0.4;
+  return { ...shape, mean, sd: new Array(d).fill(1), beta, centre: Array.from({ length: 30 }, (_, i) => i - 17), lo: -17, spread: [[3, 3, 3, 3]], top: 12, maeGame: 2.4 };
+}
+const sample = (f: LevelFeatures) => ({ all: f, phases: {}, signatures: {} });
+function feats(top1: number, loss: number, n = 60): LevelFeatures {
+  return { n, top1, top3: 0.6, logp: -2, loss, mistakes: 0.1, blunders: 0.03 };
+}
+const model = toyModel();
 
 describe('level model', () => {
   it('rates stronger play higher, and finds the rank that produces the numbers', () => {
-    expect(predictOne(model, feats(0.5, 0.6))).toBeGreaterThan(predictOne(model, feats(0.3, 1.5)));
-    // Exactly what a 2-dan typically shows (per the model), over 20 games.
-    const r = 2;
-    const typical = { n: 60, top1: 0.4 + 0.015 * r, top3: 0.6 + 0.01 * r, logp: -2 + 0.05 * r, loss: 1 - 0.05 * r, mistakes: 0.1 - 0.004 * r, blunders: 0.03 - 0.002 * r };
-    expect(combine(model, Array.from({ length: 20 }, () => typical))!.rank).toBeCloseTo(2, 0);
+    expect(predictOne(model, sample(feats(0.5, 0.6)))).toBeGreaterThan(predictOne(model, sample(feats(0.3, 1.5))));
+    // top1 0.45 scores 2: twenty such games put the player at 2d.
+    expect(combine(model, Array.from({ length: 20 }, () => sample(feats(0.45, 1))))!.rank).toBeCloseTo(2, 0);
+    // Far beyond anything human: capped at AI.
+    expect(combine(model, Array.from({ length: 20 }, () => sample(feats(0.9, 0))))!.rank).toBeCloseTo(12, 0);
   });
   it('narrows the range as games are added', () => {
-    const one = combine(model, [feats(0.45, 0.8)])!;
-    const ten = combine(model, Array.from({ length: 10 }, () => feats(0.45, 0.8)))!;
+    const one = combine(model, [sample(feats(0.45, 0.8))])!;
+    const ten = combine(model, Array.from({ length: 10 }, () => sample(feats(0.45, 0.8))))!;
     expect(Math.abs(ten.rank - one.rank)).toBeLessThan(1);
     expect(ten.high - ten.low).toBeLessThan(one.high - one.low);
-    expect(combine(model, [feats(0.45, 0.8, 5)])).toBeNull(); // too few moves
+    expect(combine(model, [sample(feats(0.45, 0.8, 5))])).toBeNull(); // too few moves
   });
   it('compares decisions with rank peers', () => {
     const cal = {
@@ -78,6 +94,7 @@ describe('level model', () => {
       ],
     } as unknown as LevelCalibration;
     const level = estimateLevel(cal, [{ all: feats(0.4, 1), phases: {}, signatures: { local_over_tenuki: [40, 20] } }])!;
+    expect(level.overall.rank).toBeCloseTo(0, 0);
     level.peers = { ...cal.buckets[0], signatures: { local_over_tenuki: [400, 76] } };
     const p = peerComparison(level, 'local_over_tenuki')!;
     expect(p.peerRate).toBeCloseTo(0.19);

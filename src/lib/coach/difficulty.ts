@@ -1,5 +1,5 @@
 import type { Loc } from '../go/types';
-import { rankLabel } from '../level/ranks';
+import { rankLabelWhole } from '../level/ranks';
 import type { MoveChoice } from './choices';
 
 /**
@@ -85,7 +85,7 @@ export interface FindRates {
 export function findRates(model: DifficultyModel, choices: readonly MoveChoice[], loc: Loc, ranks = REPORT_RANKS): FindRates[] {
   return ranks.flatMap((rank) => {
     const rate = findRate(model, rank, choices, loc);
-    return rate === null ? [] : [{ rank, label: rank >= PRO_RANK ? 'pro' : rankLabel(rank), rate }];
+    return rate === null ? [] : [{ rank, label: rank >= PRO_RANK ? 'pro' : rankLabelWhole(rank), rate }];
   });
 }
 
