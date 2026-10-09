@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LevelPanel, usePlayerTargets } from '../components/Level';
 import { usesDemoData } from '../state/actions';
-import { rankLabel } from '../lib/level/ranks';
+import { rankLabelWhole as rankLabel } from '../lib/level/ranks';
 import { useStore } from '../state/store';
 import { corpus, rebuildProfile, runLlmDiscovery } from '../state/actions';
 import { Bar, fmtPct, MoveThumb } from '../components/common';

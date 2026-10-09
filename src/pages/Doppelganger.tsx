@@ -5,6 +5,7 @@ import { Board, type Mark } from '../components/Board';
 import { fmtPct, gameTitle, Legend, MoveThumb } from '../components/common';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import { SkillPanel } from '../components/Skill';
 import type { PosValue } from '../lib/analysis/lineStats';
 import { KomiPicker } from '../components/Komi';
 import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
@@ -30,7 +31,9 @@ import {
 } from '../lib/profile/doppel';
 import type { GameRecord, OpponentProfile, PolicyEntry } from '../lib/types';
 import { chooseStyled, FULL_STRENGTH, lossBudget } from '../lib/profile/strength';
-import { rankLabel } from '../lib/level/ranks';
+import { rankLabelWhole, rankTier } from '../lib/level/ranks';
+
+const rankLabel = (r: number) => rankTier(r) ?? rankLabelWhole(r);
 import { loadLevel, useLevel } from '../state/level';
 import { go, href } from '../router';
 import { ActionTile, ControlSheet, FieldTile, GearButton, SheetSection, ToggleTile } from '../components/ControlSheet';
@@ -39,7 +42,7 @@ import './doppel.css';
 type View = 'overview' | 'differences' | 'play';
 
 /** Strength dial settings (ranks on the level scale, see level/ranks.ts). */
-const STRENGTHS = [-14, -9, -6, -4, -2, 0, 1, 3, 5, 7, 9, FULL_STRENGTH];
+const STRENGTHS = [-14, -9, -6, -4, -2, 0, 1, 3, 5, 7, 9, 10, 11, FULL_STRENGTH];
 
 /** The losing side must keep this winrate for a disagreement to count (looser than practice: this is a report). */
 const REPORT_MIN_LOSING_WINRATE = 0.1;
@@ -1404,6 +1407,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     );
   else if (showAnalysis && tab === 'trend') panel = <TrendPanel {...report} />;
   else if (showAnalysis && tab === 'blunder') panel = <BlunderPanel {...report} />;
+  else if (showAnalysis && tab === 'skill') panel = <SkillPanel size={size} komi={game.komi} setup={game.setup} moves={history} black={black} white={white} />;
   else if (showAnalysis && tab === 'performance')
     panel = (
       <>

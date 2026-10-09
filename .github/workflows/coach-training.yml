@@ -1,6 +1,7 @@
 # The coach keeps learning in GitHub's cloud, every day, whether or not anyone has the site
-# open. Each run measures a fresh batch of rank-labelled Fox games and professional games
-# with KataGo (the bundled network), adds them to everything measured before, refits the
+# open. Each run measures the newest rank-labelled Fox games not measured yet, plus
+# professional, top professional and AI games (for 10d-12d), with KataGo (the bundled
+# network) on 13 machines, adds them to everything measured before, refits the
 # level estimate (public/level/calibration.json) and the move-difficulty model
 # (public/coach/difficulty.json), logs the progress (public/coach/progress.json) and commits
 # them; Vercel then redeploys the site with the improved coach. The measured data itself is
@@ -34,10 +35,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [0, 1, 2, 3]
+        # Jobs 0-11 measure Fox games (each a twelfth of the ranks); job 12 measures
+        # professional, top professional and AI games for 10d-12d.
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     env:
       GH_TOKEN: ${{ github.token }}
       SEED: ${{ github.run_number }}${{ matrix.job }}
+      ELITE: ${{ matrix.job == 12 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,47 +55,91 @@ jobs:
           mkdir -p corpus
           if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
             gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
+          # Professional, top professional and AI games measured when the 10d-12d scale was added.
+          FIRST=$(gunzip -c data/coach/seed/elite.jsonl.gz | grep -m 1 -o '"file":"[^"]*"' || true)
+          grep -qF "$FIRST" corpus/rank.jsonl || gunzip -c data/coach/seed/elite.jsonl.gz >> corpus/rank.jsonl
+          # Level games and move-difficulty games are tracked apart: a game measured for one
+          # can still be measured for the other.
+          grep -o '"file":"[^"]*"' corpus/rank.jsonl | cut -d'"' -f4 | sort -u > seen-rank.txt
           cat corpus/*.jsonl | grep -o '"file":"[^"]*"' | cut -d'"' -f4 | sort -u > seen.txt
-          wc -l seen.txt
+          wc -l seen-rank.txt seen.txt
 
-      - name: Fetch a fresh sample of Fox games (github.com/featurecat/go-dataset)
+      - name: Fetch the newest Fox games not measured yet (github.com/featurecat/go-dataset)
+        if: env.ELITE != 'true'
         run: |
           command -v 7z > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q p7zip-full)
           git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/featurecat/go-dataset fox
           cd fox
-          DIRS=$(git ls-tree -d --name-only HEAD | grep -E '^[0-9]+[kd]$' | awk 'NR % 4 == ${{ matrix.job }}')
+          DIRS=$(git ls-tree -d --name-only HEAD | grep -E '^[0-9]+[kd]$' | awk 'NR % 12 == ${{ matrix.job }}')
           for d in $DIRS; do
-            # Alternate between the rank's two archives from run to run.
-            ARCH=$(git ls-tree --name-only HEAD "$d/" | grep -E '\.7z(\.001)?$' | awk -v r=${{ github.run_number }} '{a[NR]=$0} END {print a[(r % NR) + 1]}')
-            BASE=${ARCH%.001}
-            git checkout -q HEAD -- $(git ls-tree --name-only HEAD "$d/" | grep -F "$(basename "$BASE")")
-            7z l -ba -slt "$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | shuf -n 300 --random-source=<(yes "$SEED$d") > "../$d.list" || true
-            7z x -y -o"../sgf/$d" "$ARCH" @"../$d.list" > /dev/null || true
+            # Both of the rank's archives; file names start with the game's Unix time, so a
+            # reverse sort lists the newest first.
+            git checkout -q HEAD -- "$d/"
+            for ARCH in $(ls "$d"/ | grep -E '\.7z(\.001)?$'); do
+              7z l -ba -slt "$d/$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | awk -F/ '{print $NF "\t" $0}' \
+                | sort -r \
+                | awk -F'\t' -v S=../seen-rank.txt 'BEGIN {while ((getline l < S) > 0) seen[l] = 1} !($1 in seen) {print $2}' | head -n 900 > "../$d-$ARCH.list" || true
+              7z x -y -o"../sgf/$d" "$d/$ARCH" @"../$d-$ARCH.list" > /dev/null || true
+            done
             rm -f "$d"/*.7z*
           done
           cd .. && rm -rf fox
-          npx tsx scripts/coach-pick.ts --dir sgf --per-rank 60 --seen seen.txt --seed "$SEED" --out fox.txt
+          npx tsx scripts/coach-pick.ts --dir sgf --per-rank 450 --seen seen-rank.txt --newest --out fox.txt
+          # Move difficulty keeps its random sample of the same games.
+          npx tsx scripts/coach-pick.ts --dir sgf --per-rank 60 --seen seen.txt --seed "$SEED" --out fox-moves.txt
 
-      - name: Fetch a sample of professional games (github.com/yenw/computer-go-dataset)
+      - name: Fetch professional and AI games, newest first (github.com/yenw/computer-go-dataset, katagotraining.org)
+        if: env.ELITE == 'true' || matrix.job < 4
         run: |
           git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/yenw/computer-go-dataset pro
           (cd pro && git checkout -q HEAD -- Professional/pro2000+.zip Professional/pro1940-1999.zip)
           unzip -q -o pro/Professional/pro2000+.zip -d prodata && unzip -q -o pro/Professional/pro1940-1999.zip -d prodata
-          cat prodata/*.txt | grep '^(' | grep 'KM\[' | shuf -n 400 --random-source=<(yes "$SEED") > pro.txt
-          rm -rf pro prodata
+          cat prodata/*.txt | grep '^(' > pro-all.txt
+          shuf -n 400 --random-source=<(yes "$SEED") pro-all.txt > pro.txt
+          if [ "$ELITE" = true ]; then
+            (cd pro && git checkout -q HEAD -- AI)
+            # Fox's own professional games (P9段 etc.), the same server as the amateur ranks.
+            command -v 7z > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q p7zip-full)
+            git clone -q --filter=blob:none --no-checkout --depth 1 https://github.com/featurecat/go-dataset fox
+            (cd fox && git checkout -q HEAD -- Pro/)
+            for a in fox/Pro/*.7z; do 7z x -y -ofoxpro "$a" > /dev/null || true; done
+            rm -rf fox
+            # KataGo's newest rating games, when the site can be reached (best effort).
+            mkdir -p kata
+            if curl -sfL -m 60 https://katagotraining.org/sgfs/kata1/ -o kata.html; then
+              for f in $(grep -o 'href="[^"]*rating[^"]*\.tar\.bz2"' kata.html | cut -d'"' -f2 | sort | tail -n 3); do
+                curl -sfL -m 600 "https://katagotraining.org/sgfs/kata1/$(basename "$f")" | tar xjf - -C kata || true
+              done
+            fi
+            echo "KataGo games: $(find kata -iname '*.sgf' | wc -l)"
+            npx tsx scripts/elite-pick.ts --fox-pro-dir foxpro --ai-dir pro/AI --pro-lines pro-all.txt --kata-dir kata --seen seen-rank.txt --per-rank 700 --out elite.jsonl
+            rm -rf kata foxpro
+          fi
+          rm -rf pro prodata pro-all.txt
 
       - name: Measure with KataGo
         run: |
           C=$(nproc)
           mkdir -p out
           T=$((MINUTES * 60))
-          # One core measures levels, one professional moves, the rest move difficulty in Fox games.
-          timeout $T npx tsx scripts/rank-corpus.ts --list fox.txt --part 0 --parts 1 --out out/rank-${{ matrix.job }}.jsonl > rank.log 2>&1 &
-          timeout $T npx tsx scripts/move-corpus.ts --sgf-lines pro.txt --rank P9 --out out/moves-pro-${{ matrix.job }}.jsonl > pro.log 2>&1 &
-          P=$((C > 2 ? C - 2 : 1))
-          for p in $(seq 0 $((P - 1))); do
-            timeout $T npx tsx scripts/move-corpus.ts --list fox.txt --part $p --parts $P --out out/moves-${{ matrix.job }}-$p.jsonl > moves-$p.log 2>&1 &
-          done
+          J=${{ matrix.job }}
+          if [ "$ELITE" = true ]; then
+            for p in $(seq 0 $((C - 1))); do
+              timeout $T npx tsx scripts/rank-corpus.ts --jsonl elite.jsonl --part $p --parts $C --out out/rank-elite-$p.jsonl > rank-$p.log 2>&1 &
+            done
+          else
+            # Every core but one measures levels; the last one measures move difficulty
+            # (professional moves on four of the machines, Fox moves on the rest).
+            P=$((C > 1 ? C - 1 : 1))
+            for p in $(seq 0 $((P - 1))); do
+              timeout $T npx tsx scripts/rank-corpus.ts --list fox.txt --part $p --parts $P --out out/rank-$J-$p.jsonl > rank-$p.log 2>&1 &
+            done
+            if [ "$J" -lt 4 ]; then
+              timeout $T npx tsx scripts/move-corpus.ts --sgf-lines pro.txt --rank P9 --out out/moves-pro-$J.jsonl > moves.log 2>&1 &
+            else
+              timeout $T npx tsx scripts/move-corpus.ts --list fox-moves.txt --out out/moves-$J.jsonl > moves.log 2>&1 &
+            fi
+          fi
           wait || true
           tail -n 2 *.log || true
           wc -l out/*.jsonl || true
@@ -125,6 +173,9 @@ jobs:
           mkdir -p corpus
           if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
             gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
+          # Professional, top professional and AI games measured when the 10d-12d scale was added.
+          FIRST=$(gunzip -c data/coach/seed/elite.jsonl.gz | grep -m 1 -o '"file":"[^"]*"' || true)
+          grep -qF "$FIRST" corpus/rank.jsonl || gunzip -c data/coach/seed/elite.jsonl.gz >> corpus/rank.jsonl
           cat parts/rank-*.jsonl >> corpus/rank.jsonl 2>/dev/null || true
           cat parts/moves-*.jsonl >> corpus/moves.jsonl 2>/dev/null || true
           wc -l corpus/*.jsonl

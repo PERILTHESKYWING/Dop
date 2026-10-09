@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { keyOf, loadLevel, measureLevel, levelOf, stopMeasuring, unmeasured, useLevel, type LevelTarget } from '../state/level';
 import { useStore, toast } from '../state/store';
-import { rankLabel, rankRangeLabel } from '../lib/level/ranks';
+import { MAX_RANK, MIN_RANK, rankLabel, rankLabelWhole, rankRangeLabel, rankTier } from '../lib/level/ranks';
 import type { LevelEstimate, PlayerLevel } from '../lib/level/model';
 import type { LevelFeatures } from '../lib/level/stats';
 import { fmtPct } from './common';
@@ -41,15 +41,16 @@ export function useLevelOf(targets: readonly LevelTarget[]) {
 }
 
 function Range({ e }: { e: LevelEstimate }) {
-  // A strip from 18k to 9d with the estimate and its 80% range.
-  const pos = (r: number) => ((r + 17) / 26) * 100;
+  // A strip from 18k to 12d (AI) with the estimate and its 80% range.
+  const pos = (r: number) => ((r - MIN_RANK) / (MAX_RANK - MIN_RANK)) * 100;
+  const ticks: [string, number][] = [['18k', -17], ['10k', -9], ['5k', -4], ['1k', 0], ['1d', 1], ['5d', 5], ['9d', 9], ['AI', 12]];
   return (
     <div className="lvl-strip" aria-hidden>
       <div className="lvl-strip-range" style={{ left: `${pos(e.low)}%`, width: `${Math.max(1.5, pos(e.high) - pos(e.low))}%` }} />
       <div className="lvl-strip-dot" style={{ left: `${pos(e.rank)}%` }} />
       <div className="lvl-strip-ticks">
-        {['18k', '10k', '5k', '1k', '1d', '5d', '9d'].map((t) => (
-          <span key={t} style={{ left: `${pos(t.endsWith('k') ? 1 - Number(t.slice(0, -1)) : Number(t.slice(0, -1)))}%` }}>
+        {ticks.map(([t, r]) => (
+          <span key={t} style={{ left: `${pos(r)}%` }}>
             {t}
           </span>
         ))}
@@ -141,7 +142,10 @@ export function LevelPanel({ targets, who = 'your', auto = false, compact = fals
       <div className="lvl-main">
         <div className="lvl-rank">
           <span className="lvl-eyebrow">Estimated level</span>
-          <strong>{rankLabel(e.rank)}</strong>
+          <strong>
+            {rankLabel(e.rank)}
+            {rankTier(e.rank) && <small className="lvl-tier"> {rankTier(e.rank)}</small>}
+          </strong>
           <span className="small dim">
             likely {rankRangeLabel(e.low, e.high)} · {e.games} game{e.games === 1 ? '' : 's'}
           </span>
@@ -171,15 +175,15 @@ export function LevelPanel({ targets, who = 'your', auto = false, compact = fals
       {!compact && level && (
         <>
           <p className="tiny muted">
-            Compared with Fox players around {rankLabel(level.peers?.rank ?? e.rank)}, {who} numbers:
+            Compared with players around {rankLabelWhole(level.peers?.rank ?? e.rank)}, {who} numbers:
           </p>
           <PeerNumbers level={level} />
         </>
       )}
       {progress}
       <p className="tiny muted lvl-note">
-        Fox-equivalent rank from {cal.games.toLocaleString()} rank-labelled Fox games measured with the bundled network. On held-out games it is off by
-        about {acc['1']?.toFixed(1)} ranks from one game{acc['10'] ? ` and ${acc['10'].toFixed(1)} from ten` : ''}. Other servers' ranks differ.
+        Fox scale from {cal.games.toLocaleString()} games (10d pro, 11d top pro, 12d AI). Typical error: {acc['1']?.toFixed(1)} ranks from one game
+        {acc['10'] ? `, ${acc['10'].toFixed(1)} from ten` : ''}.
       </p>
     </div>
   );

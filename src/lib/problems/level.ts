@@ -1,6 +1,6 @@
 import { findRate, PRO_RANK, type DifficultyModel } from '../coach/difficulty';
 import type { MoveChoice } from '../coach/choices';
-import { MAX_RANK, MIN_RANK, rankLabel } from '../level/ranks';
+import { MAX_RANK, MIN_RANK, rankLabelWhole } from '../level/ranks';
 import type { Loc } from '../go/types';
 
 /**
@@ -68,7 +68,7 @@ export function levelsByQuantile(scores: readonly number[]): number[] {
 
 export const clampLevel = (r: number) => Math.max(PROBLEM_MIN_LEVEL, Math.min(PROBLEM_MAX_LEVEL, Math.round(r)));
 
-export const levelLabel = (r: number) => rankLabel(clampLevel(r));
+export const levelLabel = (r: number) => rankLabelWhole(clampLevel(r));
 
 /**
  * The player's problem rating, Elo style, on the rank scale ×100 (a 1k player solving 1k

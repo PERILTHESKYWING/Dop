@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import { useWheelSteps } from '../components/MoveNav';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import { SkillPanel } from '../components/Skill';
 import type { PosValue } from '../lib/analysis/lineStats';
 import { kifuFromMoves } from '../lib/kifu/kifu';
 import { saveKifu } from '../lib/kifu/store';
@@ -499,6 +500,21 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
       </>
     );
   else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
+  else if (tab === 'skill')
+    panel = (
+      <SkillPanel
+        size={game.size}
+        komi={game.komi}
+        rules={game.rules}
+        handicap={game.handicap}
+        setup={game.setup}
+        moves={game.moves}
+        black={game.black}
+        white={game.white}
+        gameId={game.id}
+        analysis={analysis}
+      />
+    );
   else if (tab === 'performance')
     panel = (
       <>

@@ -181,6 +181,14 @@ const PATHS: Record<string, JSX.Element> = {
       <rect x="15.6" y="9.5" width="3.4" height="10.5" rx="0.8" />
     </>
   ),
+  /** Skill tab: a level gauge. */
+  skill: (
+    <>
+      <path d="M3.5 17a8.5 8.5 0 0 1 17 0" />
+      <path d="M12 17l4.2-5.4" />
+      <circle cx="12" cy="17" r="1.4" />
+    </>
+  ),
   /** KataGo's analysis switched on. */
   ai: (
     <>
