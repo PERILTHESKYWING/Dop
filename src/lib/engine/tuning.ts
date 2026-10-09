@@ -80,7 +80,7 @@ export function forgetTunings() {
 export function maxLanes(d: DeviceFacts, laneHeapBytes: number): number {
   if (d.backend === 'webgpu') return 1;
   const byCores = Math.max(1, Math.min(8, d.cores - 1));
-  const budget = Math.min(1.5e9, (d.memoryGB ?? 4) * 1e9 * 0.3);
+  const budget = Math.min(1.2e9, (d.memoryGB ?? 4) * 1e9 * 0.15);
   const byMemory = Math.max(1, Math.floor(budget / Math.max(laneHeapBytes, 32e6)));
   return Math.max(1, Math.min(byCores, byMemory));
 }

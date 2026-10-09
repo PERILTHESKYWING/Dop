@@ -166,8 +166,10 @@ describe('tuning and heat', () => {
   });
 
   it('limits workers by cores and memory', () => {
-    expect(maxLanes({ cores: 8, backend: 'cpu' }, 150e6)).toBe(7);
-    expect(maxLanes({ cores: 8, memoryGB: 2, backend: 'cpu' }, 150e6)).toBe(4);
+    expect(maxLanes({ cores: 8, memoryGB: 8, backend: 'cpu' }, 150e6)).toBe(7);
+    expect(maxLanes({ cores: 8, backend: 'cpu' }, 150e6)).toBe(4);
+    expect(maxLanes({ cores: 8, memoryGB: 4, backend: 'cpu' }, 150e6)).toBe(4);
+    expect(maxLanes({ cores: 8, memoryGB: 2, backend: 'cpu' }, 150e6)).toBe(2);
     expect(maxLanes({ cores: 8, backend: 'webgpu' }, 150e6)).toBe(1);
     expect(maxLanes({ cores: 1, backend: 'cpu' }, 150e6)).toBe(1);
   });
