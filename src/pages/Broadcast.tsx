@@ -1,8 +1,13 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Board } from '../components/Board';
-import { WinBar } from '../components/Analysis';
 import { candidateMarks, CandidateTable, type ShownCandidate } from '../components/Live';
-import { EvalToggle, fmtPct, FocusEval, FocusToggle, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
+import { fmtPct } from '../components/common';
+import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
+import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import type { PosValue } from '../lib/analysis/lineStats';
+import { kifuFromMoves } from '../lib/kifu/kifu';
+import { saveKifu } from '../lib/kifu/store';
+import { toast } from '../state/store';
 import { BrandSpinner } from '../components/Brand';
 import { ClassPill } from '../components/MoveBadge';
 import { replay } from '../lib/go/board';
@@ -26,7 +31,6 @@ import {
 } from '../lib/broadcast/schedule';
 import { go, href } from '../router';
 import './broadcast.css';
-import { BackLink } from '../components/ControlSheet';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
@@ -310,21 +314,6 @@ function resultText(g: LiveGame) {
   return r.endsWith('+R') ? `${who} wins by resignation` : `${who} wins by ${r.slice(2)} points`;
 }
 
-function Players({ g }: { g: LiveGame }) {
-  const toPlay = g.shown % 2 === 0 ? 1 : 2;
-  const done = g.shown >= g.total;
-  return (
-    <div className="bc-players">
-      <span className={!done && toPlay === 1 ? 'turn' : ''}>
-        <i className="stone-dot b" /> {g.black}
-      </span>
-      <span className="muted tiny">vs</span>
-      <span className={!done && toPlay === 2 ? 'turn' : ''}>
-        {g.white} <i className="stone-dot w" />
-      </span>
-    </div>
-  );
-}
 
 /** A bar that fills until the next move lands (restarted by the move number). */
 function MoveTimer({ g }: { g: LiveGame }) {
@@ -365,36 +354,90 @@ function Watch({
   const leads = g.game.lead.slice(0, g.shown + 1).map((x) => x / 10);
   const size = g.game.size;
   const lastClass = g.shown > 0 ? moveClassAt(g, moves, g.shown - 1) : null;
-  const [focused, setFocused] = useFocusMode();
-  const [evalOn, setEvalOn] = useEvalPref();
+  const [tab, setTab] = useState<string | null>('data');
+  const [saving, setSaving] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
+  const allMoves = useMemo(() => moves.map((loc, i) => ({ color: (i % 2 === 0 ? 1 : 2) as 1 | 2, loc })), [moves]);
+  const shownMoves = allMoves.slice(0, g.shown);
+  const values: PosValue[] = wr.map((bWin, i) => ({ bWin, bLead: leads[i] ?? null }));
 
   useEffect(() => {
+    if (saving) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowRight') go(`live/${(table + 1) % TABLES}`);
       else if (e.key === 'ArrowLeft') go(`live/${(table + TABLES - 1) % TABLES}`);
-      else if (e.key === 'Escape') {
-        if (focused) setFocused(false);
-        else go('live');
-      } else return;
+      else if (e.key === 'Escape') go('live');
+      else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [table, focused, setFocused]);
+  }, [table, saving]);
+
+  const save = async (title: string) => {
+    const k = kifuFromMoves({ size, komi: g.game.komi, rules: 'chinese', black: g.black, white: g.white, title: title.trim() || `Live table ${table + 1}: ${g.black} vs ${g.white}`, event: 'Live AI broadcast', date: new Date(g.start).toISOString().slice(0, 10) }, [], shownMoves);
+    await saveKifu({ ...k, source: 'live', saved: true });
+    toast(`Saved "${k.title}" (${shownMoves.length} moves) to Your kifu.`, 'ok');
+  };
+  const report = { values, moves: shownMoves, size, black: g.black, white: g.white, cursor: g.shown, onPick: () => undefined };
+
+  let panel: ReactNode = null;
+  if (tab === 'data')
+    panel = (
+      <>
+        <div className="bs-row">
+          <span className="bc-watch-title">
+            <span className="bc-onair" />
+            <strong>Table {table + 1}</strong>
+            <span className={`chip bc-phase ${g.phase}`}>{PHASE_LABEL[g.phase]}</span>
+          </span>
+          {lastClass && (
+            <span className="row small">
+              <span className="dim">Last move</span>
+              <ClassPill cls={lastClass} />
+            </span>
+          )}
+        </div>
+        <div className="tiny muted">
+          Move {g.shown}
+          {g.shown > 0 && moves[g.shown - 1] !== undefined && ` · ${g.shown % 2 === 1 ? 'Black' : 'White'} ${locToGtp(moves[g.shown - 1], size)}`} · komi {g.game.komi}, area scoring
+        </div>
+        {!done && <MoveTimer g={g} />}
+        {!done && cands.length > 0 && (
+          <>
+            <h3>{toPlay === 1 ? g.black : g.white} is weighing</h3>
+            <CandidateTable cands={cands} size={size} max={4} />
+            <p className="tiny muted">Every move listed loses almost nothing; the players choose among them, so the most visited one is not always played.</p>
+          </>
+        )}
+        <div className="bs-row">
+          <FloorControl floor={floor} onFloor={onFloor} />
+          <SpeedControl speed={speed} onSpeed={onSpeed} />
+        </div>
+      </>
+    );
+  else if (tab === 'trend') panel = <TrendPanel {...report} />;
+  else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
+  else if (tab === 'performance') panel = <PerformancePanel {...report} />;
+
+  const tools: ScreenTool[] = [
+    { id: 'all', label: 'All tables', icon: 'broadcast', onClick: () => go('live') },
+    { id: 'prev', label: 'Previous table', icon: 'back', onClick: () => go(`live/${(table + TABLES - 1) % TABLES}`) },
+    { id: 'next', label: 'Next table', icon: 'play', onClick: () => go(`live/${(table + 1) % TABLES}`) },
+    { id: 'cands', label: 'Candidates', icon: 'target', on: showCands, onClick: () => setShowCands(!showCands) },
+    { id: 'study', label: 'Study board', icon: 'kifu', onClick: () => go(`study?live=${encodeURIComponent(g.key)}&g=${encodeURIComponent(g.game.id)}&n=${g.shown}`) },
+  ];
 
   return (
-    <div className={`stage bc-watch ${focused ? 'focused' : ''}`}>
-      <FocusToggle focused={focused} onChange={setFocused} />
-      {focused && <EvalToggle on={evalOn} onChange={setEvalOn} />}
-      {focused && evalOn && (
-        <FocusEval>
-          <WinBar bWin={v.bWin} bLead={v.bLead} />
-          <WinrateGraph values={wr} scores={leads} cursor={g.shown} />
-        </FocusEval>
-      )}
-      <div className="board-wrap">
+    <BoardScreen
+      className="bc-watch"
+      title={`Live table ${table + 1}`}
+      sub={`${PHASE_LABEL[g.phase]} · move ${g.shown}`}
+      head={<HeadButton icon="save" label="Save" onClick={() => (setSaveTitle(`Live table ${table + 1}: ${g.black} vs ${g.white}`), setSaving(true))} title="Save the moves so far to Your kifu" />}
+      players={<PlayersBar black={g.black} white={g.white} captures={captures} showEval bWin={v.bWin} bLead={v.bLead} black2={!done && toPlay === 1 ? 'to play' : undefined} white2={!done && toPlay === 2 ? 'to play' : undefined} />}
+      board={
         <div className="bc-board-frame">
           <Board
             size={size}
@@ -414,67 +457,36 @@ function Watch({
             </div>
           )}
         </div>
-      </div>
-      <div className="side">
-        <div className="panel stack">
-          <div className="spread bc-watch-head">
-            <BackLink href={href('live')} label="All tables" />
-            <span className="bc-watch-title">
-              <span className="bc-onair" />
-              <strong>Table {table + 1}</strong>
-              <span className={`chip bc-phase ${g.phase}`}>{PHASE_LABEL[g.phase]}</span>
-            </span>
-            <div className="row">
-              <button className="btn small" onClick={() => go(`live/${(table + TABLES - 1) % TABLES}`)} aria-label="Previous table">
-                ◀
-              </button>
-              <button className="btn small" onClick={() => go(`live/${(table + 1) % TABLES}`)} aria-label="Next table">
-                ▶
-              </button>
-            </div>
-          </div>
-          <div className="spread wrap">
-            <FloorControl floor={floor} onFloor={onFloor} />
-            <SpeedControl speed={speed} onSpeed={onSpeed} />
-          </div>
-          <Players g={g} />
-          <WinBar bWin={v.bWin} bLead={v.bLead} />
-          <div className="spread tiny muted">
-            <span>
-              Move {g.shown}
-              {g.shown > 0 && moves[g.shown - 1] !== undefined && ` · ${g.shown % 2 === 1 ? 'Black' : 'White'} ${locToGtp(moves[g.shown - 1], size)}`}
-            </span>
-            <span>
-              captures ● {captures[1]} · ○ {captures[2]}
-            </span>
-          </div>
-          {lastClass && (
-            <div className="row small">
-              <span className="dim">Last move</span>
-              <ClassPill cls={lastClass} />
-            </div>
-          )}
-          {!done && <MoveTimer g={g} />}
-          <WinrateGraph values={wr} scores={leads} cursor={g.shown} />
-          <div className="row wrap">
-            <a className="btn small primary" href={href(`study?live=${encodeURIComponent(g.key)}&g=${encodeURIComponent(g.game.id)}&n=${g.shown}`)}>
-              Study this position
-            </a>
-            <label className="toggle">
-              <input type="checkbox" checked={showCands} onChange={(e) => setShowCands(e.target.checked)} /> Show what KataGo is weighing
+      }
+      tabs={REPORT_TABS}
+      tab={tab}
+      onTab={setTab}
+      panel={panel}
+      tools={tools}
+      notice={
+        saving ? (
+          <Notice
+            title="Save this game so far"
+            onClose={() => setSaving(false)}
+            actions={
+              <>
+                <button className="btn ghost" onClick={() => setSaving(false)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={() => (setSaving(false), void save(saveTitle))}>
+                  Save
+                </button>
+              </>
+            }
+          >
+            <label>
+              Name
+              <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (setSaving(false), void save(saveTitle))} />
             </label>
-          </div>
-        </div>
-
-        {!done && cands.length > 0 && (
-          <div className="panel stack">
-            <h3>{toPlay === 1 ? g.black : g.white} is weighing</h3>
-            <CandidateTable cands={cands} size={size} max={4} />
-            <p className="tiny muted">Every move listed loses almost nothing; the players choose among them, so the most visited one is not always played.</p>
-          </div>
-        )}
-        <p className="tiny muted">Komi {g.game.komi} · area scoring · ← → switch tables</p>
-      </div>
-    </div>
+            <span className="small">The {shownMoves.length} moves played so far go to Your kifu.</span>
+          </Notice>
+        ) : null
+      }
+    />
   );
 }

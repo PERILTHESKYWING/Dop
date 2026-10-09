@@ -2,6 +2,7 @@ import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type 
 import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
+import { startAccount } from './state/account';
 import { Toasts } from './components/common';
 import { Scenery } from './components/Scenery';
 import { storedTheme, THEME_PREF, themeInfo, type ThemeId } from './lib/themes';
@@ -23,6 +24,7 @@ import { BlindTests } from './pages/BlindTests';
 import { Search } from './pages/Search';
 import { Opponents } from './pages/Opponents';
 import { Settings } from './pages/Settings';
+import { Account } from './pages/Account';
 import { Broadcast } from './pages/Broadcast';
 import { Study } from './pages/Study';
 import { Chat } from './pages/Chat';
@@ -54,27 +56,34 @@ function navActive(item: NavItem, current: string, params0: string) {
   return item.page === current && (item.sub === undefined || item.sub.includes(params0));
 }
 
+/* The app is mainly the study board (free AI analysis) and the Doppelgänger: those two and
+ * Home come first everywhere, and are the only three tabs on a phone; the rest is in "More". */
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Main',
+    items: [
+      navItem('dashboard', 'Home', 'Home', 'home'),
+      navItem('study', 'Study Board', 'Study board', 'kifu'),
+      navItem('doppel', 'Doppelgänger', 'Doppelgänger', 'twin', { sub: ['', 'play'] }),
+    ],
+  },
   {
     label: 'Study',
     items: [
-      navItem('dashboard', 'Dashboard', 'Home', 'sunrise'),
       navItem('library', 'Game Library', 'Games', 'library'),
       navItem('review', 'Game Review', 'Review', 'board'),
       navItem('chat', 'Go Coach Chat', 'Coach', 'chat'),
-      navItem('study', 'Study Board', 'Study', 'kifu'),
-      navItem('live', 'Live AI Games', 'Live', 'broadcast'),
+      navItem('live', 'Live AI Games', 'Live games', 'broadcast'),
       navItem('dna', 'Player DNA', 'Player DNA', 'dna'),
-      navItem('doppel', 'Doppelgänger', 'Doppelgänger', 'twin', { sub: ['', 'play'] }),
       navItem('doppel', 'The Copy', 'The Copy', 'stones', { path: 'doppel/copy', sub: ['copy'] }),
-      navItem('doppel', 'Where It Differs', 'Differs', 'target', { path: 'doppel/differences', sub: ['differences'] }),
+      navItem('doppel', 'Where It Differs', 'Where it differs', 'target', { path: 'doppel/differences', sub: ['differences'] }),
     ],
   },
   {
     label: 'Train',
     items: [
       navItem('forge', 'Forge', 'Forge', 'flame'),
-      navItem('blind', 'Blind Tests', 'Blind Tests', 'eyeOff'),
+      navItem('blind', 'Blind Tests', 'Blind tests', 'eyeOff'),
       navItem('search', 'Position Search', 'Search', 'search'),
     ],
   },
@@ -84,12 +93,15 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 const SETTINGS_ITEM: NavItem = navItem('settings', 'Engine & Settings', 'Settings', 'sliders');
-const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), SETTINGS_ITEM];
-/** The phone tab bar: the most used pages; everything else is in "More". */
-const TABS = ['dashboard', 'library', 'review', 'forge'];
+const ACCOUNT_ITEM: NavItem = navItem('account', 'Account & Sync', 'Account', 'user');
+const ALL_ITEMS = [...NAV_GROUPS.flatMap((g) => g.items), ACCOUNT_ITEM, SETTINGS_ITEM];
+/** The phone tab bar: the three main pages, bigger; everything else is in "More". */
+const TABS = ['dashboard', 'study', 'doppel'];
 const byPage = (page: string) => ALL_ITEMS.find((i) => i.page === page)!;
+/** The phone tab for a page: the Doppelgänger tab covers only its play page, the rest of it is in More. */
+const onTab = (current: string, params0: string) => TABS.includes(current) && (current !== 'doppel' || params0 === '' || params0 === 'play');
 
-/** What the engine, the analysis queue and the LLM are doing, for the status card and the phone top bar. */
+/** What the engine, the analysis queue and the LLM are doing, for the status card. */
 function useStatus() {
   const engine = useStore((s) => s.engine);
   const queue = useStore((s) => s.queue);
@@ -124,9 +136,7 @@ function useStatus() {
         : 'Analysis up to date';
   const llmDot = llm?.available ? 'ok' : llm?.configured ? 'err' : '';
   const llmText = llm?.available ? 'connected' : llm?.configured ? 'not answering' : 'off (optional)';
-  // The phone top bar has room for one line: whatever is most worth knowing.
-  const brief = queue.running ? { dot: 'busy', text: 'Analysing' } : engine.status === 'loading' ? { dot: 'busy', text: 'Loading KataGo' } : engine.status === 'error' || engine.status === 'unsupported' ? { dot: 'err', text: 'KataGo stopped' } : pending ? { dot: '', text: `${pending} waiting` } : engine.status === 'ready' ? { dot: 'ok', text: `KataGo · ${engineText}` } : { dot: queueDot, text: 'Up to date' };
-  return { engDot, engineText, queueDot, queueText, analysing: queue.running && !!cur, llmDot, llmText, brief };
+  return { engDot, engineText, queueDot, queueText, analysing: queue.running && !!cur, llmDot, llmText };
 }
 
 function StatusCard() {
@@ -180,9 +190,9 @@ function TabBar({ current }: { current: string }) {
   const [sheet, setSheet] = useState<'closed' | 'open' | 'closing'>('closed');
   const route = useRoute();
   const panel = useRef<HTMLDivElement>(null);
-  const rest = ALL_ITEMS.filter((i) => !TABS.includes(i.page));
   const params0 = route.params[0] ?? '';
-  const moreActive = !TABS.includes(current);
+  const rest = ALL_ITEMS.filter((i) => !TABS.includes(i.page) || (i.page === 'doppel' && i.sub && !i.sub.includes('')));
+  const moreActive = !onTab(current, params0);
   const close = () => setSheet((s) => (s === 'open' ? 'closing' : s));
   // Any navigation closes the sheet.
   useEffect(() => {
@@ -204,15 +214,15 @@ function TabBar({ current }: { current: string }) {
       <nav className="tabbar" aria-label="Main">
         {TABS.map((page) => {
           const it = byPage(page);
-          const on = current === page;
+          const on = current === page && onTab(current, params0);
           return (
-            <a key={page} href={href(page)} className={`tab ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined}>
+            <a key={page} href={href(page)} className={`tab main ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined}>
               <Icon name={it.icon} />
               <span>{it.short}</span>
             </a>
           );
         })}
-        <button className={`tab ${moreActive || sheet === 'open' ? 'on' : ''}`} aria-expanded={sheet === 'open'} aria-haspopup="dialog" onClick={() => setSheet(sheet === 'open' ? 'closing' : 'open')}>
+        <button className={`tab more ${moreActive || sheet === 'open' ? 'on' : ''}`} aria-expanded={sheet === 'open'} aria-haspopup="dialog" onClick={() => setSheet(sheet === 'open' ? 'closing' : 'open')}>
           <MoreGlyph />
           <span>More</span>
         </button>
@@ -250,22 +260,6 @@ function TabBar({ current }: { current: string }) {
         </div>
       )}
     </>
-  );
-}
-
-function PhoneTopBar() {
-  const s = useStatus();
-  return (
-    <header className="topbar">
-      <a className="brand" href={href('dashboard')}>
-        <BrandMark />
-        <span className="brand-name">DOPPELGÄNGER</span>
-      </a>
-      <a className="topbar-status" href={href('settings')} title="Engine & Settings">
-        <span className={`dot ${s.brief.dot}`} />
-        {s.brief.text}
-      </a>
-    </header>
   );
 }
 
@@ -336,6 +330,10 @@ export function App() {
   useEffect(() => {
     void init();
   }, []);
+  // The optional account: once the lab is open, see who is signed in and sync quietly.
+  useEffect(() => {
+    if (loaded) startAccount();
+  }, [loaded]);
   // The theme is also kept in this browser so the next visit paints it before the app loads (index.html).
   useEffect(() => {
     if (!loaded) return;
@@ -390,6 +388,9 @@ export function App() {
       case 'settings':
         page = <Settings />;
         break;
+      case 'account':
+        page = <Account />;
+        break;
       case 'live':
         page = <Broadcast table={route.params[0]} />;
         break;
@@ -440,6 +441,7 @@ export function App() {
                 ))}
               </div>
               <div className="nav-foot">
+                <NavLink item={ACCOUNT_ITEM} current={current} />
                 <NavLink item={SETTINGS_ITEM} current={current} />
                 <a className="item nav-about" href={href('welcome')} title="About DOPPELGÄNGER">
                   <Icon name="spark" />
@@ -460,7 +462,6 @@ export function App() {
                 </span>
               </button>
             )}
-            {loaded && <PhoneTopBar />}
             <main className="main">
               {loaded ? (
                 <div key={current + '/' + route.params.join('/')} className="route">

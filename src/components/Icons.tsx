@@ -144,6 +144,115 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="m6 10.5-1.3 1.5L6 13.5" />
     </>
   ),
+  home: (
+    <>
+      <path d="M3.5 11 12 4l8.5 7" />
+      <path d="M5.5 9.5V20h4.5v-5.5h4V20h4.5V9.5" />
+    </>
+  ),
+  /** A table of numbers: the "Data" tab. */
+  data: (
+    <>
+      <rect x="3.5" y="4" width="17" height="16" rx="2" />
+      <path d="M3.5 9h17M3.5 14.5h17M10 4v16" />
+    </>
+  ),
+  /** A line going up and down: the "Trend" tab. */
+  trend: (
+    <>
+      <path d="M3.5 20h17" />
+      <path d="m4 15 4.5-5 3.5 3.5 4-6.5 4 4" />
+    </>
+  ),
+  /** A warning sign: the "Blunder" tab. */
+  blunder: (
+    <>
+      <path d="M12 3.8 21 19.5H3z" />
+      <path d="M12 9.5v4.5" />
+      <circle cx="12" cy="16.8" r="0.6" fill="currentColor" />
+    </>
+  ),
+  /** Bars of different heights: the "Performance" tab. */
+  performance: (
+    <>
+      <path d="M3.5 20h17" />
+      <rect x="5" y="12" width="3.4" height="8" rx="0.8" />
+      <rect x="10.3" y="6" width="3.4" height="14" rx="0.8" />
+      <rect x="15.6" y="9.5" width="3.4" height="10.5" rx="0.8" />
+    </>
+  ),
+  /** KataGo's analysis switched on. */
+  ai: (
+    <>
+      <path d="M4 19 8 5h1.6l4 14M5.3 14.5h7" />
+      <path d="M18 5v14" />
+    </>
+  ),
+  numbers: (
+    <>
+      <path d="M4 8.5 6 7v10" />
+      <path d="M9.5 9a2.2 2.2 0 1 1 3.6 1.7L9.5 17h4.2" />
+      <path d="M16 7.5a2.1 2.1 0 1 1 2.2 3.3 2.2 2.2 0 1 1-2.4 3.6" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+      <path d="M10.5 11v5.5M13.5 11v5.5" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  /** An open hand: pass. */
+  pass: (
+    <>
+      <path d="M8 12V5.8a1.4 1.4 0 0 1 2.8 0V11M10.8 10.5V4.5a1.4 1.4 0 0 1 2.8 0v6M13.6 10.5V5.5a1.4 1.4 0 0 1 2.8 0v6.5" />
+      <path d="M16.4 12V8.5a1.4 1.4 0 0 1 2.8 0v5.5a7 7 0 0 1-7 7h-.6a6.5 6.5 0 0 1-5.1-2.5L3.6 14.6a1.4 1.4 0 0 1 2.1-1.8L8 15" />
+    </>
+  ),
+  /** A person: the account. */
+  user: (
+    <>
+      <circle cx="12" cy="8" r="3.8" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </>
+  ),
+  /** Two arrows chasing each other: sync. */
+  sync: (
+    <>
+      <path d="M19.5 9.5A7.5 7.5 0 0 0 6 7.2L4.5 9" />
+      <path d="M4.5 4.5V9H9" />
+      <path d="M4.5 14.5A7.5 7.5 0 0 0 18 16.8l1.5-1.8" />
+      <path d="M19.5 19.5V15H15" />
+    </>
+  ),
+  /** Two stones set down before play: setup stones (handicap and problems). */
+  setup: (
+    <>
+      <circle cx="8" cy="9" r="3.6" fill="currentColor" />
+      <circle cx="16" cy="9" r="3.6" />
+      <circle cx="12" cy="16.5" r="3.6" fill="currentColor" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5.5" />
+      <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  territory: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+      <path d="M3.5 12h8.5V3.5" />
+      <path d="M6 6.5h3M6 9h3" />
+    </>
+  ),
   close: <path d="M6 6l12 12M18 6 6 18" />,
   save: (
     <>

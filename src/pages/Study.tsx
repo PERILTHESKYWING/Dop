@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Board, type Mark } from '../components/Board';
-import { useAnalysisView, WinBar } from '../components/Analysis';
+import { useAnalysisView } from '../components/Analysis';
 import { candidateMarks, CandidateTable, fromSnapshot, LiveHeader, lineOf, useLiveAnalysis } from '../components/Live';
 import type { SearchSnapshot } from '../lib/engine/mcts';
 import { KomiPicker } from '../components/Komi';
@@ -31,11 +31,15 @@ import { deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
-import { FocusEval, FocusToggle, gameTitle, useEvalPref, useFocusMode, WinrateGraph } from '../components/common';
-import { ActionTile, BackLink, ControlSheet, FieldTile, GearButton, PlayerNames, SheetSection, ToggleTile } from '../components/ControlSheet';
-import { FocusNav, MoveStepper, useWheelSteps } from '../components/MoveNav';
+import { gameTitle } from '../components/common';
+import { ActionTile, SheetSection } from '../components/ControlSheet';
+import { useWheelSteps } from '../components/MoveNav';
+import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
+import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
+import type { PosValue } from '../lib/analysis/lineStats';
+import { useQuickValues, type QuickItem } from '../state/quickValues';
 import { Icon } from '../components/Icons';
-import { href } from '../router';
+import { go, href } from '../router';
 import './study.css';
 
 type Mode = 'play' | 'black' | 'white' | 'erase';
@@ -99,28 +103,23 @@ async function openKifu(id: string | undefined, query: URLSearchParams): Promise
   return (await loadDraft()) ?? blankKifu();
 }
 
+/** What the panel under the board shows while recording. */
+type Pane = 'notes' | 'info' | 'kifu' | 'setup';
+
 export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [kifu, setKifu] = useState<Kifu | null>(null);
   const [cursor, setCursor] = useState(0);
   const [mode, setMode] = useState<Mode>('play');
-  const [focused, setFocused] = useFocusMode();
-  const [evalOn, setEvalOn] = useEvalPref();
-  useEffect(() => {
-    if (!focused) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFocused(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [focused, setFocused]);
-  const [analysis, setAnalysis] = useState(() => readPref(ANALYSIS_PREF, true));
+  const [analysis, setAnalysis] = useState(() => readPref(ANALYSIS_PREF, false));
   const [numbers, setNumbers] = useState(() => readPref(NUMBERS_PREF, false));
   const [view, toggleView, setCandidateCount] = useAnalysisView();
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Kifu[]>([]);
-  const [sheet, setSheet] = useState(false);
-  const closeSheet = useCallback(() => setSheet(false), []);
-  // Where the board was opened from, for the back arrow.
-  const [from] = useState(() => (query.get('live') ? { href: href('live'), label: 'Live games' } : query.get('game') ? { href: href(`review/${query.get('game')}?move=${Number(query.get('move') ?? 0) + 1}`), label: 'Review' } : null));
+  const [pane, setPane] = useState<Pane>('notes');
+  const [tab, setTab] = useState<string | null>('data');
+  const [notice, setNotice] = useState<null | 'save' | 'leave' | { newSize: number }>(null);
+  const [saveTitle, setSaveTitle] = useState('');
   const qs = query.toString();
 
   // Open whatever the address asks for; a live game or a game from the library becomes a new draft.
@@ -165,17 +164,18 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const board = useMemo(() => (k ? replay(k.size, k.setup, played) : null), [k, played]);
   const toPlay: Color = k ? toPlayAt(k, cursor) : 1;
   const rules = k?.rules === 'japanese' ? 'japanese' : 'chinese';
+  const line = useMemo(() => (k ? lineThrough(k, cursor) : [0]), [k, cursor]);
 
   const stKey = (moves: Move[], tp: Color) => (k ? `st|${k.size}|${k.komi}|${rules}|${moveKey(k.setup)}|${moveKey(moves)}|${tp}` : '');
-  // Every position visited long enough to read, kept by node id, so the winrate graph can fill
-  // in as you browse (there's no background analysis pass over a kifu like there is for a game).
-  const [seen, setSeen] = useState<Map<number, { bWin: number; bLead: number }>>(() => new Map());
+  // Every position read long enough, kept by node id: deeper than the quick pass below.
+  const [seen, setSeen] = useState<Map<number, PosValue>>(() => new Map());
   const onLeaveNode = useCallback((snap: SearchSnapshot, node: number) => {
     if (snap.visits < 2) return;
     setSeen((m) => {
       const prev = m.get(node);
-      if (prev && prev.bWin === snap.bWin && prev.bLead === snap.bLead) return m;
-      return new Map(m).set(node, { bWin: snap.bWin, bLead: snap.bLead });
+      const best = snap.candidates[0]?.loc ?? null;
+      if (prev && prev.bWin === snap.bWin && prev.bLead === snap.bLead && prev.best === best) return m;
+      return new Map(m).set(node, { bWin: snap.bWin, bLead: snap.bLead, best });
     });
   }, []);
   const target = useMemo(
@@ -191,6 +191,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
             onLeave: (snap: SearchSnapshot) => onLeaveNode(snap, cursor),
           }
         : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [k, analysis, rules, played, toPlay, cursor, onLeaveNode],
   );
   const live = useLiveAnalysis(target, analysis);
@@ -218,6 +219,21 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   );
   const snap = live.snap;
   const shown = snap ? fromSnapshot(snap) : [];
+
+  // The whole line, read once quickly, for the Trend, Blunder and Performance tabs.
+  const lineMoves = useMemo(() => (k ? movesTo(k, line[line.length - 1]) : []), [k, line]);
+  const wantsLine = analysis && (tab === 'trend' || tab === 'blunder' || tab === 'performance');
+  const quickItems = useMemo<QuickItem[] | null>(() => {
+    if (!k || !wantsLine) return null;
+    const komi = engineKomi(k.komi, rules);
+    return line.map((_, i) => {
+      const ms = lineMoves.slice(0, i);
+      const tp: Color = i < lineMoves.length ? lineMoves[i].color : ms.length ? (ms[ms.length - 1].color === 1 ? 2 : 1) : k.first;
+      return { key: stKey(ms, tp), spec: () => ({ size: k.size, komi, setup: k.setup, history: ms, toPlay: tp, board: replay(k.size, k.setup, ms) }) };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [k, wantsLine, line, lineMoves, rules]);
+  const quick = useQuickValues(quickItems);
 
   const play = useCallback(
     (loc: Loc) => {
@@ -254,7 +270,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
 
   // Keys: ← → through the moves, ↑ ↓ between variations, Home / End.
   useEffect(() => {
-    if (!k) return;
+    if (!k || notice) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
@@ -274,7 +290,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [k, cursor]);
+  }, [k, cursor, notice]);
 
   if (!k || !board)
     return (
@@ -287,6 +303,9 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const last = node.move && node.move.loc !== PASS ? node.move.loc : null;
   const update = (patch: Partial<Kifu>) => setKifu({ ...k, ...patch, updatedAt: Date.now() });
   const size = k.size;
+  const depth = depthOf(k, cursor);
+  // Unsaved work worth asking about before leaving: a draft with moves or setup stones.
+  const unsaved = !k.saved && (countMoves(k) > 0 || k.setup.length > 0);
 
   const marks: Mark[] = [];
   if (numbers) {
@@ -302,10 +321,12 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     });
   }
   const candidates = analysis && view.best && !hoverPv?.length && mode === 'play' && shown.length ? candidateMarks(shown) : null;
-  const line = lineThrough(k, cursor);
-  const depth = depthOf(k, cursor);
-  const graphValues = line.map((nid) => (nid === cursor ? (snap?.bWin ?? seen.get(nid)?.bWin ?? null) : (seen.get(nid)?.bWin ?? null)));
-  const graphScores = line.map((nid) => (nid === cursor ? (snap?.bLead ?? seen.get(nid)?.bLead ?? null) : (seen.get(nid)?.bLead ?? null)));
+  // Black's winrate at every position along the line: the live search where you are, a
+  // deeper read where you've been, the quick pass elsewhere.
+  const values: (PosValue | null)[] = line.map((nid, i) => {
+    if (nid === cursor && snap && snap.visits > 1) return { bWin: snap.bWin, bLead: snap.bLead, best: snap.candidates[0]?.loc ?? null };
+    return seen.get(nid) ?? (quickItems ? (quick.get(quickItems[i].key) ?? null) : null);
+  });
 
   const download = () => {
     const blob = new Blob([kifuToSgf(k)], { type: 'application/x-go-sgf' });
@@ -320,45 +341,242 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
       const nk = kifuFromSgf(text, name);
       setKifu(nk);
       setCursor(0);
+      setPane('notes');
       toast(`Opened ${nk.title} (${countMoves(nk)} moves).`, 'info');
     } catch (e) {
       toast(`That SGF could not be read: ${(e as Error).message}`, 'error');
     }
   };
-  const save = async () => {
-    const nk = { ...k, saved: true, cursor };
+  const save = async (title = k.title) => {
+    const nk = { ...k, title: title.trim() || k.title, saved: true, cursor, updatedAt: Date.now() };
     setKifu(nk);
     await saveKifu(nk);
     refreshLibrary();
-    toast('Saved — find it under Library → Your kifu.', 'info');
+    toast(`Saved "${nk.title}". Find it under Your kifu.`, 'ok');
+  };
+  const askSave = () => {
+    setSaveTitle(k.title);
+    setNotice('save');
   };
   const fresh = (sz: number) => {
     setKifu(blankKifu(sz, sz === 19 ? k.komi : sz === 13 ? 6.5 : 5.5, k.rules));
     setCursor(0);
     setMode('play');
+    setPane('notes');
   };
+  const setAnalysisPref = (v: boolean) => {
+    setAnalysis(v);
+    writePref(ANALYSIS_PREF, v);
+    setHoverPv(null);
+    if (v) setMode('play');
+  };
+  const setNumbersPref = (v: boolean) => {
+    setNumbers(v);
+    writePref(NUMBERS_PREF, v);
+  };
+  const goPos = (p: number) => {
+    setCursor(line[Math.max(0, Math.min(line.length - 1, p))] ?? cursor);
+    setHoverPv(null);
+  };
+  const deleteHere = () => {
+    const [nk, back] = removeNode(k, cursor);
+    setKifu(nk);
+    setCursor(back);
+  };
+  const report = { values, moves: lineMoves, size, black: k.black, white: k.white, cursor: depth, onPick: goPos, progress: quickItems && quick.done < quick.total ? <span>Reading the game… {quick.done}/{quick.total}</span> : undefined };
 
-  return (
-    <div className={`stage study ${focused ? 'focused' : ''}`}>
-      <FocusToggle focused={focused} onChange={setFocused} />
-      {focused && (
-        <FocusNav
-          onBack={() => node.parent !== null && (setCursor(node.parent), setHoverPv(null))}
-          onForward={() => node.children.length && (setCursor(node.children[0]), setHoverPv(null))}
-          canBack={node.parent !== null}
-          canForward={node.children.length > 0}
-          label={depth ? `Move ${depth}` : 'Start'}
-          evalOn={evalOn}
-          onEvalChange={setEvalOn}
+  // ---------------------------------------------------------------- the panel under the board
+  let panel: ReactNode;
+  if (analysis) {
+    if (tab === 'data')
+      panel = (
+        <>
+          <LiveHeader snap={snap} />
+          {lastClass && lastPlayed && lastPlayed.loc !== PASS && (
+            <div className="bs-row small">
+              <span className="dim">
+                Move {played.length} {lastPlayed.color === 1 ? 'Black' : 'White'} {locToGtp(lastPlayed.loc, size)}
+              </span>
+              <ClassPill cls={lastClass} />
+            </div>
+          )}
+          <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} resetKey={`${k.id}:${cursor}`} />
+          {!shown.length && <p className="tiny muted">KataGo's candidate moves appear here as it reads. Tap one to see its line.</p>}
+          <label className="small">
+            Candidates listed: top {view.candidateCount}{' '}
+            <input type="range" min={3} max={20} value={view.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves listed" />
+          </label>
+        </>
+      );
+    else if (tab === 'trend') panel = <TrendPanel {...report} />;
+    else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
+    else if (tab === 'performance') panel = <PerformancePanel {...report} />;
+  } else if (pane === 'info') {
+    panel = (
+      <div className="study-info">
+        <h3>Game info</h3>
+        <label>
+          Title
+          <input value={k.title} onChange={(e) => update({ title: e.target.value })} />
+        </label>
+        <div className="study-players">
+          <label>
+            <i className="stone-dot b" />
+            <input value={k.black} onChange={(e) => update({ black: e.target.value })} aria-label="Black player" placeholder="Black" />
+          </label>
+          <label>
+            <i className="stone-dot w" />
+            <input value={k.white} onChange={(e) => update({ white: e.target.value })} aria-label="White player" placeholder="White" />
+          </label>
+        </div>
+        <label>
+          Date
+          <input value={k.date ?? ''} onChange={(e) => update({ date: e.target.value || undefined })} placeholder="2026-10-09" />
+        </label>
+        <label>
+          Result
+          <input value={k.result ?? ''} onChange={(e) => update({ result: e.target.value || undefined })} placeholder="B+R" />
+        </label>
+        <div>
+          <span className="small muted">Komi and rules</span>
+          <KomiPicker komi={k.komi} rules={rules} onKomi={(komi) => update({ komi })} onRules={(r) => update({ rules: r })} />
+        </div>
+        {cursor === 0 && !k.nodes[0].children.length && (
+          <label>
+            First to play
+            <select value={k.first} onChange={(e) => update({ first: Number(e.target.value) as Color })}>
+              <option value={1}>Black</option>
+              <option value={2}>White</option>
+            </select>
+          </label>
+        )}
+      </div>
+    );
+  } else if (pane === 'kifu') {
+    panel = (
+      <>
+        <SheetSection title="Files">
+          <ActionTile onClick={download} icon={<Icon name="download" />} label="Download SGF" sub="To your own files" />
+          <SgfImport onText={importText} />
+        </SheetSection>
+        <KifuLibrary
+          items={library}
+          current={k.id}
+          onDelete={async (kid) => {
+            await deleteKifu(kid);
+            if (kid === k.id) update({ saved: false });
+            refreshLibrary();
+          }}
         />
-      )}
-      {focused && evalOn && analysis && (
-        <FocusEval>
-          <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
-          <WinrateGraph values={graphValues} scores={graphScores} cursor={depth} onPick={(i) => setCursor(line[i] ?? cursor)} />
-        </FocusEval>
-      )}
-      <div className="board-wrap" ref={boardWrap}>
+        {!library.length && <p className="small muted">No saved kifu yet. Press Save to keep this one.</p>}
+      </>
+    );
+  } else if (pane === 'setup') {
+    panel = (
+      <>
+        <div className="segmented study-modes" role="radiogroup" aria-label="What a tap on the board does">
+          {(
+            [
+              ['black', 'Add ●', 'black stone'],
+              ['white', 'Add ○', 'white stone'],
+              ['erase', 'Erase', 'remove a stone'],
+              ['play', 'Done', 'back to moves'],
+            ] as const
+          ).map(([m, label, sub]) => (
+            <button
+              key={m}
+              role="radio"
+              aria-checked={mode === m}
+              className={mode === m ? 'on' : ''}
+              onClick={() => {
+                setMode(m);
+                if (m === 'play') setPane('notes');
+                else setCursor(0);
+              }}
+            >
+              <strong>{label}</strong>
+              <span>{sub}</span>
+            </button>
+          ))}
+        </div>
+        <p className="tiny muted">Setup stones sit on the board before the first move, as in a handicap game or a problem. Tap a stone again to remove it.</p>
+      </>
+    );
+  } else {
+    panel = (
+      <>
+        <span className="small mono">
+          {depth ? `${depth}. ${node.move!.color === 1 ? '●' : '○'} ${node.move!.loc === PASS ? 'pass' : locToGtp(node.move!.loc, size)}` : 'Start'} · {toPlay === 1 ? 'Black' : 'White'} to play
+        </span>
+        {error && <div className="callout small">Could not open that: {error}.</div>}
+        {node.children.length > 1 && (
+          <div className="bs-row">
+            <span className="tiny muted">Variations here:</span>
+            {node.children.map((c, i) => (
+              <button key={c} className="chip click" onClick={() => setCursor(c)}>
+                {String.fromCharCode(65 + i)} {k.nodes[c].move!.loc === PASS ? 'pass' : locToGtp(k.nodes[c].move!.loc, size)}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="study-line" aria-label="Moves along this line">
+          {line.slice(1).map((nid, i) => {
+            const n = k.nodes[nid];
+            const branch = k.nodes[n.parent!].children.length > 1;
+            return (
+              <button
+                key={nid}
+                className={`chip click ${n.move!.color === 1 ? 'b' : 'w'} ${nid === cursor ? 'on' : ''} ${i + 1 > depth ? 'ahead' : ''} ${branch ? 'branch' : ''} ${n.comment ? 'noted' : ''}`}
+                onClick={() => setCursor(nid)}
+                title={branch ? 'A variation starts here' : undefined}
+              >
+                {i + 1}. {n.move!.loc === PASS ? 'pass' : locToGtp(n.move!.loc, size)}
+              </button>
+            );
+          })}
+          {line.length === 1 && <span className="tiny muted">Tap the board to play. Every move you try is kept; playing a different move starts a variation.</span>}
+        </div>
+        {cursor !== 0 && line.some((nid) => nid !== 0 && k.nodes[k.nodes[nid].parent!].children[0] !== nid) && (
+          <button className="btn small" onClick={() => setKifu(promote(k, cursor))}>
+            Make this the main line
+          </button>
+        )}
+        <textarea className="study-comment" value={node.comment ?? ''} onChange={(e) => setKifu(setComment(k, cursor, e.target.value))} placeholder={cursor ? 'Notes on this move' : 'Notes on the game'} rows={2} />
+      </>
+    );
+  }
+
+  const paneTool = (p: Pane, label: string, icon: ScreenTool['icon']): ScreenTool => ({ id: p, label, icon, on: pane === p, onClick: () => (setPane(pane === p ? 'notes' : p), p !== 'setup' && setMode('play')) });
+  const tools: ScreenTool[] = analysis
+    ? [
+        { id: 'best', label: 'Best moves', icon: 'target', on: view.best, onClick: () => toggleView('best') },
+        { id: 'territory', label: 'Territory', icon: 'territory', on: view.territory, onClick: () => toggleView('territory') },
+        { id: 'heat', label: 'Heat map', icon: 'spark', on: view.heat, onClick: () => toggleView('heat') },
+        { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
+        { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS) },
+        { id: 'ai', label: 'AI analysis', icon: 'ai', on: true, onClick: () => setAnalysisPref(false), title: 'Back to recording' },
+      ]
+    : [
+        { id: 'new', label: 'New', icon: 'plus', onClick: () => setNotice({ newSize: k.size }) },
+        { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
+        { id: 'ai', label: 'AI analysis', icon: 'ai', onClick: () => setAnalysisPref(true) },
+        paneTool('info', 'Edit info', 'pen'),
+        { ...paneTool('setup', 'Setup stones', 'setup'), onClick: () => (pane === 'setup' ? (setPane('notes'), setMode('play')) : (setPane('setup'), setMode('black'), setCursor(0))) },
+        { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS), disabled: mode !== 'play' },
+        paneTool('kifu', 'Your kifu', 'library'),
+      ];
+
+  const leave = () => go('dashboard');
+  return (
+    <BoardScreen
+      className={`study ${analysis ? 'analysing' : 'recording'}`}
+      title={k.title || 'Untitled kifu'}
+      sub={[k.date, k.saved ? 'saved' : 'draft', analysis ? 'AI analysis' : 'recording'].filter(Boolean).join(' · ')}
+      onHome={unsaved ? () => setNotice('leave') : undefined}
+      head={<HeadButton icon="save" label={k.saved ? 'Saved' : 'Save'} onClick={() => (k.saved ? void save() : askSave())} title={k.saved ? 'Saved; keeps saving as you go' : 'Save to Your kifu'} />}
+      players={<PlayersBar black={k.black} white={k.white} captures={board.captures} showEval={analysis} bWin={snap?.bWin ?? seen.get(cursor)?.bWin ?? null} bLead={snap?.bLead ?? seen.get(cursor)?.bLead ?? null} pending={!snap || snap.visits < 2} />}
+      boardRef={boardWrap}
+      board={
         <Board
           size={size}
           stones={board.stones}
@@ -376,212 +594,94 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
           coords
           ariaLabel="Study board"
         />
-      </div>
-      <div className="side">
-        <div className="panel stack">
-          <div className="board-head">
-            {from && <BackLink href={from.href} label={from.label} />}
-            <div className="grow">
-              <div className="eyebrow">Study board</div>
-              <span className="tiny muted">{k.saved ? 'Saved to your kifu' : 'Draft · kept in this browser'}</span>
-            </div>
-            <GearButton onClick={() => setSheet(true)} label="Board settings, save and your kifu" />
-          </div>
-          <PlayerNames black={k.black} white={k.white} onSave={(black, white) => update({ black, white })} />
-          {error && <div className="callout small">Could not open that: {error}.</div>}
-        </div>
-
-        <div className="panel stack">
-          <div className="spread wrap">
-            <MoveStepper
-              onFirst={() => setCursor(0)}
-              onBack={() => node.parent !== null && setCursor(node.parent)}
-              onForward={() => node.children.length && setCursor(node.children[0])}
-              onLast={() => setCursor(lineEnd(k, cursor))}
-              canBack={node.parent !== null}
-              canForward={node.children.length > 0}
-            />
-            <button className="btn small ghost" onClick={() => play(PASS)} disabled={mode !== 'play'}>
-              Pass
+      }
+      steps={{
+        pos: depth,
+        total: line.length - 1,
+        onGo: goPos,
+        extra:
+          cursor !== 0 ? (
+            <button onClick={deleteHere} aria-label="Delete this move and what follows" title="Delete this move and what follows">
+              <Icon name="trash" />
             </button>
-          </div>
-          <span className="small mono">
-            {depth ? `${depth}. ${node.move!.color === 1 ? '●' : '○'} ${node.move!.loc === PASS ? 'pass' : locToGtp(node.move!.loc, size)}` : 'Start'} · {toPlay === 1 ? 'Black' : 'White'} to play
-          </span>
-          {node.children.length > 1 && (
-            <div className="row wrap">
-              <span className="tiny muted">Variations here:</span>
-              {node.children.map((c, i) => (
-                <button key={c} className="chip click" onClick={() => setCursor(c)}>
-                  {String.fromCharCode(65 + i)} {k.nodes[c].move!.loc === PASS ? 'pass' : locToGtp(k.nodes[c].move!.loc, size)}
+          ) : null,
+      }}
+      tabs={analysis ? REPORT_TABS : null}
+      tab={tab}
+      onTab={setTab}
+      panel={panel}
+      tools={tools}
+      notice={
+        notice === 'save' ? (
+          <Notice
+            title="Save this kifu"
+            onClose={() => setNotice(null)}
+            actions={
+              <>
+                <button className="btn ghost" onClick={() => setNotice(null)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={() => (setNotice(null), void save(saveTitle))}>
+                  Save
+                </button>
+              </>
+            }
+          >
+            <label>
+              Name
+              <input value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (setNotice(null), void save(saveTitle))} />
+            </label>
+            <span className="small">It goes to Your kifu, and keeps saving as you go.</span>
+          </Notice>
+        ) : notice === 'leave' ? (
+          <Notice
+            title="Leave without saving?"
+            onClose={() => setNotice(null)}
+            actions={
+              <>
+                <button className="btn ghost" onClick={() => setNotice(null)}>
+                  Stay
+                </button>
+                <button className="btn" onClick={leave}>
+                  Leave without saving
+                </button>
+                <button className="btn primary" onClick={() => void save().then(leave)}>
+                  Save and leave
+                </button>
+              </>
+            }
+          >
+            <span>This kifu isn't in Your kifu yet. If you leave, it stays here as a draft only until you start a new one.</span>
+          </Notice>
+        ) : notice && typeof notice === 'object' ? (
+          <Notice
+            title="Start a new board"
+            onClose={() => setNotice(null)}
+            actions={
+              <>
+                <button className="btn ghost" onClick={() => setNotice(null)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={() => (setNotice(null), fresh(notice.newSize))}>
+                  {unsaved ? 'Start without saving' : 'Start'}
+                </button>
+              </>
+            }
+          >
+            <div className="segmented" role="radiogroup" aria-label="Board size">
+              {[19, 13, 9].map((sz) => (
+                <button key={sz} role="radio" aria-checked={notice.newSize === sz} className={notice.newSize === sz ? 'on' : ''} onClick={() => setNotice({ newSize: sz })}>
+                  <strong>
+                    {sz}×{sz}
+                  </strong>
                 </button>
               ))}
             </div>
-          )}
-          <div className="study-line" aria-label="Moves along this line">
-            {line.slice(1).map((nid, i) => {
-              const n = k.nodes[nid];
-              const branch = k.nodes[n.parent!].children.length > 1;
-              return (
-                <button
-                  key={nid}
-                  className={`chip click ${n.move!.color === 1 ? 'b' : 'w'} ${nid === cursor ? 'on' : ''} ${i + 1 > depth ? 'ahead' : ''} ${branch ? 'branch' : ''} ${n.comment ? 'noted' : ''}`}
-                  onClick={() => setCursor(nid)}
-                  title={branch ? 'A variation starts here' : undefined}
-                >
-                  {i + 1}. {n.move!.loc === PASS ? 'pass' : locToGtp(n.move!.loc, size)}
-                </button>
-              );
-            })}
-            {line.length === 1 && <span className="tiny muted">Tap the board to play. Every move you try is kept; playing a different move starts a variation.</span>}
-          </div>
-          {cursor !== 0 && (
-            <div className="row wrap">
-              {line.some((nid) => nid !== 0 && k.nodes[k.nodes[nid].parent!].children[0] !== nid) ? (
-                <button className="btn small" onClick={() => setKifu(promote(k, cursor))}>
-                  Make main line
-                </button>
-              ) : null}
-              <button
-                className="btn small ghost"
-                onClick={() => {
-                  const [nk, back] = removeNode(k, cursor);
-                  setKifu(nk);
-                  setCursor(back);
-                }}
-              >
-                Delete from here
-              </button>
-            </div>
-          )}
-          <textarea className="study-comment" value={node.comment ?? ''} onChange={(e) => setKifu(setComment(k, cursor, e.target.value))} placeholder={cursor ? 'Notes on this move' : 'Notes on the game'} rows={2} />
-        </div>
-
-        <div className="panel stack">
-          <div className="segmented study-modes" role="radiogroup" aria-label="What a tap on the board does">
-            {(
-              [
-                ['play', 'Play', 'moves alternate'],
-                ['black', 'Add ●', 'setup stone'],
-                ['white', 'Add ○', 'setup stone'],
-                ['erase', 'Erase', 'setup stone'],
-              ] as const
-            ).map(([m, label, sub]) => (
-              <button
-                key={m}
-                role="radio"
-                aria-checked={mode === m}
-                className={mode === m ? 'on' : ''}
-                onClick={() => {
-                  setMode(m);
-                  if (m !== 'play') setCursor(0);
-                }}
-              >
-                <strong>{label}</strong>
-                <span>{sub}</span>
-              </button>
-            ))}
-          </div>
-          {mode !== 'play' && <p className="tiny muted">Setup stones sit on the board before the first move, as in a problem. Tap a stone again to remove it.</p>}
-          {cursor === 0 && !k.nodes[0].children.length && (
-            <label className="small">
-              First to play{' '}
-              <select value={k.first} onChange={(e) => update({ first: Number(e.target.value) as Color })}>
-                <option value={1}>Black</option>
-                <option value={2}>White</option>
-              </select>
-            </label>
-          )}
-        </div>
-
-        <div className="panel stack live-panel">
-          <div className="spread">
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={analysis}
-                onChange={(e) => {
-                  setAnalysis(e.target.checked);
-                  writePref(ANALYSIS_PREF, e.target.checked);
-                }}
-              />{' '}
-              KataGo analysis
-            </label>
-          </div>
-          {analysis && (
-            <>
-              <LiveHeader snap={snap} />
-              <WinBar bWin={snap?.bWin ?? null} bLead={snap?.bLead ?? null} pending={!snap || snap.visits < 2} />
-              {line.length > 1 && <WinrateGraph values={graphValues} scores={graphScores} cursor={depth} onPick={(i) => setCursor(line[i] ?? cursor)} />}
-              {lastClass && lastPlayed && lastPlayed.loc !== PASS && (
-                <div className="row small">
-                  <span className="dim">
-                    Move {played.length} {lastPlayed.color === 1 ? 'Black' : 'White'} {locToGtp(lastPlayed.loc, size)}
-                  </span>
-                  <ClassPill cls={lastClass} />
-                </div>
-              )}
-              <CandidateTable cands={shown} size={size} onPick={play} onHover={(c) => setHoverPv(c ? c.pv : null)} max={view.candidateCount} resetKey={`${k.id}:${cursor}`} />
-            </>
-          )}
-        </div>
-        <p className="tiny muted">← → or scroll on the board: moves · ↑ ↓ variations · Space pauses KataGo</p>
-      </div>
-
-      <ControlSheet open={sheet} onClose={closeSheet} title="Study board">
-        <SheetSection title="Kifu">
-          <ActionTile primary onClick={() => void save()} icon={<Icon name="save" />} label={k.saved ? 'Saved' : 'Save kifu'} sub={k.saved ? 'Keeps saving as you go' : 'Keep it in Your kifu'} />
-          <ActionTile onClick={download} icon={<Icon name="download" />} label="Download SGF" sub="To your own files" />
-          <SgfImport onText={(t, n) => (importText(t, n), setSheet(false))} />
-          <FieldTile label="Title">
-            <input className="study-title" value={k.title} onChange={(e) => update({ title: e.target.value })} aria-label="Title" />
-          </FieldTile>
-          <FieldTile label="New board">
-            <NewMenu
-              onNew={(sz) => {
-                fresh(sz);
-                setSheet(false);
-              }}
-            />
-          </FieldTile>
-        </SheetSection>
-        <SheetSection title="Game">
-          <FieldTile label="Komi and rules">
-            <KomiPicker komi={k.komi} rules={rules} onKomi={(komi) => update({ komi })} onRules={(r) => update({ rules: r })} />
-          </FieldTile>
-          <FieldTile label="Result">
-            <input value={k.result ?? ''} onChange={(e) => update({ result: e.target.value || undefined })} placeholder="B+R" aria-label="Result" />
-          </FieldTile>
-        </SheetSection>
-        <SheetSection title="On the board">
-          <ToggleTile
-            on={numbers}
-            onChange={(v) => {
-              setNumbers(v);
-              writePref(NUMBERS_PREF, v);
-            }}
-            icon="#"
-            label="Move numbers"
-          />
-          <ToggleTile on={view.best} onChange={() => toggleView('best')} icon="◎" label="Best moves" sub="KataGo's candidates" />
-          <ToggleTile on={view.heat} onChange={() => toggleView('heat')} icon="▦" label="Heat map" sub="Policy" />
-          <ToggleTile on={view.territory} onChange={() => toggleView('territory')} icon="◩" label="Territory" />
-          <FieldTile label={`Candidate list: top ${view.candidateCount} moves`}>
-            <input type="range" min={3} max={20} value={view.candidateCount} onChange={(e) => setCandidateCount(Number(e.target.value))} aria-label="Candidate moves shown" />
-          </FieldTile>
-        </SheetSection>
-        <KifuLibrary
-          items={library}
-          current={k.id}
-          onOpen={() => setSheet(false)}
-          onDelete={async (kid) => {
-            await deleteKifu(kid);
-            if (kid === k.id) update({ saved: false });
-            refreshLibrary();
-          }}
-        />
-      </ControlSheet>
-    </div>
+            {unsaved && <span className="small warn-text">The board you have now isn't saved; a new board replaces its draft.</span>}
+          </Notice>
+        ) : null
+      }
+    />
   );
 }
 
@@ -623,24 +723,6 @@ function SgfImport({ onText }: { onText: (text: string, name?: string) => void }
         </div>
       )}
     </>
-  );
-}
-
-function NewMenu({ onNew }: { onNew: (size: number) => void }) {
-  return (
-    <select
-      value=""
-      onChange={(e) => {
-        if (e.target.value) onNew(Number(e.target.value));
-      }}
-      aria-label="New board"
-      className="study-new"
-    >
-      <option value="">New board…</option>
-      <option value="19">19×19</option>
-      <option value="13">13×13</option>
-      <option value="9">9×9</option>
-    </select>
   );
 }
 

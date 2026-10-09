@@ -1235,50 +1235,6 @@ details summary {
 .stage .side .panel + .panel {
   margin-top: 0;
 }
-/* Focus mode: hide the side panel and let the board take the whole stage, for a distraction-
-   free look at the position (see the Focus button, common.tsx FocusToggle). */
-.stage.focused {
-  grid-template-columns: minmax(0, 1fr);
-}
-.stage.focused .side {
-  display: none;
-}
-.stage.focused .board-wrap .board {
-  max-height: calc(100vh - 24px);
-}
-.focus-toggle {
-  position: absolute;
-  top: 14px;
-  right: 20px;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--glass-edge);
-  background: var(--glass-2);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  color: var(--ink);
-  font-weight: 700;
-  font-size: 13px;
-  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.35);
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), transform 0.15s var(--ease), color 0.2s var(--ease);
-}
-.focus-toggle svg {
-  width: 16px;
-  height: 16px;
-}
-.focus-toggle:hover {
-  transform: translateY(-1px);
-  border-color: var(--accent);
-}
-.focus-toggle.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent, #fff);
-}
 .thumb {
   width: 100%;
   aspect-ratio: 1;

@@ -1,0 +1,788 @@
+/* The full-screen board layout (BoardScreen.tsx), after Fox's game screens. Phones: one
+ * column, the board edge to edge. Wide screens: the board fills the height on the left,
+ * the buttons, tabs, panel and tools on the right. Nothing is placed over the board. */
+
+/* ------------------------------------------------ the app's own chrome steps aside */
+.app:has(.bscreen, .stage) .shell > .nav,
+.app:has(.bscreen, .stage) .nav-reopen,
+.app:has(.bscreen, .stage) .tabbar {
+  display: none !important;
+}
+.app .shell:has(.bscreen, .stage) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+.app .main:has(.bscreen, .stage) {
+  padding-bottom: 0 !important;
+}
+
+.bscreen {
+  --bs-gap: 10px;
+  --bs-side: clamp(340px, 30vw, 440px);
+  /* Phones and portrait tablets: as wide as the screen, as long as that leaves room for the
+   * names and the step buttons in view. */
+  --bs-size: min(100vw - 8px, max(62vh, 100dvh - 190px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 100%;
+  padding: 6px 4px calc(12px + env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------ top row: Home, title, Save */
+.bs-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  min-height: 44px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+.bs-title {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  line-height: 1.25;
+}
+.bs-title strong {
+  font-size: 15px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.bs-title span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bs-head-right {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.bs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2, var(--line));
+  background: var(--glass-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.bs-btn svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  stroke: currentColor;
+}
+.bs-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.bs-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.bs-btn.on,
+.bs-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ------------------------------------------------ players and the evaluation bar */
+.bs-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bs-players {
+  width: var(--bs-size);
+  display: grid;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+.bs-names {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+  font-size: 14px;
+}
+.bs-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.bs-name.w {
+  justify-content: flex-end;
+  text-align: right;
+}
+.bs-name > span {
+  display: grid;
+  min-width: 0;
+}
+.bs-name strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.bs-name small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.bs-name .stone-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.bs-caps {
+  flex: none;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.bs-caps small {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 3px;
+}
+.bs-eval {
+  position: relative;
+  display: flex;
+  height: 24px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line-2, var(--line));
+  background: #f6f4ef;
+  font-size: 12.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.bs-eval-b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  background: #16171a;
+  color: #fff;
+  white-space: nowrap;
+}
+.bs-eval-w {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: #16171a;
+  white-space: nowrap;
+}
+.bs-eval-lead {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+}
+.bs-eval.pending {
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------ the board */
+.bs-board {
+  position: relative;
+  width: var(--bs-size);
+  aspect-ratio: 1;
+  flex: none;
+}
+.bs-board > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------ step buttons */
+.bs-steps {
+  width: var(--bs-size);
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+.bs-steps input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.bs-step-btns {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.bs-step-btns button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2, var(--line));
+  background: var(--glass-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.bs-step-btns button svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+.bs-step-btns button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.bs-step-btns button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.bs-count {
+  min-width: 64px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------ tabs, panel, tools */
+.bs-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px;
+}
+.bs-tabs {
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+}
+.bs-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bs-tabs button svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke: currentColor;
+}
+.bs-tabs button.on {
+  background: var(--glass-2);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.bs-panel {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+}
+.bs-panel > * + * {
+  margin-top: 10px;
+}
+.bs-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+}
+.bs-tools button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.bs-tools button svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+}
+.bs-tools button:hover:not(:disabled) {
+  background: var(--glass-2);
+}
+.bs-tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.bs-tools button.on,
+.bs-tools button.on:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Phones: the tools sit right under the step buttons, so they never need a scroll; the tabs
+ * and the open panel follow. Labels may wrap but are never cut. */
+@media (max-width: 899px), (orientation: portrait) {
+  .bs-side {
+    width: min(100%, 720px);
+    margin: 0 auto;
+  }
+  .bs-tools {
+    order: -1;
+  }
+}
+@media (max-width: 420px) {
+  .bs-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .bs-tabs button {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12.5px;
+  }
+  .bs-tools {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  }
+  .bs-tools button {
+    font-size: 12px;
+  }
+}
+
+/* Wide screens: the board on the left at full height, everything else on the right. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .bscreen {
+    --bs-size: min(100vw - var(--bs-side) - 48px, 100dvh - 168px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--bs-side);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'main head'
+      'main side';
+    gap: 8px 16px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 10px 16px 10px 12px;
+  }
+  .bs-head {
+    grid-area: head;
+    padding: 0;
+  }
+  .bs-main {
+    grid-area: main;
+    justify-content: center;
+    min-height: 0;
+  }
+  .bs-side {
+    grid-area: side;
+    min-height: 0;
+    padding: 0;
+  }
+  .bs-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .bs-side:not(:has(.bs-panel)) .bs-tools {
+    margin-top: auto;
+  }
+}
+
+/* ------------------------------------------------ notices (the only thing over the board) */
+.bs-notice-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.bs-notice-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 6, 0.45);
+}
+.bs-notice {
+  position: relative;
+  width: min(420px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--glass-2);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.55);
+  color: var(--ink);
+}
+.bs-notice-title {
+  font-size: 17px;
+}
+.bs-notice-body {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.bs-notice-body input {
+  width: 100%;
+}
+.bs-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ------------------------------------------------ report tabs (Report.tsx) */
+.rp {
+  display: grid;
+  gap: 10px;
+}
+.rp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.rp-key {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.rp-key.win {
+  background: #4f6fd6;
+}
+.rp-key.lead {
+  background: #e08a2e;
+}
+.rp-chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+.rp-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.rp-axis.right {
+  text-align: right;
+}
+.rp-trend {
+  width: 100%;
+  height: 170px;
+  cursor: pointer;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--glass-2) 60%, transparent);
+}
+.rp-grid {
+  stroke: var(--line-2, var(--line));
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.rp-grid.faint {
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
+.rp-win,
+.rp-lead {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+.rp-win {
+  stroke: #4f6fd6;
+}
+.rp-lead {
+  stroke: #e08a2e;
+}
+.rp-cursor {
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.rp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.rp-filters {
+  display: grid;
+  gap: 6px;
+}
+.rp-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rp-seg button {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--glass-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rp-seg button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.rp-dropchart {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.rp-dropchart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.rp-dot {
+  cursor: pointer;
+}
+.rp-dot circle {
+  fill: #e08a2e;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+.rp-dot.bad circle {
+  fill: #d23b3b;
+}
+.rp-dot.cur circle {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+.rp-arrow {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+.rp-dot-pct {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #c06a14;
+}
+.rp-dot.bad .rp-dot-pct {
+  fill: #d23b3b;
+}
+.rp-dot-move {
+  font-size: 12px;
+  fill: var(--ink-2);
+}
+.rp-drops {
+  display: grid;
+  gap: 2px;
+}
+.rp-drop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.rp-drop:hover,
+.rp-drop.cur {
+  background: var(--glass-2);
+}
+.rp-drop .mono:first-child {
+  min-width: 2.6em;
+  color: var(--muted);
+}
+.rp-drop-who {
+  flex: 1 1 6em;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rp-loss {
+  color: #c06a14;
+  font-weight: 700;
+}
+.rp-drop.bad .rp-loss {
+  color: #d23b3b;
+}
+.rp-empty {
+  margin: 4px 0;
+}
+.rp-perf {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.rp-perf th,
+.rp-perf td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  vertical-align: top;
+}
+.rp-perf thead th {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.rp-perf tbody th {
+  text-align: left;
+  font-weight: 600;
+}
+.rp-perf tbody th small {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+}
+.rp-perf tr:last-child th,
+.rp-perf tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ------------------------------------------------ bits shared by the boards' panels */
+.bs-panel .bs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.bs-panel h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+/* ------------------------------------------------ practice boards (.stage + StageHead) */
+.app .stage {
+  --bs-side: clamp(340px, 30vw, 440px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'head'
+    'board'
+    'side';
+  gap: 8px;
+  height: auto;
+  min-height: 100%;
+  padding: 6px 4px calc(12px + env(safe-area-inset-bottom));
+}
+.app .stage > .stage-head {
+  grid-area: head;
+}
+.app .stage > .board-wrap {
+  grid-area: board;
+  animation: none;
+}
+.app .stage > .board-wrap:not([style]) .board {
+  width: min(100vw - 8px, max(62vh, 100dvh - 120px));
+  max-height: none;
+  height: auto;
+  aspect-ratio: 1;
+}
+.app .stage > .side {
+  grid-area: side;
+  overflow: visible;
+  padding: 0 4px;
+}
+.app .stage .side > * {
+  animation: none;
+}
+@media (min-width: 900px) and (orientation: landscape) {
+  .app .stage {
+    grid-template-columns: minmax(0, 1fr) var(--bs-side);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'board head'
+      'board side';
+    gap: 8px 16px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 10px 16px 10px 12px;
+  }
+  .app .stage > .stage-head {
+    padding: 0;
+  }
+  .app .stage > .board-wrap {
+    min-height: 0;
+  }
+  .app .stage > .board-wrap:not([style]) .board {
+    width: min(100%, 100dvh - 24px);
+  }
+  .app .stage > .side {
+    overflow-y: auto;
+    min-height: 0;
+    padding: 0 4px 12px 0;
+    scrollbar-width: thin;
+  }
+}
