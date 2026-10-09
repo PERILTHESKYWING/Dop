@@ -1,9 +1,8 @@
-import { useId } from 'react';
 import { CLASS_INFO, type MoveClass } from '../lib/coach/classify';
 import './movebadge.css';
 
 /**
- * Move classification badges: a glossy coin in the class colour with a white glyph, drawn
+ * Move classification badges: a flat coin in the class colour with a white glyph, drawn
  * in a unit circle so the same drawing sits on the board (over the stone) and in text.
  */
 
@@ -58,24 +57,12 @@ function Glyph({ cls }: { cls: MoveClass }) {
   return <g transform="scale(0.074) translate(-12 -12)">{body}</g>;
 }
 
-/** The badge drawn around (0, 0) with radius 1. */
+/** The badge drawn around (0, 0) with radius 1: a flat coin in the class colour, white glyph. */
 export function BadgeShape({ cls }: { cls: MoveClass }) {
-  const id = useId().replace(/:/g, '');
-  const c = CLASS_INFO[cls].color;
   return (
     <g className={`mb mb-${cls}`}>
-      <defs>
-        <radialGradient id={`${id}g`} cx="35%" cy="28%" r="80%">
-          <stop offset="0" stopColor={`color-mix(in srgb, ${c} 55%, white)`} />
-          <stop offset="0.55" stopColor={c} />
-          <stop offset="1" stopColor={`color-mix(in srgb, ${c} 78%, black)`} />
-        </radialGradient>
-      </defs>
-      <circle className="mb-shadow" cx={0.04} cy={0.12} r={1} />
-      {(cls === 'brilliant' || cls === 'great') && <circle className="mb-halo" r={1.18} fill="none" stroke={c} />}
-      <circle r={1} fill={`url(#${id}g)`} />
-      <circle className="mb-rim" r={0.93} fill="none" />
-      <ellipse className="mb-gloss" cx={-0.05} cy={-0.5} rx={0.66} ry={0.36} />
+      <circle r={1} fill={CLASS_INFO[cls].color} />
+      <circle className="mb-rim" r={0.96} fill="none" />
       <Glyph cls={cls} />
     </g>
   );

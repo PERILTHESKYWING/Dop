@@ -1,4 +1,5 @@
 import { PASS, type Color, type Loc, type Move } from '../go/types';
+import { classifyMove, type MoveClass } from '../coach/classify';
 
 /**
  * What a game's evaluations say about each move: how much winrate (and score) the mover
@@ -122,4 +123,27 @@ export function performance(losses: MoveLoss[], color: Color, phase?: Phase): Pe
     mistakes: ls.filter((l) => isMistake(l) && !isBlunder(l)).length,
     blunders: ls.filter(isBlunder).length,
   };
+}
+
+/**
+ * Each move's class (brilliant … blunder) from the losses alone, for boards that have no
+ * per-move candidate lists (study board, live games). Without the gap to KataGo's second
+ * choice there is no "only move", so brilliant and great come only from the game review.
+ */
+export function lineClasses(losses: MoveLoss[]): Map<number, MoveClass> {
+  const out = new Map<number, MoveClass>();
+  const byIndex = new Map(losses.map((l) => [l.index, l]));
+  for (const l of losses) {
+    const prev = byIndex.get(l.index - 1);
+    out.set(
+      l.index,
+      classifyMove({
+        scoreLoss: l.scoreLoss ?? l.winLoss * 30,
+        winrateLoss: l.winLoss,
+        isBest: l.matched === true,
+        prev: prev ? { scoreLoss: prev.scoreLoss ?? prev.winLoss * 30, winrateLoss: prev.winLoss } : null,
+      }),
+    );
+  }
+  return out;
 }

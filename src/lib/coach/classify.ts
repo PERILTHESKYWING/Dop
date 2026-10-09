@@ -20,16 +20,16 @@ export type MoveClass = 'brilliant' | 'great' | 'best' | 'excellent' | 'good' | 
 export const CLASS_ORDER: MoveClass[] = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 
 export const CLASS_INFO: Record<MoveClass, { name: string; symbol: string; color: string; about: string }> = {
-  brilliant: { name: 'Brilliant', symbol: '!!', color: '#1bb8a6', about: 'The only good move, and one that even strong amateurs rarely find.' },
-  great: { name: 'Great', symbol: '!', color: '#4f8fd6', about: 'The only good move here: every alternative is clearly worse.' },
-  best: { name: 'Best', symbol: '★', color: '#7cb342', about: "KataGo's choice, or just as good." },
-  excellent: { name: 'Excellent', symbol: '👍', color: '#8fbf3f', about: 'Almost as good as the best move.' },
-  good: { name: 'Good', symbol: '✓', color: '#8aa97a', about: 'A sound move that gives up very little.' },
-  book: { name: 'Book', symbol: '📖', color: '#a8845f', about: 'A move professionals often chose from this exact opening position.' },
-  inaccuracy: { name: 'Inaccuracy', symbol: '?!', color: '#f0b429', about: 'Gives up a little: about 1 to 2.5 points.' },
-  mistake: { name: 'Mistake', symbol: '?', color: '#f08a24', about: 'Gives up a lot: about 2.5 to 6 points.' },
-  miss: { name: 'Miss', symbol: '✕', color: '#ee5d5d', about: 'The opponent had just made a mistake, and this move let them off.' },
-  blunder: { name: 'Blunder', symbol: '??', color: '#d93a2b', about: 'Gives up the game or a big part of it.' },
+  brilliant: { name: 'Brilliant', symbol: '!!', color: '#00bfae', about: 'The only good move, and one that even strong amateurs rarely find.' },
+  great: { name: 'Great', symbol: '!', color: '#2f86f0', about: 'The only good move here: every alternative is clearly worse.' },
+  best: { name: 'Best', symbol: '★', color: '#5fbf2a', about: "KataGo's choice, or just as good." },
+  excellent: { name: 'Excellent', symbol: '👍', color: '#86c43a', about: 'Almost as good as the best move.' },
+  good: { name: 'Good', symbol: '✓', color: '#7fb36a', about: 'A sound move that gives up very little.' },
+  book: { name: 'Book', symbol: '📖', color: '#b5834f', about: 'A move professionals often chose from this exact opening position.' },
+  inaccuracy: { name: 'Inaccuracy', symbol: '?!', color: '#f5b800', about: 'Gives up a little: about 1 to 2.5 points.' },
+  mistake: { name: 'Mistake', symbol: '?', color: '#ff8a00', about: 'Gives up a lot: about 2.5 to 6 points.' },
+  miss: { name: 'Miss', symbol: '✕', color: '#ff4f6d', about: 'The opponent had just made a mistake, and this move let them off.' },
+  blunder: { name: 'Blunder', symbol: '??', color: '#e8231b', about: 'Gives up the game or a big part of it.' },
 };
 
 export interface ClassInput {

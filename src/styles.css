@@ -1808,9 +1808,13 @@ table.live-cands tr.best td {
 table.live-cands tr.played td {
   background: rgba(255, 170, 60, 0.12);
 }
-table.live-cands tr.previewed td {
-  background: rgba(120, 170, 255, 0.16);
-  box-shadow: inset 2px 0 0 rgb(var(--accent-rgb, 120 170 255));
+table.live-cands tbody tr.previewed > td {
+  background: #1f9d4c !important;
+  color: #fff !important;
+}
+table.live-cands tr.previewed .btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
 }
 table.live-cands .btn.tiny {
   padding: 1px 7px;

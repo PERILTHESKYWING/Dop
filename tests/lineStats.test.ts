@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { biggestDrops, moveLosses, performance, phaseOf } from '../src/lib/analysis/lineStats';
+import { biggestDrops, lineClasses, moveLosses, performance, phaseOf } from '../src/lib/analysis/lineStats';
 import type { Move } from '../src/lib/go/types';
 
 const mv = (color: 1 | 2, loc: number): Move => ({ color, loc });
@@ -35,5 +35,19 @@ describe('line stats', () => {
     expect(phaseOf(100, 19)).toBe('middle');
     expect(phaseOf(200, 19)).toBe('endgame');
     expect(phaseOf(40, 9)).toBe('endgame');
+  });
+
+  it('grades each move from best to blunder', () => {
+    const values = [
+      { bWin: 0.5, bLead: 0, best: 10 },
+      { bWin: 0.5, bLead: 0, best: 20 }, // black played KataGo's move
+      { bWin: 0.8, bLead: 8, best: 30 }, // white gave away 8 points
+      { bWin: 0.79, bLead: 7.8, best: 40 }, // black lost almost nothing
+    ];
+    const moves = [mv(1, 10), mv(2, 99), mv(1, 30)];
+    const cls = lineClasses(moveLosses(values, moves, 19));
+    expect(cls.get(0)).toBe('best');
+    expect(cls.get(1)).toBe('blunder');
+    expect(cls.get(2)).toBe('best');
   });
 });
