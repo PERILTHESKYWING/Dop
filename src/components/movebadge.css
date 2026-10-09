@@ -5,15 +5,9 @@
   flex: none;
   overflow: visible;
 }
-.mb-shadow {
-  fill: rgba(20, 10, 0, 0.32);
-}
 .mb-rim {
-  stroke: rgba(255, 255, 255, 0.35);
-  stroke-width: 0.07;
-}
-.mb-gloss {
-  fill: rgba(255, 255, 255, 0.26);
+  stroke: #fff;
+  stroke-width: 0.08;
 }
 .mb-text {
   fill: #fff;
@@ -21,27 +15,6 @@
   font-weight: 900;
   text-anchor: middle;
   dominant-baseline: central;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.12);
-  stroke-width: 0.06;
-}
-.mb-halo {
-  stroke-width: 0.1;
-  opacity: 0.55;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: mb-halo 2.4s ease-in-out infinite;
-}
-@keyframes mb-halo {
-  0%,
-  100% {
-    opacity: 0.15;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 0.65;
-    transform: scale(1.06);
-  }
 }
 
 /* On the board: pops in over the corner of the stone. */
@@ -64,8 +37,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bd-badge .mb,
-  .mb-halo {
+  .bd-badge .mb {
     animation: none;
   }
 }

@@ -1,8 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { biggestDrops, moveLosses, performance, phaseBounds, type MoveLoss, type Phase, type PosValue } from '../lib/analysis/lineStats';
+import { biggestDrops, lineClasses, moveLosses, type MoveLoss, type Phase, type PosValue } from '../lib/analysis/lineStats';
 import { locToGtp } from '../lib/go/coords';
 import type { Color, Move } from '../lib/go/types';
 import { fmtPct } from './common';
+import { MoveBadge } from './MoveBadge';
+import { CLASS_INFO, CLASS_ORDER, type MoveClass } from '../lib/coach/classify';
 
 /**
  * The Trend, Blunder and Performance tabs, drawn from a game's position values (see
@@ -194,42 +196,18 @@ function DropChart({ drops, cursor, onPick }: { drops: MoveLoss[]; cursor: numbe
   );
 }
 
-/** Each player's accuracy, KataGo match, average loss and mistakes, overall and by phase. */
-export function PerformancePanel({ values, moves, size, black, white, progress }: ReportInput) {
+/** How many moves of each class, brilliant down to blunder, each player made. Tap a count to go to the next one. */
+export function PerformancePanel({ values, moves, size, black, white, cursor, onPick, progress, classes }: ReportInput & { classes?: Map<number, MoveClass> }) {
   const losses = useLosses(values, moves, size);
-  const [phase, setPhase] = useState<Phase | 'all'>('all');
-  const p = phase === 'all' ? undefined : phase;
-  const b = performance(losses, 1, p);
-  const w = performance(losses, 2, p);
-  const [a, m] = phaseBounds(size);
-  const pct = (v: number | null) => (v === null ? '—' : fmtPct(v, 0));
-  const rows: { label: string; hint?: string; b: string; w: string; better?: 'high' | 'low'; bv?: number | null; wv?: number | null }[] = [
-    { label: 'Moves read', b: String(b.moves), w: String(w.moves) },
-    { label: 'Accuracy', hint: 'moves losing under 2% and under a point', b: pct(b.accuracy), w: pct(w.accuracy), better: 'high', bv: b.accuracy, wv: w.accuracy },
-    { label: "KataGo's choice", hint: 'played its first choice', b: pct(b.match), w: pct(w.match), better: 'high', bv: b.match, wv: w.match },
-    { label: 'Average loss', hint: 'winrate per move', b: b.avgWinLoss === null ? '—' : fmtPct(b.avgWinLoss, 1), w: w.avgWinLoss === null ? '—' : fmtPct(w.avgWinLoss, 1), better: 'low', bv: b.avgWinLoss, wv: w.avgWinLoss },
-    { label: 'Points lost', hint: 'per move', b: b.avgScoreLoss === null ? '—' : b.avgScoreLoss.toFixed(2), w: w.avgScoreLoss === null ? '—' : w.avgScoreLoss.toFixed(2), better: 'low', bv: b.avgScoreLoss, wv: w.avgScoreLoss },
-    { label: 'Mistakes', hint: 'lost 10% or 3 points', b: String(b.mistakes), w: String(w.mistakes), better: 'low', bv: b.mistakes, wv: w.mistakes },
-    { label: 'Blunders', hint: 'lost 20% or 6 points', b: String(b.blunders), w: String(w.blunders), better: 'low', bv: b.blunders, wv: w.blunders },
-  ];
-  const win = (r: (typeof rows)[number], side: 'b' | 'w') => {
-    if (!r.better || r.bv == null || r.wv == null || r.bv === r.wv) return false;
-    const mine = side === 'b' ? r.bv : r.wv;
-    const theirs = side === 'b' ? r.wv : r.bv;
-    return r.better === 'high' ? mine > theirs : mine < theirs;
-  };
+  const cls = useMemo(() => (classes && classes.size ? classes : lineClasses(losses)), [classes, losses]);
+  const hits = (c: MoveClass, color: Color) =>
+    [...cls]
+      .filter(([i, k]) => k === c && moves[i]?.color === color)
+      .map(([i]) => i)
+      .sort((a, b) => a - b);
   return (
     <div className="rp">
-      <div className="rp-filters">
-        <div className="rp-seg" role="radiogroup" aria-label="Phase">
-          {PHASES.map((ph) => (
-            <button key={ph.id} role="radio" aria-checked={phase === ph.id} className={phase === ph.id ? 'on' : ''} onClick={() => setPhase(ph.id)}>
-              {ph.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <table className="rp-perf">
+      <table className="rp-classes">
         <thead>
           <tr>
             <th />
@@ -242,24 +220,37 @@ export function PerformancePanel({ values, moves, size, black, white, progress }
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.label}>
-              <th>
-                {r.label}
-                {r.hint && <small>{r.hint}</small>}
+          {CLASS_ORDER.map((c) => (
+            <tr key={c} className={`rc-${c}`}>
+              <th title={CLASS_INFO[c].about}>
+                <span className="rc-name">
+                  <MoveBadge cls={c} size={30} />
+                  {CLASS_INFO[c].name}
+                </span>
               </th>
-              <td className={`mono ${win(r, 'b') ? 'good-text strong' : ''}`}>{r.b}</td>
-              <td className={`mono ${win(r, 'w') ? 'good-text strong' : ''}`}>{r.w}</td>
+              {([1, 2] as const).map((color) => {
+                const h = hits(c, color);
+                return (
+                  <td key={color}>
+                    <button
+                      className="rc-n"
+                      style={h.length ? { color: CLASS_INFO[c].color } : undefined}
+                      disabled={!h.length}
+                      onClick={() => {
+                        const next = h.find((i) => i + 1 > cursor) ?? h[0];
+                        if (next !== undefined) onPick(next + 1);
+                      }}
+                    >
+                      {h.length || '–'}
+                    </button>
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="rp-foot tiny muted">
-        <span>
-          Opening: moves 1–{a} · middle game: {a + 1}–{m} · endgame: after {m}
-        </span>
-        {progress}
-      </div>
+      {progress && <div className="rp-foot tiny muted">{progress}</div>}
     </div>
   );
 }

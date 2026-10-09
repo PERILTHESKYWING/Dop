@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useWheelSteps } from '../components/MoveNav';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
@@ -10,12 +10,12 @@ import { InsightPanel, useMoveInsight } from '../components/Insight';
 import { useLevelOf, usePlayerTargets } from '../components/Level';
 import { nextBestGap } from '../lib/coach/difficulty';
 import { keyMoments } from '../lib/coach/moments';
-import { CLASS_INFO, CLASS_ORDER, type MoveClass } from '../lib/coach/classify';
+import { CLASS_INFO, type MoveClass } from '../lib/coach/classify';
 import { ClassPill, MoveBadge } from '../components/MoveBadge';
 import { classInputs, useGameClasses } from '../state/classes';
 import { mainLineComments } from '../lib/go/sgf';
 import { insightFacts, proFacts, type MoveTarget } from '../state/insight';
-import type { GameRecord, MoveRecord } from '../lib/types';
+import type { MoveRecord } from '../lib/types';
 import { toast, useStore } from '../state/store';
 import { commitLiveAnalysis, corpus, renameGamePlayers, retryGame, runQueue, setGameKomi } from '../state/actions';
 import { ActionTile, FieldTile, PlayerNames, SheetSection } from '../components/ControlSheet';
@@ -45,7 +45,8 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const copy = useCopy();
   const version = useStore((s) => s.corpusVersion);
   const weaknesses = useStore((s) => s.weaknesses);
-  const game = games.find((g) => g.id === gameId) ?? games.find((g) => g.source === 'user' || g.source === 'demo');
+  // Opened on its own, the review board starts empty with a game to pick.
+  const game = gameId ? games.find((g) => g.id === gameId) : undefined;
   const analysis = game ? analyses[game.id] : undefined;
   const n = game?.moves.length ?? 0;
   const [cur, setCur] = useState(0);
@@ -177,14 +178,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   const moments = useMemo(() => keyMoments([...records.values()], analysis), [records, analysis]);
   const moveComments = { lastMove: cur > 0 ? sgfComments.get(cur) : undefined, nextMove: sgfComments.get(cur + 1) };
 
-  if (!game)
-    return (
-      <div className="page">
-        <div className="empty">
-          No games yet. <a href={href('library')}>Import some</a> or load the demo from the dashboard.
-        </div>
-      </div>
-    );
+  if (!game) return <ReviewStart missing={!!gameId} />;
 
   const next = game.moves[cur];
   const rec = records.get(cur);
@@ -211,7 +205,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
       marks.push({ loc: ev.bestLoc, kind: 'best' });
     }
     if (dop[0] && dop[0].loc !== bestLoc) marks.push({ loc: dop[0].loc, kind: 'doppel', label: 'D' });
-    if (next && next.loc !== PASS) marks.push({ loc: next.loc, kind: 'played' });
+    if (next && next.loc !== PASS && !board.stones[next.loc]) marks.push({ loc: next.loc, kind: 'next' });
   }
 
   const view = value ? moverView(value.bWin, value.bLead, toPlay) : null;
@@ -499,23 +493,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
       </>
     );
   else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
-  else if (tab === 'performance')
-    panel = (
-      <>
-        <PerformancePanel {...report} />
-        {classes.size > 0 && (
-          <ClassReport
-            classes={classes}
-            game={game}
-            onPick={(cls, color) => {
-              const hits = [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).map(([i]) => i).sort((a, b) => a - b);
-              const next = hits.find((i) => i > cur) ?? hits[0];
-              if (next !== undefined) setCur(next);
-            }}
-          />
-        )}
-      </>
-    );
+  else if (tab === 'performance') panel = <PerformancePanel {...report} classes={classes} />;
 
   const tools: ScreenTool[] = [
     { id: 'try', label: 'Try moves', icon: 'play', on: explore, onClick: () => (setExplore(!explore), setHoverPv(null)) },
@@ -615,33 +593,38 @@ function useMemoHeat(ev: { policy: { loc: number; p: number }[] } | null, size: 
 /** Classes worth a badge in the move list (the rest are the quiet majority). */
 const NOTABLE = new Set<MoveClass>(['brilliant', 'great', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder']);
 
-/** The game report: how many moves of each class each player made. */
-function ClassReport({ classes, game, onPick }: { classes: Map<number, MoveClass>; game: GameRecord; onPick: (cls: MoveClass, color: 1 | 2) => void }) {
-  const count = (cls: MoveClass, color: 1 | 2) => [...classes].filter(([i, c]) => c === cls && game.moves[i].color === color).length;
+
+/** The review board with no game open: an empty board and the games to choose from. */
+function ReviewStart({ missing }: { missing: boolean }) {
+  const games = useStore((s) => s.games);
+  const empty = useMemo(() => new Int8Array(361), []);
+  const list = useMemo(() => [...games].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).slice(0, 60), [games]);
   return (
-    <div className="panel stack tight">
-      <h3>Move classifications</h3>
-      <div className="class-report">
-        <span />
-        <span className="cr-head">{game.black}</span>
-        <span className="cr-head">{game.white}</span>
-        {CLASS_ORDER.map((cls) => (
-          <Fragment key={cls}>
-            <span className="cr-name" title={CLASS_INFO[cls].about}>
-              <MoveBadge cls={cls} size={18} />
-              {CLASS_INFO[cls].name}
-            </span>
-            {([1, 2] as const).map((color) => {
-              const n = count(cls, color);
-              return (
-                <button key={color} className="cr-n linkish" disabled={!n} onClick={() => onPick(cls, color)} title={n ? `Go to the next ${CLASS_INFO[cls].name.toLowerCase()} move` : undefined}>
-                  {n || '·'}
-                </button>
-              );
-            })}
-          </Fragment>
-        ))}
-      </div>
-    </div>
+    <BoardScreen
+      className="review"
+      title="Review"
+      sub={missing ? 'That game is no longer in your library' : 'Pick a game'}
+      players={<PlayersBar black="Black" white="White" />}
+      board={<Board size={19} stones={empty} coords />}
+      panel={
+        <div className="stack tight">
+          {list.length ? (
+            <div className="review-pick">
+              {list.map((g) => (
+                <a key={g.id} className="review-pick-row" href={href(`review/${g.id}`)}>
+                  <strong>{gameTitle(g)}</strong>
+                  <span className="tiny muted">{[g.date, g.result, `${g.moves.length} moves`].filter(Boolean).join(' · ')}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <span className="small">No games yet.</span>
+          )}
+          <a className="btn" href={href('library')}>
+            <Icon name="upload" /> Import games
+          </a>
+        </div>
+      }
+    />
   );
 }

@@ -21,12 +21,12 @@
   --bs-side: clamp(340px, 30vw, 440px);
   /* Phones and portrait tablets: as wide as the screen, as long as that leaves room for the
    * names and the step buttons in view. */
-  --bs-size: min(100vw - 8px, max(62vh, 100dvh - 190px));
+  --bs-size: min(100vw, max(64vh, 100dvh - 170px));
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-height: 100%;
-  padding: 6px 4px calc(12px + env(safe-area-inset-bottom));
+  padding: 6px 0 calc(12px + env(safe-area-inset-bottom));
 }
 
 /* ------------------------------------------------ top row: Home, title, Save */
@@ -36,6 +36,7 @@
   gap: 8px;
   padding: 5px 6px;
   min-height: 44px;
+  margin: 0 4px;
   border-radius: 14px;
   background: var(--glass);
   border: 1px solid var(--line);
@@ -98,6 +99,29 @@
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* Home: a small, quiet icon button. */
+.bs-btn.bs-home {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  justify-content: center;
+  border-color: transparent;
+  background: var(--glass);
+  color: var(--ink-2);
+}
+.bs-btn.bs-home:hover {
+  border-color: var(--line-2, var(--line));
+  color: var(--ink);
+}
+.bs-home span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------ players and the evaluation bar */
@@ -407,21 +431,54 @@
 /* Wide screens: the board on the left at full height, everything else on the right. */
 @media (min-width: 900px) and (orientation: landscape) {
   .bscreen {
-    --bs-size: min(100vw - var(--bs-side) - 48px, 100dvh - 168px);
+    --bs-size: min(100vw - var(--bs-side) - 84px, 100dvh - 96px);
     display: grid;
     grid-template-columns: minmax(0, 1fr) var(--bs-side);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       'main head'
       'main side';
-    gap: 8px 16px;
+    gap: 6px 16px;
     height: 100dvh;
     min-height: 0;
-    padding: 10px 16px 10px 12px;
+    padding: 6px 16px 6px 52px;
   }
   .bs-head {
     grid-area: head;
-    padding: 0;
+    margin: 0;
+    padding: 0 0 0 10px;
+  }
+  /* Home sits alone at the far left edge, out of the way of the board. */
+  .bs-btn.bs-home {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 5;
+  }
+  /* The step row on one line under the board: slider, buttons, count. */
+  /* Names and the eval bar share one row, so the board gets the height. */
+  .bs-players {
+    padding: 4px 6px;
+  }
+  .bs-players:has(.bs-eval) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .bs-tabs button {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+  }
+  .bs-steps {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 8px;
+  }
+  .bs-step-btns button {
+    height: 32px;
+    width: 44px;
   }
   .bs-main {
     grid-area: main;
@@ -680,35 +737,55 @@
 .rp-empty {
   margin: 4px 0;
 }
-.rp-perf {
+.rp-classes {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
 }
-.rp-perf th,
-.rp-perf td {
-  padding: 7px 6px;
+.rp-classes th,
+.rp-classes td {
+  padding: 5px 4px;
   border-bottom: 1px solid var(--line);
-  text-align: right;
-  vertical-align: top;
+  text-align: center;
 }
-.rp-perf thead th {
+.rp-classes thead th {
+  font-size: 13px;
   font-weight: 650;
   overflow-wrap: anywhere;
+  width: 28%;
 }
-.rp-perf tbody th {
+.rp-classes tbody th {
   text-align: left;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
 }
-.rp-perf tbody th small {
-  display: block;
-  font-weight: 400;
-  font-size: 11px;
-  color: var(--muted);
+.rp-classes .rc-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.rp-perf tr:last-child th,
-.rp-perf tr:last-child td {
+.rp-classes tr:last-child th,
+.rp-classes tr:last-child td {
   border-bottom: 0;
+}
+.rp-classes .rc-n {
+  min-width: 48px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.rp-classes .rc-n:hover:not(:disabled) {
+  background: var(--line);
+}
+.rp-classes .rc-n:disabled {
+  color: var(--muted);
+  font-weight: 500;
+  cursor: default;
 }
 
 /* ------------------------------------------------ bits shared by the boards' panels */
@@ -735,7 +812,7 @@
   gap: 8px;
   height: auto;
   min-height: 100%;
-  padding: 6px 4px calc(12px + env(safe-area-inset-bottom));
+  padding: 6px 0 calc(12px + env(safe-area-inset-bottom));
 }
 .app .stage > .stage-head {
   grid-area: head;
@@ -745,7 +822,7 @@
   animation: none;
 }
 .app .stage > .board-wrap:not([style]) .board {
-  width: min(100vw - 8px, max(62vh, 100dvh - 120px));
+  width: min(100vw, max(64vh, 100dvh - 110px));
   max-height: none;
   height: auto;
   aspect-ratio: 1;
@@ -765,19 +842,20 @@
     grid-template-areas:
       'board head'
       'board side';
-    gap: 8px 16px;
+    gap: 6px 16px;
     height: 100dvh;
     min-height: 0;
-    padding: 10px 16px 10px 12px;
+    padding: 6px 16px 6px 52px;
   }
   .app .stage > .stage-head {
-    padding: 0;
+    margin: 0;
+    padding: 0 0 0 10px;
   }
   .app .stage > .board-wrap {
     min-height: 0;
   }
   .app .stage > .board-wrap:not([style]) .board {
-    width: min(100%, 100dvh - 24px);
+    width: min(100%, 100dvh - 12px);
   }
   .app .stage > .side {
     overflow-y: auto;
@@ -785,4 +863,22 @@
     padding: 0 4px 12px 0;
     scrollbar-width: thin;
   }
+}
+
+/* The review board with no game open: the games to pick from. */
+.review-pick {
+  display: grid;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.review-pick-row {
+  display: grid;
+  gap: 1px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.review-pick-row:hover {
+  background: var(--line);
 }
