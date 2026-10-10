@@ -1,3 +1,4 @@
+import { moveChange } from '../lib/analysis/moveChange';
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, type IconName } from './Icons';
@@ -200,6 +201,7 @@ export function PlayersBar({
   showEval,
   black2,
   white2,
+  before,
 }: {
   black: string;
   white: string;
@@ -212,8 +214,14 @@ export function PlayersBar({
   /** Small text under a name (rank, "you"). */
   black2?: ReactNode;
   white2?: ReactNode;
+  /**
+   * The position before the last move: the bar then shows how much that move gained or
+   * lost for the player who made it (winrate and points).
+   */
+  before?: { mover: 1 | 2; bWin: number | null; bLead?: number | null } | null;
 }) {
   const b = bWin ?? 0.5;
+  const change = bWin != null && before?.bWin != null ? moveChange(before.mover, before.bWin, bWin, before.bLead ?? null, bLead ?? null) : null;
   return (
     <div className="bs-players">
       <div className="bs-names">
@@ -243,12 +251,22 @@ export function PlayersBar({
             {bWin == null ? '…' : fmtPct(b, 1)}
           </span>
           <span className="bs-eval-w">{bWin == null ? '…' : fmtPct(1 - b, 1)}</span>
+          {change && (
+            <span
+              className={`bs-eval-delta mono tone-${change.tone}`}
+              title={`Last move by ${before!.mover === 1 ? 'Black' : 'White'}: ${change.text}${change.points ? `, ${change.points} points` : ''}`}
+            >
+              <i className={`stone-dot ${before!.mover === 1 ? 'b' : 'w'}`} />
+              {change.text}
+            </span>
+          )}
           {bLead != null && <span className="bs-eval-lead mono">{`${bLead >= 0 ? 'B' : 'W'}+${Math.abs(bLead).toFixed(1)}`}</span>}
         </div>
       )}
     </div>
   );
 }
+
 
 /**
  * The one thing allowed over the board: a notice that asks something (save, or leave

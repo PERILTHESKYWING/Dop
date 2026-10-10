@@ -26,6 +26,8 @@ export interface Tuning {
 
 export interface DeviceFacts {
   cores: number;
+  /** Cool mode (phones): at most COOL_LANES workers, so the phone never runs every core. */
+  cool?: boolean;
   /** navigator.deviceMemory in GB (Chrome only), else undefined. */
   memoryGB?: number;
   backend: 'webgpu' | 'cpu' | 'none';
@@ -34,13 +36,13 @@ export interface DeviceFacts {
 
 const KEY = 'dop.tune.v1';
 
-export function deviceFacts(backend: DeviceFacts['backend'], adapter?: string): DeviceFacts {
+export function deviceFacts(backend: DeviceFacts['backend'], adapter?: string, cool = false): DeviceFacts {
   const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }) : undefined;
-  return { cores: Math.max(1, nav?.hardwareConcurrency || 2), memoryGB: nav?.deviceMemory, backend, adapter };
+  return { cores: Math.max(1, nav?.hardwareConcurrency || 2), memoryGB: nav?.deviceMemory, backend, adapter, cool };
 }
 
 export function tuningKey(modelId: string, build: string, d: DeviceFacts) {
-  return `${KEY}:${modelId}:${build}:${d.backend}:${d.cores}:${d.adapter ?? ''}`;
+  return `${KEY}:${modelId}:${build}:${d.backend}:${d.cores}:${d.adapter ?? ''}${d.cool ? ':cool' : ''}`;
 }
 
 export function loadTuning(key: string): Tuning | null {
@@ -79,7 +81,7 @@ export function forgetTunings() {
  */
 export function maxLanes(d: DeviceFacts, laneHeapBytes: number): number {
   if (d.backend === 'webgpu') return 1;
-  const byCores = Math.max(1, Math.min(8, d.cores - 1));
+  const byCores = Math.max(1, Math.min(d.cool ? 2 : 8, d.cores - 1));
   const budget = Math.min(1.2e9, (d.memoryGB ?? 4) * 1e9 * 0.15);
   const byMemory = Math.max(1, Math.floor(budget / Math.max(laneHeapBytes, 32e6)));
   return Math.max(1, Math.min(byCores, byMemory));

@@ -22,9 +22,11 @@ import {
 import { fmtPct } from '../components/common';
 import { Icon } from '../components/Icons';
 import { customModel, modelById, MODELS } from '../lib/engine/models';
+import { COOL_PONDER, isPhoneLike } from '../lib/engine/governor';
 import { storageEstimate } from '../lib/db/db';
 import { DEFAULT_THEME, THEMES, type ThemeId } from '../lib/themes';
 import { switchTheme } from '../components/Scenery';
+import { LOCAL_PC, probePc, usePc } from '../state/pc';
 
 const mb = (n: number) => `${(n / 1_048_576).toFixed(n > 1e8 ? 0 : 1)} MB`;
 
@@ -49,6 +51,8 @@ function EngineSection() {
   const safe = inSafeMode();
   const custom = customModel(settings.modelId);
   const liveEngine = getEngine();
+  const bigHelper = useStore((s) => s.bigHelper);
+  const student = useStore((s) => s.student);
   return (
     <div className="panel stack">
       <div className="spread">
@@ -173,6 +177,53 @@ function EngineSection() {
       <label className="row small">
         <input type="checkbox" checked={settings.autoAnalyze} onChange={(e) => void saveSettings({ autoAnalyze: e.target.checked })} /> Auto-analyse imports
       </label>
+      <label className="row small">
+        <input type="checkbox" checked={settings.bigHelper !== 'off'} onChange={(e) => void saveSettings({ bigHelper: e.target.checked ? 'auto' : 'off' })} /> Big network helper
+        <span className="tiny muted">
+          {bigHelper.status === 'ready'
+            ? `${bigHelper.model} on ${bigHelper.backend === 'webgpu' ? 'GPU' : 'CPU'}`
+            : bigHelper.status === 'loading'
+              ? 'loading…'
+              : bigHelper.status === 'error'
+                ? `failed: ${bigHelper.note}`
+                : 'starts when needed, where a GPU or a strong computer can run it'}
+        </span>
+      </label>
+      <p className="tiny muted">
+        The small network searches; the big one judges the top of each search and corrects everything below it.
+      </p>
+      <label className="stack tight small">
+        <span className="field-label">Student network</span>
+        <select value={settings.student} onChange={(e) => void saveSettings({ student: e.target.value as typeof settings.student })}>
+          <option value="auto">Auto (only once it beats the built-in network)</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <p className="tiny muted">
+        {student.status === 'ready'
+          ? `${student.name} searches; ${engine.info?.modelName ?? 'KataGo'} judges the top of each search.`
+          : student.status === 'loading'
+            ? 'Loading the student network…'
+            : student.status === 'error'
+              ? `The student network failed: ${student.note}`
+              : 'A small network taught every night by KataGo\'s big ones, several times faster per position. Auto turns it on by itself once it measures better than the built-in network.'}
+        {student.gate
+          ? ` Last measured: ${Math.round(student.gate.student.top1 * 100)}% best moves found vs ${Math.round(student.gate.baseline.top1 * 100)}% for ${student.gate.baseline.name}, ${student.gate.speedup.toFixed(1)}x the speed.`
+          : ''}
+      </p>
+      <label className="stack tight small">
+        <span className="field-label">Cool mode</span>
+        <select value={settings.coolMode} onChange={(e) => void saveSettings({ coolMode: e.target.value as typeof settings.coolMode })}>
+          <option value="auto">Auto ({isPhoneLike() ? 'on, this is a phone' : 'off, this is a computer'})</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <p className="tiny muted">
+        Cool mode keeps a phone cool: two workers at most, the small network, game analysis only part of the time and never in the
+        background, and live analysis rests after {COOL_PONDER} visits or a minute untouched. Changes apply after Restart.
+      </p>
       <div className="row wrap">
         <button className="btn primary" onClick={() => void (engine.status === 'off' || engine.status === 'unsupported' ? startEngine() : restartEngine())}>
           {engine.status === 'off' ? 'Start KataGo' : 'Restart'}
@@ -207,6 +258,86 @@ function EngineSection() {
           </table>
         </div>
       </details>
+    </div>
+  );
+}
+
+function PcSection() {
+  const settings = useStore((s) => s.settings);
+  const pc = usePc();
+  const phone = isPhoneLike();
+  const [address, setAddress] = useState(settings.pcAddress);
+  const [code, setCode] = useState(settings.pcCode);
+  const [checking, setChecking] = useState(false);
+  const check = async () => {
+    setChecking(true);
+    await saveSettings({ pcAddress: address.trim(), pcCode: code.trim() });
+    await probePc();
+    setChecking(false);
+  };
+  return (
+    <div className="panel stack">
+      <div className="spread">
+        <h3 className="with-icon">
+          <Icon name="cpu" style={{ width: 16, height: 16 }} /> PC helper
+        </h3>
+        <span className={`chip ${pc.status === 'connected' ? 'good' : pc.status === 'error' ? 'bad' : ''}`}>
+          {pc.status === 'connected' ? 'connected' : pc.status === 'error' ? 'lost' : 'not running'}
+        </span>
+      </div>
+      {pc.status === 'connected' ? (
+        <p className="small">
+          {pc.network ?? 'KataGo'} on {pc.backend ?? 'the PC'}. Live and game analysis run there
+          {pc.analysed ? ` (${pc.analysed} positions so far)` : ''}.
+        </p>
+      ) : (
+        <p className="small muted">
+          Everything runs on this {phone ? 'phone' : 'computer'} until the helper answers. With it, your graphics card searches with
+          a big network, many times faster.
+        </p>
+      )}
+      {pc.note && <div className="callout small">{pc.note}</div>}
+      <ol className="small stack tight" style={{ margin: 0, paddingLeft: 18 }}>
+        <li>
+          <a href="/downloads/dop-pc-helper.zip" download>
+            Download the helper
+          </a>{' '}
+          on your Windows PC and unzip it.
+        </li>
+        <li>Double-click start-windows.bat. It installs what it needs the first time.</li>
+        <li>
+          {phone
+            ? 'For this phone, use start-phone-too.bat instead and type the address and code it prints below.'
+            : 'Keep its window open. This page finds it by itself.'}
+        </li>
+      </ol>
+      <label className="row small">
+        <input type="checkbox" checked={settings.pcUse !== 'off'} onChange={(e) => void saveSettings({ pcUse: e.target.checked ? 'auto' : 'off' })} /> Use
+        the PC when it is on
+      </label>
+      <label className="stack tight small">
+        <span className="field-label">Address {phone ? '' : '(only for another device)'}</span>
+        <input value={address} placeholder={LOCAL_PC} onChange={(e) => setAddress(e.target.value)} />
+      </label>
+      <label className="stack tight small">
+        <span className="field-label">Pairing code</span>
+        <input value={code} placeholder={phone ? 'printed by the helper' : 'found automatically'} onChange={(e) => setCode(e.target.value)} />
+      </label>
+      <div className="row wrap">
+        <button className="btn small" disabled={checking} onClick={() => void check()}>
+          {checking ? 'Checking…' : 'Save and check'}
+        </button>
+        <label className="row small">
+          Visits per position
+          <select value={settings.pcVisits} onChange={(e) => void saveSettings({ pcVisits: Number(e.target.value) })}>
+            {[200, 400, 800, 1600, 3200].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </div>
   );
 }
@@ -512,6 +643,7 @@ export function Settings() {
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="stack">
           <EngineSection />
+          <PcSection />
           <PlayerSection />
           <PracticeSection />
         </div>

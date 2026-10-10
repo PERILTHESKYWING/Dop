@@ -85,6 +85,13 @@ export interface PositionEval {
   net?: { bWin: number; bLead: number };
   /** The search stopped early at this budget because more visits could not change its best move. */
   settled?: number;
+  /**
+   * The doubt meter (analysis/analyzer.ts doubtOf): how much two looks at the board, one of
+   * them turned, disagreed in the first pass. High doubt = a hard position.
+   */
+  doubt?: number;
+  /** Where the value came from when not this device's own search: the opening book or the PC. */
+  source?: 'book' | 'pc' | 'shared';
 }
 
 export interface GameAnalysis {
@@ -350,6 +357,26 @@ export interface Settings {
   effects: 'auto' | 'full' | 'light';
   /** Background theme (lib/themes.ts). */
   theme: ThemeId;
+  /**
+   * Cool mode (lib/engine/governor.ts): fewer workers, rests between positions, no work in
+   * the background, a live-analysis limit. Auto = on for phones and tablets.
+   */
+  coolMode: 'auto' | 'on' | 'off';
+  /**
+   * A big network (kata1 b18) beside the small one, judging the top of every search
+   * (state/brain.ts). Auto = where a GPU or a strong computer can run it.
+   */
+  bigHelper: 'auto' | 'off';
+  /**
+   * The student network (lib/student): auto = only once it measures better than the
+   * built-in network (public/student/manifest.json), on = always on 19x19, off = never.
+   */
+  student: 'auto' | 'on' | 'off';
+  /** PC helper (pc-helper/dop_pc.py): address ('' = this computer), pairing code, use it or not, visits per position. */
+  pcAddress: string;
+  pcCode: string;
+  pcUse: 'auto' | 'off';
+  pcVisits: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -368,4 +395,11 @@ export const DEFAULT_SETTINGS: Settings = {
   minLosingWinrate: 0.3,
   effects: 'auto',
   theme: 'sunrise',
+  coolMode: 'auto',
+  bigHelper: 'auto',
+  student: 'auto',
+  pcAddress: '',
+  pcCode: '',
+  pcUse: 'auto',
+  pcVisits: 800,
 };

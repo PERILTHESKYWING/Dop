@@ -5,12 +5,20 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/katago-models/:path*", "destination": "https://media.katagotraining.org/uploaded/networks/models/kata1/:path*" },
-    { "source": "/((?!api/|engine/|demo/|assets/|katago-models/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|engine/|demo/|assets/|katago-models/|book/|downloads/|pc-helper/|student/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
       "source": "/engine/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+    },
+    {
+      "source": "/book/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, stale-while-revalidate=86400" }]
+    },
+    {
+      "source": "/student/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
     },
     {
       "source": "/assets/(.*)",

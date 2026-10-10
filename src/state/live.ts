@@ -2,10 +2,16 @@ import { create } from 'zustand';
 import { replay } from '../lib/go/board';
 import type { Color, Move } from '../lib/go/types';
 import { engineMoves } from '../lib/analysis/analyzer';
-import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
+import { Search, type SearchSnapshot } from '../lib/engine/mcts';
 import { getEngine, markInteractive, startEngine } from './actions';
 import { get as getApp } from './store';
-import { ponderCap } from '../lib/engine/governor';
+import { idleTooLong, isCool, ponderCap } from '../lib/engine/governor';
+import { bookSnapshot } from '../lib/engine/book';
+import { MODELS } from '../lib/engine/models';
+import { anchorFor, bookAnswer } from './brain';
+import { searchEvaluator, startStudent } from './student';
+import { pcPonder, pcQueryOf, pcReady, probePc, usePc } from './pc';
+import { shareSnapshot, sharedKey, sharedRow, sharedSnapshot } from './shared';
 
 /**
  * Live analysis ("pondering", as in Lizzie): KataGo keeps searching the position on
@@ -34,7 +40,16 @@ export interface LiveState {
   /** The position `snap` belongs to. */
   key: string | null;
   snap: SearchSnapshot | null;
-  status: 'idle' | 'starting' | 'thinking' | 'paused' | 'limit' | 'error';
+  /**
+   * 'resting': cool mode stopped after a minute without a touch; any touch resumes.
+   * 'book': the opening book's answer is shown (no search needed).
+   * 'shared': another of the user's devices already read this position deeply.
+   */
+  status: 'idle' | 'starting' | 'thinking' | 'paused' | 'limit' | 'resting' | 'book' | 'shared' | 'error';
+  /** The network behind a book or shared answer. */
+  bookNetwork?: string;
+  /** The PC helper is doing the reading. */
+  onPc?: boolean;
   error?: string;
 }
 
@@ -57,12 +72,20 @@ export function useLiveFor(key: string | null | undefined): SearchSnapshot | nul
 let target: LiveTarget | null = null;
 let search: Search | null = null;
 let searchEngine: object | null = null;
+let searchStudent: object | null = null;
 let loopRunning: Promise<void> | null = null;
 let gen = 0;
 let wake: (() => void) | null = null;
 const hidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
 
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => poke());
+// Cool mode rests after a minute without a touch; the next touch picks up where it stopped.
+if (typeof window !== 'undefined') {
+  const resume = () => {
+    if (useLive.getState().status === 'resting') poke();
+  };
+  for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, resume, { passive: true });
+}
 
 let owner: symbol | null = null;
 
@@ -120,6 +143,31 @@ async function loop() {
       useLive.setState({ status: t ? 'paused' : 'idle' });
       return;
     }
+    const board = replay(t.size, t.setup, t.moves);
+    const key = sharedKey({ board, toPlay: t.toPlay, komi: t.komi, history: t.moves, size: t.size, setup: t.setup });
+    // On battery, live analysis stops at a limit instead of reading forever.
+    const limit = getApp().settings.ponderLimit || ponderCap();
+
+    // 1. The PC helper: native KataGo with a big network does the reading.
+    if (pcReady()) {
+      useLive.setState({ key: t.key, snap: null, status: 'thinking', error: undefined, onPc: true });
+      try {
+        const last = await pcPonder(pcQueryOf(t.size, t.komi, t.setup, t.moves, t.toPlay), Number.isFinite(limit) ? limit : 5_000_000, (snap) => {
+          if (my === gen) useLive.setState({ key: t.key, snap });
+        }, () => my !== gen || hidden() || idleTooLong());
+        if (last) void shareSnapshot(key, last, usePc.getState().network ?? 'pc');
+        if (my !== gen) continue;
+        useLive.setState({ status: isCool() && idleTooLong() ? 'resting' : 'limit' });
+        await new Promise<void>((r) => (wake = r));
+        continue;
+      } catch {
+        // The PC went away: carry on here.
+        void probePc();
+        if (my !== gen) continue;
+      }
+    }
+    useLive.setState({ onPc: false });
+
     let eng = getEngine();
     if (!eng) {
       useLive.setState({ status: 'starting' });
@@ -130,23 +178,49 @@ async function loop() {
       }
       if (my !== gen) continue;
     }
-    const board = replay(t.size, t.setup, t.moves);
     const pos = { size: t.size, komi: t.komi, moves: engineMoves(t.setup, t.moves), toPlay: t.toPlay, board };
-    if (!search || searchEngine !== eng) {
-      search = new Search(engineEvaluator(eng), pos, { batch: eng.batch });
+    // The student network searches when it runs (19x19); KataGo judges the top of the tree.
+    const stud = t.size === 19 ? await startStudent(() => eng!.activeLanes) : null;
+    if (my !== gen) continue;
+    if (!search || searchEngine !== eng || searchStudent !== stud) {
+      search = new Search(searchEvaluator(eng, t.size), pos, { batch: stud?.batch ?? eng.batch });
       searchEngine = eng;
+      searchStudent = stud;
     } else search.setPosition(pos);
+    search.setAnchor(anchorFor(eng.info.modelId, t.komi, t.size, eng));
+
+    // 2. Already known, deeper than this device would read: a result shared by another of
+    // the user's devices, or the opening book (searched deeply by a big network). Show it and
+    // spare the device, unless a big network runs here anyway.
+    const small = !MODELS.find((m) => m.id === eng!.info.modelId)?.gpuOnly;
+    if (small || isCool()) {
+      const shared = await sharedRow(key);
+      if (my !== gen) continue;
+      if (shared && shared.toPlay === t.toPlay) {
+        useLive.setState({ key: t.key, snap: sharedSnapshot(shared, t.size), status: 'shared', bookNetwork: shared.by, error: undefined });
+        await new Promise<void>((r) => (wake = r));
+        continue;
+      }
+      const book = !t.setup.length ? await bookAnswer({ size: t.size, komi: t.komi, setup: t.setup, board, toPlay: t.toPlay }) : null;
+      if (my !== gen) continue;
+      if (book) {
+        useLive.setState({ key: t.key, snap: bookSnapshot(book, t.toPlay, t.size), status: 'book', bookNetwork: book.network, error: undefined });
+        await new Promise<void>((r) => (wake = r));
+        continue;
+      }
+    }
+
+    // 3. This device's own search.
     // What the tree already knows about this position shows at once.
     useLive.setState({ key: t.key, snap: search.rootVisits > 0 ? search.snapshot() : null, status: 'thinking', error: undefined });
-    // On battery, live analysis stops at a limit instead of reading forever.
-    const limit = getApp().settings.ponderLimit || ponderCap();
+    let last: SearchSnapshot | null = null;
     try {
       markInteractive(4000);
-      await search.run({
+      last = await search.run({
         visits: limit,
         ownership: true,
         updateMs: 250,
-        shouldStop: () => my !== gen || hidden(),
+        shouldStop: () => my !== gen || hidden() || idleTooLong(),
         onUpdate: (snap) => {
           if (my !== gen) return;
           markInteractive(4000);
@@ -159,9 +233,11 @@ async function loop() {
       useLive.setState({ status: 'error', error: (e as Error).message });
       return;
     }
+    if (last) void shareSnapshot(key, last, eng.info.modelId);
     if (my !== gen) continue;
-    // The visit limit (or the memory guard) was reached: wait for something to change.
-    useLive.setState({ status: 'limit' });
+    // The visit limit (or the memory guard) was reached, or a phone rests after a minute
+    // untouched: wait for something to change.
+    useLive.setState({ status: isCool() && idleTooLong() ? 'resting' : 'limit' });
     await new Promise<void>((r) => (wake = r));
   }
 }

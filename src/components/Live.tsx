@@ -91,9 +91,12 @@ export function useLiveAnalysis(target: LiveTarget | null, enabled = true) {
   return { snap: key && live.key === key ? live.snap : null, on: live.on, status: live.status, error: live.error };
 }
 
+/** A network's short name: kata1-b18c384nbt → b18. */
+const shortNet = (id: string) => id.match(/b\d+c\d+/)?.[0]?.replace(/c\d+/, '') ?? id;
+
 /** Status line and the pondering switch. */
 export function LiveHeader({ snap, title = 'KataGo' }: { snap: SearchSnapshot | null; title?: string }) {
-  const { on, status, error } = useLive();
+  const { on, status, error, bookNetwork, onPc } = useLive();
   const engine = useStore((s) => s.engine);
   const thinking = on && status === 'thinking';
   let text: string;
@@ -102,7 +105,10 @@ export function LiveHeader({ snap, title = 'KataGo' }: { snap: SearchSnapshot | 
     text = engine.progress?.stage === 'download' && engine.progress.total ? `Downloading… ${Math.round((engine.progress.loaded / engine.progress.total) * 100)}%` : 'Starting…';
   else if (!on) text = snap ? `Paused at ${shortCount(snap.visits)} visits` : 'Paused';
   else if (status === 'limit') text = `${shortCount(snap?.visits ?? 0)} visits (max)`;
-  else if (snap) text = `${shortCount(snap.visits)} visits${snap.evalsPerSec ? ` · ${snap.evalsPerSec >= 10 ? Math.round(snap.evalsPerSec) : snap.evalsPerSec.toFixed(1)}/s` : ''}`;
+  else if (status === 'book') text = `Opening book · ${shortCount(snap?.visits ?? 0)} visits${bookNetwork ? ` (${shortNet(bookNetwork)})` : ''}`;
+  else if (status === 'shared') text = `Read on your other device · ${shortCount(snap?.visits ?? 0)} visits${bookNetwork ? ` (${shortNet(bookNetwork)})` : ''}`;
+  else if (status === 'resting') text = `${shortCount(snap?.visits ?? 0)} visits · resting, touch to go on`;
+  else if (snap) text = `${onPc ? 'PC · ' : ''}${shortCount(snap.visits)} visits${snap.evalsPerSec ? ` · ${snap.evalsPerSec >= 10 ? Math.round(snap.evalsPerSec) : snap.evalsPerSec.toFixed(1)}/s` : ''}`;
   else text = 'Analysing…';
   return (
     <div className="live-head">
