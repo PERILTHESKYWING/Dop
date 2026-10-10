@@ -335,6 +335,15 @@ def start_tunnel():
         return None
 
 
+def site_origins():
+    """The address of the site this helper was downloaded from (site.txt, written into the
+    zip when the site is built), so a site on its own domain works without --origin."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site.txt")
+    if not os.path.exists(path):
+        return []
+    return [re.escape(line.strip().rstrip("/")) for line in open(path) if line.strip().startswith("https://")]
+
+
 def main():
     ap = argparse.ArgumentParser(description="DOPPELGANGER PC helper (native KataGo for the site)")
     ap.add_argument("--network", choices=sorted(NETWORKS), default="b18")
@@ -356,7 +365,7 @@ def main():
     model, net_id = find_model(args)
     kg = KataGo(binary, model, args.threads)
     info = {"network": net_id, "katago": os.path.basename(binary), "backend": "opencl" if "opencl" in binary.lower() else "native"}
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(kg, token, DEFAULT_ORIGINS + args.origin, info))
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(kg, token, DEFAULT_ORIGINS + site_origins() + args.origin, info))
     log(f"PC helper on http://127.0.0.1:{PORT} with {net_id}. Keep this window open; open the site on this computer.")
     if args.tunnel:
         url = start_tunnel()

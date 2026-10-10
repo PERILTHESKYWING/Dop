@@ -1,0 +1,339 @@
+# The AI keeps training in GitHub's cloud three times a day, whether or not anyone has the
+# site open (scripts/student/README.md). Each run uses 20 machines at once:
+#
+#   label (10)  KataGo's big network (kata1 b18) looks at positions from amateur (Fox) and
+#               professional games: its search on 5 machines ("search inside the network"),
+#               its own judgement on 5;
+#   mind (7)    a population of student networks ("hivemind"), each continuing the champion
+#               with its own settings on what was labelled so far;
+#   book (2)    the opening book grows (the most played openings not yet searched deeply);
+#   reference   only on the first run: the validation and reference positions.
+#
+# Then the arena keeps the best mind, the gate measures it against the built-in network at
+# equal time (the site turns it on by itself only when it is better), and the new network
+# and opening book are committed, so Vercel redeploys. Labels and checkpoints live in the
+# "ai-training" release, not in git. Start a run by hand: Actions -> "AI training" -> "Run
+# workflow". Pull requests that change the training run a few-minute version (no commits).
+name: AI training
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+    - cron: '0 17 * * *'
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes each machine works
+        default: '270'
+  pull_request:
+    paths:
+      - 'scripts/student/**'
+      - 'src/lib/student/**'
+      - '.github/workflows/ai-training.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ai-training-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SMOKE: ${{ github.event_name == 'pull_request' }}
+  MINUTES: ${{ github.event_name == 'pull_request' && '3' || inputs.minutes || '270' }}
+  RUN: ${{ github.run_number }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      labels: ${{ steps.p.outputs.labels }}
+      minds: ${{ steps.p.outputs.minds }}
+      has_data: ${{ steps.p.outputs.has_data }}
+      need_ref: ${{ steps.p.outputs.need_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: |
+          gh release view ai-training --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
+          gh release download ai-training -p population.json -D . 2>/dev/null || true
+          if [ "$SMOKE" = true ]; then
+            echo 'labels=[0]' >> "$GITHUB_OUTPUT"
+            echo 'minds=[{"id":0,"lr":0.002,"searchWeight":2,"seed":1}]' >> "$GITHUB_OUTPUT"
+            echo 'has_data=false' >> "$GITHUB_OUTPUT"
+            echo 'need_ref=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'labels=[0,1,2,3,4,5,6,7,8,9]' >> "$GITHUB_OUTPUT"
+          echo "minds=$(python3 scripts/student/population.py plan --population population.json --minds 7 --run "$RUN")" >> "$GITHUB_OUTPUT"
+          grep -q '^labels-' assets.txt && echo 'has_data=true' >> "$GITHUB_OUTPUT" || echo 'has_data=false' >> "$GITHUB_OUTPUT"
+          (grep -q '^val.dpd.gz$' assets.txt && grep -q '^ref.json$' assets.txt) && echo 'need_ref=false' >> "$GITHUB_OUTPUT" || echo 'need_ref=true' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  label:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.labels) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            kg
+            nets
+          key: katago-1.18.1-nets-v1
+      - run: scripts/student/ci/setup-katago.sh ${{ env.SMOKE == 'true' && 'b10' || 'b18' }}
+      - name: Games (professional on every third machine, Fox amateurs on the rest)
+        run: |
+          J=${{ matrix.job }}
+          if [ $((J % 3)) -eq 0 ] || [ "$SMOKE" = true ]; then
+            scripts/student/ci/games.sh pro 6000 "$RUN$J"
+            echo "SRC=--lines pro.txt --source pro" >> "$GITHUB_ENV"
+          else
+            scripts/student/ci/games.sh fox 4000 "$RUN" "$J"
+            echo "SRC=--sgf-dir fox --source amateur" >> "$GITHUB_ENV"
+          fi
+      - name: Label with the teacher
+        run: |
+          J=${{ matrix.job }}
+          # Machines 0-4: the teacher's search (100 visits); 5-9: its own judgement.
+          V=$([ "$J" -lt 5 ] && [ "$SMOKE" != true ] && echo 100 || echo 1)
+          mkdir -p out
+          timeout $((MINUTES * 60 + 300)) npx tsx scripts/student/label.ts --katago "$KATAGO" --model "$TEACHER" $SRC \
+            --per-game 8 --visits "$V" --threads "$(nproc)" --minutes "$MINUTES" --seed "$RUN$J" --out "out/labels-$RUN-$J-v$V-$TEACHER_ID.dpd" || true
+          ls -la out && gzip out/*.dpd
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labels-${{ matrix.job }}
+          path: out/
+          retention-days: 3
+
+  mind:
+    needs: plan
+    if: needs.plan.outputs.has_data == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        mind: ${{ fromJSON(needs.plan.outputs.minds) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Training window and the champion
+        run: |
+          scripts/student/ci/data.sh 8 8 "$RUN${{ matrix.mind.id }}"
+          gh release download ai-training -p champion.pt -D . 2>/dev/null || cp data/student/seed-champion.pt champion.pt || true
+      - name: Train
+        run: |
+          ID=${{ matrix.mind.id }}
+          python scripts/student/train.py --data 'labels/*.dpd' $( [ -f val.dpd ] && echo --val-data val.dpd ) --init champion.pt \
+            --minutes $((MINUTES - 20)) --lr ${{ matrix.mind.lr }} --search-weight ${{ matrix.mind.searchWeight }} --seed ${{ matrix.mind.seed }} \
+            --threads "$(nproc)" --name "mind-$RUN-$ID" --out "minds/mind-$RUN-$ID.pt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mind-${{ matrix.mind.id }}
+          path: minds/
+          retention-days: 3
+
+  # Pull requests: the same steps on the few minutes of labels made above.
+  smoke-mind:
+    needs: [plan, label]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: labels-*
+          path: labels
+          merge-multiple: true
+      - run: |
+          gunzip labels/*.gz
+          python scripts/student/train.py --data 'labels/*.dpd' --minutes 2 --threads "$(nproc)" --name smoke --out minds/mind-smoke.pt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mind-smoke
+          path: minds/
+          retention-days: 1
+
+  book:
+    needs: plan
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        komi: ['7', '7.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            kg
+            nets
+          key: katago-1.18.1-nets-v1
+      - run: scripts/student/ci/setup-katago.sh b18
+      - run: scripts/student/ci/games.sh pro 100000 1
+      - name: Search the next openings
+        run: |
+          K=${{ matrix.komi }}
+          F=public/book/k$(awk -v k="$K" 'BEGIN {printf "%d", k * 10}').json
+          mkdir -p out
+          timeout $((MINUTES * 60 + 300)) npx tsx scripts/opening-book.ts search --katago "$KATAGO" --model "$TEACHER" --network "$TEACHER_ID" \
+            --lines pro.txt --komi "$K" --visits 400 --minutes "$MINUTES" --threads "$(nproc)" --book "$F" --out "out/book-$K-$RUN.json" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: book-${{ matrix.komi }}
+          path: out/
+          retention-days: 3
+
+  reference:
+    needs: plan
+    if: needs.plan.outputs.need_ref == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            kg
+            nets
+          key: katago-1.18.1-nets-v1
+      - run: scripts/student/ci/setup-katago.sh ${{ env.SMOKE == 'true' && 'b10' || 'b18' }}
+      - run: scripts/student/ci/games.sh pro 3000 "val${{ matrix.part }}"
+      - name: Validation positions (0, 1) or reference positions (2, 3)
+        run: |
+          P=${{ matrix.part }}
+          mkdir -p out
+          if [ "$SMOKE" = true ]; then N=12; V=16; M=2; else N=70; V=800; M=150; fi
+          if [ "$P" -lt 2 ]; then
+            npx tsx scripts/student/label.ts --katago "$KATAGO" --model "$TEACHER" --lines pro.txt --source pro --per-game 2 \
+              --visits $([ "$SMOKE" = true ] && echo 1 || echo 64) --threads "$(nproc)" --minutes "$M" --seed "9$P" --out "out/val-$P.dpd"
+            gzip out/val-$P.dpd
+          else
+            npx tsx scripts/ai-eval.ts ref --katago "$KATAGO" --model "$TEACHER" --network "$TEACHER_ID" --lines pro.txt \
+              --count "$N" --visits "$V" --threads "$(nproc)" --seed "$P$RUN" --out "out/ref-$P.json"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reference-${{ matrix.part }}
+          path: out/
+          retention-days: 3
+
+  arena:
+    needs: [plan, label, mind, smoke-mind, book, reference]
+    if: always() && !cancelled() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+          merge-multiple: true
+      - name: Validation and reference positions, the champion, the population
+        run: |
+          ls -la parts || true
+          if ls parts/val-*.dpd.gz > /dev/null 2>&1; then cat parts/val-*.dpd.gz > val.dpd.gz; else gh release download ai-training -p val.dpd.gz -D . || true; fi
+          gunzip -kf val.dpd.gz || true
+          if ls parts/ref-*.json > /dev/null 2>&1; then jq -s '.[0] + {positions: (map(.positions) | add)}' parts/ref-*.json > ref.json; else gh release download ai-training -p ref.json -D . || true; fi
+          gh release download ai-training -p champion.pt -D . 2>/dev/null || cp data/student/seed-champion.pt champion.pt || true
+          gh release download ai-training -p population.json -D . 2>/dev/null || true
+          # The validation set, when there is none yet, from today's labels.
+          [ -s val.dpd ] || (gunzip -c parts/labels-*.dpd.gz | head -c $((840 * 2000)) > val.dpd) || true
+      - name: Arena (the best mind becomes the champion)
+        run: |
+          if ls parts/mind-*.pt > /dev/null 2>&1; then
+            python scripts/student/population.py arena --population population.json --val val.dpd --minds 'parts/mind-*.pt' \
+              --champion champion.pt --out champion.pt --report arena.json --run "$RUN"
+          else
+            echo 'no minds this run'
+          fi
+          echo "CHANGED=$(jq -r '.changed // false' arena.json 2>/dev/null || echo false)" >> "$GITHUB_ENV"
+      - name: Gate (the champion against the built-in network, at equal time)
+        if: env.CHANGED == 'true' || env.SMOKE == 'true'
+        run: |
+          python scripts/student/export.py --ckpt champion.pt --out public/student/dopnet.dopnet --name "dopnet-r$RUN"
+          npx tsx scripts/student/gate.ts --ref ref.json --net public/student/dopnet.dopnet --ms "$([ "$SMOKE" = true ] && echo 300 || echo 1500)" \
+            --manifest public/student/manifest.json --file dopnet.dopnet --out gate.json
+          [ -f population.json ] || echo '{}' > population.json
+          [ -f arena.json ] || echo '{}' > arena.json
+          # The teacher most of the labels came from (it is in their file names).
+          T=$(ls parts/labels-*.dpd.gz 2>/dev/null | sed -E 's/.*-v[0-9]+-(.*)\.dpd\.gz/\1/' | sort | uniq -c | sort -rn | awk 'NR == 1 {print $2}')
+          jq --slurpfile p population.json --slurpfile a arena.json --arg t "${T:-kata1-b18c384nbt}" \
+            '.trained = {samples: ($p[0].samples // 0), records: ($a[0].best.meta.records // 0), teacher: $t, minds: 7, nights: ($p[0].runs // 0)}' \
+            public/student/manifest.json > m.json && mv m.json public/student/manifest.json
+      - name: Grow the opening book
+        run: |
+          for K in 7 7.5; do
+            F=public/book/k$(awk -v k="$K" 'BEGIN {printf "%d", k * 10}').json
+            ls parts/book-$K-*.json > /dev/null 2>&1 && npx tsx scripts/opening-book.ts merge --book "$F" --komi "$K" parts/book-$K-*.json || true
+          done
+      - name: Keep the data (release "ai-training")
+        if: env.SMOKE != 'true'
+        run: |
+          gh release view ai-training > /dev/null 2>&1 || gh release create ai-training --title "AI training data" \
+            --notes "Teacher labels, validation and reference positions, the champion student network and the population's history. Updated by .github/workflows/ai-training.yml."
+          for f in parts/labels-*.dpd.gz; do [ -e "$f" ] && gh release upload ai-training "$f" --clobber; done
+          ls parts/val-*.dpd.gz > /dev/null 2>&1 && gh release upload ai-training val.dpd.gz --clobber
+          ls parts/ref-*.json > /dev/null 2>&1 && gh release upload ai-training ref.json --clobber
+          [ "$CHANGED" = true ] && gh release upload ai-training champion.pt --clobber
+          [ -f population.json ] && gh release upload ai-training population.json --clobber
+          [ -f arena.json ] && gh release upload ai-training arena.json --clobber
+          # Keep the newest 60 label parts.
+          gh release view ai-training --json assets -q '.assets[] | select(.name | startswith("labels-")) | [.createdAt, .name] | @tsv' \
+            | sort -r | tail -n +61 | cut -f2 | while read -r f; do gh release delete-asset ai-training "$f" -y; done
+      - name: Commit the new network and book
+        if: env.SMOKE != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add public/student public/book
+          git commit -m "AI training: run $RUN" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done

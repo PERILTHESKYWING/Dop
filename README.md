@@ -198,6 +198,40 @@ cached in the Cache API; they are never committed.
 
 Rebuild the engine with `engine/build-engine.sh` (needs emsdk and Eigen headers).
 
+### Stronger answers for less work on the device
+
+Where an answer comes from, strongest and cheapest first (`src/state/brain.ts`):
+
+1. **The PC helper** (`public/pc-helper/`, a download in Settings): native KataGo with a big network on your own
+   graphics card, used for live and game analysis while it runs. The browser finds it at `127.0.0.1:7474`; a
+   phone reaches it through the Cloudflare address `start-phone-too.bat` prints. Without it everything runs on
+   the device as before.
+2. **The opening book** (`src/lib/engine/book.ts`, `public/book/`): the most played openings searched once,
+   deeply, by a big network. All rotations and mirror images find the same entry. Grown by the AI training below.
+3. **Shared results** (`src/state/shared.ts`): deep reads of single positions travel between your devices with
+   the account.
+4. **This device's search**, which spends visits where they matter: two looks at every position (two board
+   symmetries) measure doubt, and positions are searched by tier (obvious, quiet, normal, critical, deep).
+   A stronger network, when one runs here, judges the root and its top children and its correction is applied
+   to everything below them ("big brain at the top, small brain below", `mcts.ts` anchors).
+
+**Cool mode** (automatic on phones): two workers at most, the small network on the CPU, game analysis only part
+of the time and never with the page hidden, and live analysis rests after 800 visits or a minute untouched.
+
+**The student network (DopNet)** is a small network made for this site, taught by KataGo's big networks on the
+positions people play (`scripts/student/README.md`): its targets include the teacher's search results, its first
+layer is a 9x9 pattern layer updated incrementally from the last position (NNUE-style), its 3x3 layers have
+ternary weights, and an early exit answers easy positions halfway up. It runs in WebAssembly SIMD
+(`tools/student/`). It is used only once it beats the built-in network at equal time (`scripts/student/gate.ts`,
+`public/student/manifest.json`), or when turned on in Settings.
+
+### The AI keeps training (three times a day, in the cloud)
+`.github/workflows/ai-training.yml` runs on 20 GitHub machines at once: ten label positions from amateur and
+professional games with KataGo's kata1 b18 (its search on five, its own judgement on five), seven train a
+population of student networks from the current champion with different settings, and two grow the opening
+book. The arena keeps the best mind, the gate measures it against the built-in network, and the new network and
+book are committed (Vercel redeploys). Labels and checkpoints are kept in the `ai-training` release.
+
 ## Run locally
 
 ```bash

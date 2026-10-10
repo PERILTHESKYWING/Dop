@@ -1,3 +1,4 @@
+import { moveChange } from '../lib/analysis/moveChange';
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, type IconName } from './Icons';
@@ -252,7 +253,7 @@ export function PlayersBar({
           <span className="bs-eval-w">{bWin == null ? '…' : fmtPct(1 - b, 1)}</span>
           {change && (
             <span
-              className={`bs-eval-delta mono ${change.tone}`}
+              className={`bs-eval-delta mono tone-${change.tone}`}
               title={`Last move by ${before!.mover === 1 ? 'Black' : 'White'}: ${change.text}${change.points ? `, ${change.points} points` : ''}`}
             >
               <i className={`stone-dot ${before!.mover === 1 ? 'b' : 'w'}`} />
@@ -266,20 +267,6 @@ export function PlayersBar({
   );
 }
 
-/**
- * What the last move did for the player who made it: the change in their winrate (and
- * score lead), toned like the move badges (a small loss is normal, 5% or more is a mistake).
- */
-export function moveChange(mover: 1 | 2, bWinBefore: number, bWinAfter: number, bLeadBefore: number | null, bLeadAfter: number | null) {
-  const sign = mover === 1 ? 1 : -1;
-  const win = sign * (bWinAfter - bWinBefore);
-  const pts = bLeadBefore != null && bLeadAfter != null ? sign * (bLeadAfter - bLeadBefore) : null;
-  const pct = Math.round(win * 1000) / 10;
-  const text = `${pct > 0 ? '+' : pct < 0 ? '−' : '±'}${Math.abs(pct).toFixed(1)}%`;
-  const points = pts == null ? '' : `${pts > 0 ? '+' : pts < 0 ? '−' : '±'}${Math.abs(pts).toFixed(1)}`;
-  const tone = win >= -0.02 ? 'good' : win > -0.05 ? 'meh' : win > -0.12 ? 'bad' : 'awful';
-  return { win, text, points, tone };
-}
 
 /**
  * The one thing allowed over the board: a notice that asks something (save, or leave

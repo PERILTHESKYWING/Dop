@@ -46,6 +46,7 @@ import { uid } from '../lib/util/hash';
 import { decodeSgfBytes } from '../lib/util/charset';
 import { get, set, toast } from './store';
 import { anchorFor, knownAnswer } from './brain';
+import { searchEvaluator, startStudent, stopStudent, studentVisits } from './student';
 import { pcPrefetchGame, pcReady, watchPc } from './pc';
 import './shared';
 
@@ -186,9 +187,11 @@ export async function init() {
 const sortWeaknesses = (ws: Weakness[]) => [...ws].sort((a, b) => weaknessPriority(b) - weaknessPriority(a));
 
 export async function saveSettings(patch: Partial<Settings>) {
-  const settings = { ...get().settings, ...patch };
+  const before = get().settings;
+  const settings = { ...before, ...patch };
   set({ settings });
   setCool(coolModeFor(settings.coolMode));
+  if (settings.student !== before.student) stopStudent();
   try {
     await (await db()).put('settings', settings);
   } catch {
@@ -356,6 +359,7 @@ export async function restartEngine(opts: { safe?: boolean } = {}) {
   const old = engine;
   engine = null;
   old?.terminate();
+  stopStudent();
   safeMode = !!opts.safe;
   set({ engine: { status: 'off' } });
   return startEngine();
@@ -771,7 +775,8 @@ export async function runQueue() {
       try {
         // The PC helper takes the whole game at once (its positions are searched side by side).
         if (next.stage === 'full' && pcReady()) pcPrefetchGame(game);
-        const visits = searchVisitsFor(eng, settings.searchVisits);
+        const stud = game.size === 19 ? await startStudent(() => eng.activeLanes) : null;
+        const visits = studentVisits(searchVisitsFor(eng, settings.searchVisits), game.size);
         const analysis = await analyzeGame(game, eng, queueStore, {
           visits: game.source === 'opponent' ? Math.max(8, Math.round(visits / 2)) : visits,
           stage: next.stage,
@@ -781,7 +786,8 @@ export async function runQueue() {
           onProgress: showQueueState,
           thrifty: isCool(),
           known: knownAnswer,
-          anchor: anchorFor(eng.info.modelId, engineKomi(game.komi, game.rules), game.size),
+          anchor: anchorFor(eng.info.modelId, engineKomi(game.komi, game.rules), game.size, eng),
+          ...(stud ? { evaluator: searchEvaluator(eng, game.size), evaluatorBatch: stud.batch } : {}),
         });
         set((s) => ({
           analyses: { ...s.analyses, [game.id]: analysis },

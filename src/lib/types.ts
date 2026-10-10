@@ -367,6 +367,11 @@ export interface Settings {
    * (state/brain.ts). Auto = where a GPU or a strong computer can run it.
    */
   bigHelper: 'auto' | 'off';
+  /**
+   * The student network (lib/student): auto = only once it measures better than the
+   * built-in network (public/student/manifest.json), on = always on 19x19, off = never.
+   */
+  student: 'auto' | 'on' | 'off';
   /** PC helper (pc-helper/dop_pc.py): address ('' = this computer), pairing code, use it or not, visits per position. */
   pcAddress: string;
   pcCode: string;
@@ -392,6 +397,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'sunrise',
   coolMode: 'auto',
   bigHelper: 'auto',
+  student: 'auto',
   pcAddress: '',
   pcCode: '',
   pcUse: 'auto',

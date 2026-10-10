@@ -52,6 +52,7 @@ function EngineSection() {
   const custom = customModel(settings.modelId);
   const liveEngine = getEngine();
   const bigHelper = useStore((s) => s.bigHelper);
+  const student = useStore((s) => s.student);
   return (
     <div className="panel stack">
       <div className="spread">
@@ -190,6 +191,26 @@ function EngineSection() {
       </label>
       <p className="tiny muted">
         The small network searches; the big one judges the top of each search and corrects everything below it.
+      </p>
+      <label className="stack tight small">
+        <span className="field-label">Student network</span>
+        <select value={settings.student} onChange={(e) => void saveSettings({ student: e.target.value as typeof settings.student })}>
+          <option value="auto">Auto (only once it beats the built-in network)</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <p className="tiny muted">
+        {student.status === 'ready'
+          ? `${student.name} searches; ${engine.info?.modelName ?? 'KataGo'} judges the top of each search.`
+          : student.status === 'loading'
+            ? 'Loading the student network…'
+            : student.status === 'error'
+              ? `The student network failed: ${student.note}`
+              : 'A small network taught every night by KataGo\'s big ones, several times faster per position. Auto turns it on by itself once it measures better than the built-in network.'}
+        {student.gate
+          ? ` Last measured: ${Math.round(student.gate.student.top1 * 100)}% best moves found vs ${Math.round(student.gate.baseline.top1 * 100)}% for ${student.gate.baseline.name}, ${student.gate.speedup.toFixed(1)}x the speed.`
+          : ''}
       </p>
       <label className="stack tight small">
         <span className="field-label">Cool mode</span>

@@ -6,6 +6,8 @@ import { engineEvaluator, type AnchorSource, type LeafRequest } from '../lib/eng
 import { MODELS } from '../lib/engine/models';
 import type { NetEval } from '../lib/engine/parse';
 import type { PositionEval } from '../lib/types';
+import type { EngineBackend } from '../lib/engine/types';
+import { studentSearches } from './student';
 import { get, set } from './store';
 
 /**
@@ -19,7 +21,8 @@ import { get, set } from './store';
  *     made, synced through the account;
  *  4. this device's own search with the small network, corrected at the top of the tree by
  *     a big network when one can run here ("big brain at the top, small brain below",
- *     engine/mcts.ts anchors).
+ *     engine/mcts.ts anchors). When the student network runs (student.ts), it is the small
+ *     brain and the KataGo network already loaded here judges the top.
  */
 
 /** The opening book's answer for a position, or null (no book for this komi, or not in it). */
@@ -106,11 +109,13 @@ export const runningBigHelper = () => (bigEngine && !bigEngine.dead ? bigEngine 
  * The anchor source for a search on the main engine: the opening book for book positions,
  * then the big network helper when it runs here. Null when neither can help.
  */
-export function anchorFor(mainModelId: string | undefined, komi: number, size: number): AnchorSource | null {
+export function anchorFor(mainModelId: string | undefined, komi: number, size: number, main?: EngineBackend): AnchorSource | null {
   const book = size === 19 ? (bookIfLoaded(komi, size), true) : false;
   const allowBig = bigHelperAllowed(mainModelId);
   if (allowBig) void bigHelper(mainModelId);
-  if (!book && !allowBig) return null;
+  // When the student network searches, the KataGo network running here is the judge.
+  const judge = main && studentSearches(size) ? engineEvaluator(main) : null;
+  if (!book && !allowBig && !judge) return null;
   let bigEval: ReturnType<typeof engineEvaluator> | null = null;
   let bigFor: BrowserEngine | null = null;
   return async (req: LeafRequest) => {
@@ -121,7 +126,11 @@ export function anchorFor(mainModelId: string | undefined, komi: number, size: n
       if (b) return { eval: bookNet(b), policy: false };
     }
     const e = runningBigHelper();
-    if (!e) return null;
+    if (!e) {
+      if (!judge) return null;
+      const [ev] = await judge([{ ...req, ownership: false }]);
+      return { eval: ev, policy: true };
+    }
     if (bigFor !== e) {
       bigEval = engineEvaluator(e);
       bigFor = e;

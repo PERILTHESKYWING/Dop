@@ -250,13 +250,13 @@
   height: 9px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
-.bs-eval-delta.meh {
+.bs-eval-delta.tone-meh {
   background: #b98a1b;
 }
-.bs-eval-delta.bad {
+.bs-eval-delta.tone-bad {
   background: #d0662a;
 }
-.bs-eval-delta.awful {
+.bs-eval-delta.tone-awful {
   background: #c23b32;
 }
 .bs-eval.pending {

@@ -2,13 +2,14 @@ import { create } from 'zustand';
 import { replay } from '../lib/go/board';
 import type { Color, Move } from '../lib/go/types';
 import { engineMoves } from '../lib/analysis/analyzer';
-import { engineEvaluator, Search, type SearchSnapshot } from '../lib/engine/mcts';
+import { Search, type SearchSnapshot } from '../lib/engine/mcts';
 import { getEngine, markInteractive, startEngine } from './actions';
 import { get as getApp } from './store';
 import { idleTooLong, isCool, ponderCap } from '../lib/engine/governor';
 import { bookSnapshot } from '../lib/engine/book';
 import { MODELS } from '../lib/engine/models';
 import { anchorFor, bookAnswer } from './brain';
+import { searchEvaluator, startStudent } from './student';
 import { pcPonder, pcQueryOf, pcReady, probePc, usePc } from './pc';
 import { shareSnapshot, sharedKey, sharedRow, sharedSnapshot } from './shared';
 
@@ -71,6 +72,7 @@ export function useLiveFor(key: string | null | undefined): SearchSnapshot | nul
 let target: LiveTarget | null = null;
 let search: Search | null = null;
 let searchEngine: object | null = null;
+let searchStudent: object | null = null;
 let loopRunning: Promise<void> | null = null;
 let gen = 0;
 let wake: (() => void) | null = null;
@@ -177,11 +179,15 @@ async function loop() {
       if (my !== gen) continue;
     }
     const pos = { size: t.size, komi: t.komi, moves: engineMoves(t.setup, t.moves), toPlay: t.toPlay, board };
-    if (!search || searchEngine !== eng) {
-      search = new Search(engineEvaluator(eng), pos, { batch: eng.batch });
+    // The student network searches when it runs (19x19); KataGo judges the top of the tree.
+    const stud = t.size === 19 ? await startStudent(() => eng!.activeLanes) : null;
+    if (my !== gen) continue;
+    if (!search || searchEngine !== eng || searchStudent !== stud) {
+      search = new Search(searchEvaluator(eng, t.size), pos, { batch: stud?.batch ?? eng.batch });
       searchEngine = eng;
+      searchStudent = stud;
     } else search.setPosition(pos);
-    search.setAnchor(anchorFor(eng.info.modelId, t.komi, t.size));
+    search.setAnchor(anchorFor(eng.info.modelId, t.komi, t.size, eng));
 
     // 2. Already known, deeper than this device would read: a result shared by another of
     // the user's devices, or the opening book (searched deeply by a big network). Show it and

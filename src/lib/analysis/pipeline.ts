@@ -1,6 +1,6 @@
 import { allPositions, type Board } from '../go/board';
 import { engineKomi } from '../go/rules';
-import { engineEvaluator, Search, type AnchorSource } from '../engine/mcts';
+import { engineEvaluator, Search, type AnchorSource, type LeafEvaluator } from '../engine/mcts';
 import type { EngineBackend } from '../engine/types';
 import type { GameAnalysis, GameRecord, PositionEval } from '../types';
 import { ANALYSIS_VERSION, evaluateFastMany, positionKey, rootPosition, searchedEval, toPlayAt, type PositionSpec } from './analyzer';
@@ -45,6 +45,10 @@ export interface PipelineOptions {
   known?: (spec: PositionSpec, fast: PositionEval) => Promise<PositionEval | null>;
   /** A stronger judge for the top of every search (engine/mcts.ts AnchorSource). */
   anchor?: AnchorSource | null;
+  /** Who evaluates the search's leaves (default: the engine; the student network when it runs). */
+  evaluator?: LeafEvaluator;
+  /** Positions per evaluator call for that evaluator. */
+  evaluatorBatch?: number;
 }
 
 /** A searched evaluation that is good enough for `want` visits. */
@@ -205,7 +209,9 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   // Pass 2: search every position, following the game with one tree.
   game.status = 'deep';
   await save();
-  const search = new Search(engineEvaluator(engine), rootPosition(specAt(game, boards, 0)), { batch: engine.batch ?? 1 });
+  const search = new Search(opts.evaluator ?? engineEvaluator(engine), rootPosition(specAt(game, boards, 0)), {
+    batch: (opts.evaluator ? opts.evaluatorBatch : engine.batch) ?? 1,
+  });
   search.setAnchor(opts.anchor ?? null);
   since = 0;
   for (let i = 0; i <= n; i++) {

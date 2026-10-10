@@ -1,0 +1,13 @@
+{
+ "version": 1,
+ "network": "g170e-b20c256x2",
+ "books": [
+  {
+   "komi": 7,
+   "size": 19,
+   "file": "k70.json",
+   "positions": 300,
+   "visits": 200
+  }
+ ]
+}

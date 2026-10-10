@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Capabilities, LoadProgress } from '../lib/engine/browserEngine';
 import type { LlmStatus } from '../lib/llm/client';
+import type { StudentGate } from '../lib/student/manifest';
 import type { DoppelModel } from '../lib/profile/doppel';
 import type { DatasetMeta, LiteModelRecord } from '../lib/lab/model';
 import {
@@ -58,6 +59,7 @@ export interface AppState {
   };
   /** The big network helper beside the main engine (state/brain.ts). */
   bigHelper: { status: 'off' | 'loading' | 'ready' | 'error'; model?: string; backend?: string; note?: string };
+  student: { status: 'off' | 'loading' | 'ready' | 'error'; name?: string; enabled?: boolean; note?: string; gate?: StudentGate };
   llm: LlmStatus | null;
   queue: { running: boolean; paused: boolean; currentGameId?: string; lastError?: string };
   busy: { profile: boolean; llm: boolean; llmCheck?: boolean; lab: boolean; labStage?: string; labProgress?: number };
@@ -84,6 +86,7 @@ export const useStore = create<AppState>(() => ({
   caps: null,
   engine: { status: 'off' },
   bigHelper: { status: 'off' },
+  student: { status: 'off' },
   llm: null,
   queue: { running: false, paused: false },
   busy: { profile: false, llm: false, lab: false },

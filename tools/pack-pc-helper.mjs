@@ -21,11 +21,15 @@ const crc32 = (buf) => {
 };
 
 const files = readdirSync(src).filter((n) => statSync(path.join(src, n)).isFile()).sort();
+// The site's own addresses (Vercel sets these while building), so the helper lets the site
+// in even on a custom domain (dop_pc.py site_origins).
+const sites = [process.env.VERCEL_PROJECT_PRODUCTION_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_URL].filter(Boolean).map((h) => `https://${h}`);
+const extra = sites.length ? { 'site.txt': Buffer.from(sites.join('\n') + '\n') } : {};
+const entries = [...files.map((n) => [n, readFileSync(path.join(src, n))]), ...Object.entries(extra)].sort((a, b) => a[0].localeCompare(b[0]));
 const locals = [];
 const centrals = [];
 let offset = 0;
-for (const name of files) {
-  const data = readFileSync(path.join(src, name));
+for (const [name, data] of entries) {
   const fname = Buffer.from(`dop-pc-helper/${name}`);
   const crc = crc32(data);
   const local = Buffer.alloc(30);
@@ -58,10 +62,10 @@ for (const name of files) {
 const centralSize = centrals.reduce((a, b) => a + b.length, 0);
 const end = Buffer.alloc(22);
 end.writeUInt32LE(0x06054b50, 0);
-end.writeUInt16LE(files.length, 8);
-end.writeUInt16LE(files.length, 10);
+end.writeUInt16LE(entries.length, 8);
+end.writeUInt16LE(entries.length, 10);
 end.writeUInt32LE(centralSize, 12);
 end.writeUInt32LE(offset, 16);
 mkdirSync(path.dirname(out), { recursive: true });
 writeFileSync(out, Buffer.concat([...locals, ...centrals, end]));
-console.log(`packed ${files.length} files -> ${path.relative(root, out)}`);
+console.log(`packed ${entries.length} files -> ${path.relative(root, out)}${sites.length ? ` (site: ${sites.join(', ')})` : ''}`);
