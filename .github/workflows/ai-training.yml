@@ -30,6 +30,7 @@ on:
     paths:
       - 'scripts/student/**'
       - 'src/lib/student/**'
+      - 'data/student/**'
       - '.github/workflows/ai-training.yml'
 
 permissions:
