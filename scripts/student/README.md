@@ -1,7 +1,7 @@
 # DopNet: the student network
 
 A small network made for this site: taught by KataGo's big networks on the positions
-people actually play, small enough to search fast on a phone. Four ideas are built in:
+people actually play, small enough to search fast on a phone. Five ideas are built in:
 
 1. **Distilled** from a strong teacher (kata1 b18/b28) on amateur and professional
    positions, not trained from zero by self-play.

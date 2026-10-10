@@ -172,7 +172,7 @@ static u32 clock_;
 static i32 use_cache = 1;
 static u32 n_incremental, n_full;
 
-/* Tensor table order (matches TENSORS in runtime.ts). */
+/* Tensor table order (matches tensorList() in src/lib/student/runtime.ts). */
 enum {
   T_STEM_W, T_STEM_B, T_STEM_KOMI,
   T_XP_W, T_XP_B, T_XPASS_W, T_XPASS_B, T_XV1_W, T_XV1_B, T_XV2_W, T_XV2_B,
@@ -735,13 +735,10 @@ EXPORT(dn_board) u32 dn_board(void) { return (u32)(unsigned long)board_in; }
 EXPORT(dn_out_exit) u32 dn_out_exit(void) { return (u32)(unsigned long)out_exit; }
 EXPORT(dn_out_final) u32 dn_out_final(void) { return (u32)(unsigned long)out_final; }
 
-static i32 board_o; /* orientation of the position being evaluated */
-
 /* Stem from the cache (or from scratch) for board_in, then blocks 1..E and the exit heads.
  * Returns 1 when the exit heads were computed (out_exit), 0 when the net has none. */
 EXPORT(dn_eval) i32 dn_eval(i32 to_play, float komi) {
-  board_o = to_play == 2;
-  const float *acc = stem_acc(board_o);
+  const float *acc = stem_acc(to_play == 2);
   float sk = (to_play == 2 ? komi : -komi) / 10.0f;
   stem_to_trunk(acc, sk);
   for (i32 i = 0; i < EXB; i++) run_block(&blocks[i]);
