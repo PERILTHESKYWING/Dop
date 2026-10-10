@@ -3,7 +3,7 @@ import { Corpus } from '../lib/corpus';
 import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
 import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
 import { bundledModel, modelOrderFor } from '../lib/engine/models';
-import { governEngine, pace } from '../lib/engine/governor';
+import { coolModeFor, governEngine, isCool, pace, setCool } from '../lib/engine/governor';
 import { forgetTunings } from '../lib/engine/tuning';
 import { generateItems } from '../lib/forge/generator';
 import { balancedItems } from '../lib/forge/balance';
@@ -45,6 +45,9 @@ import {
 import { uid } from '../lib/util/hash';
 import { decodeSgfBytes } from '../lib/util/charset';
 import { get, set, toast } from './store';
+import { anchorFor, knownAnswer } from './brain';
+import { pcPrefetchGame, pcReady, watchPc } from './pc';
+import './shared';
 
 const DEMO_PLAYER = 'Mira';
 const DEMO_RIVAL_ID = 'opp-demo-rival';
@@ -172,6 +175,8 @@ export async function init() {
     set({ loaded: true });
     toast(`Local storage is unavailable (${(e as Error).message}). Nothing will be saved in this session.`, 'error');
   }
+  setCool(coolModeFor(get().settings.coolMode));
+  watchPc();
   detectCapabilities().then((caps) => set({ caps }));
   llmStatus().then((llm) => set({ llm }));
   const s = get();
@@ -183,6 +188,7 @@ const sortWeaknesses = (ws: Weakness[]) => [...ws].sort((a, b) => weaknessPriori
 export async function saveSettings(patch: Partial<Settings>) {
   const settings = { ...get().settings, ...patch };
   set({ settings });
+  setCool(coolModeFor(settings.coolMode));
   try {
     await (await db()).put('settings', settings);
   } catch {
@@ -233,6 +239,10 @@ const isDownloadProblem = (msg: string) => /download|no answer|stalled|HTTP \d|n
 
 export function engineAttempts(settings: Settings, caps: Capabilities): StartAttempt[] {
   if (safeMode) return [{ spec: bundledModel(), forceCpu: true }];
+  // Cool mode (phones): the small built-in network on two CPU workers unless a network was
+  // chosen by hand. Big networks come from the opening book, the big-network helper and the
+  // PC instead of running here non-stop.
+  if (isCool() && settings.modelId === 'auto') return [{ spec: bundledModel(), forceCpu: true }];
   const gpu = caps.webgpu && !settings.forceCpu && !gpuMarkedBroken();
   const list: StartAttempt[] = modelOrderFor(settings.modelId, gpu).map((spec) => ({ spec, forceCpu: !gpu }));
   if (gpu) list.push({ spec: bundledModel(), forceCpu: true });
@@ -759,6 +769,8 @@ export async function runQueue() {
       const { settings } = get();
       const game: GameRecord = { ...g, progress: { ...g.progress } };
       try {
+        // The PC helper takes the whole game at once (its positions are searched side by side).
+        if (next.stage === 'full' && pcReady()) pcPrefetchGame(game);
         const visits = searchVisitsFor(eng, settings.searchVisits);
         const analysis = await analyzeGame(game, eng, queueStore, {
           visits: game.source === 'opponent' ? Math.max(8, Math.round(visits / 2)) : visits,
@@ -767,6 +779,9 @@ export async function runQueue() {
           yieldTo: waitForInteractive,
           interrupted: interactiveNow,
           onProgress: showQueueState,
+          thrifty: isCool(),
+          known: knownAnswer,
+          anchor: anchorFor(eng.info.modelId, engineKomi(game.komi, game.rules), game.size),
         });
         set((s) => ({
           analyses: { ...s.analyses, [game.id]: analysis },

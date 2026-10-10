@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { exportSnapshot, mergeSnapshot, packSnapshot, unpackSnapshot, type MergeReport } from '../lib/sync/snapshot';
 import { init } from './actions';
 import { toast } from './store';
+import { reloadShared } from './shared';
 
 /**
  * The optional account: sign in with a username and password, and this browser's games,
@@ -113,6 +114,8 @@ export async function syncNow(opts: { quiet?: boolean } = {}): Promise<MergeRepo
         parts.push(p.data);
       }
       report = await mergeSnapshot(await unpackSnapshot(parts));
+      // Other devices' shared results may have come in.
+      reloadShared();
       if (report.added || report.updated) await init();
     }
     // 2. Upload this browser's data (now including the account's).

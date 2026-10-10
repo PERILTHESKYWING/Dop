@@ -5,8 +5,8 @@
   "type": "module",
   "description": "DOPPELGÄNGER: a local-first personal Go training lab built on KataGo.",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node tools/pack-pc-helper.mjs && vite",
+    "build": "node tools/pack-pc-helper.mjs && tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

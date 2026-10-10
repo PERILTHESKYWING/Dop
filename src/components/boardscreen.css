@@ -231,6 +231,34 @@
   background: var(--accent);
   color: #fff;
 }
+.bs-eval-delta {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+  background: #3f8f5a;
+}
+.bs-eval-delta .stone-dot {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+.bs-eval-delta.meh {
+  background: #b98a1b;
+}
+.bs-eval-delta.bad {
+  background: #d0662a;
+}
+.bs-eval-delta.awful {
+  background: #c23b32;
+}
 .bs-eval.pending {
   opacity: 0.6;
 }

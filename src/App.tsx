@@ -2,6 +2,7 @@ import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type 
 import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
+import { coolModeFor } from './lib/engine/governor';
 import { startAccount } from './state/account';
 import { Toasts } from './components/common';
 import { Scenery } from './components/Scenery';
@@ -309,14 +310,17 @@ function useNavClosed() {
 /** Heavy effects (moving light, blur) only where the device can afford them. */
 function useEffectsClass() {
   const effects = useStore((s) => s.settings.effects);
+  const coolMode = useStore((s) => s.settings.coolMode);
   return useMemo(() => {
     if (effects === 'light') return 'fx-light';
     if (effects === 'full') return '';
+    // Phones in cool mode skip the moving light and blur: they cost battery all the time.
+    if (coolModeFor(coolMode)) return 'fx-light';
     const nav = navigator as Navigator & { deviceMemory?: number };
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const weak = (nav.hardwareConcurrency ?? 8) <= 4 || (nav.deviceMemory ?? 8) <= 4;
     return reduced || weak ? 'fx-light' : '';
-  }, [effects]);
+  }, [effects, coolMode]);
 }
 
 export function App() {

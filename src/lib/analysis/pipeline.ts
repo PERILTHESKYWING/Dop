@@ -1,6 +1,6 @@
 import { allPositions, type Board } from '../go/board';
 import { engineKomi } from '../go/rules';
-import { engineEvaluator, Search } from '../engine/mcts';
+import { engineEvaluator, Search, type AnchorSource } from '../engine/mcts';
 import type { EngineBackend } from '../engine/types';
 import type { GameAnalysis, GameRecord, PositionEval } from '../types';
 import { ANALYSIS_VERSION, evaluateFastMany, positionKey, rootPosition, searchedEval, toPlayAt, type PositionSpec } from './analyzer';
@@ -33,34 +33,75 @@ export interface PipelineOptions {
    * visits cannot change its best move. Off gives every position the same budget.
    */
   adaptive?: boolean;
+  /**
+   * Cool mode (phones): quiet and obvious positions get half of their already small budget
+   * again; positions that matter keep theirs.
+   */
+  thrifty?: boolean;
+  /**
+   * Answers that need no search on this device (the opening book, the PC, shared results):
+   * a searched evaluation for the position, or null to search it here.
+   */
+  known?: (spec: PositionSpec, fast: PositionEval) => Promise<PositionEval | null>;
+  /** A stronger judge for the top of every search (engine/mcts.ts AnchorSource). */
+  anchor?: AnchorSource | null;
 }
 
 /** A searched evaluation that is good enough for `want` visits. */
 function isSearched(e: PositionEval, want: number) {
+  // Answers from the opening book, the PC or another device are stronger than a search here.
+  if (e.searched && e.source) return true;
   return !!e.searched && (e.visits >= want || (e.settled ?? 0) >= want);
 }
 
+export type SearchTier = 'obvious' | 'quiet' | 'normal' | 'critical' | 'deep';
+
+/** Share of the base budget each kind of position gets ("search only what matters"). */
+export const TIER_SHARE: Record<SearchTier, number> = { obvious: 0.08, quiet: 0.35, normal: 1, critical: 1.75, deep: 4 };
+/** Doubt (two looks disagreeing) above this makes a position critical; below QUIET_DOUBT it may be quiet. */
+export const CRITICAL_DOUBT = 0.08;
+export const QUIET_DOUBT = 0.03;
+
 /**
- * Visits for position i, from the network's first look at the game: half for an obvious
- * move (the network is sure and the game followed it), one and a half for a position
- * where the move played lost 6% or more or was not among the network's top three
- * choices, four times for the model lab's hard examples.
+ * How much position i matters, from the first pass (the network's two looks at every
+ * position). Critical: the move played lost 6% or more, was not among the network's top
+ * three, or the two looks disagree (the doubt meter). Obvious: the network is sure, the game
+ * followed it and nothing changed. Quiet: a move the network expected, little at stake.
+ * The model lab's hard examples always get the deep budget.
  */
-export function visitBudget(analysis: GameAnalysis, game: GameRecord, i: number, base: number, adaptive = true): number {
-  if (analysis.deepTargets.includes(i)) return base * 4;
-  if (!adaptive || i >= game.moves.length) return base;
+export function searchTier(analysis: GameAnalysis, game: GameRecord, i: number): SearchTier {
+  if (analysis.deepTargets.includes(i)) return 'deep';
   const before = analysis.evals[i];
+  if (!before) return 'normal';
+  const doubt = Math.max(before.doubt ?? 0, i > 0 ? (analysis.evals[i - 1]?.doubt ?? 0) * 0.5 : 0);
+  if (i >= game.moves.length) return doubt >= CRITICAL_DOUBT ? 'critical' : 'normal';
   const after = analysis.evals[i + 1];
-  if (!before || !after) return base;
+  if (!after) return 'normal';
   const mover = before.toPlay;
   const winBefore = mover === 1 ? before.bWin : 1 - before.bWin;
   const winAfter = mover === 1 ? after.bWin : 1 - after.bWin;
   const loss = winBefore - winAfter;
   const played = game.moves[i].loc;
   const top = before.policy[0];
-  if (loss >= 0.06 || !before.policy.slice(0, 3).some((p) => p.loc === played)) return Math.round(base * 1.5);
-  if (top && top.p >= 0.8 && top.loc === played && loss < 0.02) return Math.max(8, Math.round(base * 0.5));
-  return base;
+  const rank = before.policy.findIndex((p) => p.loc === played);
+  if (loss >= 0.06 || rank < 0 || rank >= 3 || doubt >= CRITICAL_DOUBT || (after.doubt ?? 0) >= CRITICAL_DOUBT) return 'critical';
+  // A decided game (one side above 97%) needs no detail unless something happens.
+  const decided = winBefore > 0.97 || winBefore < 0.03;
+  if (top && top.loc === played && loss < 0.02 && doubt < QUIET_DOUBT && (top.p >= 0.6 || decided)) return 'obvious';
+  if (rank <= 1 && loss < 0.03 && doubt < QUIET_DOUBT * 1.5) return 'quiet';
+  return 'normal';
+}
+
+/**
+ * Visits for position i: the base budget times its tier's share (searchTier). Off
+ * (`adaptive` false) gives every position the base budget, apart from the deep targets.
+ */
+export function visitBudget(analysis: GameAnalysis, game: GameRecord, i: number, base: number, adaptive = true, thrifty = false): number {
+  if (!adaptive) return analysis.deepTargets.includes(i) ? base * 4 : base;
+  const tier = searchTier(analysis, game, i);
+  let share = TIER_SHARE[tier];
+  if (thrifty && (tier === 'obvious' || tier === 'quiet' || tier === 'normal')) share *= 0.5;
+  return Math.max(8, Math.round(base * share));
 }
 
 export class AnalysisStopped extends Error {}
@@ -105,8 +146,10 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   const n = game.moves.length;
   const komi = engineKomi(game.komi, game.rules);
   const stored = await store.loadAnalysis(game.id);
-  const analysis: GameAnalysis = stored && analysisIsCurrent(stored, game, engine.info.modelId) ? stored : freshAnalysis(game, komi);
-  analysis.engine = engine.info;
+  // A finished analysis made elsewhere (another network, the PC) is kept rather than redone.
+  const finished = !!stored && analysisIsCurrent(stored, game) && stored.evals.every((e) => e?.searched);
+  const analysis: GameAnalysis = stored && (finished || analysisIsCurrent(stored, game, engine.info.modelId)) ? stored : freshAnalysis(game, komi);
+  if (!finished) analysis.engine = engine.info;
   const checkpoint = opts.checkpointEvery ?? 12;
   const stop = () => {
     if (opts.shouldStop?.()) throw new AnalysisStopped('stopped');
@@ -135,7 +178,11 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
     const keys = specs.map((sp) => positionKey(sp, engine.info.modelId));
     const hits = await Promise.all(keys.map((k) => store.getCached(k)));
     const need = idx.map((_, j) => j).filter((j) => !hits[j]);
-    const fresh = await evaluateFastMany(engine, need.map((j) => specs[j]));
+    const fresh = await evaluateFastMany(
+      engine,
+      need.map((j) => specs[j]),
+      { doubt: opts.adaptive !== false },
+    );
     need.forEach((j, k) => (hits[j] = fresh[k]));
     for (const e of fresh) await store.putCached(e);
     idx.forEach((i, j) => (analysis.evals[i] = hits[j]!));
@@ -159,16 +206,22 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   game.status = 'deep';
   await save();
   const search = new Search(engineEvaluator(engine), rootPosition(specAt(game, boards, 0)), { batch: engine.batch ?? 1 });
+  search.setAnchor(opts.anchor ?? null);
   since = 0;
   for (let i = 0; i <= n; i++) {
     const current = analysis.evals[i]!;
-    const want = visitBudget(analysis, game, i, opts.visits, opts.adaptive !== false);
+    const want = visitBudget(analysis, game, i, opts.visits, opts.adaptive !== false, opts.thrifty);
     if (isSearched(current, want)) continue;
     const spec = specAt(game, boards, i);
     const played = game.moves[i]?.loc;
     const cached = await store.getCached(current.key);
+    const known = cached && isSearched(cached, want) ? null : await opts.known?.(spec, current);
     if (cached && isSearched(cached, want)) {
       analysis.evals[i] = cached;
+    } else if (known) {
+      // Stored under this position's key, and good enough for this budget from now on.
+      analysis.evals[i] = { ...known, key: current.key, settled: Math.max(known.settled ?? 0, want) };
+      await store.putCached(analysis.evals[i]!);
     } else {
       search.setPosition(rootPosition(spec));
       let snap;

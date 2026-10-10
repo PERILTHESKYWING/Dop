@@ -1,6 +1,6 @@
 import { Board } from '../go/board';
 import { PASS, type Color, type Loc, type Move, other } from '../go/types';
-import { encodeOwnership, moverView, processRawOutput, round, topPolicy, type RawNetOutput } from '../engine/parse';
+import { encodeOwnership, moverView, processRawOutput, round, topPolicy, type NetEval, type RawNetOutput } from '../engine/parse';
 import { engineEvaluator, Search, type SearchCandidate, type SearchSnapshot } from '../engine/mcts';
 import type { EngineBackend, EngineRequest } from '../engine/types';
 import type { Candidate, PositionEval } from '../types';
@@ -60,9 +60,15 @@ export function rootPosition(spec: PositionSpec) {
   return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay, board: spec.board };
 }
 
-function fastEval(engine: EngineBackend, spec: PositionSpec, raw: RawNetOutput): PositionEval {
+function fastEval(engine: EngineBackend, spec: PositionSpec, raw: RawNetOutput, second?: RawNetOutput): PositionEval {
   const legal = spec.board.legalMask(spec.toPlay);
-  const net = processRawOutput(raw, spec.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
+  let net = processRawOutput(raw, spec.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
+  let doubt: number | undefined;
+  if (second) {
+    const other = processRawOutput(second, spec.toPlay, (loc) => legal[loc] === 1, engine.postProcess);
+    doubt = round(doubtOf(net, other), 4);
+    net = averageNet(net, other);
+  }
   const policy = topPolicy(net.policy, 12);
   return {
     key: positionKey(spec, engine.info.modelId),
@@ -77,23 +83,59 @@ function fastEval(engine: EngineBackend, spec: PositionSpec, raw: RawNetOutput):
     depth: 'fast',
     engine: engine.info,
     analyzedAt: Date.now(),
+    ...(doubt !== undefined ? { doubt } : {}),
   };
 }
+
+/**
+ * The doubt meter: how much two looks at the same position, the board turned another way,
+ * disagree. The network should give the same answer for a rotated board; where it does not,
+ * the position is beyond what one look can settle and deserves a real search. 0 = the two
+ * looks agree; 0.1 and up = a hard position.
+ */
+export function doubtOf(a: NetEval, b: NetEval): number {
+  let overlap = 0;
+  for (let i = 0; i < a.policy.length; i++) overlap += Math.min(a.policy[i], b.policy[i]);
+  return Math.max(Math.abs(a.bWin - b.bWin), Math.abs(a.bLead - b.bLead) / 15) + 0.25 * (1 - overlap);
+}
+
+function averageNet(a: NetEval, b: NetEval): NetEval {
+  const policy = new Float32Array(a.policy.length);
+  for (let i = 0; i < policy.length; i++) policy[i] = (a.policy[i] + b.policy[i]) / 2;
+  let ownership: Float32Array | undefined;
+  if (a.ownership && b.ownership) {
+    ownership = new Float32Array(a.ownership.length);
+    for (let i = 0; i < ownership.length; i++) ownership[i] = (a.ownership[i] + b.ownership[i]) / 2;
+  }
+  return { policy, bWin: (a.bWin + b.bWin) / 2, bLead: (a.bLead + b.bLead) / 2, ownership: ownership ?? a.ownership };
+}
+
+/** The second look of the doubt meter turns the board this way (a diagonal flip and a turn). */
+export const DOUBT_SYMMETRY = 5;
 
 /** Fast pass: one network evaluation (policy, value, score, ownership). */
 export async function evaluateFast(engine: EngineBackend, spec: PositionSpec): Promise<PositionEval> {
   return fastEval(engine, spec, await engine.evalRaw(request(spec), true));
 }
 
-/** The fast pass for many positions at once (spread over the engine's workers and batches). */
-export async function evaluateFastMany(engine: EngineBackend, specs: PositionSpec[]): Promise<PositionEval[]> {
+/**
+ * The fast pass for many positions at once (spread over the engine's workers and batches).
+ * With `doubt`, every position is looked at twice, the second time with the board turned
+ * (DOUBT_SYMMETRY): the two looks are averaged and their disagreement kept as `doubt`.
+ */
+export async function evaluateFastMany(engine: EngineBackend, specs: PositionSpec[], opts: { doubt?: boolean } = {}): Promise<PositionEval[]> {
   if (!engine.evalSeqBatchRaw || specs.length <= 1) {
     const out: PositionEval[] = [];
     for (const s of specs) out.push(await evaluateFast(engine, s));
     return out;
   }
-  const raws = await engine.evalSeqBatchRaw(specs.map((s) => ({ ...request(s), ownership: true })));
-  return specs.map((s, i) => fastEval(engine, s, raws[i]));
+  const twice = !!opts.doubt;
+  const reqs = specs.flatMap((s) => {
+    const r = { ...request(s), ownership: true };
+    return twice ? [{ ...r, symmetry: 0 }, { ...r, ownership: false, symmetry: DOUBT_SYMMETRY }] : [r];
+  });
+  const raws = await engine.evalSeqBatchRaw(reqs);
+  return specs.map((s, i) => (twice ? fastEval(engine, s, raws[2 * i], raws[2 * i + 1]) : fastEval(engine, s, raws[i])));
 }
 
 export interface DeepOptions {

@@ -56,6 +56,8 @@ export interface AppState {
     failures?: string[];
     note?: string;
   };
+  /** The big network helper beside the main engine (state/brain.ts). */
+  bigHelper: { status: 'off' | 'loading' | 'ready' | 'error'; model?: string; backend?: string; note?: string };
   llm: LlmStatus | null;
   queue: { running: boolean; paused: boolean; currentGameId?: string; lastError?: string };
   busy: { profile: boolean; llm: boolean; llmCheck?: boolean; lab: boolean; labStage?: string; labProgress?: number };
@@ -81,6 +83,7 @@ export const useStore = create<AppState>(() => ({
   hardExamples: [],
   caps: null,
   engine: { status: 'off' },
+  bigHelper: { status: 'off' },
   llm: null,
   queue: { running: false, paused: false },
   busy: { profile: false, llm: false, lab: false },

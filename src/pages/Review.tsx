@@ -537,6 +537,7 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
           bWin={explore ? (analysisBoard.eval?.bWin ?? null) : (value?.bWin ?? null)}
           bLead={explore ? (analysisBoard.eval?.bLead ?? null) : (value?.bLead ?? null)}
           pending={explore ? !analysisBoard.eval?.searched : !useLive && !ev?.searched}
+          before={!explore && cur > 0 && values[cur - 1] ? { mover: game.moves[cur - 1].color, bWin: values[cur - 1]!.bWin, bLead: values[cur - 1]!.bLead } : null}
         />
       }
       boardRef={boardWrap}

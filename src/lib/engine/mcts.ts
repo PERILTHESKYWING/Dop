@@ -25,7 +25,17 @@ export interface LeafRequest {
   ownership: boolean;
   /** Average the network over this many board symmetries (the root, for accuracy). */
   symmetries?: number;
+  /** Moves from the search's root to this position (0 = the root). */
+  depth?: number;
 }
+
+/**
+ * A stronger judge for a few positions near the root ("big brain at the top, small brain
+ * below"): a bigger network on the GPU, the PC, or the opening book. It answers null when
+ * it has nothing to say about a position. `policy` false: use only its value (the book
+ * knows the moves it searched, not a full policy).
+ */
+export type AnchorSource = (req: LeafRequest) => Promise<{ eval: NetEval; policy: boolean } | null>;
 
 /**
  * Evaluates positions for the search (several at once when the backend batches).
@@ -69,6 +79,14 @@ export interface SearchParams {
    * matched the one-leaf-at-a-time search.
    */
   virtualLoss: number;
+  /** Root moves (most visited first) the anchor source judges, besides the root itself. */
+  anchorChildren: number;
+  /**
+   * How much of the anchor's correction carries into the small network's evaluations below
+   * a root move (1 = all of it): the small network's error in a position tends to persist
+   * in the positions that follow from it, so the measured gap is applied to all of them.
+   */
+  anchorWeight: number;
 }
 
 export const DEFAULT_SEARCH: SearchParams = {
@@ -86,6 +104,8 @@ export const DEFAULT_SEARCH: SearchParams = {
   rootSymmetries: 1,
   batchGrowth: 2,
   virtualLoss: 0,
+  anchorChildren: 6,
+  anchorWeight: 1,
 };
 
 export interface SearchCandidate {
@@ -157,6 +177,14 @@ class SNode {
   evaluated = false;
   /** Evaluated but never expanded: game over (two passes) or too deep. */
   leafOnly = false;
+  /** Anchor state: 0 not asked, 1 asked, 2 judged (or nothing to say). */
+  anchored = 0;
+  /** The small network's own value here, before an anchor replaced it. */
+  smallWin = 0;
+  smallLead = 0;
+  /** Correction (anchor minus small network) for every evaluation below this root move. */
+  biasWin = 0;
+  biasLead = 0;
   constructor(readonly move: Loc) {}
 }
 
@@ -185,6 +213,10 @@ export class Search {
   private stopFlag = false;
   private evalCount = 0;
   private evalTime = 0;
+  private anchor: AnchorSource | null = null;
+  private anchorsInFlight = 0;
+  /** Positions the anchor source judged, and how many changed the small network's view. */
+  anchorStats = { asked: 0, judged: 0 };
 
   constructor(evaluator: LeafEvaluator, pos: RootPosition, params: Partial<SearchParams> = {}) {
     this.params = { ...DEFAULT_SEARCH, rootSymmetries: evaluator.rootSymmetries?.() ?? 1, ...params };
@@ -201,6 +233,11 @@ export class Search {
 
   get position(): RootPosition {
     return this.pos;
+  }
+
+  /** Let a stronger judge correct the root and its main moves (see AnchorSource). */
+  setAnchor(a: AnchorSource | null) {
+    this.anchor = a;
   }
 
   get rootVisits() {
@@ -308,6 +345,7 @@ export class Search {
       }
       for (let i = 0; i < leaves.length; i++) this.apply(leaves[i], evals[i]);
       if (this.root.visits === 1) this.center = 0.8 * this.root.nnLead;
+      if (this.anchor) this.pumpAnchors();
       const t = now();
       if (opts.onUpdate && t - lastUpdate >= updateMs) {
         lastUpdate = t;
@@ -434,6 +472,7 @@ export class Search {
         board: board ?? this.pos.board,
         ownership: isRoot,
         symmetries: isRoot ? this.params.rootSymmetries : undefined,
+        depth: line.length,
       },
     };
   }
@@ -523,10 +562,17 @@ export class Search {
 
   private apply(leaf: Leaf, ev: NetEval) {
     const node = leaf.node;
+    // Below a judged root move, the small network's view is corrected by the gap measured there.
+    const top = leaf.path[1];
+    if (top && top !== node && (top.biasWin || top.biasLead)) {
+      ev = { ...ev, bWin: Math.min(1, Math.max(0, ev.bWin + top.biasWin)), bLead: ev.bLead + top.biasLead };
+    }
     if (!node.evaluated) {
       node.evaluated = true;
       node.nnWin = ev.bWin;
       node.nnLead = ev.bLead;
+      node.smallWin = ev.bWin;
+      node.smallLead = ev.bLead;
       if (leaf.leafOnly) node.leafOnly = true;
       else this.expand(node, ev.policy, node === this.root);
       if (node === this.root) {
@@ -565,6 +611,110 @@ export class Search {
     }
     node.moves = moves;
     node.priors = priors;
+  }
+
+  /**
+   * Ask the anchor source about the root and its most visited moves (a couple at a time, in
+   * the background: the search does not wait). Each answer replaces the small network's
+   * value there, and its gap to the small network corrects everything searched below that
+   * move, including what was searched before the answer came.
+   */
+  private pumpAnchors() {
+    const a = this.anchor;
+    if (!a || this.anchorsInFlight >= 2) return;
+    const root = this.root;
+    const want: SNode[] = [];
+    if (root.evaluated && !root.anchored) want.push(root);
+    if (root.moves) {
+      const kids: SNode[] = [];
+      for (let i = 0; i < root.span; i++) {
+        const k = root.kids[i];
+        if (k && k.evaluated && !k.leafOnly && k.visits > 0) kids.push(k);
+      }
+      kids.sort((x, y) => y.visits - x.visits);
+      for (const k of kids.slice(0, this.params.anchorChildren)) if (!k.anchored) want.push(k);
+    }
+    for (const node of want) {
+      if (this.anchorsInFlight >= 2) break;
+      node.anchored = 1;
+      this.anchorsInFlight++;
+      this.anchorStats.asked++;
+      const req = this.requestFor(node);
+      const atRoot = this.root;
+      a(req)
+        .then((r) => {
+          if (r && this.root === atRoot) this.applyAnchor(node, node === atRoot, r.eval, r.policy);
+        })
+        .catch(() => {})
+        .finally(() => {
+          node.anchored = 2;
+          this.anchorsInFlight--;
+        });
+    }
+  }
+
+  private requestFor(node: SNode): LeafRequest {
+    if (node === this.root) return { ...this.rootRequest(false), depth: 0 };
+    const { size, komi, moves, toPlay, board } = this.pos;
+    const b = board.clone();
+    b.play(node.move, toPlay, true);
+    return { size, komi, moves: [...moves, { color: toPlay, loc: node.move }], toPlay: other(toPlay), board: b, ownership: false, depth: 1 };
+  }
+
+  private applyAnchor(node: SNode, isRoot: boolean, ev: NetEval, usePolicy: boolean) {
+    this.anchorStats.judged++;
+    const dWin = ev.bWin - node.smallWin;
+    const dLead = ev.bLead - node.smallLead;
+    // The node's own evaluation is replaced outright.
+    let addWin = ev.bWin - node.nnWin;
+    let addLead = ev.bLead - node.nnLead;
+    node.nnWin = ev.bWin;
+    node.nnLead = ev.bLead;
+    if (!isRoot) {
+      // Everything already searched below it moves by the same gap; later evaluations follow.
+      const w = this.params.anchorWeight;
+      const below = Math.max(0, node.visits - 1);
+      addWin += below * (w * dWin - node.biasWin);
+      addLead += below * (w * dLead - node.biasLead);
+      node.biasWin = w * dWin;
+      node.biasLead = w * dLead;
+      node.winSum += addWin;
+      node.leadSum += addLead;
+    }
+    this.root.winSum += addWin;
+    this.root.leadSum += addLead;
+    if (usePolicy && node.moves) this.reprior(node, ev.policy);
+    if (isRoot && usePolicy) this.rootPolicy = ev.policy;
+  }
+
+  /** Reorder a node's moves by a better policy, keeping the children already searched. */
+  private reprior(node: SNode, policy: Float32Array) {
+    const hw = policy.length - 1;
+    const old = node.moves!;
+    const kids = new Map<number, SNode>();
+    for (let i = 0; i < node.span; i++) if (node.kids[i]) kids.set(old[i], node.kids[i]!);
+    const idx = Array.from(old, (_, i) => i).sort((a, b) => {
+      const pa = policy[old[a] === PASS ? hw : old[a]];
+      const pb = policy[old[b] === PASS ? hw : old[b]];
+      return pb - pa;
+    });
+    const moves = new Int16Array(old.length);
+    const priors = new Float32Array(old.length);
+    const kidsOut: (SNode | undefined)[] = [];
+    let span = 0;
+    idx.forEach((j, i) => {
+      moves[i] = old[j];
+      priors[i] = Math.max(1e-6, policy[old[j] === PASS ? hw : old[j]]);
+      const k = kids.get(old[j]);
+      if (k) {
+        kidsOut[i] = k;
+        span = i + 1;
+      }
+    });
+    node.moves = moves;
+    node.priors = priors;
+    node.kids = kidsOut;
+    node.span = span;
   }
 
   private pvFrom(node: SNode, max: number): Loc[] {

@@ -12,3 +12,4 @@ coverage/
 .DS_Store
 .broadcast-parts/
 .problem-parts/
+public/downloads/
