@@ -5,7 +5,7 @@ import { PASS, type Color, type Move } from '../src/lib/go/types';
 import { Search, type AnchorSource, type LeafEvaluator, type RootPosition } from '../src/lib/engine/mcts';
 import type { NetEval } from '../src/lib/engine/parse';
 import { OpeningBook, bookKey, storeEntry, type BookFile } from '../src/lib/engine/book';
-import { searchTier, visitBudget } from '../src/lib/analysis/pipeline';
+import { deepenBudget, positionsToDeepen, visitBudget } from '../src/lib/analysis/pipeline';
 import { moveChange } from '../src/lib/analysis/moveChange';
 import { pcEval, pcSnapshot, type KgResult } from '../src/state/pc';
 import { encodeBoard, encodeMoves } from '../src/lib/student/encode';
@@ -67,23 +67,25 @@ describe('opening book', () => {
 });
 
 describe('search only what matters', () => {
-  const ev = (toPlay: Color, bWin: number, top: number, p: number, doubt = 0): PositionEval =>
-    ({ toPlay, bWin, bLead: 0, policy: [{ loc: top, p }], candidates: [], bestLoc: top, pv: [], visits: 1, depth: 'fast', doubt }) as unknown as PositionEval;
-  const game = { moves: [{ color: 1, loc: 10 }, { color: 2, loc: 20 }, { color: 1, loc: 30 }], setup: [], size: 19 } as unknown as GameRecord;
+  // A searched position: Black's win rate and lead, the side to move, the network's doubt.
+  const ev = (toPlay: Color, bWin: number, bLead: number, doubt = 0): PositionEval =>
+    ({ toPlay, bWin, bLead, policy: [], candidates: [], bestLoc: 0, pv: [], visits: 25, depth: 'deep', searched: true, doubt }) as unknown as PositionEval;
+  const game = { moves: [{ color: 1, loc: 10 }, { color: 2, loc: 20 }, { color: 1, loc: 30 }, { color: 2, loc: 40 }], setup: [], size: 19 } as unknown as GameRecord;
 
-  it('gives a sure, followed move little and a doubtful or losing one more', () => {
+  it('scouts every position, then deepens only around the moves the scouts could not clear', () => {
     const analysis = {
-      evals: [ev(1, 0.5, 10, 0.8), ev(2, 0.5, 99, 0.3), ev(1, 0.4, 30, 0.5, 0.2), ev(2, 0.4, 5, 0.5)],
+      // Move 1 (White) gives Black 4 points; the network is unsure about position 3.
+      evals: [ev(1, 0.5, 0), ev(2, 0.5, 0.2), ev(1, 0.62, 4.2), ev(2, 0.62, 4, 0.2), ev(1, 0.61, 4)],
       deepTargets: [],
     } as unknown as GameAnalysis;
-    expect(searchTier(analysis, game, 0)).toBe('obvious');
-    // Move 1 was not among the network's top moves.
-    expect(searchTier(analysis, game, 1)).toBe('critical');
-    // The two looks at position 2 disagree.
-    expect(searchTier(analysis, game, 2)).toBe('critical');
-    expect(visitBudget(analysis, game, 0, 200)).toBeLessThan(40);
-    expect(visitBudget(analysis, game, 1, 200)).toBeGreaterThan(200);
-    expect(visitBudget(analysis, game, 0, 200, false)).toBe(200);
+    expect(positionsToDeepen(analysis, game)).toEqual([1, 2, 3, 4]);
+    expect(visitBudget(analysis, 0, 200)).toBe(50);
+    expect(visitBudget(analysis, 0, 200, true, true)).toBe(30);
+    expect(visitBudget(analysis, 0, 200, false)).toBe(200);
+    expect(deepenBudget(200)).toBe(200);
+    expect(deepenBudget(200, true)).toBe(120);
+    const quiet = { evals: [ev(1, 0.5, 0), ev(2, 0.5, 0.3), ev(1, 0.51, 0.4), ev(2, 0.5, 0.1), ev(1, 0.5, 0.2)], deepTargets: [] } as unknown as GameAnalysis;
+    expect(positionsToDeepen(quiet, game)).toEqual([]);
   });
 });
 

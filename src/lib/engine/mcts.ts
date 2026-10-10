@@ -85,6 +85,8 @@ export interface SearchParams {
    * How much of the anchor's correction carries into the small network's evaluations below
    * a root move (1 = all of it): the small network's error in a position tends to persist
    * in the positions that follow from it, so the measured gap is applied to all of them.
+   * Half measured better than all of it (scripts/ai-eval.ts anchors, 30 positions against
+   * b40: 43% vs 43% best moves found with b6 under b10, 37% vs 33% with b10 under b20).
    */
   anchorWeight: number;
 }
@@ -105,7 +107,7 @@ export const DEFAULT_SEARCH: SearchParams = {
   batchGrowth: 2,
   virtualLoss: 0,
   anchorChildren: 6,
-  anchorWeight: 1,
+  anchorWeight: 0.5,
 };
 
 export interface SearchCandidate {

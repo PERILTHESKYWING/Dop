@@ -7,9 +7,13 @@
  *              alone, the same search with the big network judging the top of the tree,
  *              and the big network searching alone, scored against the reference
  *   selective  "search only what matters": a whole-game review with every position given
- *              the same visits, against the tiered budgets (pipeline.ts searchTier); the
- *              network evaluations each costs and how often the two agree on each move's verdict
- *   student    a trained student network (scripts/student/) against the network it replaces
+ *              the same visits, against scouting every position and deepening only where the
+ *              scouts could not clear the move (pipeline.ts ADAPTIVE), both measured against a
+ *              review with four times the visits everywhere: the network evaluations each
+ *              costs and how many of the truth's mistakes each one finds (--try tries other
+ *              settings: "scout,deepenScore,deepenWin,doubt;...")
+ *
+ * The student network has its own measurement: scripts/student/gate.ts.
  *
  *   npx tsx scripts/ai-eval.ts ref --katago kg/katago --model big.bin.gz --network b20 --lines pro.txt --count 40 --visits 1000 --out ref.json
  *   npx tsx scripts/ai-eval.ts anchors --katago kg/katago --ref ref.json --small b6.bin.gz --big b10.bin.gz --visits 100
@@ -23,7 +27,7 @@ import { replay } from '../src/lib/go/board';
 import { gtpToLoc, locToGtp } from '../src/lib/go/coords';
 import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
 import { engineEvaluator, Search, type AnchorSource, type SearchSnapshot } from '../src/lib/engine/mcts';
-import { analyzeGame, MemoryStore, searchTier, type SearchTier } from '../src/lib/analysis/pipeline';
+import { ADAPTIVE, analyzeGame, MemoryStore } from '../src/lib/analysis/pipeline';
 import { computeMoveRecords } from '../src/lib/analysis/records';
 import type { GameRecord } from '../src/lib/types';
 
@@ -218,53 +222,62 @@ function asRecord(g: ParsedGame, i: number): GameRecord {
 async function selective() {
   const n = Number(arg('games', '4'));
   const visits = Number(arg('visits', '100'));
+  // A review with four times the visits everywhere, as the truth the others are measured against.
+  const truthVisits = Number(arg('truth', String(visits * 4)));
+  // Settings to try, "scout,deepenScore,deepenWin,doubt;..." (the default: the current ones).
+  const cur = [ADAPTIVE.scout, ADAPTIVE.deepenScore, ADAPTIVE.deepenWin, ADAPTIVE.doubt];
+  const configs = arg('try', cur.join(','))!.split(';').map((c) => c.split(',').map(Number));
   const picks = games(arg('lines')!, n, Number(arg('seed', '11')));
   const eng: NativeBackend = nativeBackend({ binary: arg('katago')!, model: arg('model')!, modelId: 'b10', threads: 4, winrateScale: arg('wr') ? Number(arg('wr')) : 2.0 });
-  let evalsFull = 0;
-  let evalsSel = 0;
+  const bad = (sev: string) => sev === 'mistake' || sev === 'blunder';
+  type Tally = { name: string; evals: number; sameMistake: number; caught: number; flagged: number; deepened: number };
+  const tally = (name: string): Tally => ({ name, evals: 0, sameMistake: 0, caught: 0, flagged: 0, deepened: 0 });
+  const full = tally(`same ${visits} visits`);
+  const tried = configs.map((c) => tally(`scout ${c.join('/')}`));
   let movesN = 0;
-  let same = 0;
-  let sameMistake = 0;
-  let mistakesFull = 0;
-  let mistakesSel = 0;
-  let caught = 0;
-  const tiers = new Map<SearchTier, number>();
+  let positions = 0;
+  let truthMistakes = 0;
+  const saved = { ...ADAPTIVE };
   for (const [i, pg] of picks.entries()) {
-    const run = async (adaptive: boolean) => {
+    const run = async (v: number, adaptive: boolean) => {
       const e0 = eng.evals();
       const g = asRecord(pg, i);
-      const a = await analyzeGame(g, eng, new MemoryStore(), { visits, adaptive });
-      return { a, g, evals: eng.evals() - e0 };
+      // A fresh evaluation cache for every review (it is kept per engine object), so no
+      // review is cheaper for the positions another one already evaluated.
+      const a = await analyzeGame(g, { ...eng }, new MemoryStore(), { visits: v, adaptive });
+      return { a, g, evals: eng.evals() - e0, records: computeMoveRecords(g, a).records };
     };
-    const full = await run(false);
-    const sel = await run(true);
-    evalsFull += full.evals;
-    evalsSel += sel.evals;
-    const rf = computeMoveRecords(full.g, full.a).records;
-    const rs = computeMoveRecords(sel.g, sel.a).records;
-    for (let k = 0; k < Math.min(rf.length, rs.length); k++) {
-      movesN++;
-      const bad = (sev: string) => sev === 'mistake' || sev === 'blunder';
-      if (rf[k].severity === rs[k].severity) same++;
-      if (bad(rf[k].severity) === bad(rs[k].severity)) sameMistake++;
-      if (bad(rf[k].severity)) {
-        mistakesFull++;
-        if (bad(rs[k].severity)) caught++;
+    const truth = await run(truthVisits, false);
+    const runs: [Tally, Awaited<ReturnType<typeof run>>][] = [[full, await run(visits, false)]];
+    for (const [k, c] of configs.entries()) {
+      [ADAPTIVE.scout, ADAPTIVE.deepenScore, ADAPTIVE.deepenWin, ADAPTIVE.doubt] = c;
+      const r = await run(visits, true);
+      tried[k].deepened += r.a.evals.filter((e) => e?.searched && e.visits > visits * c[0] * 1.5).length;
+      runs.push([tried[k], r]);
+    }
+    Object.assign(ADAPTIVE, saved);
+    const m = Math.min(...[truth, ...runs.map((r) => r[1])].map((r) => r.records.length));
+    movesN += m;
+    positions += pg.moves.length + 1;
+    for (let k = 0; k < m; k++) if (bad(truth.records[k].severity)) truthMistakes++;
+    for (const [t, r] of runs) {
+      t.evals += r.evals;
+      for (let k = 0; k < m; k++) {
+        const isBad = bad(r.records[k].severity);
+        if (isBad === bad(truth.records[k].severity)) t.sameMistake++;
+        if (isBad) t.flagged++;
+        if (isBad && bad(truth.records[k].severity)) t.caught++;
       }
-      if (bad(rs[k].severity)) mistakesSel++;
     }
-    for (let k = 0; k <= pg.moves.length; k++) {
-      const t = searchTier(sel.a, sel.g, k);
-      tiers.set(t, (tiers.get(t) ?? 0) + 1);
+    console.log(`${i + 1}/${picks.length}: ${movesN} moves so far, the truth (${truthVisits} visits everywhere) finds ${truthMistakes} mistakes`);
+    for (const t of [full, ...tried]) {
+      console.log(
+        `  ${t.name.padEnd(26)} work ${((t.evals / full.evals) * 100).toFixed(0).padStart(4)}%, mistake-or-not as the truth ` +
+          `${((t.sameMistake / movesN) * 100).toFixed(1)}%, mistakes found ${t.caught}/${truthMistakes}, false alarms ${t.flagged - t.caught}` +
+          (t === full ? '' : `, deepened ${((t.deepened / positions) * 100).toFixed(0)}% of positions`),
+      );
     }
-    console.log(
-      `${i + 1}/${picks.length}: evals ${full.evals} (same visits) vs ${sel.evals} (tiers) = ${(full.evals / sel.evals).toFixed(2)}x less work; ` +
-        `verdicts same ${((same / movesN) * 100).toFixed(1)}%, mistake-or-not same ${((sameMistake / movesN) * 100).toFixed(1)}%, ` +
-        `mistakes caught ${caught}/${mistakesFull} (tiers flag ${mistakesSel})`,
-    );
   }
-  console.log(`tiers: ${[...tiers.entries()].map(([k, v]) => `${k} ${v}`).join(', ')}`);
-  console.log(`overall: ${(evalsFull / evalsSel).toFixed(2)}x fewer network evaluations`);
   await eng.close();
 }
 

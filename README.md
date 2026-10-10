@@ -186,8 +186,9 @@ cached in the Cache API; they are never committed.
   How many of each pays off is measured on the device the first time and remembered (Settings: Measure again).
 - The tree search shares a symmetry-aware evaluation cache (a mirrored or rotated position reuses the stored
   evaluation), averages the root over board symmetries when batches make that free, widens its batch as the
-  tree grows, and stops once more visits cannot change the best move. Game analysis spends more visits on
-  costly or surprising moves and fewer on obvious ones. Evaluations of opening positions are kept between visits.
+  tree grows, and stops once more visits cannot change the best move. Game analysis scouts every move with a
+  short search and searches fully only where that could not clear it. Evaluations of opening positions are kept
+  between visits.
 - Heat and battery: background analysis slows down when the device's network times show thermal throttling
   or the battery is below half (where the browser reports it), and pauses on a low battery; live analysis
   stops at a visit limit on battery.
@@ -210,10 +211,11 @@ Where an answer comes from, strongest and cheapest first (`src/state/brain.ts`):
    deeply, by a big network. All rotations and mirror images find the same entry. Grown by the AI training below.
 3. **Shared results** (`src/state/shared.ts`): deep reads of single positions travel between your devices with
    the account.
-4. **This device's search**, which spends visits where they matter: two looks at every position (two board
-   symmetries) measure doubt, and positions are searched by tier (obvious, quiet, normal, critical, deep).
-   A stronger network, when one runs here, judges the root and its top children and its correction is applied
-   to everything below them ("big brain at the top, small brain below", `mcts.ts` anchors).
+4. **This device's search**, which spends visits where they matter: a game review first gives every position a
+   short scouting search (a quarter of the visits), then searches fully only around the moves the scouts could
+   not clear (`pipeline.ts` ADAPTIVE). A stronger network, when one runs here, judges the root and its top
+   children and its correction is applied to everything below them ("big brain at the top, small brain below",
+   `mcts.ts` anchors).
 
 **Cool mode** (automatic on phones): two workers at most, the small network on the CPU, game analysis only part
 of the time and never with the page hidden, and live analysis rests after 800 visits or a minute untouched.
@@ -224,6 +226,14 @@ layer is a 9x9 pattern layer updated incrementally from the last position (NNUE-
 ternary weights, and an early exit answers easy positions halfway up. It runs in WebAssembly SIMD
 (`tools/student/`). It is used only once it beats the built-in network at equal time (`scripts/student/gate.ts`,
 `public/student/manifest.json`), or when turned on in Settings.
+
+**Measured** (2026-10-10, `scripts/ai-eval.ts` and `scripts/student/gate.ts`, on a 4-core cloud CPU):
+
+| idea | result |
+| --- | --- |
+| Scouting, then full search where needed | 5 professional games (1,225 moves) at 100 visits, against a review with 400 visits everywhere: **65% of the work**. It agrees with the deeper review on 93.5% of moves (92.7% for the full search), with fewer false alarms (35 vs 57) but fewer of its mistakes found (67 of 112 vs 79). The first version (budgets by tier) cost 115% of the work and was dropped. |
+| Big network on top | 30 positions against KataGo b40 at 400 visits, 100 visits each. b6 searching under b10: best move found 27% → 43%, win-rate error 17.3% → 13.0%. b10 under b20: 30% → 37%, 8.4% → 8.1%. It helps a weak network a lot and b10 a little; a short search by the big network alone (25 visits) did about as well (33-47% best moves, 5.5-8.3% error) but costs more on a desktop. |
+| Student network v0 | 45 minutes of training on 39,000 positions labelled by g170 b20: 207 network looks a second against b10's 14 (15x), but at equal time it finds the reference's best move 23% of the time against b10's 57%. It stays off until the cloud training makes it pass the gate. |
 
 ### The AI keeps training (three times a day, in the cloud)
 `.github/workflows/ai-training.yml` runs on 20 GitHub machines at once: ten label positions from amateur and
