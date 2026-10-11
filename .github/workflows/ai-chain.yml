@@ -1,0 +1,106 @@
+# Between the three daily runs of ai-training.yml, one machine keeps the AI training in a
+# chain: each link trains one mind from the current champion (one of population.py's
+# mutations: settings, one block deeper or a quarter fewer channels), puts it in the arena
+# against the champion and, when it wins, gates and commits it the way the big run does.
+# Then the link starts the next one, so each link builds on the last winner.
+#
+# Only one link runs at a time. A link that finds the big run working stops without
+# starting another; the big run restarts the chain when it ends. A link that fails does
+# not restart it either (the next big run does). To stop the chain, add the repository
+# variable AI_CHAIN = off (Settings -> Secrets and variables -> Actions -> Variables).
+# Start it by hand: Actions -> "AI training chain" -> "Run workflow".
+name: AI training chain
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes each link trains
+        default: '50'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: ai-chain
+  cancel-in-progress: false
+
+env:
+  MINUTES: ${{ inputs.minutes || '50' }}
+  RUN: ${{ github.run_number }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  link:
+    if: vars.AI_CHAIN != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Is the big run working?
+        id: busy
+        run: |
+          N=$(gh run list --workflow ai-training.yml --limit 20 --json status,event \
+            -q '[.[] | select(.event != "pull_request" and (.status == "in_progress" or .status == "queued" or .status == "waiting"))] | length')
+          echo "AI training runs working: $N"
+          [ "$N" = 0 ] || echo "busy=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.busy.outputs.busy != 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.busy.outputs.busy != 'true'
+        run: npm ci
+      - uses: actions/setup-python@v5
+        if: steps.busy.outputs.busy != 'true'
+        with:
+          python-version: '3.12'
+      - if: steps.busy.outputs.busy != 'true'
+        run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Training window, the champion, the population
+        if: steps.busy.outputs.busy != 'true'
+        run: |
+          scripts/student/ci/data.sh 6 6 "c$RUN"
+          gh release download ai-training -p champion.pt -D . 2>/dev/null || cp data/student/seed-champion.pt champion.pt
+          gh release download ai-training -p population.json -D . 2>/dev/null || true
+          gh release download ai-training -p ref.json -D . 2>/dev/null || true
+          [ -s val.dpd ] || { echo "no validation set yet (the big run makes it)"; exit 1; }
+      - name: Train one mind
+        if: steps.busy.outputs.busy != 'true'
+        run: |
+          # This link's mutation: one of the plan's children (never the unchanged copy).
+          M=$(python3 scripts/student/population.py plan --population population.json --minds 7 --run $((100000 + RUN)) | jq -c ".[$((RUN % 6 + 1))]")
+          echo "$M"
+          python scripts/student/train.py --data 'labels/*.dpd' --val-data val.dpd --init champion.pt --minutes "$MINUTES" \
+            --lr "$(jq -r .lr <<< "$M")" --search-weight "$(jq -r .searchWeight <<< "$M")" --seed "$(jq -r .seed <<< "$M")" \
+            --curriculum "$(jq -r .curriculum <<< "$M")" --kata-share "$(jq -r .kataShare <<< "$M")" \
+            --mutate "$(jq -r .mutate <<< "$M")" --changed "$(jq -r .changed <<< "$M")" \
+            --threads "$(nproc)" --name "chain-$RUN" --out "minds/chain-$RUN.pt"
+      - name: Arena
+        if: steps.busy.outputs.busy != 'true'
+        run: |
+          python scripts/student/population.py arena --population population.json --val val.dpd --minds 'minds/*.pt' \
+            --champion champion.pt --out champion.pt --report arena.json --run $((100000 + RUN))
+          echo "CHANGED=$(jq -r '.changed // false' arena.json)" >> "$GITHUB_ENV"
+      - name: Gate and keep the winner
+        if: steps.busy.outputs.busy != 'true'
+        run: |
+          if [ "$CHANGED" = true ] && [ -s ref.json ]; then
+            scripts/student/ci/gate.sh "dopnet-c$RUN" 1500 kata1-b18c384nbt 1
+            gh release upload ai-training champion.pt --clobber
+          fi
+          gh release upload ai-training population.json arena.json --clobber
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add public/student
+          git commit -m "AI training chain: link $RUN" || exit 0
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+      - name: Start the next link
+        if: steps.busy.outputs.busy != 'true'
+        run: |
+          N=$(gh run list --workflow ai-training.yml --limit 20 --json status,event \
+            -q '[.[] | select(.event != "pull_request" and (.status == "in_progress" or .status == "queued" or .status == "waiting"))] | length')
+          [ "$N" = 0 ] && gh workflow run ai-chain.yml --ref main || echo "the big run is working; it restarts the chain when it ends"

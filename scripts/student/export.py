@@ -154,12 +154,14 @@ def main():
     ap.add_argument('--fixtures')
     ap.add_argument('--dpd', help='take fixture positions from these records')
     ap.add_argument('--count', type=int, default=6)
+    ap.add_argument('--shape', default='64,6', help='--random only: channels,blocks')
     ap.add_argument('--seed', type=int, default=1)
     a = ap.parse_args()
     meta: dict = {}
     if a.random:
         torch.manual_seed(a.seed)
-        net = DopNet()
+        c, n_blocks = (int(v) for v in a.shape.split(','))
+        net = DopNet(c=c, blocks=n_blocks)
         randomize(net, a.seed)
         thr = 0.05
     else:

@@ -2,12 +2,20 @@
 
   python scripts/student/train.py --data 'labels/*.dpd' --out mind.pt [--init champion.pt]
       [--minutes 300] [--lr 1e-3] [--batch 256] [--search-weight 2] [--seed 1] [--threads 4]
+      [--curriculum 0.5] [--kata-share 0.5] [--mutate deepen|prune:0.75] [--device auto]
 
 Distillation: the student's policy, win rate, lead and ownership follow the teacher's
 (cross-entropy to the teacher's policy or search visit shares, binary cross-entropy to its
 win rate). Records from the teacher's search count `--search-weight` times. The early-exit
 heads learn the same targets plus an error output: how far their own answer is from the
 teacher's, which the runtime uses to decide when the exit's answer is good enough.
+
+Curriculum: hard positions (the teacher spread its search over several moves, or the game
+is close) are drawn more often, by `--curriculum`. Data mix: `--kata-share` of each batch
+comes from KataGo's own training data (source 4, scripts/student/kata_npz.py), the rest
+from positions people play. `--mutate` changes the starting network's shape first (model.py:
+one more block, or fewer channels), for evolution (population.py). Runs on a GPU when there
+is one (`--device auto`).
 
 Writes the checkpoint with validation numbers and a calibrated exit threshold.
 """
@@ -26,7 +34,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).parent))
-from model import DopNet, TernaryConv3x3  # noqa: E402
+from model import DopNet, TernaryConv3x3, cost, deepen, prune  # noqa: E402
 from data import batch, read_dpd  # noqa: E402
 
 
@@ -49,15 +57,32 @@ def losses(out, b, search_weight: float):
     return total.mean(), {'policy': lp.mean().item(), 'value': lv.mean().item(), 'exit_policy': elp.mean().item(), 'exit_value': elv.mean().item()}
 
 
+def sampling_weights(recs: np.ndarray, curriculum: float, kata_share: float) -> np.ndarray:
+    """Probability of drawing each record: harder positions more often, and the share of
+    KataGo's own data set to kata_share (when both kinds are present)."""
+    p = recs['pol'][:, :, 1].astype(np.float64)
+    p = np.where(p == 65535, 0, p) / 65535.0
+    p = p / np.maximum(p.sum(1, keepdims=True), 1e-9)
+    entropy = -(p * np.log(np.maximum(p, 1e-9))).sum(1) / np.log(24)  # 0 = one obvious move
+    close = 1 - np.abs(2 * np.clip(recs['win'], 0, 1) - 1)  # 1 = an even game
+    w = 1.0 + curriculum * 2.0 * (0.5 * entropy + 0.5 * close)
+    kata = recs['source'] == 4
+    if 0 < kata.sum() < len(recs):
+        w[kata] *= kata_share / w[kata].sum()
+        w[~kata] *= (1 - kata_share) / w[~kata].sum()
+    return w / w.sum()
+
+
 @torch.no_grad()
 def validate(net: DopNet, val: np.ndarray, bs: int = 512):
     """Top-1 agreement with the teacher, win-rate error, for the final and the exit heads,
     and the exit rate and combined numbers at a range of thresholds."""
     net.eval()
+    dev = next(net.parameters()).device
     rng = np.random.default_rng(0)
     rows = []
     for i in range(0, len(val), bs):
-        b = batch(val[i:i + bs], False, rng)
+        b = {k: v.to(dev) for k, v in batch(val[i:i + bs], False, rng).items()}
         out = net(b['planes'], b['komi'])
         best = b['policy'].argmax(1)
         rows.append(torch.stack([
@@ -68,7 +93,7 @@ def validate(net: DopNet, val: np.ndarray, bs: int = 512):
             torch.sigmoid(out['exit_value'][:, 2]),
             -(b['policy'] * F.log_softmax(out['policy'], dim=1)).sum(1),
         ], dim=1))
-    m = torch.cat(rows).numpy()
+    m = torch.cat(rows).cpu().numpy()
     res = {
         'positions': int(len(m)),
         'top1': float(m[:, 0].mean()),
@@ -106,15 +131,21 @@ def main():
     ap.add_argument('--lr', type=float, default=2e-3)
     ap.add_argument('--wd', type=float, default=1e-4)
     ap.add_argument('--search-weight', type=float, default=2.0)
-    ap.add_argument('--channels', type=int, default=64)
-    ap.add_argument('--blocks', type=int, default=6)
-    ap.add_argument('--exit-block', type=int, default=3)
+    ap.add_argument('--channels', type=int, default=None, help='default: the --init network\'s, else 64')
+    ap.add_argument('--blocks', type=int, default=None, help='default: the --init network\'s, else 6')
+    ap.add_argument('--exit-block', type=int, default=None)
+    ap.add_argument('--curriculum', type=float, default=0.5)
+    ap.add_argument('--kata-share', type=float, default=0.5)
+    ap.add_argument('--mutate', default='', help='deepen, or prune:<share of channels kept>')
+    ap.add_argument('--changed', default='', help='what evolution changed in this mind (kept in its record)')
+    ap.add_argument('--device', default='auto')
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--threads', type=int, default=0)
     ap.add_argument('--name', default='mind')
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
+    dev = torch.device('cuda' if a.device == 'auto' and torch.cuda.is_available() else ('cpu' if a.device == 'auto' else a.device))
     torch.manual_seed(a.seed)
     rng = np.random.default_rng(a.seed)
 
@@ -129,17 +160,32 @@ def main():
         val, train = recs[idx[:nval]], recs[idx[nval:]]
     print(f'{len(files)} files, {len(train)} training records ({(train["visits"] > 1).mean():.0%} from search), {len(val)} validation', flush=True)
 
-    args = dict(c=a.channels, blocks=a.blocks, exit_block=a.exit_block)
+    ck = torch.load(a.init, map_location='cpu', weights_only=False) if a.init and Path(a.init).exists() else None
+    base = (ck or {}).get('args') or dict(c=64, blocks=6, exit_block=3)
+    args = dict(c=a.channels or base['c'], blocks=a.blocks or base['blocks'], exit_block=a.exit_block or base['exit_block'])
     net = DopNet(**args)
     meta_before = {}
-    if a.init and Path(a.init).exists():
-        ck = torch.load(a.init, map_location='cpu', weights_only=False)
+    if ck is not None:
         if ck['args'] == args:
             net.load_state_dict(ck['model'])
             meta_before = ck.get('meta', {})
             print(f'from {a.init} ({meta_before.get("samples", 0)} samples seen)', flush=True)
         else:
             print(f'{a.init} has another shape; starting fresh', flush=True)
+    for m in filter(None, a.mutate.split(',')):
+        if m == 'deepen':
+            net = deepen(net)
+        elif m.startswith('prune'):
+            net = prune(net, float(m.split(':')[1]) if ':' in m else 0.75)
+        else:
+            raise SystemExit(f'unknown mutation {m}')
+        args = dict(c=net.cfg['C'], blocks=net.cfg['N'], exit_block=net.cfg['E'])
+        print(f'mutation {m}: now {args["c"]} channels x {args["blocks"]} blocks', flush=True)
+    net.to(dev)
+    print(f'training on {dev}', flush=True)
+    weights = sampling_weights(train, a.curriculum, a.kata_share)
+    cdf = np.cumsum(weights)
+    print(f'curriculum {a.curriculum}, KataGo data {float(weights[train["source"] == 4].sum()):.0%} of draws', flush=True)
     opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=a.wd)
     # A fresh network learns with float weights for the first part, then ternary
     # (quantisation-aware training from a float start converges far better).
@@ -173,8 +219,8 @@ def main():
         lr = a.lr * (min(1.0, (step + 1) / 200)) * (0.5 * (1 + math.cos(math.pi * min(1.0, frac))) * 0.95 + 0.05)
         for g in opt.param_groups:
             g['lr'] = lr
-        pick = rng.integers(0, len(train), a.batch)
-        b = batch(train[pick], True, rng)
+        pick = np.minimum(np.searchsorted(cdf, rng.random(a.batch) * cdf[-1]), len(train) - 1)
+        b = {k: v.to(dev) for k, v in batch(train[pick], True, rng).items()}
         out = net(b['planes'], b['komi'])
         loss, parts = losses(out, b, a.search_weight)
         opt.zero_grad(set_to_none=True)
@@ -188,6 +234,7 @@ def main():
             log.append({'step': step, 'loss': loss.item(), **parts})
 
     set_quant(True)
+    net.cpu()
     res = validate(net, val)
     print(json.dumps({k: v for k, v in res.items() if k != 'exitCurve'}), flush=True)
     meta = {
@@ -198,6 +245,11 @@ def main():
         'minutes': round((time.time() - t0) / 60, 1),
         'lr': a.lr,
         'searchWeight': a.search_weight,
+        'curriculum': a.curriculum,
+        'kataShare': a.kata_share,
+        'mutate': a.mutate,
+        'changed': a.changed,
+        'cost': cost(args['c'], args['blocks']),
         'seed': a.seed,
         'val': res,
     }

@@ -26,6 +26,6 @@ export interface StudentManifest {
   enabled: boolean;
   gate?: StudentGate;
   /** Training so far: samples seen, records, teacher. */
-  trained?: { samples: number; records: number; teacher: string; minds?: number; nights?: number };
+  trained?: { samples: number; records: number; teacher: string; minds?: number; nights?: number; shape?: string | null };
   updated: string;
 }
