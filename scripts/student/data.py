@@ -4,23 +4,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 
+from dpd import DPD  # noqa: F401  (the record layout)
 from model import POINTS, SYM, planes_from_bytes, self_komi
-
-DPD = np.dtype([
-    ('board', 'u1', (361,)),
-    ('to_play', 'u1'),
-    ('source', 'u1'),
-    ('pad', 'u1'),
-    ('komi', '<f4'),
-    ('win', '<f4'),
-    ('lead', '<f4'),
-    ('visits', '<u4'),
-    ('pol', '<u2', (24, 2)),
-    ('own', 'i1', (361,)),
-    ('has_own', 'u1'),
-    ('pad2', 'u1', (2,)),
-])
-assert DPD.itemsize == 840
 
 
 def read_dpd(*paths: str) -> np.ndarray:
