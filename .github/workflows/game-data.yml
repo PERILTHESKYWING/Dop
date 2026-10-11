@@ -1,0 +1,99 @@
+# Recent games for the coach's level estimate, kept fresh. Once a month this checks the
+# OGS archive at za3k.com/ogs (almost every game played on online-go.com, redistributed
+# with OGS's permission, public domain); when a newer archive is out, it streams the
+# "SGFs by date" file once (13 GB, nothing written to disk) and keeps a balanced sample of
+# 2022-and-later games: up to 40 per month and rank, 18k to 9d, ranked live/rapid 19x19
+# even games between humans. The sample goes to the "game-data" release as
+# ogs-recent.jsonl.gz; the daily coach training (coach-training.yml) measures it newest
+# first. The archive is only downloaded again when it changes, to spare its host.
+# Pull requests that touch the picker run it on the archive's first 150 MB as a test.
+# It can also be started by hand: Actions → "Game data" → "Run workflow".
+name: Game data
+
+on:
+  schedule:
+    - cron: '41 4 2 * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Download and pick again even if the archive has not changed
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - scripts/ogs-recent.py
+      - .github/workflows/game-data.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: game-data
+  cancel-in-progress: false
+
+env:
+  # Used when the archive's index page can't be read.
+  OGS_FALLBACK: https://za3k.com/ogs/ogs_games_2013_to_2025-05/sgfs-by-date.tar.gz
+  FROM_MONTH: '2022-01'
+  PER_CELL: '40'
+
+jobs:
+  ogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the newest archive and the bot list (github.com/za3k/ogs)
+        run: |
+          # The newest "SGFs by date" file listed on the archive's page.
+          NEWEST=$(curl -sfL -m 60 https://za3k.com/ogs/ | grep -oE 'ogs_games_2013_to_[0-9-]+/sgfs-by-date\.tar\.gz' | sort -u | tail -n 1 || true)
+          URL=${NEWEST:+https://za3k.com/ogs/$NEWEST}
+          echo "OGS_URL=${URL:-$OGS_FALLBACK}" >> "$GITHUB_ENV"
+          echo "archive: ${URL:-$OGS_FALLBACK}"
+          curl -sfL -m 60 https://raw.githubusercontent.com/za3k/ogs/master/username-blacklist.txt -o bots.txt || touch bots.txt
+          wc -l bots.txt
+
+      - name: Test the picker on the archive's first 150 MB
+        if: github.event_name == 'pull_request'
+        run: |
+          set +o pipefail
+          curl -sL -m 600 "$OGS_URL" | head -c 150000000 \
+            | python3 -I scripts/ogs-recent.py --from 2000-01 --per-cell 5 --bots bots.txt --allow-truncated --out smoke.jsonl.gz
+          echo "games kept: $(gunzip -c smoke.jsonl.gz | wc -l)"
+          gunzip -c smoke.jsonl.gz | head -n 2 | cut -c 1-600
+          test "$(gunzip -c smoke.jsonl.gz | wc -l)" -gt 0
+          echo "--- also checking the professional and AI sources coach-training.yml uses"
+          curl -sfL -m 60 https://katagoarchive.org/kata1/ratinggames/index.html | grep -oE 'href="[^"]*\.tar\.bz2"' | tail -n 3 || echo "katagoarchive.org: no rating games listed"
+          curl -sfL -m 60 https://homepages.cwi.nl/~aeb/go/games/ | grep -oiE 'href="[^"]*\.(tar\.gz|7z|tgz)"' || echo "cwi.nl: no archive link found"
+
+      - name: Has the archive changed since the last pick?
+        if: github.event_name != 'pull_request'
+        id: check
+        run: |
+          HEAD=$(curl -sfIL -m 60 "$OGS_URL" | tr -d '\r' | grep -iE '^(last-modified|content-length|etag):' | sort | tr '\n' ' ' || true)
+          echo "$OGS_URL $HEAD" > ogs-source.txt
+          cat ogs-source.txt
+          OLD=$(gh release download game-data -p ogs-source.txt -O - 2>/dev/null || true)
+          HAVE=$(gh release view game-data --json assets -q '.assets[].name' 2>/dev/null | grep -c '^ogs-recent.jsonl.gz$' || true)
+          if [ "$(cat ogs-source.txt)" = "$OLD" ] && [ "$HAVE" = 1 ] && [ "${{ inputs.force }}" != true ]; then
+            echo "Unchanged; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pick games from 2022 on (streams the whole archive)
+        if: github.event_name != 'pull_request' && steps.check.outputs.skip != 'true'
+        run: |
+          command -v pigz > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q pigz)
+          curl -sfL --retry 3 "$OGS_URL" | pigz -dc \
+            | python3 -I scripts/ogs-recent.py --from "$FROM_MONTH" --per-cell "$PER_CELL" --bots bots.txt --out ogs-recent.jsonl.gz
+          ls -l ogs-recent.jsonl.gz
+
+      - name: Publish the sample
+        if: github.event_name != 'pull_request' && steps.check.outputs.skip != 'true'
+        run: |
+          gh release view game-data > /dev/null 2>&1 || gh release create game-data --title "Game data" \
+            --notes "Recent rank-labelled games the coach training measures: ogs-recent.jsonl.gz, a balanced sample of 2022-and-later OGS games from za3k.com/ogs (public domain, redistributed with OGS's permission). Updated by .github/workflows/game-data.yml."
+          gh release upload game-data ogs-recent.jsonl.gz ogs-source.txt --clobber
