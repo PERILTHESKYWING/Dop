@@ -1,0 +1,135 @@
+diff --git a/cpp/neuralnet/eigenbackend.cpp b/cpp/neuralnet/eigenbackend.cpp
+index 98eac42..4f3433c 100644
+--- a/cpp/neuralnet/eigenbackend.cpp
++++ b/cpp/neuralnet/eigenbackend.cpp
+@@ -36,6 +36,76 @@ using Eigen::TensorMap;
+ 
+ // Eigen tensors are stored in column-major order, so an NHWC memory layout is given by Tensor<4>(C,W,H,N).
+ 
++#if defined(__wasm_simd128__)
++#include <wasm_simd128.h>
++// Doppelganger: a WebAssembly SIMD matrix product for the Winograd convolutions (Eigen 3.4
++// has no WebAssembly vector code, so its own product runs one number at a time).
++// C (M x N) = A (M x K) * B (K x N), all column-major. A block of 8 rows x 4 columns of C
++// stays in registers while K is walked once.
++static void kgeGemm(const float* __restrict A, const float* __restrict B, float* __restrict C, int M, int K, int N) {
++  int n = 0;
++  for(; n + 4 <= N; n += 4) {
++    const float* b0 = B + (size_t)n * K;
++    const float* b1 = b0 + K;
++    const float* b2 = b1 + K;
++    const float* b3 = b2 + K;
++    float* c0 = C + (size_t)n * M;
++    int m = 0;
++    for(; m + 8 <= M; m += 8) {
++      v128_t a00 = wasm_f32x4_splat(0), a01 = a00, a02 = a00, a03 = a00;
++      v128_t a10 = a00, a11 = a00, a12 = a00, a13 = a00;
++      const float* a = A + m;
++      for(int k = 0; k < K; k++, a += M) {
++        v128_t x0 = wasm_v128_load(a);
++        v128_t x1 = wasm_v128_load(a + 4);
++        v128_t s0 = wasm_f32x4_splat(b0[k]);
++        v128_t s1 = wasm_f32x4_splat(b1[k]);
++        v128_t s2 = wasm_f32x4_splat(b2[k]);
++        v128_t s3 = wasm_f32x4_splat(b3[k]);
++        a00 = wasm_f32x4_add(a00, wasm_f32x4_mul(x0, s0));
++        a10 = wasm_f32x4_add(a10, wasm_f32x4_mul(x1, s0));
++        a01 = wasm_f32x4_add(a01, wasm_f32x4_mul(x0, s1));
++        a11 = wasm_f32x4_add(a11, wasm_f32x4_mul(x1, s1));
++        a02 = wasm_f32x4_add(a02, wasm_f32x4_mul(x0, s2));
++        a12 = wasm_f32x4_add(a12, wasm_f32x4_mul(x1, s2));
++        a03 = wasm_f32x4_add(a03, wasm_f32x4_mul(x0, s3));
++        a13 = wasm_f32x4_add(a13, wasm_f32x4_mul(x1, s3));
++      }
++      float* c = c0 + m;
++      wasm_v128_store(c, a00); wasm_v128_store(c + 4, a10); c += M;
++      wasm_v128_store(c, a01); wasm_v128_store(c + 4, a11); c += M;
++      wasm_v128_store(c, a02); wasm_v128_store(c + 4, a12); c += M;
++      wasm_v128_store(c, a03); wasm_v128_store(c + 4, a13);
++    }
++    for(; m < M; m++) {
++      float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
++      for(int k = 0; k < K; k++) {
++        float w = A[(size_t)k * M + m];
++        s0 += w * b0[k]; s1 += w * b1[k]; s2 += w * b2[k]; s3 += w * b3[k];
++      }
++      c0[m] = s0; c0[M + m] = s1; c0[2 * M + m] = s2; c0[3 * M + m] = s3;
++    }
++  }
++  for(; n < N; n++) {
++    const float* b = B + (size_t)n * K;
++    float* c = C + (size_t)n * M;
++    int m = 0;
++    for(; m + 4 <= M; m += 4) {
++      v128_t acc = wasm_f32x4_splat(0);
++      for(int k = 0; k < K; k++)
++        acc = wasm_f32x4_add(acc, wasm_f32x4_mul(wasm_v128_load(A + (size_t)k * M + m), wasm_f32x4_splat(b[k])));
++      wasm_v128_store(c + m, acc);
++    }
++    for(; m < M; m++) {
++      float acc = 0;
++      for(int k = 0; k < K; k++) acc += A[(size_t)k * M + m] * b[k];
++      c[m] = acc;
++    }
++  }
++}
++
++#endif
++
+ #define SCALAR float
+ #define TENSOR2 Tensor<SCALAR, 2>
+ #define TENSOR3 Tensor<SCALAR, 3>
+@@ -558,7 +628,12 @@ struct ConvLayer {
+             outChannels,
+             batchSize * numTilesY * numTilesX
+           );
++#if defined(__wasm_simd128__)
++          kgeGemm(winogradKernelMap.data(), transformedInputMap.data(), (float*)transformedOutputMap.data(),
++                  outChannels, inChannels, batchSize * numTilesY * numTilesX);
++#else
+           transformedOutputMap = winogradKernelMap * transformedInputMap;
++#endif
+         }
+       }
+ 
+@@ -741,6 +816,40 @@ struct BatchNormLayer {
+     TENSORMAP4* output,
+     CONSTTENSORMAP3* mask
+   ) const {
++#if defined(__wasm_simd128__)
++    // Doppelganger: the common activations in one vectorised pass over the NHWC data (Eigen
++    // walks it one channel at a time, a channel's values C floats apart).
++    if(activation == ACTIVATION_IDENTITY || activation == ACTIVATION_RELU) {
++      const int C = input->dimension(0);
++      const size_t P = (size_t)input->dimension(1) * input->dimension(2) * input->dimension(3);
++      const float* in = input->data();
++      float* out = output->data();
++      const float* m = mask->data();
++      const float* sc = mergedScale.data();
++      const float* bi = mergedBias.data();
++      const bool relu = activation == ACTIVATION_RELU;
++      const v128_t zero = wasm_f32x4_splat(0.0f);
++      for(size_t p = 0; p < P; p++) {
++        const float* ip = in + p * C;
++        float* op = out + p * C;
++        if(m[p] != 1.0f) {
++          std::fill(op, op + C, 0.0f);
++          continue;
++        }
++        int c = 0;
++        for(; c + 4 <= C; c += 4) {
++          v128_t x = wasm_f32x4_add(wasm_f32x4_mul(wasm_v128_load(ip + c), wasm_v128_load(sc + c)), wasm_v128_load(bi + c));
++          if(relu) x = wasm_f32x4_max(x, zero);
++          wasm_v128_store(op + c, x);
++        }
++        for(; c < C; c++) {
++          float x = ip[c] * sc[c] + bi[c];
++          op[c] = relu ? std::max(x, 0.0f) : x;
++        }
++      }
++      return;
++    }
++#endif
+     for(int c = 0; c < input->dimension(0); c++) {
+       auto inC = input->chip(c, 0);
+       auto x = inC * mergedScale[c] + mergedBias[c];

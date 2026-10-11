@@ -6,13 +6,20 @@
 # The one binary contains both the WebGPU backend and the Eigen CPU backend and picks
 # WebGPU when an adapter exists, else falls back to CPU.
 #
-# Local patches (engine/patches/*.patch) fix two upstream bugs and add exports:
+# Local patches: 0001-doppelganger-kataeval.patch fixes two upstream bugs and adds exports:
 #   - kgeEvalSeq with an ownership buffer freed the caller's buffer (heap corruption)
 #   - kgeSearch treated side-to-move values as white-perspective values
 #   - kgeRootStats: per-candidate visits / winrate / prior after kgeSearch
 #   - kgePostProcessParams: the model's score/ownership scaling constants
 #   - kgeEvalSeqBatch: batched evaluation with full move history and a symmetry per position
 #   - kgeSetFp16 now also applies to this single-thread build (WebGPU only)
+# and 0002-simd-cpu.patch speeds up the CPU backend with WebAssembly SIMD (Eigen 3.4 has
+# no WebAssembly vector code): a register-blocked matrix product for the Winograd 3x3
+# convolutions and a one-pass batch norm + ReLU. Answers are unchanged (policy within 1e-5,
+# same top move on 120 of 120 positions); 1.9x faster one at a time, 2.3x in batches of 8
+# (scripts/engine-speed.ts, Node on a 4-core cloud machine). A 16-bit integer product
+# (i32x4.dot_i16x8_s) was also tried: no faster there and slightly less accurate, so it is
+# not used; 8-bit needs relaxed SIMD, which Safari lacks.
 #
 # Two builds come out of one run:
 #   kataeval.{js,wasm}         -O3 with WebAssembly SIMD (about 2.5x faster on the CPU)
@@ -29,6 +36,8 @@ PIN="${KATAGO_WEBGPU_COMMIT:-d5ad1c0423dba989c60a2f06b1848e7eec2b5941}"
 WORK="${WORK_DIR:-$ROOT/.engine-build}"
 EMSDK_DIR="${EMSDK_DIR:-$HOME/emsdk}"
 EIGEN_INC="${EIGEN_INC:-/usr/include/eigen3}"
+# Where the engine files go (another directory to try a build without replacing the site's).
+OUT="${OUT_DIR:-$ROOT/public/engine}"
 
 if [ ! -d "$WORK/katago-webgpu/.git" ]; then
   mkdir -p "$WORK"
@@ -65,17 +74,19 @@ for f in "${SRCS[@]}"; do
   OBJS+=("$o")
 done
 
-mkdir -p "$ROOT/public/engine"
+mkdir -p "$OUT"
 em++ "${OBJS[@]}" --use-port=emdawnwebgpu -sUSE_ZLIB=1 -fexceptions \
   -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4GB -sFORCE_FILESYSTEM=1 \
   -sSTACK_SIZE=16MB -sINITIAL_MEMORY=64MB \
   -sMODULARIZE=1 -sEXPORT_NAME=createKata -sENVIRONMENT=web,worker,node \
   -sEXPORTED_FUNCTIONS="$EXPORTS" \
   -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,HEAPF32,HEAP32,UTF8ToString \
-  "${OPT[@]}" -o "$ROOT/public/engine/$NAME.js"
+  "${OPT[@]}" -o "$OUT/$NAME.js"
 }
-build kataeval -O3 -msimd128
-build kataeval-compat -O2
-cp "$WORK/katago-webgpu/LICENSE" "$ROOT/public/engine/LICENSE-KataGo.txt"
-echo "$PIN" > "$ROOT/public/engine/SOURCE_COMMIT.txt"
-ls -la "$ROOT/public/engine"
+# ONLY=kataeval builds just one of them (trying a change); EXTRA_FLAGS=--profiling-funcs
+# keeps function names for a profiler.
+[ "${ONLY:-kataeval}" = kataeval ] && build kataeval -O3 -msimd128 ${EXTRA_FLAGS:-}
+[ "${ONLY:-kataeval-compat}" = kataeval-compat ] && build kataeval-compat -O2
+cp "$WORK/katago-webgpu/LICENSE" "$OUT/LICENSE-KataGo.txt"
+echo "$PIN" > "$OUT/SOURCE_COMMIT.txt"
+ls -la "$OUT"

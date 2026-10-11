@@ -22,13 +22,14 @@ type Kata = {
 };
 
 /**
+ * `engineJs`: another build of the engine (engine/build-engine.sh with OUT_DIR) to try.
  * `batch` > 1 makes the tree search use batched (stones-only) evaluation, as on a GPU.
  * `winrateScale` derives winrates from the score (as the app does for small networks).
  */
-export async function loadNodeEngine(modelPath: string, modelId: string, size = 19, batch = 1, winrateScale?: number): Promise<EngineBackend> {
-  if (!existsSync(ENGINE_JS)) throw new Error(`missing ${ENGINE_JS}; run engine/build-engine.sh`);
+export async function loadNodeEngine(modelPath: string, modelId: string, size = 19, batch = 1, winrateScale?: number, engineJs = ENGINE_JS): Promise<EngineBackend> {
+  if (!existsSync(engineJs)) throw new Error(`missing ${engineJs}; run engine/build-engine.sh`);
   const require = createRequire(import.meta.url);
-  const createKata = require(ENGINE_JS);
+  const createKata = require(engineJs);
   const M: Kata = await createKata({ print: () => {}, printErr: () => {} });
   M.ccall('kgeSetForceCpu', null, ['number'], [1]);
   M.FS.writeFile('/m.bin.gz', new Uint8Array(readFileSync(modelPath)));

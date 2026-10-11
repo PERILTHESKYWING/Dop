@@ -10,7 +10,7 @@ export const ENGINE_BUILD = 'katago-webgpu@d5ad1c0';
  * Changes whenever public/engine changes, so browsers holding the old files (the host
  * caches /engine/ for a week) load the new worker and WebAssembly together.
  */
-const ENGINE_FILES = 'simd-1';
+const ENGINE_FILES = 'simd-2';
 
 export interface Capabilities {
   webgpu: boolean;
