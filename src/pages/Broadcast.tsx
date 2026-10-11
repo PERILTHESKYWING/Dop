@@ -435,7 +435,7 @@ function Watch({
       title={`Live table ${table + 1}`}
       sub={`${PHASE_LABEL[g.phase]} · move ${g.shown}`}
       head={<HeadButton icon="save" label="Save" onClick={() => (setSaveTitle(`Live table ${table + 1}: ${g.black} vs ${g.white}`), setSaving(true))} title="Save to Your kifu" />}
-      players={<PlayersBar black={g.black} white={g.white} captures={captures} showEval bWin={v.bWin} bLead={v.bLead} black2={!done && toPlay === 1 ? 'to play' : undefined} white2={!done && toPlay === 2 ? 'to play' : undefined} />}
+      players={<PlayersBar black={g.black} white={g.white} captures={captures} showEval bWin={v.bWin} bLead={v.bLead} before={g.shown > 0 ? { mover: allMoves[g.shown - 1].color, bWin: values[g.shown - 1]?.bWin ?? null, bLead: values[g.shown - 1]?.bLead ?? null } : null} black2={!done && toPlay === 1 ? 'to play' : undefined} white2={!done && toPlay === 2 ? 'to play' : undefined} />}
       board={
         <div className="bc-board-frame">
           <Board

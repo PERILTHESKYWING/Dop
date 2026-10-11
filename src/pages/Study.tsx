@@ -328,6 +328,11 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     return seen.get(nid) ?? (quickItems ? (quick.get(quickItems[i].key) ?? null) : null);
   });
 
+  // The position before the last move, for the eval bar's "what that move did".
+  const at = line.indexOf(cursor);
+  const lastMove = node.move;
+  const prevValue = at > 0 && lastMove && values[at - 1] ? { mover: lastMove.color, bWin: values[at - 1]!.bWin, bLead: values[at - 1]!.bLead } : null;
+
   const download = () => {
     const blob = new Blob([kifuToSgf(k)], { type: 'application/x-go-sgf' });
     const a = document.createElement('a');
@@ -575,7 +580,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
       sub={[k.date, k.saved ? 'saved' : 'draft', analysis ? 'AI analysis' : 'recording'].filter(Boolean).join(' · ')}
       onHome={unsaved ? () => setNotice('leave') : undefined}
       head={<HeadButton icon="save" label={k.saved ? 'Saved' : 'Save'} onClick={() => (k.saved ? void save() : askSave())} title={k.saved ? 'Saved; keeps saving as you go' : 'Save to Your kifu'} />}
-      players={<PlayersBar black={k.black} white={k.white} captures={board.captures} showEval={analysis} bWin={snap?.bWin ?? seen.get(cursor)?.bWin ?? null} bLead={snap?.bLead ?? seen.get(cursor)?.bLead ?? null} pending={!snap || snap.visits < 2} />}
+      players={<PlayersBar black={k.black} white={k.white} captures={board.captures} showEval={analysis} bWin={snap?.bWin ?? seen.get(cursor)?.bWin ?? null} bLead={snap?.bLead ?? seen.get(cursor)?.bLead ?? null} pending={!snap || snap.visits < 2} before={prevValue} />}
       boardRef={boardWrap}
       board={
         <Board

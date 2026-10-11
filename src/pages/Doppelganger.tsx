@@ -1224,6 +1224,8 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   const shownBoard = viewing === null ? board : replay(game.size, game.setup, [...game.prefix, ...game.moves.slice(0, viewing)]);
   const shownLast = viewing === null ? last : viewing > 0 ? game.moves[viewing - 1].loc : game.prefix.length ? game.prefix[game.prefix.length - 1].loc : null;
   const shownRead = viewing === null ? current : reads.get(readKey(game, viewing));
+  const shownPly = viewing ?? ply;
+  const prevRead = shownPly > 0 ? reads.get(readKey(game, shownPly - 1)) : undefined;
 
   const marks: Mark[] = [];
   let caption = '';
@@ -1454,6 +1456,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           bWin={shownRead?.bWin ?? null}
           bLead={shownRead?.bLead ?? null}
           pending={!shownRead}
+          before={shownPly > 0 && prevRead ? { mover: game.moves[shownPly - 1].color, bWin: prevRead.bWin, bLead: prevRead.bLead } : null}
         />
       }
       board={<Board size={size} stones={shownBoard.stones} lastMove={shownLast} toPlay={yourTurn && viewing === null ? game.user : undefined} onPlay={yourTurn && viewing === null ? onPlay : undefined} marks={marks} coords ariaLabel="Game board" />}

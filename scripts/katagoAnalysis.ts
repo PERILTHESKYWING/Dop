@@ -64,6 +64,10 @@ export interface KataGoOptions {
   /** Queries searched at once (one search thread each). */
   threads?: number;
   logDir?: string;
+  /** Evaluate each position under one symmetry, no noise (raw network output at one visit). */
+  oneSymmetry?: boolean;
+  /** Extra config lines. */
+  extra?: string[];
 }
 
 export function startKataGo(opts: KataGoOptions): KataGo {
@@ -85,6 +89,8 @@ export function startKataGo(opts: KataGoOptions): KataGo {
       // Tsumego and exact problems: no randomness at the root.
       'wideRootNoise = 0.0',
       'rootPolicyTemperature = 1.0',
+      ...(opts.oneSymmetry ? ['rootNumSymmetriesToSample = 1'] : []),
+      ...(opts.extra ?? []),
       '',
     ].join('\n'),
   );

@@ -2,6 +2,7 @@ import type { EngineInfo } from '../types';
 import type { ModelSpec } from './models';
 import { DEFAULT_POSTPROCESS, type PostProcessParams, type RawNetOutput } from './parse';
 import type { EngineBackend, EngineRequest, RawSearchResult, StonesPosition } from './types';
+import { isCool } from './governor';
 import { deviceFacts, loadTuning, maxLanes, pickBatch, saveTuning, tuningKey, worthIt, type DeviceFacts, type Tuning } from './tuning';
 
 export const ENGINE_BUILD = 'katago-webgpu@d5ad1c0';
@@ -519,7 +520,7 @@ export class BrowserEngine implements EngineBackend {
       eng.postProcess = { ...r.postProcess, winrateScale: spec.winrateFromScore };
       await eng.healthCheck();
       if (opts.tune && !opts.baseline) {
-        const facts = deviceFacts(r.backend, undefined);
+        const facts = deviceFacts(r.backend, undefined, isCool());
         const key = tuningKey(spec.id, eng.build, facts);
         const known = opts.retune ? null : loadTuning(key);
         if (known) {

@@ -1,9 +1,11 @@
 import { allPositions, type Board } from '../go/board';
 import { engineKomi } from '../go/rules';
-import { engineEvaluator, Search } from '../engine/mcts';
+import { engineEvaluator, Search, type AnchorSource, type LeafEvaluator } from '../engine/mcts';
 import type { EngineBackend } from '../engine/types';
 import type { GameAnalysis, GameRecord, PositionEval } from '../types';
 import { ANALYSIS_VERSION, evaluateFastMany, positionKey, rootPosition, searchedEval, toPlayAt, type PositionSpec } from './analyzer';
+import { moveLoss } from './records';
+import { PASS } from '../go/types';
 
 /** Where analysis results live. IndexedDB in the browser, memory in tests and scripts. */
 export interface AnalysisStore {
@@ -28,39 +30,76 @@ export interface PipelineOptions {
   /** A search in progress gives way when this turns true, and resumes after yieldTo. */
   interrupted?: () => boolean;
   /**
-   * Spend the visits where they matter (default on): more on positions where the move
-   * played looks costly or surprising, fewer on obvious ones, and stop a search once more
-   * visits cannot change its best move. Off gives every position the same budget.
+   * Spend the visits where they matter (default on, ADAPTIVE below): a short scouting
+   * search of every position, then the whole budget only around the moves the scouts could
+   * not clear; a search stops once more visits cannot change its best move. Off gives every
+   * position the same budget.
    */
   adaptive?: boolean;
+  /**
+   * Cool mode (phones): shorter scouting searches, and less than the whole budget where
+   * they could not clear the move.
+   */
+  thrifty?: boolean;
+  /**
+   * Answers that need no search on this device (the opening book, the PC, shared results):
+   * a searched evaluation for the position, or null to search it here.
+   */
+  known?: (spec: PositionSpec, fast: PositionEval) => Promise<PositionEval | null>;
+  /** A stronger judge for the top of every search (engine/mcts.ts AnchorSource). */
+  anchor?: AnchorSource | null;
+  /** Who evaluates the search's leaves (default: the engine; the student network when it runs). */
+  evaluator?: LeafEvaluator;
+  /** Positions per evaluator call for that evaluator. */
+  evaluatorBatch?: number;
 }
 
 /** A searched evaluation that is good enough for `want` visits. */
 function isSearched(e: PositionEval, want: number) {
+  // Answers from the opening book, the PC or another device are stronger than a search here.
+  if (e.searched && e.source) return true;
   return !!e.searched && (e.visits >= want || (e.settled ?? 0) >= want);
 }
 
 /**
- * Visits for position i, from the network's first look at the game: half for an obvious
- * move (the network is sure and the game followed it), one and a half for a position
- * where the move played lost 6% or more or was not among the network's top three
- * choices, four times for the model lab's hard examples.
+ * "Search only what matters" (adaptive): every position first gets a short scouting search
+ * (`scout` of the budget, `thriftyScout` in cool mode); then the two positions around each
+ * move the scouts cannot clear (it may have lost `deepenScore` points or `deepenWin` win
+ * rate, or the network's two looks at the position disagree by `doubt`) get the whole
+ * budget (`thriftyDeep` of it in cool mode). Tuned with scripts/ai-eval.ts selective.
  */
-export function visitBudget(analysis: GameAnalysis, game: GameRecord, i: number, base: number, adaptive = true): number {
+export const ADAPTIVE = { scout: 0.25, thriftyScout: 0.15, thriftyDeep: 0.6, deepenScore: 1, deepenWin: 0.03, doubt: 0.08 };
+
+/**
+ * Visits for position i in the first round: the base budget (`adaptive` off), the scouting
+ * budget (on), four times the base for the model lab's hard examples either way.
+ */
+export function visitBudget(analysis: GameAnalysis, i: number, base: number, adaptive = true, thrifty = false): number {
   if (analysis.deepTargets.includes(i)) return base * 4;
-  if (!adaptive || i >= game.moves.length) return base;
-  const before = analysis.evals[i];
-  const after = analysis.evals[i + 1];
-  if (!before || !after) return base;
-  const mover = before.toPlay;
-  const winBefore = mover === 1 ? before.bWin : 1 - before.bWin;
-  const winAfter = mover === 1 ? after.bWin : 1 - after.bWin;
-  const loss = winBefore - winAfter;
-  const played = game.moves[i].loc;
-  const top = before.policy[0];
-  if (loss >= 0.06 || !before.policy.slice(0, 3).some((p) => p.loc === played)) return Math.round(base * 1.5);
-  if (top && top.p >= 0.8 && top.loc === played && loss < 0.02) return Math.max(8, Math.round(base * 0.5));
-  return base;
+  if (!adaptive) return base;
+  return Math.max(8, Math.round(base * (thrifty ? ADAPTIVE.thriftyScout : ADAPTIVE.scout)));
+}
+
+/** Visits for the positions the scouts could not clear. */
+export function deepenBudget(base: number, thrifty = false): number {
+  return Math.max(8, Math.round(base * (thrifty ? ADAPTIVE.thriftyDeep : 1)));
+}
+
+/** The positions (in game order) around the moves the scouting searches could not clear. */
+export function positionsToDeepen(analysis: GameAnalysis, game: GameRecord): number[] {
+  const out = new Set<number>();
+  for (let i = 0; i < game.moves.length; i++) {
+    const before = analysis.evals[i];
+    const after = analysis.evals[i + 1];
+    if (!before || !after || game.moves[i].loc === PASS) continue;
+    const loss = moveLoss(before, after, game.moves[i].loc);
+    const unsure = (before.doubt ?? 0) >= ADAPTIVE.doubt || (after.doubt ?? 0) >= ADAPTIVE.doubt;
+    if (unsure || (loss && (loss.scoreLoss >= ADAPTIVE.deepenScore || loss.winrateLoss >= ADAPTIVE.deepenWin))) {
+      out.add(i);
+      out.add(i + 1);
+    }
+  }
+  return [...out].sort((x, y) => x - y);
 }
 
 export class AnalysisStopped extends Error {}
@@ -105,8 +144,10 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   const n = game.moves.length;
   const komi = engineKomi(game.komi, game.rules);
   const stored = await store.loadAnalysis(game.id);
-  const analysis: GameAnalysis = stored && analysisIsCurrent(stored, game, engine.info.modelId) ? stored : freshAnalysis(game, komi);
-  analysis.engine = engine.info;
+  // A finished analysis made elsewhere (another network, the PC) is kept rather than redone.
+  const finished = !!stored && analysisIsCurrent(stored, game) && stored.evals.every((e) => e?.searched);
+  const analysis: GameAnalysis = stored && (finished || analysisIsCurrent(stored, game, engine.info.modelId)) ? stored : freshAnalysis(game, komi);
+  if (!finished) analysis.engine = engine.info;
   const checkpoint = opts.checkpointEvery ?? 12;
   const stop = () => {
     if (opts.shouldStop?.()) throw new AnalysisStopped('stopped');
@@ -135,7 +176,11 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
     const keys = specs.map((sp) => positionKey(sp, engine.info.modelId));
     const hits = await Promise.all(keys.map((k) => store.getCached(k)));
     const need = idx.map((_, j) => j).filter((j) => !hits[j]);
-    const fresh = await evaluateFastMany(engine, need.map((j) => specs[j]));
+    const fresh = await evaluateFastMany(
+      engine,
+      need.map((j) => specs[j]),
+      { doubt: opts.adaptive !== false },
+    );
     need.forEach((j, k) => (hits[j] = fresh[k]));
     for (const e of fresh) await store.putCached(e);
     idx.forEach((i, j) => (analysis.evals[i] = hits[j]!));
@@ -158,17 +203,25 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
   // Pass 2: search every position, following the game with one tree.
   game.status = 'deep';
   await save();
-  const search = new Search(engineEvaluator(engine), rootPosition(specAt(game, boards, 0)), { batch: engine.batch ?? 1 });
+  const search = new Search(opts.evaluator ?? engineEvaluator(engine), rootPosition(specAt(game, boards, 0)), {
+    batch: (opts.evaluator ? opts.evaluatorBatch : engine.batch) ?? 1,
+  });
+  search.setAnchor(opts.anchor ?? null);
   since = 0;
-  for (let i = 0; i <= n; i++) {
+  const adaptive = opts.adaptive !== false;
+  const searchAt = async (i: number, want: number) => {
     const current = analysis.evals[i]!;
-    const want = visitBudget(analysis, game, i, opts.visits, opts.adaptive !== false);
-    if (isSearched(current, want)) continue;
+    if (isSearched(current, want)) return;
     const spec = specAt(game, boards, i);
     const played = game.moves[i]?.loc;
     const cached = await store.getCached(current.key);
+    const known = cached && isSearched(cached, want) ? null : await opts.known?.(spec, current);
     if (cached && isSearched(cached, want)) {
       analysis.evals[i] = cached;
+    } else if (known) {
+      // Stored under this position's key, and good enough for this budget from now on.
+      analysis.evals[i] = { ...known, key: current.key, settled: Math.max(known.settled ?? 0, want) };
+      await store.putCached(analysis.evals[i]!);
     } else {
       search.setPosition(rootPosition(spec));
       let snap;
@@ -179,7 +232,7 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
           visits: want,
           forced: played,
           forcedShare: 0.1,
-          earlyStop: opts.adaptive !== false,
+          earlyStop: adaptive,
           shouldStop: () => !!opts.interrupted?.() || !!opts.shouldStop?.(),
         });
         if (snap.settled || snap.visits >= want || search.rootVisits >= want) break;
@@ -189,10 +242,23 @@ export async function analyzeGame(game: GameRecord, engine: EngineBackend, store
       if (snap.settled) analysis.evals[i] = { ...analysis.evals[i]!, settled: want };
       await store.putCached(analysis.evals[i]!);
     }
-    game.progress.deep = searchedCount();
     if (++since >= Math.max(1, Math.round(checkpoint / 4))) {
       since = 0;
       await save();
+    }
+  };
+  for (let i = 0; i <= n; i++) {
+    await searchAt(i, visitBudget(analysis, i, opts.visits, adaptive, opts.thrifty));
+    game.progress.deep = searchedCount();
+  }
+  if (adaptive) {
+    // Second round: the whole budget where the scouts could not clear the move.
+    const deepen = positionsToDeepen(analysis, game).filter((i) => !analysis.deepTargets.includes(i));
+    const want = deepenBudget(opts.visits, opts.thrifty);
+    game.progress.deepTotal = n + 1 + deepen.length;
+    for (const [k, i] of deepen.entries()) {
+      await searchAt(i, want);
+      game.progress.deep = n + 2 + k;
     }
   }
   game.status = 'done';
