@@ -6,8 +6,10 @@ set -euo pipefail
 NEW=$1; OLD=$2; SEED=$3
 mkdir -p labels
 ASSETS=$(gh release view ai-training --json assets -q '.assets[] | [.createdAt, .name] | @tsv' 2>/dev/null | sort -r || true)
-PARTS=$(echo "$ASSETS" | awk -F'\t' '$2 ~ /^labels-.*\.dpd\.gz$/ {print $2}')
-PICK=$( { echo "$PARTS" | head -n "$NEW"; echo "$PARTS" | tail -n +$((NEW + 1)) | shuf --random-source=<(yes "$SEED") | head -n "$OLD"; } | grep . || true)
+PARTS=$(echo "$ASSETS" | awk -F'\t' '$2 ~ /^labels-.*\.dpd\.gz$/ && $2 !~ /-kata-/ {print $2}')
+# KataGo self-play parts (kata.sh) are big: the newest two.
+KATA=$(echo "$ASSETS" | awk -F'\t' '$2 ~ /^labels-.*-kata-.*\.dpd\.gz$/ {print $2}' | head -n 2)
+PICK=$( { echo "$PARTS" | head -n "$NEW"; echo "$PARTS" | tail -n +$((NEW + 1)) | shuf --random-source=<(yes "$SEED") | head -n "$OLD"; echo "$KATA"; } | grep . || true)
 for f in $PICK; do gh release download ai-training -p "$f" -D labels --clobber; done
 for f in labels/*.gz; do [ -e "$f" ] && gunzip -f "$f"; done
 gh release download ai-training -p val.dpd.gz -D . --clobber 2>/dev/null && gunzip -f val.dpd.gz || true

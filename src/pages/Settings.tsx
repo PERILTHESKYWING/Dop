@@ -311,6 +311,7 @@ function PcSection() {
             : 'Keep its window open. This page finds it by itself.'}
         </li>
       </ol>
+      {!phone && <p className="small muted">To train the site's small AI on your graphics card overnight, double-click start-training-windows.bat.</p>}
       <label className="row small">
         <input type="checkbox" checked={settings.pcUse !== 'off'} onChange={(e) => void saveSettings({ pcUse: e.target.checked ? 'auto' : 'off' })} /> Use
         the PC when it is on

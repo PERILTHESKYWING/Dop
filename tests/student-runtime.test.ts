@@ -49,6 +49,20 @@ describe('DopNet runtime vs PyTorch', () => {
     expect(rt.stats()).toMatchObject({ evals: fixtures.length, exits: 0 });
   });
 
+  it('runs networks evolution reshaped (48 channels, 7 blocks)', async () => {
+    const other = file('tests/fixtures/student/random-48x7.dopnet');
+    const fx = (JSON.parse(file('tests/fixtures/student/random-48x7.json').toString('utf8')) as { positions: Fixture[] }).positions;
+    const rt = await DopnetRuntime.create(wasm, other);
+    expect(rt.header.C).toBe(48);
+    expect(rt.header.N).toBe(7);
+    for (const p of fx) {
+      const out = rt.evaluate(Uint8Array.from(p.board), p.toPlay, p.komi, { allowExit: false, ownership: true });
+      expect(worst(out.policyLogits, p.policy, 2e-3, 1e-3)).toBeLessThanOrEqual(1);
+      expect(worst([out.winLogit, out.lead / 20], p.value, 2e-3, 1e-3)).toBeLessThanOrEqual(1);
+      expect(worst(out.ownership!, p.own, 2e-3, 1e-3)).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('exit path matches the exit heads', async () => {
     const rt = await DopnetRuntime.create(wasm, net);
     for (const p of fixtures) {

@@ -10,7 +10,7 @@ export const ENGINE_BUILD = 'katago-webgpu@d5ad1c0';
  * Changes whenever public/engine changes, so browsers holding the old files (the host
  * caches /engine/ for a week) load the new worker and WebAssembly together.
  */
-const ENGINE_FILES = 'simd-1';
+const ENGINE_FILES = 'simd-2';
 
 export interface Capabilities {
   webgpu: boolean;
@@ -269,6 +269,11 @@ export class BrowserEngine implements EngineBackend {
   /** Positions per evaluator call worth sending: all active workers, each a full batch. */
   get batch(): number {
     return this.active * this.laneBatch;
+  }
+
+  /** One network call in flight per active worker (the search keeps them all busy). */
+  get pipeline(): number {
+    return this.active;
   }
 
   get laneCount() {

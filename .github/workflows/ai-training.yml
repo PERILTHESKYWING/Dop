@@ -4,16 +4,22 @@
 #   label (10)  KataGo's big network (kata1 b18) looks at positions from amateur (Fox) and
 #               professional games: its search on 5 machines ("search inside the network"),
 #               its own judgement on 5;
+#   kata        positions from KataGo's own self-play run (katagoarchive.org), already
+#               searched by its strongest networks (ci/kata.sh);
 #   mind (7)    a population of student networks ("hivemind"), each continuing the champion
-#               with its own settings on what was labelled so far;
+#               with its own settings on what was labelled so far, two of them also a
+#               different size (one block deeper, a quarter fewer channels);
 #   book (2)    the opening book grows (the most played openings not yet searched deeply);
 #   reference   only on the first run: the validation and reference positions.
 #
-# Then the arena keeps the best mind, the gate measures it against the built-in network at
+# Then the arena keeps the best mind (strength, with a price on being slower; a network
+# uploaded from a PC or Kaggle with evolve_local.py joins it as a candidate), the gate measures it against the built-in network at
 # equal time (the site turns it on by itself only when it is better), and the new network
 # and opening book are committed, so Vercel redeploys. Labels and checkpoints live in the
 # "ai-training" release, not in git. Start a run by hand: Actions -> "AI training" -> "Run
 # workflow". Pull requests that change the training run a few-minute version (no commits).
+# Between these runs one machine keeps training in a chain (ai-chain.yml); each run here
+# restarts the chain when it ends.
 name: AI training
 
 on:
@@ -35,6 +41,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: ai-training-${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
@@ -62,7 +69,7 @@ jobs:
           gh release download ai-training -p population.json -D . 2>/dev/null || true
           if [ "$SMOKE" = true ]; then
             echo 'labels=[0]' >> "$GITHUB_OUTPUT"
-            echo 'minds=[{"id":0,"lr":0.002,"searchWeight":2,"seed":1}]' >> "$GITHUB_OUTPUT"
+            echo 'minds=[{"id":0,"lr":0.002,"searchWeight":2,"curriculum":0.5,"kataShare":0.5,"mutate":"","changed":"","seed":1}]' >> "$GITHUB_OUTPUT"
             echo 'has_data=false' >> "$GITHUB_OUTPUT"
             echo 'need_ref=true' >> "$GITHUB_OUTPUT"
             exit 0
@@ -120,6 +127,35 @@ jobs:
           path: out/
           retention-days: 3
 
+  kata:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q numpy
+      - name: Test the reader on a made-up KataGo data file
+        if: env.SMOKE == 'true'
+        run: |
+          python3 scripts/student/ci/fake-npz.py fake.npz
+          python3 scripts/student/kata_npz.py --npz fake.npz --keep 1 --out fake.dpd
+          test "$(stat -c %s fake.dpd)" -eq $((48 * 840))
+      - name: KataGo self-play positions
+        run: |
+          mkdir -p out
+          scripts/student/ci/kata.sh "out/labels-$RUN-kata-v0-kata1-selfplay.dpd" "$([ "$SMOKE" = true ] && echo 3000 || echo 200000)" "$RUN"
+          ls -la out
+          for f in out/*.dpd; do [ -e "$f" ] && gzip "$f"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labels-kata
+          path: out/
+          retention-days: 3
+          if-no-files-found: ignore
+
   mind:
     needs: plan
     if: needs.plan.outputs.has_data == 'true'
@@ -144,6 +180,8 @@ jobs:
           ID=${{ matrix.mind.id }}
           python scripts/student/train.py --data 'labels/*.dpd' $( [ -f val.dpd ] && echo --val-data val.dpd ) --init champion.pt \
             --minutes $((MINUTES - 20)) --lr ${{ matrix.mind.lr }} --search-weight ${{ matrix.mind.searchWeight }} --seed ${{ matrix.mind.seed }} \
+            --curriculum ${{ matrix.mind.curriculum }} --kata-share ${{ matrix.mind.kataShare }} \
+            --mutate "${{ matrix.mind.mutate }}" --changed "${{ matrix.mind.changed }}" \
             --threads "$(nproc)" --name "mind-$RUN-$ID" --out "minds/mind-$RUN-$ID.pt"
       - uses: actions/upload-artifact@v4
         with:
@@ -153,7 +191,7 @@ jobs:
 
   # Pull requests: the same steps on the few minutes of labels made above.
   smoke-mind:
-    needs: [plan, label]
+    needs: [plan, label, kata]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -169,7 +207,11 @@ jobs:
           merge-multiple: true
       - run: |
           gunzip labels/*.gz
+          ls -la labels
           python scripts/student/train.py --data 'labels/*.dpd' --minutes 2 --threads "$(nproc)" --name smoke --out minds/mind-smoke.pt
+          # Evolution's size changes: one block deeper and a quarter fewer channels.
+          python scripts/student/train.py --data 'labels/*.dpd' --init minds/mind-smoke.pt --minutes 1 --threads "$(nproc)" \
+            --curriculum 1 --kata-share 0.5 --mutate deepen,prune:0.75 --changed deepen,prune:0.75 --name smoke-evolved --out minds/mind-smoke-evolved.pt
       - uses: actions/upload-artifact@v4
         with:
           name: mind-smoke
@@ -257,7 +299,7 @@ jobs:
           retention-days: 3
 
   arena:
-    needs: [plan, label, mind, smoke-mind, book, reference]
+    needs: [plan, label, kata, mind, smoke-mind, book, reference]
     if: always() && !cancelled() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -286,12 +328,16 @@ jobs:
           if ls parts/ref-*.json > /dev/null 2>&1; then jq -s '.[0] + {positions: (map(.positions) | add)}' parts/ref-*.json > ref.json; else gh release download ai-training -p ref.json -D . || true; fi
           gh release download ai-training -p champion.pt -D . 2>/dev/null || cp data/student/seed-champion.pt champion.pt || true
           gh release download ai-training -p population.json -D . 2>/dev/null || true
+          # Networks trained elsewhere (evolve_local.py --upload) join the arena once.
+          mkdir -p candidates
+          [ "$SMOKE" = true ] || gh release download ai-training -p 'candidate-*.pt' -D candidates 2>/dev/null || true
+          ls candidates
           # The validation set, when there is none yet, from today's labels.
           [ -s val.dpd ] || (gunzip -c parts/labels-*.dpd.gz | head -c $((840 * 2000)) > val.dpd) || true
       - name: Arena (the best mind becomes the champion)
         run: |
           if ls parts/mind-*.pt > /dev/null 2>&1; then
-            python scripts/student/population.py arena --population population.json --val val.dpd --minds 'parts/mind-*.pt' \
+            python scripts/student/population.py arena --population population.json --val val.dpd --minds 'parts/mind-*.pt' 'candidates/*.pt' \
               --champion champion.pt --out champion.pt --report arena.json --run "$RUN"
           else
             echo 'no minds this run'
@@ -300,16 +346,9 @@ jobs:
       - name: Gate (the champion against the built-in network, at equal time)
         if: env.CHANGED == 'true' || env.SMOKE == 'true'
         run: |
-          python scripts/student/export.py --ckpt champion.pt --out public/student/dopnet.dopnet --name "dopnet-r$RUN"
-          npx tsx scripts/student/gate.ts --ref ref.json --net public/student/dopnet.dopnet --ms "$([ "$SMOKE" = true ] && echo 300 || echo 1500)" \
-            --manifest public/student/manifest.json --file dopnet.dopnet --out gate.json
-          [ -f population.json ] || echo '{}' > population.json
-          [ -f arena.json ] || echo '{}' > arena.json
           # The teacher most of the labels came from (it is in their file names).
           T=$(ls parts/labels-*.dpd.gz 2>/dev/null | sed -E 's/.*-v[0-9]+-(.*)\.dpd\.gz/\1/' | sort | uniq -c | sort -rn | awk 'NR == 1 {print $2}')
-          jq --slurpfile p population.json --slurpfile a arena.json --arg t "${T:-kata1-b18c384nbt}" \
-            '.trained = {samples: ($p[0].samples // 0), records: ($a[0].best.meta.records // 0), teacher: $t, minds: 7, nights: ($p[0].runs // 0)}' \
-            public/student/manifest.json > m.json && mv m.json public/student/manifest.json
+          scripts/student/ci/gate.sh "dopnet-r$RUN" "$([ "$SMOKE" = true ] && echo 300 || echo 1500)" "${T:-kata1-b18c384nbt}" 7
       - name: Grow the opening book
         run: |
           for K in 7 7.5; do
@@ -327,6 +366,7 @@ jobs:
           [ "$CHANGED" = true ] && gh release upload ai-training champion.pt --clobber
           [ -f population.json ] && gh release upload ai-training population.json --clobber
           [ -f arena.json ] && gh release upload ai-training arena.json --clobber
+          for f in candidates/*.pt; do [ -e "$f" ] && gh release delete-asset ai-training "$(basename "$f")" -y; done
           # Keep the newest 60 label parts.
           gh release view ai-training --json assets -q '.assets[] | select(.name | startswith("labels-")) | [.createdAt, .name] | @tsv' \
             | sort -r | tail -n +61 | cut -f2 | while read -r f; do gh release delete-asset ai-training "$f" -y; done
@@ -338,3 +378,6 @@ jobs:
           git add public/student public/book
           git commit -m "AI training: run $RUN" || exit 0
           for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+      - name: Restart the training chain (ai-chain.yml)
+        if: env.SMOKE != 'true' && vars.AI_CHAIN != 'off'
+        run: gh workflow run ai-chain.yml --ref "${{ github.ref_name }}" || true

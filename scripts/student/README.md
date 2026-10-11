@@ -30,6 +30,38 @@ Files:
 | `tools/student/dopnet.c` | the runtime (WebAssembly SIMD), built by `tools/student/build.sh` |
 | `src/lib/student/` | loading the runtime, the engine backend, the worker |
 | `scripts/student/gate.ts` | student vs b10 on reference positions; decides `enabled` |
+| `scripts/student/kata_npz.py` | KataGo's own self-play training data (katagoarchive.org) → `.dpd` records |
+| `scripts/student/population.py` | evolution: plans each generation's minds, the arena keeps the fittest |
+| `scripts/student/evolve_local.py` | the same evolution on a home GPU or Kaggle, winner sent to the cloud arena |
+| `.github/workflows/ai-training.yml`, `ai-chain.yml` | the cloud training: 3 big runs a day, one machine in a chain between them |
+
+## How it trains and evolves
+
+- **Data.** The teacher (kata1 b18) labels positions from people's games, and every run
+  also streams part of one of the newest daily files of KataGo's public self-play run
+  (`ci/kata.sh` → `kata_npz.py`, source 4): positions already searched by KataGo's
+  strongest networks with hundreds of visits. `--kata-share` sets how much of each batch
+  comes from them.
+- **Curriculum.** Hard positions (the teacher's search spread over several moves, or a
+  close game) are drawn more often (`--curriculum`; 0 = uniform).
+- **Evolution.** Each run's minds start from the champion. Mind 0 keeps its settings; the
+  others mutate one or two of learning rate, search weight, curriculum and KataGo share.
+  Mind 1 also grows a block (the new block starts as the identity, so nothing learned is
+  lost) and mind 2 keeps the most important three quarters of the channels (pruning).
+  The arena's fitness is strength (policy loss + 4 × win-rate error on positions no
+  mind trained on) plus 0.04 × log2(cost / champion's cost): a network half the size
+  wins at equal strength, one twice the size must be clearly stronger. `population.json`
+  logs every mutation's gain (`mutations`), so it shows which kinds of change pay off.
+- **Chain.** Between the big runs one machine trains one mutated mind per link and starts
+  the next link itself (`ai-chain.yml`); it pauses while a big run works. Stop it with the
+  repository variable `AI_CHAIN = off`.
+- **Home GPU or Kaggle.** `python scripts/student/evolve_local.py --hours 8` downloads
+  the data and champion from the public release and evolves on the GPU. With `--upload`
+  and `GITHUB_TOKEN` (a fine-grained token with "Contents: read and write" on this
+  repository) the local champion goes to the release as `candidate-<name>.pt`, and the
+  next big run judges it in its arena with the cloud's minds. On Windows the PC helper's
+  `start-training-windows.bat` does all of it (installs PyTorch for NVIDIA cards first).
+  Kaggle: see the comment at the top of `evolve_local.py`.
 
 ## Input contract: board bytes
 
@@ -141,7 +173,7 @@ Fixed 840-byte records, little-endian:
 | --- | --- | --- |
 | 0 | u8[361] | board bytes |
 | 361 | u8 | toPlay |
-| 362 | u8 | source: 1 professional, 2 amateur, 3 AI |
+| 362 | u8 | source: 1 professional, 2 amateur, 3 AI, 4 KataGo self-play (kata_npz.py) |
 | 363 | u8 | 0 |
 | 364 | f32 | komi |
 | 368 | f32 | teacher win rate, side to move |

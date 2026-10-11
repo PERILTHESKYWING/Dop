@@ -41,7 +41,12 @@ export type AnchorSource = (req: LeafRequest) => Promise<{ eval: NetEval; policy
  * Evaluates positions for the search (several at once when the backend batches).
  * `batch`, when present, says how many leaves are worth sending per call right now.
  */
-export type LeafEvaluator = ((leaves: LeafRequest[]) => Promise<NetEval[]>) & { batch?: () => number; rootSymmetries?: () => number };
+export type LeafEvaluator = ((leaves: LeafRequest[]) => Promise<NetEval[]>) & {
+  batch?: () => number;
+  rootSymmetries?: () => number;
+  /** Calls worth having in flight at once (EngineBackend.pipeline); `batch` is spread over them. */
+  pipeline?: () => number;
+};
 
 export interface RootPosition {
   size: number;
@@ -89,6 +94,21 @@ export interface SearchParams {
    * b40: 43% vs 43% best moves found with b6 under b10, 37% vs 33% with b10 under b20).
    */
   anchorWeight: number;
+  /**
+   * Gumbel root search (Danihelka et al. 2022, "Policy improvement by planning with Gumbel")
+   * for small budgets: the root considers the network's `gumbel` most likely moves, gives
+   * them equal visits in rounds, keeps the better half after each round (sequential
+   * halving), and picks by prior plus searched value instead of by visit count. Below the
+   * root the search is unchanged. 0 = off (PUCT everywhere, KataGo's way).
+   *
+   * Off by default: measured with b10 on 120 positions against an 800-visit search
+   * (scripts/search-eval.ts), 8 candidates gave up 0.3% less win rate per move at 32 visits
+   * (95% interval 0.04-0.58%), no clear difference at 16, 64 or 128, and 0.3% more at 8.
+   * Its root value is also further off (the halving spends visits on weaker moves).
+   */
+  gumbel: number;
+  /** Gumbel root search only for runs with at most this many visits (bigger ones use PUCT). */
+  gumbelMaxVisits: number;
 }
 
 export const DEFAULT_SEARCH: SearchParams = {
@@ -108,6 +128,8 @@ export const DEFAULT_SEARCH: SearchParams = {
   virtualLoss: 0,
   anchorChildren: 6,
   anchorWeight: 0.5,
+  gumbel: 0,
+  gumbelMaxVisits: 0,
 };
 
 export interface SearchCandidate {
@@ -190,6 +212,18 @@ class SNode {
   constructor(readonly move: Loc) {}
 }
 
+/** Sequential halving at the root for one run's budget (Gumbel root search). */
+interface GumbelPlan {
+  root: SNode;
+  budget: number;
+  /** Root move indices still in the running. */
+  remaining: number[];
+  /** Visits each remaining move gets before the next halving. */
+  target: number;
+  /** Visits per round. */
+  roundBudget: number;
+}
+
 interface Leaf {
   path: SNode[];
   node: SNode;
@@ -217,6 +251,7 @@ export class Search {
   private evalTime = 0;
   private anchor: AnchorSource | null = null;
   private anchorsInFlight = 0;
+  private plan: GumbelPlan | null = null;
   /** Positions the anchor source judged, and how many changed the small network's view. */
   anchorStats = { asked: 0, judged: 0 };
 
@@ -259,6 +294,7 @@ export class Search {
     if (this.running) throw new Error('stop the search before moving it');
     const reused = this.tryReuse(pos);
     this.pos = pos;
+    this.plan = null;
     if (!reused) {
       this.root = new SNode(PASS);
       this.nodes = 1;
@@ -327,33 +363,54 @@ export class Search {
       this.rootOwnership = ev.ownership ?? null;
     }
     if (this.root.visits > 0) this.center = 0.8 * (this.root.leadSum / this.root.visits);
-    while (!this.stopFlag) {
-      if (this.root.visits >= opts.visits) break;
-      if (opts.maxMs !== undefined && now() - t0 >= opts.maxMs) break;
-      if (opts.shouldStop?.()) break;
-      if (this.nodes >= this.params.maxNodes) break;
-      if (opts.earlyStop && this.futile(opts)) {
-        settled = true;
-        break;
+    // Several engine workers: keep a network call in flight on each, collecting the next
+    // leaves while the others are evaluated, instead of waiting for every batch to return.
+    const depth = Math.max(1, this.evaluator.pipeline?.() ?? 1);
+    const pending = new Set<Promise<void>>();
+    let failure: unknown = null;
+    const dispatch = (leaves: Leaf[]) => {
+      const p: Promise<void> = this.evaluate(leaves.map((l) => l.req))
+        .then((evals) => {
+          for (let i = 0; i < leaves.length; i++) this.apply(leaves[i], evals[i]);
+          if (this.root.visits === 1) this.center = 0.8 * this.root.nnLead;
+        })
+        .catch((e) => {
+          for (const l of leaves) for (const n of l.path) n.inflight--;
+          failure ??= e;
+        })
+        .finally(() => pending.delete(p));
+      pending.add(p);
+    };
+    try {
+      while (!this.stopFlag && failure === null) {
+        if (this.root.visits >= opts.visits) break;
+        if (opts.maxMs !== undefined && now() - t0 >= opts.maxMs) break;
+        if (opts.shouldStop?.()) break;
+        if (this.nodes >= this.params.maxNodes) break;
+        if (opts.earlyStop && !pending.size && this.futile(opts)) {
+          settled = true;
+          break;
+        }
+        while (pending.size < depth && this.root.visits + this.root.inflight < opts.visits) {
+          const leaves = this.collect(opts, depth);
+          if (!leaves.length) break;
+          dispatch(leaves);
+          if (!this.root.evaluated) break; // the root's own evaluation goes alone
+        }
+        if (pending.size) await Promise.race(pending);
+        if (failure !== null) break;
+        if (this.anchor) this.pumpAnchors();
+        const t = now();
+        if (opts.onUpdate && t - lastUpdate >= updateMs) {
+          lastUpdate = t;
+          opts.onUpdate(this.snapshot(t - t0));
+        }
       }
-      const leaves = this.collect(opts);
-      if (!leaves.length) continue;
-      let evals: NetEval[];
-      try {
-        evals = await this.evaluate(leaves.map((l) => l.req));
-      } catch (e) {
-        for (const l of leaves) for (const n of l.path) n.inflight--;
-        throw e;
-      }
-      for (let i = 0; i < leaves.length; i++) this.apply(leaves[i], evals[i]);
-      if (this.root.visits === 1) this.center = 0.8 * this.root.nnLead;
-      if (this.anchor) this.pumpAnchors();
-      const t = now();
-      if (opts.onUpdate && t - lastUpdate >= updateMs) {
-        lastUpdate = t;
-        opts.onUpdate(this.snapshot(t - t0));
-      }
+    } finally {
+      // Calls still out come back into the tree before the search returns.
+      while (pending.size) await Promise.race(pending);
     }
+    if (failure !== null) throw failure;
     const snap = this.snapshot(now() - t0);
     if (settled) snap.settled = true;
     opts.onUpdate?.(snap);
@@ -364,6 +421,7 @@ export class Search {
   private futile(opts: RunOptions): boolean {
     const r = this.root;
     const left = opts.visits - r.visits;
+    if (this.gumbelOn(opts)) return false; // its rounds decide, not visit counts
     if (!r.moves || r.visits < Math.max(16, opts.visits * 0.25) || left <= 0) return false;
     let first = 0;
     let second = 0;
@@ -399,14 +457,20 @@ export class Search {
     return { size, komi, moves, toPlay, board, ownership };
   }
 
-  /** Select up to `batch` leaves, applying virtual loss so they differ. */
-  private collect(opts: RunOptions): Leaf[] {
+  /**
+   * Select up to `batch` leaves (a `depth`-th of it per call when that many calls are kept
+   * in flight), applying virtual loss so they differ.
+   */
+  private collect(opts: RunOptions, depth = 1): Leaf[] {
     const out: Leaf[] = [];
     // A wide batch spreads leaves with virtual loss, which wastes visits in a small tree:
-    // grow it with the tree (about 2*sqrt(visits)), up to what the engine can take.
+    // grow it with the tree (about 2*sqrt(visits)), up to what the engine can take. Leaves
+    // already in flight count against both.
     const cap = this.evaluator.batch?.() ?? this.params.batch;
     const grow = Math.max(1, Math.floor(this.params.batchGrowth * Math.sqrt(this.root.visits)));
-    const want = Math.max(1, Math.min(cap, grow, opts.visits - this.root.visits));
+    const room = Math.min(cap, grow) - this.root.inflight;
+    const want = Math.min(Math.ceil(cap / depth), room, opts.visits - this.root.visits - this.root.inflight);
+    if (want < 1) return out;
     for (let b = 0; b < want; b++) {
       const leaf = this.descend(opts);
       if (leaf === 'collision') break;
@@ -430,6 +494,10 @@ export class Search {
     while (node.evaluated && !node.leafOnly && node.moves && node.moves.length) {
       let idx = -1;
       if (node === root && opts.forced !== undefined) idx = this.forcedIndex(opts.forced, opts.forcedShare ?? 0.15);
+      if (idx < 0 && node === root && this.gumbelOn(opts)) {
+        idx = this.gumbelSelect(opts);
+        if (idx < 0) return 'collision';
+      }
       if (idx < 0) idx = this.select(node, pla, node === root);
       if (idx < 0) break;
       const loc = node.moves[idx];
@@ -501,6 +569,93 @@ export class Search {
     if (k && k.visits === 0 && k.inflight > 0) return -1;
     const want = Math.max(1, Math.floor(share * (r.visits - 1)));
     return n < want ? i : -1;
+  }
+
+  private gumbelOn(opts: RunOptions): boolean {
+    const p = this.params;
+    return p.gumbel > 1 && opts.visits <= p.gumbelMaxVisits && !!this.root.moves && this.root.moves.length > 1;
+  }
+
+  /**
+   * The root move to visit next under sequential halving: the remaining move furthest below
+   * this round's visits; when all have them, the worse half drops out. -1: every remaining
+   * move is waiting for an evaluation already in flight.
+   */
+  private gumbelSelect(opts: RunOptions): number {
+    const r = this.root;
+    let g = this.plan;
+    if (!g || g.root !== r || g.budget !== opts.visits) g = this.plan = this.makePlan(opts.visits);
+    for (;;) {
+      if (g.remaining.length === 1) return g.remaining[0];
+      let pick = -1;
+      let low = Infinity;
+      let waiting = false;
+      for (const i of g.remaining) {
+        const k = r.kids[i];
+        const n = k ? k.visits + k.inflight : 0;
+        if (n < g.target && n < low) {
+          low = n;
+          pick = i;
+        }
+        if (k && k.visits === 0 && k.inflight > 0) waiting = true;
+      }
+      if (pick >= 0) return pick;
+      if (waiting) return -1;
+      const keep = Math.ceil(g.remaining.length / 2);
+      g.remaining = this.gumbelRank(g.remaining).slice(0, keep);
+      g.target += Math.max(1, Math.floor(g.roundBudget / keep));
+    }
+  }
+
+  private makePlan(budget: number): GumbelPlan {
+    const r = this.root;
+    const left = Math.max(1, budget - r.visits);
+    const m = Math.max(2, Math.min(this.params.gumbel, r.moves!.length, left));
+    const rounds = Math.max(1, Math.ceil(Math.log2(m)));
+    const roundBudget = Math.floor(left / rounds);
+    // Without noise the most likely moves are the first m (moves are kept by prior).
+    const remaining = Array.from({ length: m }, (_, i) => i);
+    let base = Infinity;
+    for (const i of remaining) base = Math.min(base, r.kids[i]?.visits ?? 0);
+    return { root: r, budget, remaining, target: base + Math.max(1, Math.floor(roundBudget / m)), roundBudget };
+  }
+
+  /**
+   * Root moves ordered best first by log(prior) + sigma(q), q the searched value scaled to
+   * [0, 1] over the root's searched moves, sigma(q) = (50 + most visits) * 0.1 * q (the
+   * paper's and mctx's constants). Unsearched moves take the root's own value.
+   */
+  private gumbelRank(idx: number[]): number[] {
+    const r = this.root;
+    const s = this.pos.toPlay === 1 ? 1 : -1;
+    const rootQ = r.visits > 0 ? s * this.nodeUtility(r) : 0;
+    let lo = Infinity;
+    let hi = -Infinity;
+    let maxN = 0;
+    const q = new Map<number, number>();
+    for (let i = 0; i < r.span; i++) {
+      const k = r.kids[i];
+      if (!k || k.visits === 0) continue;
+      const v = s * this.nodeUtility(k);
+      q.set(i, v);
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+      maxN = Math.max(maxN, k.visits);
+    }
+    lo = Math.min(lo, rootQ);
+    hi = Math.max(hi, rootQ);
+    const span = hi > lo ? hi - lo : 1;
+    const sigma = (50 + maxN) * 0.1;
+    const score = (i: number) => Math.log(Math.max(1e-9, r.priors![i])) + (sigma * ((q.get(i) ?? rootQ) - lo)) / span;
+    return [...idx].sort((a, b) => score(b) - score(a));
+  }
+
+  /** The move Gumbel root search chose this run, or -1 when it was not used. */
+  private gumbelChoice(): number {
+    const g = this.plan;
+    if (!g || g.root !== this.root) return -1;
+    const searched = g.remaining.filter((i) => (this.root.kids[i]?.visits ?? 0) > 0);
+    return searched.length ? this.gumbelRank(searched)[0] : -1;
   }
 
   /** Black-perspective utility of a node's average value. */
@@ -691,6 +846,7 @@ export class Search {
 
   /** Reorder a node's moves by a better policy, keeping the children already searched. */
   private reprior(node: SNode, policy: Float32Array) {
+    if (node === this.root) this.plan = null; // its move indices change
     const hw = policy.length - 1;
     const old = node.moves!;
     const kids = new Map<number, SNode>();
@@ -756,6 +912,12 @@ export class Search {
       }
     }
     candidates.sort((a, b) => b.visits - a.visits || b.winrate - a.winrate || b.scoreLead - a.scoreLead);
+    // Gumbel root search: its choice leads, whatever the visit counts.
+    const gi = this.gumbelChoice();
+    if (gi >= 0) {
+      const at = candidates.findIndex((c) => c.loc === r.moves![gi]);
+      if (at > 0) candidates.unshift(...candidates.splice(at, 1));
+    }
     let policy = this.rootPolicy;
     if (!policy && r.moves) {
       const hw = this.pos.size * this.pos.size;
@@ -881,6 +1043,7 @@ export function engineEvaluator(engine: EngineBackend, opts: EvaluatorOptions = 
     return out;
   };
   evaluator.batch = () => (seq ? Math.max(1, engine.batch ?? 1) : 1);
+  evaluator.pipeline = () => (seq ? Math.max(1, engine.pipeline ?? 1) : 1);
   // Averaging the root over symmetries costs one round of network calls when the engine
   // evaluates that many positions at once anyway.
   evaluator.rootSymmetries = () => {

@@ -85,13 +85,45 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pick games from 2022 on (streams the whole archive)
+      - name: Download the archive (resumes when the connection drops)
+        if: github.event_name != 'pull_request' && steps.check.outputs.skip != 'true'
+        run: |
+          # 13 GB: the runner's larger scratch disk when it has room.
+          D="$RUNNER_TEMP"
+          if sudo mkdir -p /mnt/ogs 2>/dev/null && [ "$(df --output=avail -k /mnt | tail -n 1)" -gt 16000000 ]; then
+            sudo chown "$(id -u)" /mnt/ogs; D=/mnt/ogs
+          fi
+          F="$D/ogs.tar.gz"
+          echo "OGS_FILE=$F" >> "$GITHUB_ENV"
+          WANT=$(grep -oiE 'content-length: *[0-9]+' ogs-source.txt | grep -oE '[0-9]+$' | tail -n 1 || true)
+          for i in $(seq 1 12); do
+            # A stalled connection (under 100 KB/s for 2 minutes) is dropped and resumed.
+            curl -fL -C - --speed-limit 100000 --speed-time 120 -o "$F" "$OGS_URL" && break
+            CODE=$?
+            echo "attempt $i stopped (curl $CODE) at $(stat -c %s "$F" 2>/dev/null || echo 0) bytes"
+            # The server can't resume: start again from the beginning.
+            [ "$CODE" = 33 ] && rm -f "$F"
+            sleep 30
+          done
+          HAVE=$(stat -c %s "$F" 2>/dev/null || echo 0)
+          echo "downloaded $HAVE of ${WANT:-?} bytes"
+          if [ -n "$WANT" ] && [ "$HAVE" != "$WANT" ]; then
+            echo "::warning::The archive download is incomplete; the games read so far are kept and next month's run tries again."
+            echo "partial" >> ogs-source.txt
+          fi
+
+      - name: Pick games from 2022 on
         if: github.event_name != 'pull_request' && steps.check.outputs.skip != 'true'
         run: |
           command -v pigz > /dev/null || (sudo apt-get update -q && sudo apt-get install -y -q pigz)
-          curl -sfL --retry 3 "$OGS_URL" | pigz -dc \
-            | python3 -I scripts/ogs-recent.py --from "$FROM_MONTH" --per-cell "$PER_CELL" --bots bots.txt --out ogs-recent.jsonl.gz
-          ls -l ogs-recent.jsonl.gz
+          # An incomplete download still gives every month it reached.
+          set +o pipefail
+          pigz -dc "$OGS_FILE" \
+            | python3 -I scripts/ogs-recent.py --from "$FROM_MONTH" --per-cell "$PER_CELL" --bots bots.txt --allow-truncated --out ogs-recent.jsonl.gz
+          rm -f "$OGS_FILE"
+          N=$(gunzip -c ogs-recent.jsonl.gz | wc -l)
+          echo "games kept: $N"
+          test "$N" -gt 1000
 
       - name: Publish the sample
         if: github.event_name != 'pull_request' && steps.check.outputs.skip != 'true'

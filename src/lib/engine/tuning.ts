@@ -34,7 +34,8 @@ export interface DeviceFacts {
   adapter?: string;
 }
 
-const KEY = 'dop.tune.v1';
+// v2: the SIMD matrix product (engine/patches/0002) changed every device's speeds.
+const KEY = 'dop.tune.v2';
 
 export function deviceFacts(backend: DeviceFacts['backend'], adapter?: string, cool = false): DeviceFacts {
   const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { deviceMemory?: number }) : undefined;

@@ -14,6 +14,8 @@ into ~/DopPC, then keeps them there.
     python dop_pc.py --network b28   # kata1 b28 (strongest, ~260 MB, needs a good GPU)
     python dop_pc.py --katago "C:/LizzieYzy/katago/katago.exe" --model "C:/LizzieYzy/weights/xxx.bin.gz"
     python dop_pc.py --tunnel        # also reachable from your phone (prints an address and a code)
+    python dop_pc.py --train 8       # train the site's small network on this graphics card for 8 hours
+                                     # (needs PyTorch; start-training-windows.bat installs it)
 
 The first start with the OpenCL build tunes KataGo for your graphics card, which takes a
 few minutes once.
@@ -344,6 +346,38 @@ def site_origins():
     return [re.escape(line.strip().rstrip("/")) for line in open(path) if line.strip().startswith("https://")]
 
 
+REPO = "PERILTHESKYWING/Dop"
+
+
+def train(hours, upload):
+    """Evolve the site's small network on this computer's graphics card: fetch the
+    training scripts and run scripts/student/evolve_local.py (it downloads the cloud
+    training's data and sends a winner back to the cloud arena with --upload)."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        log("Training needs PyTorch. For an NVIDIA RTX 50-series card run:")
+        log("  " + sys.executable + " -m pip install numpy torch --index-url https://download.pytorch.org/whl/cu128")
+        sys.exit(1)
+    code = os.path.join(HOME, "train-code")
+    zip_path = os.path.join(HOME, "train-code.zip")
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+    download(f"https://codeload.github.com/{REPO}/zip/refs/heads/main", zip_path)
+    shutil.rmtree(code, ignore_errors=True)
+    with zipfile.ZipFile(zip_path) as z:
+        for name in z.namelist():
+            if "/scripts/student/" in name or name.endswith("data/student/seed-champion.pt"):
+                z.extract(name, code)
+    root = next(os.path.join(code, d) for d in os.listdir(code))
+    cmd = [sys.executable, os.path.join(root, "scripts", "student", "evolve_local.py"), "--hours", str(hours),
+           "--dir", os.path.join(HOME, "training")]
+    if upload:
+        cmd.append("--upload")
+    log("Training for", hours, "hours. Keep this window open; it can be stopped with Ctrl+C and continues next time.")
+    sys.exit(subprocess.call(cmd))
+
+
 def main():
     ap = argparse.ArgumentParser(description="DOPPELGANGER PC helper (native KataGo for the site)")
     ap.add_argument("--network", choices=sorted(NETWORKS), default="b18")
@@ -352,8 +386,12 @@ def main():
     ap.add_argument("--threads", type=int, default=4, help="positions searched at once")
     ap.add_argument("--origin", action="append", default=[], help="another site address allowed to use the helper (regex)")
     ap.add_argument("--tunnel", action="store_true", help="also reachable from your phone through a free Cloudflare tunnel")
+    ap.add_argument("--train", type=float, metavar="HOURS", help="train the site's small network on this graphics card instead")
+    ap.add_argument("--upload", action="store_true", help="with --train: send a winner to the cloud arena (needs GITHUB_TOKEN)")
     args = ap.parse_args()
     os.makedirs(HOME, exist_ok=True)
+    if args.train:
+        train(args.train, args.upload)
     tok_file = os.path.join(HOME, "pairing-code.txt")
     if os.path.exists(tok_file):
         token = open(tok_file).read().strip()
