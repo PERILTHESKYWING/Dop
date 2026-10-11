@@ -7,7 +7,8 @@
  *
  * `files.txt` holds one SGF path per line. Ranks come from the SGF's BR/WR (Fox writes
  * them as 3级 / 5段). With `--jsonl picks.jsonl` (from scripts/elite-pick.ts) each line
- * carries the game and both sides' ranks instead. Resumable: games already in the output
+ * carries the game and both sides' ranks instead (and, when given, its date and source:
+ * "ogs" marks OGS ranks, which scripts/rank-fit.ts maps onto Fox's). Resumable: games already in the output
  * file are skipped.
  * The fitted calibration is made by scripts/rank-fit.ts.
  */
@@ -33,13 +34,13 @@ const MODEL = path.join(here, '..', 'public', 'models', 'g170e-b10c128-s11410467
 export const CORPUS_MODEL_ID = 'g170e-b10c128';
 
 async function main() {
-  type Source = { file: string; sgf: () => string; ranks?: [number | null, number | null] };
+  type Source = { file: string; sgf: () => string; ranks?: [number | null, number | null]; src?: string; date?: string };
   const files: Source[] = arg('jsonl')
     ? readFileSync(arg('jsonl')!, 'utf8')
         .split('\n')
         .filter(Boolean)
-        .map((l) => JSON.parse(l) as { file: string; b: number | null; w: number | null; sgf: string })
-        .map((p) => ({ file: p.file, sgf: () => p.sgf, ranks: [p.b, p.w] }))
+        .map((l) => JSON.parse(l) as { file: string; b: number | null; w: number | null; sgf: string; src?: string; date?: string })
+        .map((p) => ({ file: p.file, sgf: () => p.sgf, ranks: [p.b, p.w], src: p.src, date: p.date || undefined }))
     : readFileSync(arg('list')!, 'utf8')
         .split('\n')
         .map((s) => s.trim())
@@ -77,7 +78,8 @@ async function main() {
         const rank = src.ranks ? src.ranks[color - 1] : parseRank(color === 1 ? parsed.blackRank : parsed.whiteRank);
         const sample = gameLevelSample(records, color);
         if (rank === null || !sample) continue;
-        lines.push(JSON.stringify({ file, color, rank, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
+        const extra = { ...(src.src && { src: src.src }), ...(src.date && { date: src.date }) };
+        lines.push(JSON.stringify({ file, color, rank, ...extra, handicap: parsed.handicap, moves: game.moves.length, ...sample }));
       }
       if (!lines.length) lines.push(JSON.stringify({ file, skipped: 'no ranks' }));
       appendFileSync(out, lines.join('\n') + '\n');

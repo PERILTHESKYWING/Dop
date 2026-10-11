@@ -39,6 +39,9 @@ interface Row extends GameLevelSample {
   color: number;
   rank: number;
   handicap: number;
+  /** "ogs": an OGS rank, mapped onto Fox's below. Otherwise a Fox (or 10d-12d) rank. */
+  src?: string;
+  date?: string;
 }
 
 const rows: Row[] = [];
@@ -66,6 +69,30 @@ function hash(s: string) {
   return h >>> 0;
 }
 const foldOf = (r: Row) => hash(r.file) % 5;
+
+/**
+ * Games from RECENT_FROM on count RECENT_WEIGHT times as much: today's players open and
+ * fight differently from 2019's (AI openings everywhere), and the app measures today's.
+ */
+const RECENT_FROM = 2022;
+const RECENT_WEIGHT = 2;
+function yearOf(r: Row): number | null {
+  const y = Number((r.date ?? '').slice(0, 4));
+  if (y > 1900) return y;
+  // Fox file names start with the game's Unix time.
+  const unix = Number(String(r.file).split('/').pop()!.slice(0, 10));
+  return unix > 1e9 && unix < 4e9 ? new Date(unix * 1000).getUTCFullYear() : null;
+}
+const recency = new Map(rows.map((r) => [r, (yearOf(r) ?? 0) >= RECENT_FROM ? RECENT_WEIGHT : 1]));
+{
+  const years = new Map<string, number>();
+  for (const r of rows) {
+    const y = yearOf(r);
+    const k = `${r.src ?? 'fox/pro/ai'} ${y === null ? 'undated' : y >= RECENT_FROM ? `${RECENT_FROM}+` : `before ${RECENT_FROM}`}`;
+    years.set(k, (years.get(k) ?? 0) + 1);
+  }
+  console.log('game sides by source and age:', [...years].map(([k, v]) => `${k}: ${v}`).join(', '));
+}
 
 function solve(A: number[][], b: number[]): number[] {
   const n = b.length;
@@ -118,7 +145,9 @@ const SIGS = (() => {
 
 function fit(train: Row[], pick: Pick, phase: Phase | null): Omit<RidgeModel, 'maeGame'> {
   const shape = { phase, sigs: phase ? [] : SIGS };
-  const data = train.map((r) => ({ x: pick(r), y: r.rank })).filter((d): d is { x: RidgeInput; y: number } => usable(phase)(d.x));
+  const data = train
+    .map((r) => ({ x: pick(r), y: r.rank, recency: recency.get(r) ?? 1 }))
+    .filter((d): d is { x: RidgeInput; y: number; recency: number } => usable(phase)(d.x));
   const X = data.map((d) => ridgeFeatures(shape, d.x));
   const d = X[0].length;
   const mean = new Array(d).fill(0);
@@ -132,7 +161,7 @@ function fit(train: Row[], pick: Pick, phase: Phase | null): Omit<RidgeModel, 'm
   const perRank = new Map<number, number>();
   for (const r of data) perRank.set(Math.round(r.y), (perRank.get(Math.round(r.y)) ?? 0) + 1);
   const typical = data.length / perRank.size;
-  const w = data.map((r) => Math.min(movesOf(r.x), 80) * Math.min(4, typical / perRank.get(Math.round(r.y))!));
+  const w = data.map((r) => Math.min(movesOf(r.x), 80) * Math.min(4, typical / perRank.get(Math.round(r.y))!) * r.recency);
   const p = d + 1;
   const A = Array.from({ length: p }, () => new Array(p).fill(0));
   const b = new Array(p).fill(0);
@@ -259,6 +288,58 @@ function tiered(name: string, pick: Pick, phase: Phase | null, ks: number[], gat
   return { base: { ...base.model, maeGame: mae['1'] }, top: top?.model, mae, folds: base.folds, topFolds: top?.folds };
 }
 
+/**
+ * OGS ranks are not Fox ranks. Map them onto Fox's scale: fit the whole-game model on Fox
+ * games alone, find the Fox rank whose typical score matches each OGS rank's typical
+ * score (comparing typical scores, not predicted ranks, cancels the model's pull toward
+ * the middle), and fit a straight line through those points. OGS games then train with
+ * their mapped rank. Without enough OGS games of enough ranks they are left out.
+ */
+let ogsMap: { a: number; b: number; ranks: number } | null = null;
+{
+  const ogs = rows.filter((r) => r.src === 'ogs');
+  if (ogs.length) {
+    const fox = rows.filter((r) => r.src !== 'ogs' && r.rank <= 9);
+    const m = fit(fox, (r) => r, null) as RidgeModel;
+    const foxRankAt = (s: number) => {
+      const c = m.centre;
+      if (s <= c[0]) return m.lo;
+      for (let i = 1; i < c.length; i++)
+        if (s <= c[i]) return m.lo + i - 1 + (c[i] > c[i - 1] ? (s - c[i - 1]) / (c[i] - c[i - 1]) : 0);
+      return m.lo + c.length - 1;
+    };
+    const pts: { q: number; r: number; n: number }[] = [];
+    for (const q of [...new Set(ogs.map((r) => r.rank))].sort((a, b) => a - b)) {
+      const list = ogs.filter((r) => r.rank === q && usable(null)(r));
+      if (list.length < 30) continue;
+      const s = list.reduce((a, r) => a + ridgeScore(m, r), 0) / list.length;
+      const r = foxRankAt(s);
+      // Points at the very ends of Fox's range are clipped, so they say little about the slope.
+      if (r > m.lo && r < m.lo + m.centre.length - 1) pts.push({ q, r, n: list.length });
+    }
+    const slope = (ps: typeof pts) => {
+      const W = ps.reduce((a, p) => a + p.n, 0);
+      const mq = ps.reduce((a, p) => a + p.n * p.q, 0) / W;
+      const mr = ps.reduce((a, p) => a + p.n * p.r, 0) / W;
+      return { mq, mr, b: ps.reduce((a, p) => a + p.n * (p.q - mq) * (p.r - mr), 0) / ps.reduce((a, p) => a + p.n * (p.q - mq) ** 2, 0) };
+    };
+    // A map that runs backwards or nearly flat means the labels are not usable.
+    if (pts.length >= 4 && slope(pts).b > 0.3) {
+      const { mq, mr, b } = slope(pts);
+      ogsMap = { a: round(mr - b * mq, 3), b: round(b, 3), ranks: pts.length };
+      console.log(`OGS → Fox: fox = ${ogsMap.a} + ${ogsMap.b} × ogs (from ${pts.length} ranks):`, pts.map((p) => `${p.q}→${p.r.toFixed(1)}`).join(' '));
+    }
+    const map = ogsMap;
+    if (map) for (const r of ogs) r.rank = Math.round(Math.max(MIN_RANK, Math.min(9, map.a + map.b * r.rank)));
+    else {
+      let k = 0;
+      for (const r of rows) if (r.src !== 'ogs') rows[k++] = r;
+      rows.length = k;
+    }
+    if (!map) console.log(`OGS: ${ogs.length} game sides left out (too few ranks with 30+ sides to map onto Fox's scale)`);
+  }
+}
+
 const all = tiered('whole game', (r) => r, null, [3, 5, 10]);
 const maeByGames = all.mae;
 const phases: LevelCalibration['phases'] = {};
@@ -298,7 +379,9 @@ const cal: LevelCalibration = {
   version: 2,
   modelId: 'g170e-b10c128',
   source:
-    'Fox Go dataset (github.com/featurecat/go-dataset, GPL-3.0): even and no-komi games, ranks from BR/WR; professional and AI games (github.com/yenw/computer-go-dataset) for 10d (pro), 11d (top pro) and 12d (AI)',
+    'Fox Go dataset (github.com/featurecat/go-dataset, GPL-3.0): even and no-komi games, ranks from BR/WR' +
+    (ogsMap ? `; OGS games from 2022 on (za3k.com/ogs, public domain), ranks mapped onto Fox's as ${ogsMap.a} + ${ogsMap.b} × OGS rank` : '') +
+    `; professional and AI games (github.com/yenw/computer-go-dataset, katagoarchive.org, homepages.cwi.nl/~aeb) for 10d (pro), 11d (top pro) and 12d (AI); games from ${RECENT_FROM} on weigh ${RECENT_WEIGHT}x`,
   samples: rows.length,
   games: new Set(rows.map((r) => r.file)).size,
   features: FEATURE_KEYS,

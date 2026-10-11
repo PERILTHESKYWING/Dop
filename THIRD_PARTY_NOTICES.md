@@ -45,8 +45,13 @@ contain no photographs or other third-party images, so no third-party licence ap
 ### Rank calibration statistics
 `public/level/calibration.json` holds statistics (averages, spreads and counts per rank) computed by
 `scripts/rank-corpus.ts` and `scripts/rank-fit.ts` from a random sample of games in the Fox Go dataset
-(https://github.com/featurecat/go-dataset, distributed under GPL-3.0). No game records from the dataset are
-included in this repository or the site.
+(https://github.com/featurecat/go-dataset, distributed under GPL-3.0), and from OGS games played from 2022 on,
+taken from the OGS archive at https://za3k.com/ogs/ (games from online-go.com, redistributed with OGS's
+permission; the compilation is released into the public domain). `.github/workflows/game-data.yml` keeps a
+sample of those OGS games in this repository's "game-data" release for the training workflow. Professional
+and AI games for the top of the scale also come from https://github.com/yenw/computer-go-dataset, Japanese
+title matches from https://homepages.cwi.nl/~aeb/go/games/ (public domain) and KataGo rating games from
+https://katagoarchive.org/kata1/. No game records are included in the site.
 
 ### Move difficulty and professional game statistics
 `public/coach/difficulty.json` holds fitted coefficients computed by `scripts/move-corpus.ts` and

@@ -89,6 +89,11 @@ Games analysed with another network are measured again with the bundled one (one
 The same corpus gives each rank's error rate per decision type, so weaknesses a player makes much more often
 than players of their level are trained first.
 
+Recent games: `.github/workflows/game-data.yml` checks the OGS archive (za3k.com/ogs) monthly and, when it
+changes, streams it once and keeps a balanced sample of 2022-and-later games (up to 40 per month and rank) in
+the "game-data" release. The daily coach training measures those newest first alongside Fox games, maps OGS
+ranks onto Fox's (`scripts/rank-fit.ts` prints the map) and weighs games from 2022 on twice as much.
+
 Rebuilding the calibration (it ran in the cloud on CPU; about 450 games an hour on 4 cores):
 
 ```
