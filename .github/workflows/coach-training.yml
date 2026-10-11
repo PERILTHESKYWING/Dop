@@ -129,14 +129,14 @@ jobs:
             rm -rf fox
             # Japanese title matches up to the latest season (public domain, best effort):
             # games from 2022 on join the professional games, so the newest are picked first.
-            ARCH=$(curl -sfL -m 60 https://homepages.cwi.nl/~aeb/go/games/ | grep -oiE 'href="[^"]*\.(tar\.gz|tgz)"' | cut -d'"' -f2 | head -n 1 || true)
-            if [ -n "$ARCH" ]; then
-              mkdir -p cwi
-              curl -sfL -m 600 "$(python3 -c 'import sys,urllib.parse;print(urllib.parse.urljoin(sys.argv[1],sys.argv[2]))' https://homepages.cwi.nl/~aeb/go/games/ "$ARCH")" | tar xzf - -C cwi || true
-              find cwi -iname '*.sgf' -print0 | xargs -0 grep -l -E 'DT\[(202[2-9])' 2>/dev/null \
-                | while read -r f; do tr '\r\n' '  ' < "$f"; echo; done | sed 's/^ *//' | grep '^(' >> pro-all.txt || true
-              rm -rf cwi
-            fi
+            # The per-title archives are kept more up to date than the full one.
+            mkdir -p cwi
+            for t in kisei meijin honinbo tengen oza judan gosei ryusei nhk ing; do
+              curl -sfL -m 300 "https://homepages.cwi.nl/~aeb/go/games/$t.tgz" | tar xzf - -C cwi || true
+            done
+            find cwi -iname '*.sgf' -print0 | xargs -0 grep -l -E 'DT\[(202[2-9])' 2>/dev/null \
+              | while read -r f; do tr '\r\n' '  ' < "$f"; echo; done | sed 's/^ *//' | grep '^(' >> pro-all.txt || true
+            rm -rf cwi
             echo "professional games: $(wc -l < pro-all.txt)"
             # KataGo's newest rating games, from its bulk archive (best effort).
             mkdir -p kata

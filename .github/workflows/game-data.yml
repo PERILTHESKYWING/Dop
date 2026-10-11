@@ -67,7 +67,9 @@ jobs:
           test "$(gunzip -c smoke.jsonl.gz | wc -l)" -gt 0
           echo "--- also checking the professional and AI sources coach-training.yml uses"
           curl -sfL -m 60 https://katagoarchive.org/kata1/ratinggames/index.html | grep -oE 'href="[^"]*\.tar\.bz2"' | tail -n 3 || echo "katagoarchive.org: no rating games listed"
-          curl -sfL -m 60 https://homepages.cwi.nl/~aeb/go/games/ | grep -oiE 'href="[^"]*\.(tar\.gz|7z|tgz)"' || echo "cwi.nl: no archive link found"
+          mkdir -p cwi
+          for t in kisei meijin honinbo; do curl -sfL -m 300 "https://homepages.cwi.nl/~aeb/go/games/$t.tgz" | tar xzf - -C cwi || echo "cwi.nl: no $t.tgz"; done
+          echo "cwi.nl Kisei/Meijin/Honinbo games from 2022 on: $(grep -rlE 'DT\[202[2-9]' cwi | wc -l)"
 
       - name: Has the archive changed since the last pick?
         if: github.event_name != 'pull_request'
