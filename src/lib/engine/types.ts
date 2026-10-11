@@ -48,4 +48,9 @@ export interface EngineBackend {
   evalBatchRaw?(size: number, komi: number, positions: StonesPosition[]): Promise<RawNetOutput[]>;
   /** Positions per network call worth batching on this device (1 or undefined = no batching). */
   readonly batch?: number;
+  /**
+   * Network calls worth having in flight at once (the workers evaluating side by side; 1 or
+   * undefined = one at a time). `batch` is spread over them.
+   */
+  readonly pipeline?: number;
 }

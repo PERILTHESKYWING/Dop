@@ -41,7 +41,12 @@ export type AnchorSource = (req: LeafRequest) => Promise<{ eval: NetEval; policy
  * Evaluates positions for the search (several at once when the backend batches).
  * `batch`, when present, says how many leaves are worth sending per call right now.
  */
-export type LeafEvaluator = ((leaves: LeafRequest[]) => Promise<NetEval[]>) & { batch?: () => number; rootSymmetries?: () => number };
+export type LeafEvaluator = ((leaves: LeafRequest[]) => Promise<NetEval[]>) & {
+  batch?: () => number;
+  rootSymmetries?: () => number;
+  /** Calls worth having in flight at once (EngineBackend.pipeline); `batch` is spread over them. */
+  pipeline?: () => number;
+};
 
 export interface RootPosition {
   size: number;
@@ -358,33 +363,54 @@ export class Search {
       this.rootOwnership = ev.ownership ?? null;
     }
     if (this.root.visits > 0) this.center = 0.8 * (this.root.leadSum / this.root.visits);
-    while (!this.stopFlag) {
-      if (this.root.visits >= opts.visits) break;
-      if (opts.maxMs !== undefined && now() - t0 >= opts.maxMs) break;
-      if (opts.shouldStop?.()) break;
-      if (this.nodes >= this.params.maxNodes) break;
-      if (opts.earlyStop && this.futile(opts)) {
-        settled = true;
-        break;
+    // Several engine workers: keep a network call in flight on each, collecting the next
+    // leaves while the others are evaluated, instead of waiting for every batch to return.
+    const depth = Math.max(1, this.evaluator.pipeline?.() ?? 1);
+    const pending = new Set<Promise<void>>();
+    let failure: unknown = null;
+    const dispatch = (leaves: Leaf[]) => {
+      const p: Promise<void> = this.evaluate(leaves.map((l) => l.req))
+        .then((evals) => {
+          for (let i = 0; i < leaves.length; i++) this.apply(leaves[i], evals[i]);
+          if (this.root.visits === 1) this.center = 0.8 * this.root.nnLead;
+        })
+        .catch((e) => {
+          for (const l of leaves) for (const n of l.path) n.inflight--;
+          failure ??= e;
+        })
+        .finally(() => pending.delete(p));
+      pending.add(p);
+    };
+    try {
+      while (!this.stopFlag && failure === null) {
+        if (this.root.visits >= opts.visits) break;
+        if (opts.maxMs !== undefined && now() - t0 >= opts.maxMs) break;
+        if (opts.shouldStop?.()) break;
+        if (this.nodes >= this.params.maxNodes) break;
+        if (opts.earlyStop && !pending.size && this.futile(opts)) {
+          settled = true;
+          break;
+        }
+        while (pending.size < depth && this.root.visits + this.root.inflight < opts.visits) {
+          const leaves = this.collect(opts, depth);
+          if (!leaves.length) break;
+          dispatch(leaves);
+          if (!this.root.evaluated) break; // the root's own evaluation goes alone
+        }
+        if (pending.size) await Promise.race(pending);
+        if (failure !== null) break;
+        if (this.anchor) this.pumpAnchors();
+        const t = now();
+        if (opts.onUpdate && t - lastUpdate >= updateMs) {
+          lastUpdate = t;
+          opts.onUpdate(this.snapshot(t - t0));
+        }
       }
-      const leaves = this.collect(opts);
-      if (!leaves.length) continue;
-      let evals: NetEval[];
-      try {
-        evals = await this.evaluate(leaves.map((l) => l.req));
-      } catch (e) {
-        for (const l of leaves) for (const n of l.path) n.inflight--;
-        throw e;
-      }
-      for (let i = 0; i < leaves.length; i++) this.apply(leaves[i], evals[i]);
-      if (this.root.visits === 1) this.center = 0.8 * this.root.nnLead;
-      if (this.anchor) this.pumpAnchors();
-      const t = now();
-      if (opts.onUpdate && t - lastUpdate >= updateMs) {
-        lastUpdate = t;
-        opts.onUpdate(this.snapshot(t - t0));
-      }
+    } finally {
+      // Calls still out come back into the tree before the search returns.
+      while (pending.size) await Promise.race(pending);
     }
+    if (failure !== null) throw failure;
     const snap = this.snapshot(now() - t0);
     if (settled) snap.settled = true;
     opts.onUpdate?.(snap);
@@ -431,14 +457,20 @@ export class Search {
     return { size, komi, moves, toPlay, board, ownership };
   }
 
-  /** Select up to `batch` leaves, applying virtual loss so they differ. */
-  private collect(opts: RunOptions): Leaf[] {
+  /**
+   * Select up to `batch` leaves (a `depth`-th of it per call when that many calls are kept
+   * in flight), applying virtual loss so they differ.
+   */
+  private collect(opts: RunOptions, depth = 1): Leaf[] {
     const out: Leaf[] = [];
     // A wide batch spreads leaves with virtual loss, which wastes visits in a small tree:
-    // grow it with the tree (about 2*sqrt(visits)), up to what the engine can take.
+    // grow it with the tree (about 2*sqrt(visits)), up to what the engine can take. Leaves
+    // already in flight count against both.
     const cap = this.evaluator.batch?.() ?? this.params.batch;
     const grow = Math.max(1, Math.floor(this.params.batchGrowth * Math.sqrt(this.root.visits)));
-    const want = Math.max(1, Math.min(cap, grow, opts.visits - this.root.visits));
+    const room = Math.min(cap, grow) - this.root.inflight;
+    const want = Math.min(Math.ceil(cap / depth), room, opts.visits - this.root.visits - this.root.inflight);
+    if (want < 1) return out;
     for (let b = 0; b < want; b++) {
       const leaf = this.descend(opts);
       if (leaf === 'collision') break;
@@ -1011,6 +1043,7 @@ export function engineEvaluator(engine: EngineBackend, opts: EvaluatorOptions = 
     return out;
   };
   evaluator.batch = () => (seq ? Math.max(1, engine.batch ?? 1) : 1);
+  evaluator.pipeline = () => (seq ? Math.max(1, engine.pipeline ?? 1) : 1);
   // Averaging the root over symmetries costs one round of network calls when the engine
   // evaluates that many positions at once anyway.
   evaluator.rootSymmetries = () => {

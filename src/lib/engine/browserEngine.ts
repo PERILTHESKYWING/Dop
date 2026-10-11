@@ -271,6 +271,11 @@ export class BrowserEngine implements EngineBackend {
     return this.active * this.laneBatch;
   }
 
+  /** One network call in flight per active worker (the search keeps them all busy). */
+  get pipeline(): number {
+    return this.active;
+  }
+
   get laneCount() {
     return this.lanes.length;
   }

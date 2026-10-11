@@ -92,6 +92,47 @@ describe('tree search', () => {
     expect(more.candidates.reduce((a, c) => a + c.visits, 0)).toBe(259);
   });
 
+  it('keeps one call in flight per engine worker and counts every visit once', async () => {
+    const calls: LeafRequest[][] = [];
+    const net = toyNet(calls);
+    let inFlight = 0;
+    let most = 0;
+    const slow: LeafEvaluator = async (leaves) => {
+      most = Math.max(most, ++inFlight);
+      await new Promise((r) => setTimeout(r, 1 + (calls.length % 3)));
+      const out = await net(leaves);
+      inFlight--;
+      return out;
+    };
+    slow.batch = () => 12;
+    slow.pipeline = () => 3;
+    const s = new Search(slow, position());
+    const snap = await s.run({ visits: 300 });
+    expect(most).toBe(3);
+    expect(Math.max(...calls.map((c) => c.length))).toBeLessThanOrEqual(4);
+    expect(snap.visits).toBe(300);
+    expect(snap.candidates.reduce((a, c) => a + c.visits, 0)).toBe(299);
+    const more = await s.run({ visits: 340 });
+    expect(more.visits).toBe(340);
+  });
+
+  it('returns a failed evaluation as an error and can search again', async () => {
+    const net = toyNet();
+    let n = 0;
+    const flaky: LeafEvaluator = async (leaves) => {
+      if (++n === 5) throw new Error('worker lost');
+      await new Promise((r) => setTimeout(r, 1));
+      return net(leaves);
+    };
+    flaky.batch = () => 8;
+    flaky.pipeline = () => 2;
+    const s = new Search(flaky, position());
+    await expect(s.run({ visits: 200 })).rejects.toThrow('worker lost');
+    const snap = await s.run({ visits: 200 });
+    expect(snap.visits).toBe(200);
+    expect(snap.candidates.reduce((a, c) => a + c.visits, 0)).toBe(199);
+  });
+
   it('ends the game after two passes', async () => {
     const s = new Search(toyNet(), position([{ color: 1, loc: 40 }, { color: 2, loc: PASS }], 1));
     const snap = await s.run({ visits: 30 });
