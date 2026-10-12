@@ -1,7 +1,7 @@
 import type { PositionSpec } from '../lib/analysis/analyzer';
 import { bookEval, bookIfLoaded, loadBook, type BookEntry } from '../lib/engine/book';
 import { BrowserEngine, type StartAttempt } from '../lib/engine/browserEngine';
-import { isCool } from '../lib/engine/governor';
+import { isCool, isPhoneLike } from '../lib/engine/governor';
 import { engineEvaluator, type AnchorSource, type LeafRequest } from '../lib/engine/mcts';
 import { MODELS } from '../lib/engine/models';
 import type { NetEval } from '../lib/engine/parse';
@@ -58,19 +58,58 @@ const BIG_ID = 'kata1-b18c384nbt';
 let big: Promise<BrowserEngine | null> | null = null;
 let bigEngine: BrowserEngine | null = null;
 
+/** Set while the big network loads; still set on the next visit means the tab died loading it. */
+const BIG_TRYING = 'dop.bigTrying';
+const BIG_BROKEN = 'dop.bigBroken';
+
+function lsGet(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+function lsSet(k: string, v: string | null) {
+  try {
+    if (v === null) localStorage.removeItem(k);
+    else localStorage.setItem(k, v);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** True when the tab died (out of memory) while the big network was loading here before. */
+export function bigHelperMarkedBroken(): boolean {
+  if (lsGet(BIG_TRYING)) {
+    lsSet(BIG_TRYING, null);
+    lsSet(BIG_BROKEN, String(Date.now()));
+  }
+  return !!lsGet(BIG_BROKEN);
+}
+
+/** Turning the helper back on in Settings gives it another try. */
+export function clearBigHelperBroken() {
+  lsSet(BIG_TRYING, null);
+  lsSet(BIG_BROKEN, null);
+}
+
 /**
- * Whether a big network can run here beside the main one: on a GPU (WebGPU), or on a
- * computer with plenty of cores and memory. Never in cool mode on the CPU (phones), and
- * not when the main engine is already a big network.
+ * Whether a big network can run here beside the main one: on a computer with a GPU
+ * (WebGPU), or with plenty of cores and memory. Never on a phone or tablet, GPU or not:
+ * two networks at once is more memory than a phone browser gives a tab, so the browser
+ * kills the page (big networks reach a phone through the opening book and the PC helper
+ * instead). Not when the main engine is already a big network, and not after it took the
+ * tab down once on this device.
  */
 export function bigHelperAllowed(mainModelId: string | undefined): boolean {
   const s = get();
   if (s.settings.bigHelper === 'off') return false;
   const spec = MODELS.find((m) => m.id === BIG_ID);
   if (!spec || !mainModelId || MODELS.find((m) => m.id === mainModelId)?.gpuOnly) return false;
+  if (isPhoneLike() || isCool()) return false;
+  if (bigHelperMarkedBroken()) return false;
   const gpu = !!s.caps?.webgpu && !s.settings.forceCpu;
   if (gpu) return true;
-  if (isCool()) return false;
   const nav = navigator as Navigator & { deviceMemory?: number };
   return (nav.hardwareConcurrency ?? 2) >= 8 && (nav.deviceMemory ?? 8) >= 8;
 }
@@ -83,8 +122,10 @@ export function bigHelper(mainModelId: string | undefined): Promise<BrowserEngin
     const gpu = !!get().caps?.webgpu && !get().settings.forceCpu;
     const attempt: StartAttempt = { spec, forceCpu: !gpu };
     set({ bigHelper: { status: 'loading', model: spec.name } });
+    lsSet(BIG_TRYING, String(Date.now()));
     big = BrowserEngine.load(attempt)
       .then((e) => {
+        lsSet(BIG_TRYING, null);
         bigEngine = e;
         e.onDeath = () => {
           bigEngine = null;
@@ -95,6 +136,7 @@ export function bigHelper(mainModelId: string | undefined): Promise<BrowserEngin
         return e;
       })
       .catch((err) => {
+        lsSet(BIG_TRYING, null);
         set({ bigHelper: { status: 'error', model: spec.name, note: (err as Error).message } });
         return null;
       });
