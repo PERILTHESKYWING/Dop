@@ -287,8 +287,10 @@ CORS from katagotraining.org; the small networks work anywhere.
 ## Accounts (optional)
 
 Signing in with a username and password carries kifu, games, analyses, the player profile, the copy,
-opponents and settings to another device. Without it the app stays fully local, and **Account & Sync**
-still offers a backup file to move data by hand.
+opponents and settings to another device. Once logged in, every change is saved to the account on its
+own (shortly after it happens, and when the tab is put away), and opening the site on another device
+brings it in. Without an account the app stays fully local (the study board still survives a reload),
+and **Account & Sync** still offers a backup file to move data by hand.
 
 To switch accounts on for a Vercel deployment (free Hobby plan is enough):
 

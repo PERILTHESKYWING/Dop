@@ -11,6 +11,7 @@ import { THEMES, type ThemeId } from '../lib/themes';
 import { replay } from '../lib/go/board';
 import { locToGtp } from '../lib/go/coords';
 import { go, href } from '../router';
+import { useAccount } from '../state/account';
 import './landing.css';
 
 /*
@@ -519,6 +520,8 @@ export function Landing() {
       {busy === 'demo' ? <BrandSpinner /> : <Icon name="stones" />} {busy === 'demo' ? 'Loading' : 'Demo'}
     </button>
   );
+  // Accounts are on and nobody is logged in: offer a log in for a returning player on a new device.
+  const accounts = useAccount((a) => !!a.configured && !a.user);
   const labBtn = (primary: boolean) => (
     <button className={`btn big ${primary ? 'primary' : 'lp-quiet'}`} onClick={() => void enter()} disabled={!!busy}>
       Open lab <Glyph name="arrow" />
@@ -568,6 +571,11 @@ export function Landing() {
         </nav>
         <div className="lp-top-end">
           <ThemePicker compact />
+          {accounts && (
+            <a className="btn small ghost" href={href('account')} title="Log in to bring your games to this device">
+              Log in
+            </a>
+          )}
           <button className="btn small lp-top-cta" onClick={() => void enter()}>
             Open lab <Glyph name="arrow" />
           </button>

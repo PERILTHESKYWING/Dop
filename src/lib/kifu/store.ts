@@ -1,5 +1,5 @@
-import { db, kvGet, kvSet } from '../db/db';
-import type { Kifu } from './kifu';
+import { db, kvGet, kvSet, markChanged } from '../db/db';
+import { blankKifu, type Kifu } from './kifu';
 
 /** Saved kifu live in the key-value store under "kifu:<id>"; the study board's working copy under "study.draft". */
 const PREFIX = 'kifu:';
@@ -18,7 +18,12 @@ export async function saveKifu(k: Kifu) {
 
 export async function deleteKifu(id: string) {
   await (await db()).delete('kv', PREFIX + id);
+  markChanged();
 }
 
 export const loadDraft = () => kvGet<Kifu>(DRAFT);
-export const saveDraft = (k: Kifu) => kvSet(DRAFT, k);
+// Stamped when written, so the newest draft wins when an account merges two devices.
+export const saveDraft = (k: Kifu) => kvSet(DRAFT, { ...k, updatedAt: Date.now() });
+/** An empty draft rather than a deletion, so an older draft from the account can't come back. */
+export const clearDraft = () => saveDraft(blankKifu());
+

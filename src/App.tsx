@@ -3,7 +3,7 @@ import { href, useRoute } from './router';
 import { useStore } from './state/store';
 import { init } from './state/actions';
 import { coolModeFor } from './lib/engine/governor';
-import { startAccount } from './state/account';
+import { startAccount, useAccount } from './state/account';
 import { Toasts } from './components/common';
 import { Scenery } from './components/Scenery';
 import { storedTheme, THEME_PREF, themeInfo, type ThemeId } from './lib/themes';
@@ -334,6 +334,9 @@ export function App() {
   const theme = loaded ? savedTheme : (hint ?? savedTheme);
   const onboarded = useStore((s) => s.settings.onboarded);
   const hasGames = useStore((s) => s.games.length > 0);
+  const account = useAccount();
+  // The sidebar shows who is logged in, or asks you to log in.
+  const accountItem = account.configured ? { ...ACCOUNT_ITEM, label: account.user ? account.user.name : 'Sign up / Log in' } : ACCOUNT_ITEM;
   useEffect(() => {
     void init();
   }, []);
@@ -448,7 +451,7 @@ export function App() {
                 ))}
               </div>
               <div className="nav-foot">
-                <NavLink item={ACCOUNT_ITEM} current={current} />
+                <NavLink item={accountItem} current={current} />
                 <NavLink item={SETTINGS_ITEM} current={current} />
                 <a className="item nav-about" href={href('welcome')} title="About DOPPELGÄNGER">
                   <Icon name="spark" />

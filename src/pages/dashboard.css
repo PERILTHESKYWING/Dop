@@ -1206,3 +1206,15 @@
     animation: none;
   }
 }
+
+/* Sign up / log in reminder on Home (accounts on, nobody logged in). */
+.account-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+.account-prompt > span {
+  flex: 1 1 220px;
+}

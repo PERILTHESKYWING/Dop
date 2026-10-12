@@ -7,6 +7,7 @@ import { LevelPanel, usePlayerTargets } from '../components/Level';
 import { Icon, type IconName } from '../components/Icons';
 import { DemoNotice, EngineNotice, SideChooser } from '../components/Notices';
 import { useCopy } from '../components/Doppel';
+import { AccountPrompt } from './Account';
 import { go, href } from '../router';
 import { AXES, AXIS_LABEL } from '../lib/profile/fingerprint';
 import { describeWeights } from '../lib/profile/doppel';
@@ -96,6 +97,7 @@ function FirstRun() {
           </li>
         </ol>
       </header>
+      <AccountPrompt />
 
       <EngineNotice />
 
@@ -803,6 +805,7 @@ function Home() {
         </div>
         <NextStep step={step} />
       </header>
+      <AccountPrompt />
 
       <EngineNotice />
       <SideChooser />

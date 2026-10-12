@@ -316,6 +316,9 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
       const id = typeof b.id === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(b.id) ? b.id : null;
       const parts = Number(b.parts);
       if (!id || !Number.isInteger(parts) || parts < 1 || parts > MAX_PARTS) return json(400, { error: 'Bad upload.' });
+      // The copy this upload was merged from: if another device committed since, merge that first.
+      const prev = await snapshotOf(kv, me);
+      if ('base' in b && (prev?.id ?? null) !== (typeof b.base === 'string' ? b.base : null)) return json(409, { error: 'Another device synced first. Syncing again.', code: 'stale' });
       let size = 0;
       for (let i = 0; i < parts; i++) {
         const p = await kv.get(partKey(me, id, i));
@@ -323,7 +326,6 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
         size += p.length;
       }
       for (let i = 0; i < parts; i++) await kv.persist(partKey(me, id, i));
-      const prev = await snapshotOf(kv, me);
       const meta: SnapshotMeta = { id, parts, size, updatedAt: Date.now(), device: typeof b.device === 'string' ? b.device.slice(0, 60) : undefined };
       await kv.set(snapKey(me), JSON.stringify(meta));
       if (prev && prev.id !== id) await kv.del(...Array.from({ length: prev.parts }, (_, i) => partKey(me, prev.id, i)));

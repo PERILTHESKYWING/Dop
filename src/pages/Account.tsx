@@ -4,6 +4,22 @@ import { deleteAccount, refreshAccount, signIn, signOut, syncNow, useAccount } f
 import { exportSnapshot, mergeSnapshot, readSnapshotFile, snapshotFile } from '../lib/sync/snapshot';
 import { init } from '../state/actions';
 import { toast } from '../state/store';
+import { href } from '../router';
+
+/** On Home, while accounts are on and nobody is signed in: sign up or log in to keep everything. */
+export function AccountPrompt() {
+  const a = useAccount();
+  if (!a.configured || a.user) return null;
+  return (
+    <div className="callout account-prompt">
+      <Icon name="user" style={{ width: 16, height: 16 }} />
+      <span>Sign up or log in, and every game, review and setting is saved to your account on its own.</span>
+      <a className="btn small primary" href={href('account')}>
+        Sign up / Log in
+      </a>
+    </div>
+  );
+}
 
 /**
  * Account & Sync: a username and password so your kifu, games and player data go with you
@@ -17,7 +33,7 @@ export function Account() {
       <div className="page-head">
         <div>
           <h1>Account &amp; Sync</h1>
-          <p className="sub">Optional. Sign in to sync across devices.</p>
+          <p className="sub">Log in on any device and your games, reviews and settings are there.</p>
         </div>
       </div>
       <div className="cols-2">
@@ -43,14 +59,15 @@ function NotSetUp() {
         <Icon name="user" style={{ width: 16, height: 16 }} /> Accounts not enabled
       </h3>
       <p className="small">
-        The site owner must add a database (README, "Accounts"). Use a backup file meanwhile.
+        Sign up and log in appear here once the site's free account database is connected on Vercel (README, "Accounts"). Until then everything is still saved in this browser.
       </p>
     </div>
   );
 }
 
 function SignInForm() {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  // A browser that has never synced most likely needs a new account.
+  const [mode, setMode] = useState<'login' | 'register'>(() => (useAccount.getState().lastSync ? 'login' : 'register'));
   const [name, setName] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
@@ -80,10 +97,10 @@ function SignInForm() {
     >
       <div className="segmented" role="tablist">
         <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'on' : ''} onClick={() => (setMode('login'), setErr(null))}>
-          <strong>Sign in</strong>
+          <strong>Log in</strong>
         </button>
         <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'on' : ''} onClick={() => (setMode('register'), setErr(null))}>
-          <strong>Register</strong>
+          <strong>Sign up</strong>
         </button>
       </div>
       <label>
@@ -102,12 +119,12 @@ function SignInForm() {
       )}
       {err && <div className="callout bad small">{err}</div>}
       <button className="btn primary" type="submit" disabled={busy}>
-        {busy ? 'Wait…' : mode === 'login' ? 'Sign in' : 'Register'}
+        {busy ? 'Wait…' : mode === 'login' ? 'Log in' : 'Create account'}
       </button>
       <p className="tiny muted">
         {mode === 'register'
-          ? '8+ characters. No password reset.'
-          : 'Merges account data into this browser.'}
+          ? '8+ characters. There is no password reset, so keep it somewhere safe. What is in this browser now goes into the new account.'
+          : 'Your account and this browser are merged; nothing here is lost.'}
       </p>
     </form>
   );
@@ -125,7 +142,7 @@ function SignedIn() {
           <Icon name="user" style={{ width: 16, height: 16 }} /> {a.user!.name}
         </h3>
         <button className="btn small ghost" onClick={() => void signOut()}>
-          Sign out
+          Log out
         </button>
       </div>
       <dl className="kv">
@@ -135,11 +152,11 @@ function SignedIn() {
         <dd>{a.snapshot ? `${(a.snapshot.size / 1.37 / 1_048_576).toFixed(1)} MB, ${a.snapshot.device ?? 'unknown device'}, ${when(a.snapshot.updatedAt)}` : 'empty'}</dd>
       </dl>
       <button className="btn primary" onClick={() => void syncNow()} disabled={!!a.syncing}>
-        <Icon name="sync" /> {a.syncing === 'download' ? `Downloading… ${a.progress ?? ''}` : a.syncing === 'upload' ? `Uploading… ${a.progress ?? ''}` : 'Sync now'}
+        <Icon name="sync" /> {a.syncing === 'download' ? `Downloading… ${a.progress ?? ''}` : a.syncing === 'upload' ? `Saving… ${a.progress ?? ''}` : 'Sync now'}
       </button>
       {a.error && <div className="callout bad small">Last sync failed: {a.error}</div>}
       <p className="tiny muted">
-        Syncs on open and close. Newer copies win. Deletions do not sync.
+        Saves to your account on its own a little after every change, and when you leave the tab. Opening the site brings in what you did on other devices. Newer copies win; deletions do not sync.
       </p>
       {!confirmDelete ? (
         <button className="btn small ghost" onClick={() => setConfirmDelete(true)}>

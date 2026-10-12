@@ -35,3 +35,11 @@ export function go(path: string) {
 }
 
 export const href = (path: string) => '#/' + path.replace(/^\/+/, '');
+
+/** Point the address at where the page already is, without opening anything (so a reload comes back here). */
+export function replaceQuiet(path: string) {
+  const h = '#/' + path.replace(/^\/+/, '');
+  if (location.hash === h) return;
+  history.replaceState(history.state, '', h);
+  current = parse();
+}
