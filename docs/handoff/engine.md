@@ -5,6 +5,9 @@ Summary: KataGo's network runs as WASM/WebGPU in the browser; our own PUCT searc
 - After any change in `public/engine`, bump `ENGINE_FILES` in `src/lib/engine/browserEngine.ts`.
 - Speed work already done: SIMD, several worker lanes tuned per device (`tuning.ts`), fp16 on GPU only when answers match, symmetry NN cache (`nncache.ts`), pipelined evals, early stop, scout-then-deepen reviews (`pipeline.ts`), heat/battery governor (`governor.ts`), cool mode, opening book (`public/book`), big-network anchors (anchorWeight 0.5).
 - Gumbel root search exists but is off: measured worse at low visits.
+- KataGo's utility-spread exploration (`cpuctStdevScale` 0.85) is on since 2026-10-12: against native KataGo (2000 visits, 180 positions) it found the best move 4-6 points more often at 32-256 visits. Measure search changes with `scripts/search-eval.ts refs --native` (needs the native binary in `KATAGO`), not against our own deep search.
+- The live "N/s" readout is wall-clock evals per second (it used to sum overlapping worker calls and showed about a third of the real rate).
+- Tried 2026-10-12 and dropped: lazy-loading pages. On a throttled phone profile the split build drew the first page 150-450 ms later than one bundle (extra round trip), so the app stays one bundle.
 - Small b10 net: winrate is derived from its score estimate (matched desktop KataGo better than its value head).
 - PC helper (`public/pc-helper/dop_pc.py`, 127.0.0.1:7474) lends native KataGo / training to the site; the phone works without it.
 - DopNet student network (`scripts/student/README.md`, `tools/student`) stays disabled until its gate beats b10.

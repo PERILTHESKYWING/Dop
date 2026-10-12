@@ -109,6 +109,19 @@ export interface SearchParams {
   gumbel: number;
   /** Gumbel root search only for runs with at most this many visits (bigger ones use PUCT). */
   gumbelMaxVisits: number;
+  /**
+   * KataGo's exploration scaled by how much the values under a node disagree
+   * (cpuctUtilityStdevScale / Prior / PriorWeight in KataGo's search parameters): a node
+   * whose visits all agree explores less, a sharp one (a fight, a ko) explores more. 0 = off.
+   *
+   * On (KataGo's 0.85): measured with b10 on 180 positions against native KataGo at 2000
+   * visits (scripts/search-eval.ts refs --native), it found KataGo's best move more often at
+   * every budget (32 visits 59.4% -> 65.6%, 64: 63.3 -> 67.8%, 256: 66.7 -> 71.1%) and gave
+   * up fewer points (256 visits 0.39 -> 0.30), win rate given up about the same.
+   */
+  cpuctStdevScale: number;
+  cpuctStdevPrior: number;
+  cpuctStdevPriorWeight: number;
 }
 
 export const DEFAULT_SEARCH: SearchParams = {
@@ -130,6 +143,9 @@ export const DEFAULT_SEARCH: SearchParams = {
   anchorWeight: 0.5,
   gumbel: 0,
   gumbelMaxVisits: 0,
+  cpuctStdevScale: 0.85,
+  cpuctStdevPrior: 0.4,
+  cpuctStdevPriorWeight: 2,
 };
 
 export interface SearchCandidate {
@@ -196,6 +212,8 @@ class SNode {
   /** Sums of Black's winrate and score lead over every visit. */
   winSum = 0;
   leadSum = 0;
+  /** Sum of the squared utility of every visit (for the spread of values under the node). */
+  utilSqSum = 0;
   nnWin = 0.5;
   nnLead = 0;
   evaluated = false;
@@ -249,6 +267,8 @@ export class Search {
   private stopFlag = false;
   private evalCount = 0;
   private evalTime = 0;
+  private callsOut = 0;
+  private busySince = 0;
   private anchor: AnchorSource | null = null;
   private anchorsInFlight = 0;
   private plan: GumbelPlan | null = null;
@@ -358,6 +378,7 @@ export class Search {
     let settled = false;
     let lastUpdate = t0;
     const updateMs = opts.updateMs ?? 250;
+    let shown = this.root.visits >= 4;
     if (opts.ownership && this.root.evaluated && !this.rootOwnership) {
       const [ev] = await this.evaluate([this.rootRequest(true)]);
       this.rootOwnership = ev.ownership ?? null;
@@ -401,8 +422,12 @@ export class Search {
         if (failure !== null) break;
         if (this.anchor) this.pumpAnchors();
         const t = now();
-        if (opts.onUpdate && t - lastUpdate >= updateMs) {
+        // The first candidates of a new position show as soon as there are any, instead of
+        // after a full update interval; later updates keep to the interval.
+        const firstLook = !shown && this.root.visits >= 4;
+        if (opts.onUpdate && (t - lastUpdate >= updateMs || firstLook)) {
           lastUpdate = t;
+          shown = true;
           opts.onUpdate(this.snapshot(t - t0));
         }
       }
@@ -445,11 +470,16 @@ export class Search {
   }
 
   private async evaluate(reqs: LeafRequest[]): Promise<NetEval[]> {
-    const t = now();
-    const out = await this.evaluator(reqs);
-    this.evalTime += now() - t;
-    this.evalCount += reqs.length;
-    return out;
+    // Wall time with at least one call out: with several engine workers the calls overlap,
+    // so summing each call's own time would understate the speed by the number of workers.
+    if (this.callsOut++ === 0) this.busySince = now();
+    try {
+      const out = await this.evaluator(reqs);
+      this.evalCount += reqs.length;
+      return out;
+    } finally {
+      if (--this.callsOut === 0) this.evalTime += now() - this.busySince;
+    }
   }
 
   private rootRequest(ownership: boolean): LeafRequest {
@@ -520,10 +550,12 @@ export class Search {
     }
     if (node.evaluated) {
       // Game over, too deep, or no moves: repeat the stored value.
+      const u = this.utility(node.nnWin, node.nnLead);
       for (const n of path) {
         n.visits++;
         n.winSum += node.nnWin;
         n.leadSum += node.nnLead;
+        n.utilSqSum += u * u;
       }
       return null;
     }
@@ -668,6 +700,20 @@ export class Search {
     return this.utility(n.winSum / n.visits, n.leadSum / n.visits);
   }
 
+  /** KataGo's parentUtilityStdevFactor: the spread of the values seen under a node, against a prior. */
+  private stdevFactor(node: SNode, value: number): number {
+    const p = this.params;
+    const prior = p.cpuctStdevPrior;
+    let sd = prior;
+    if (node.visits > 1) {
+      const sq = value * value;
+      const sqAvg = Math.max(sq, node.utilSqSum / node.visits);
+      const w = p.cpuctStdevPriorWeight;
+      sd = Math.sqrt(Math.max(0, ((sq + prior * prior) * w + sqAvg * node.visits) / (w + node.visits - 1) - sq));
+    }
+    return 1 + p.cpuctStdevScale * (sd / prior - 1);
+  }
+
   /** PUCT choice among a node's children; the best unvisited move stands for all unvisited ones. */
   private select(node: SNode, pla: Color, isRoot: boolean): number {
     const p = this.params;
@@ -684,7 +730,8 @@ export class Search {
     }
     const parentValue = node.visits > 0 ? s * this.nodeUtility(node) : 0;
     const fpuValue = parentValue - (isRoot ? p.fpuRoot : p.fpu) * Math.sqrt(visitedMass);
-    const scale = (p.cpuct + p.cpuctLog * Math.log((childVisits + p.cpuctBase) / p.cpuctBase)) * Math.sqrt(childVisits + 0.01);
+    let scale = (p.cpuct + p.cpuctLog * Math.log((childVisits + p.cpuctBase) / p.cpuctBase)) * Math.sqrt(childVisits + 0.01);
+    if (p.cpuctStdevScale > 0) scale *= this.stdevFactor(node, parentValue);
     let best = -1;
     let bestScore = -Infinity;
     let sawUnvisited = false;
@@ -737,11 +784,13 @@ export class Search {
         if (ev.ownership) this.rootOwnership = ev.ownership;
       }
     }
+    const u = this.utility(ev.bWin, ev.bLead);
     for (const n of leaf.path) {
       n.inflight--;
       n.visits++;
       n.winSum += ev.bWin;
       n.leadSum += ev.bLead;
+      n.utilSqSum += u * u;
     }
   }
 
@@ -893,6 +942,9 @@ export class Search {
 
   snapshot(elapsedMs = 0): SearchSnapshot {
     const r = this.root;
+    // Busy time so far, including a stretch of calls still going (with several workers the
+    // calls can overlap without a break for the whole search).
+    const busy = this.evalTime + (this.callsOut > 0 ? now() - this.busySince : 0);
     const toPlay = this.pos.toPlay;
     const candidates: SearchCandidate[] = [];
     if (r.moves) {
@@ -934,7 +986,7 @@ export class Search {
       policy,
       ownership: this.rootOwnership,
       nodes: this.nodes,
-      evalsPerSec: this.evalTime > 0 ? (this.evalCount * 1000) / this.evalTime : 0,
+      evalsPerSec: busy > 0 ? (this.evalCount * 1000) / busy : 0,
       elapsedMs,
     };
   }

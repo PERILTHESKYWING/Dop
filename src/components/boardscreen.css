@@ -899,6 +899,12 @@
   max-height: 60vh;
   overflow-y: auto;
 }
+/* Beside the board the list can use the panel's full height (it stopped at 60%, leaving a gap). */
+@media (min-width: 900px) and (orientation: landscape) {
+  .review-pick {
+    max-height: calc(100dvh - 200px);
+  }
+}
 .review-pick-row {
   display: grid;
   gap: 1px;
