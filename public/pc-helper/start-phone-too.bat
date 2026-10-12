@@ -1,4 +1,4 @@
 @echo off
-rem Like start-windows.bat, and also reachable from your phone through a free Cloudflare tunnel.
+rem The phone link is now part of start-windows.bat; this file only stays for old shortcuts.
 cd /d "%~dp0"
-call start-windows.bat --tunnel %*
+call start-windows.bat %*

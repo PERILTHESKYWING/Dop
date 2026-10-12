@@ -37,7 +37,7 @@ export interface GameRecord {
 
 export interface EngineInfo {
   engine: string; // e.g. "katago-webgpu@d5ad1c0"
-  backend: 'webgpu' | 'cpu' | 'none';
+  backend: 'webgpu' | 'cpu' | 'none' | 'pc';
   modelId: string;
   modelName: string;
   modelVersion: number;

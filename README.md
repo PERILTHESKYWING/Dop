@@ -209,9 +209,13 @@ Rebuild the engine with `engine/build-engine.sh` (needs emsdk and Eigen headers)
 Where an answer comes from, strongest and cheapest first (`src/state/brain.ts`):
 
 1. **The PC helper** (`public/pc-helper/`, a download in Settings): native KataGo with a big network on your own
-   graphics card, used for live and game analysis while it runs. The browser finds it at `127.0.0.1:7474`; a
-   phone reaches it through the Cloudflare address `start-phone-too.bat` prints. Without it everything runs on
-   the device as before.
+   graphics card, used for live and game analysis while it runs, plus the site's own small network (also on the
+   PC) for the first look at games and the Doppelgänger copy's moves. The browser on that PC finds it at
+   `127.0.0.1:7474`. Phones reach it at home or away through a free Cloudflare quick tunnel the helper opens by
+   itself (`--no-tunnel` turns it off): scan the QR code on the PC's Settings page once. The tunnel address
+   changes on every restart; the helper announces the new one to the site (`/api/account?action=pc-here`, keyed
+   by the pairing code's hash, needs the accounts store) and a linked phone looks it up. Without the store, scan
+   again after a restart. Without the helper everything runs on the device as before.
 2. **The opening book** (`src/lib/engine/book.ts`, `public/book/`): the most played openings searched once,
    deeply, by a big network. All rotations and mirror images find the same entry. Grown by the AI training below.
 3. **Shared results** (`src/state/shared.ts`): deep reads of single positions travel between your devices with

@@ -64,6 +64,7 @@ played in positions from the first 40 moves of that collection's professional ga
 - **React** and **React DOM** (MIT), Meta Platforms, Inc. and affiliates.
 - **zustand** (MIT), Paul Henschel and contributors.
 - **idb** (ISC), Jake Archibald.
+- **qrcode-generator** (MIT), Kazuhiko Arase. QR Code is a registered trademark of DENSO WAVE INCORPORATED.
 
 Build-time tools (Vite, TypeScript, Vitest, tsx) are not shipped to users.
 
@@ -78,6 +79,9 @@ first use and caches them locally.
 - **g170-b6c96**, a tiny test network included in the katago-webgpu repository under its MIT licence,
   fetched from jsDelivr or raw.githubusercontent.com when chosen.
 - A network file the user loads from their own computer stays in that browser's cache.
+- The **PC helper** (`pc-helper/dop_pc.py`), run by the user on their own PC, downloads KataGo (MIT) from its
+  GitHub releases, a kata1 network, the built-in g170e-b10c128 network, and Cloudflare's `cloudflared`
+  (Apache 2.0) for the phone link.
 
 ## Demo data
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast, useStore } from '../state/store';
-import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
+import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, pcSmallIfSame, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
 import { fmtPct, gameTitle, Legend, MoveThumb } from '../components/common';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
@@ -10,7 +10,9 @@ import type { PosValue } from '../lib/analysis/lineStats';
 import { KomiPicker } from '../components/Komi';
 import { DoppelLine, useCopy, type CopyInfo } from '../components/Doppel';
 import { BrandMark, Icon } from '../components/Icons';
-import { evaluateFast, toPlayAt } from '../lib/analysis/analyzer';
+import { evaluateFast, evaluateFastMany, toPlayAt } from '../lib/analysis/analyzer';
+import type { EngineBackend } from '../lib/engine/types';
+import { PcGone } from '../state/pc';
 import { replay } from '../lib/go/board';
 import { engineKomi } from '../lib/go/rules';
 import { locToGtp } from '../lib/go/coords';
@@ -940,9 +942,22 @@ function startFromPosition(g: GameRecord, move: number, user: Color, autostart: 
 }
 
 async function readPosition(g: PlayGame, ply: number, model: DoppelModel, withLosses = false): Promise<PositionRead> {
+  // The PC's copy of the same network when it runs (nothing to compute here); this device's otherwise.
+  const pc = pcSmallIfSame();
+  if (pc) {
+    try {
+      return await readWith(pc, g, ply, model, withLosses);
+    } catch (e) {
+      if (!(e instanceof PcGone)) throw e;
+    }
+  }
   markInteractive();
   const eng = getEngine() ?? (await startEngine());
   if (!eng) throw new Error('KataGo is not available');
+  return readWith(eng, g, ply, model, withLosses);
+}
+
+async function readWith(eng: EngineBackend, g: PlayGame, ply: number, model: DoppelModel, withLosses: boolean): Promise<PositionRead> {
   markInteractive();
   const history = [...g.prefix, ...g.moves.slice(0, ply)];
   const board = replay(g.size, g.setup, history);
@@ -956,14 +971,15 @@ async function readPosition(g: PlayGame, ply: number, model: DoppelModel, withLo
     const top = preds[0].p;
     const locs = [...new Set([...preds.filter((p) => p.p >= top * 0.05).slice(0, 6).map((p) => p.loc), ...ev.policy.filter((e) => e.loc !== PASS).slice(0, 3).map((e) => e.loc)])];
     const leads = new Map<Loc, number>();
-    for (const loc of locs) {
-      if (loc === PASS || !board.isLegal(loc, toPlay)) continue;
+    const legal = locs.filter((loc) => loc !== PASS && board.isLegal(loc, toPlay));
+    const children = legal.map((loc) => {
       const after = board.clone();
       after.play(loc, toPlay);
-      markInteractive();
-      const child = await evaluateFast(eng, { size: g.size, komi: g.komi, setup: g.setup, history: [...history, { color: toPlay, loc }], toPlay: other(toPlay), board: after });
-      leads.set(loc, toPlay === 1 ? child.bLead : -child.bLead);
-    }
+      return { size: g.size, komi: g.komi, setup: g.setup, history: [...history, { color: toPlay, loc }], toPlay: other(toPlay), board: after };
+    });
+    markInteractive();
+    const evs = await evaluateFastMany(eng, children);
+    legal.forEach((loc, i) => leads.set(loc, toPlay === 1 ? evs[i].bLead : -evs[i].bLead));
     const best = Math.max(...leads.values());
     read.losses = new Map([...leads].map(([loc, lead]) => [loc, best - lead]));
   }

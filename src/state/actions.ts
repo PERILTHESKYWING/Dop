@@ -2,7 +2,8 @@ import { analysisIsCurrent, analyzeGame, AnalysisStopped, type AnalysisStore } f
 import { Corpus } from '../lib/corpus';
 import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
 import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
-import { bundledModel, modelOrderFor } from '../lib/engine/models';
+import { BUNDLED_ID, bundledModel, modelOrderFor } from '../lib/engine/models';
+import type { EngineBackend } from '../lib/engine/types';
 import { coolModeFor, governEngine, isCool, pace, setCool } from '../lib/engine/governor';
 import { forgetTunings } from '../lib/engine/tuning';
 import { generateItems } from '../lib/forge/generator';
@@ -47,7 +48,7 @@ import { decodeSgfBytes } from '../lib/util/charset';
 import { get, set, toast } from './store';
 import { anchorFor, knownAnswer } from './brain';
 import { searchEvaluator, startStudent, stopStudent, studentVisits } from './student';
-import { pcPrefetchGame, pcReady, watchPc } from './pc';
+import { PcGone, pcLinkFromUrl, pcPrefetchGame, pcReady, pcSmallEngine, pcSmallReady, watchPc } from './pc';
 import './shared';
 
 const DEMO_PLAYER = 'Mira';
@@ -149,6 +150,12 @@ export async function init() {
     for (const g of games) if (g.status === 'deep') g.status = 'pending';
     await migrateGames(d, games, analyses);
     const merged = { ...DEFAULT_SETTINGS, ...settings };
+    // Opened from the PC's QR code: remember the PC.
+    const link = pcLinkFromUrl();
+    if (link && (merged.pcAddress !== link.address || merged.pcCode !== link.code || merged.pcUse === 'off')) {
+      Object.assign(merged, { pcAddress: link.address, pcCode: link.code, pcUse: 'auto' });
+      void d.put('settings', merged);
+    }
     // Older versions saved the demo player's name as the user's own, which blocked name detection.
     if (merged.playerNames.length === 1 && merged.playerNames[0] === DEMO_PLAYER && !games.some((g) => g.source === 'user' && (g.black === DEMO_PLAYER || g.white === DEMO_PLAYER))) {
       merged.playerNames = [];
@@ -177,7 +184,8 @@ export async function init() {
     toast(`Local storage is unavailable (${(e as Error).message}). Nothing will be saved in this session.`, 'error');
   }
   setCool(coolModeFor(get().settings.coolMode));
-  watchPc();
+  if (pcLinkFromUrl()) toast('Linked to your PC. Its graphics card does the AI work whenever the helper runs.', 'info');
+  watchPc(saveSettings);
   detectCapabilities().then((caps) => set({ caps }));
   llmStatus().then((llm) => set({ llm }));
   const s = get();
@@ -258,6 +266,18 @@ function onEngineDeath(eng: BrowserEngine, reason: string) {
   if (eng.info.backend === 'webgpu') lsSet(GPU_BROKEN, String(Date.now()));
   else safeMode = true;
   set({ engine: { status: 'off', note: `KataGo stopped (${reason}). It restarts on its own in ${eng.info.backend === 'webgpu' ? 'CPU mode' : 'safe mode'} when needed.` } });
+}
+
+/**
+ * The PC's copy of the site's small network, when it answers and this device would run
+ * that same network (its answers then match this device's, so stored analyses and the
+ * copy's habits stay valid). Otherwise null: this device's engine does the work.
+ */
+export function pcSmallIfSame(): EngineBackend | null {
+  if (!pcSmallReady()) return null;
+  const s = get();
+  const local = getEngine()?.info.modelId ?? (s.caps ? engineAttempts(s.settings, s.caps)[0]?.spec.id : undefined);
+  return local === BUNDLED_ID ? pcSmallEngine : null;
 }
 
 export async function startEngine(): Promise<BrowserEngine | null> {
@@ -767,17 +787,20 @@ export async function runQueue() {
         await rebuildProfile();
       }
       lastStage = next.stage;
-      const eng = await startEngine();
-      if (!eng) break;
+      // The first look at a game can come from the PC (the same network, no work here).
+      const onPc = next.stage === 'fast' ? pcSmallIfSame() : null;
+      const eng = onPc ? null : await startEngine();
+      if (!onPc && !eng) break;
       set((s) => ({ queue: { ...s.queue, currentGameId: g.id } }));
       const { settings } = get();
       const game: GameRecord = { ...g, progress: { ...g.progress } };
       try {
         // The PC helper takes the whole game at once (its positions are searched side by side).
         if (next.stage === 'full' && pcReady()) pcPrefetchGame(game);
-        const stud = game.size === 19 ? await startStudent(() => eng.activeLanes) : null;
-        const visits = studentVisits(searchVisitsFor(eng, settings.searchVisits), game.size);
-        const analysis = await analyzeGame(game, eng, queueStore, {
+        const stud = eng && game.size === 19 ? await startStudent(() => eng.activeLanes) : null;
+        // (The first look alone needs no visits; the number only sizes the progress bar.)
+        const visits = eng ? studentVisits(searchVisitsFor(eng, settings.searchVisits), game.size) : settings.searchVisits || 100;
+        const analysis = await analyzeGame(game, onPc ?? eng!, queueStore, {
           visits: game.source === 'opponent' ? Math.max(8, Math.round(visits / 2)) : visits,
           stage: next.stage,
           shouldStop: () => stopRequested,
@@ -786,8 +809,8 @@ export async function runQueue() {
           onProgress: showQueueState,
           thrifty: isCool(),
           known: knownAnswer,
-          anchor: anchorFor(eng.info.modelId, engineKomi(game.komi, game.rules), game.size, eng),
-          ...(stud ? { evaluator: searchEvaluator(eng, game.size), evaluatorBatch: stud.batch } : {}),
+          anchor: eng ? anchorFor(eng.info.modelId, engineKomi(game.komi, game.rules), game.size, eng) : null,
+          ...(stud && eng ? { evaluator: searchEvaluator(eng, game.size), evaluatorBatch: stud.batch } : {}),
         });
         set((s) => ({
           analyses: { ...s.analyses, [game.id]: analysis },
@@ -807,6 +830,13 @@ export async function runQueue() {
           await queueStore.saveGame(game);
           showQueueState(game);
           break;
+        }
+        // The PC went away: the game resumes from its checkpoint on this device.
+        if (e instanceof PcGone) {
+          game.status = 'pending';
+          await queueStore.saveGame(game);
+          showQueueState(game);
+          continue;
         }
         // The engine crashed or hung: it restarts in a safer mode and the game resumes from its checkpoint.
         if (isEngineFailure(e) && (engineRetries.get(game.id) ?? 0) < 2) {

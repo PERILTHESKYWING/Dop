@@ -12,6 +12,7 @@
  * tokens in an httpOnly cookie, kept server-side only as a SHA-256 hash.
  */
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { PC_TUNNEL_RE, pairingCode } from './pcLink.js';
 
 export interface AccountHttpResult {
   status: number;
@@ -230,6 +231,8 @@ async function snapshotOf(kv: Kv, name: string): Promise<SnapshotMeta | null> {
 }
 
 /** Too many tries from one name or one address: wait a while. */
+const PC_ADDRESS_DAYS = 30;
+
 async function limited(kv: Kv, keys: string[], max: number): Promise<boolean> {
   let over = false;
   for (const k of keys) if ((await kv.incr(k, 900)) > max) over = true;
@@ -268,6 +271,24 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
       // The same answer for an unknown name and a wrong password.
       if (!rec || !(await checkPassword(pw, rec))) return json(401, { error: 'Wrong username or password.' });
       return json(200, { user: { name }, snapshot: await snapshotOf(kv, name) }, [await startSession(kv, name)]);
+    }
+
+    // Where the user's PC helper is now (pc-helper/dop_pc.py announces its tunnel address on
+    // every start). No sign-in: the pairing code is the key, and only its hash is stored.
+    if ((action === 'pc-here' || action === 'pc-where') && method === 'POST') {
+      const b = parse(req.body);
+      const code = pairingCode(b.code);
+      if (!code) return json(400, { error: 'Bad pairing code.' });
+      if (await limited(kv, [`rl:pc:${req.ip ?? 'unknown'}`], 120)) return json(429, { error: 'Too many tries. Wait 15 minutes and try again.' });
+      const key = `pcaddr:${createHash('sha256').update(code).digest('hex')}`;
+      if (action === 'pc-where') {
+        const address = await kv.get(key);
+        return address ? json(200, { address }) : json(404, { error: 'The PC has not announced itself yet.' });
+      }
+      const address = typeof b.address === 'string' && PC_TUNNEL_RE.test(b.address) ? b.address : null;
+      if (!address) return json(400, { error: 'Bad address.' });
+      await kv.set(key, address, { ex: PC_ADDRESS_DAYS * 86400 });
+      return json(200, { ok: true });
     }
 
     if (action === 'logout' && method === 'POST') {
