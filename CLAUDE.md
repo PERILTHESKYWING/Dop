@@ -24,3 +24,4 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - `training.md` Actions workflows and releases
 - `data.md` game datasets and their limits
 - `open-items.md` unfinished or unverified things
+- `project-instructions.md` paste-ready project instructions + thread/PR history
