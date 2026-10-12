@@ -27,6 +27,7 @@ import { storageEstimate } from '../lib/db/db';
 import { DEFAULT_THEME, THEMES, type ThemeId } from '../lib/themes';
 import { switchTheme } from '../components/Scenery';
 import { LOCAL_PC, probePc, usePc } from '../state/pc';
+import { clearBigHelperBroken } from '../state/brain';
 import { pcLinkUrl } from '../../shared/pcLink';
 import { QrCode } from '../components/QrCode';
 
@@ -180,7 +181,12 @@ function EngineSection() {
         <input type="checkbox" checked={settings.autoAnalyze} onChange={(e) => void saveSettings({ autoAnalyze: e.target.checked })} /> Auto-analyse imports
       </label>
       <label className="row small">
-        <input type="checkbox" checked={settings.bigHelper !== 'off'} onChange={(e) => void saveSettings({ bigHelper: e.target.checked ? 'auto' : 'off' })} /> Big network helper
+        <input type="checkbox" checked={settings.bigHelper !== 'off'} onChange={(e) => {
+            if (e.target.checked) clearBigHelperBroken();
+            void saveSettings({ bigHelper: e.target.checked ? 'auto' : 'off' });
+          }}
+        />{' '}
+        Big network helper
         <span className="tiny muted">
           {bigHelper.status === 'ready'
             ? `${bigHelper.model} on ${bigHelper.backend === 'webgpu' ? 'GPU' : 'CPU'}`
@@ -188,7 +194,9 @@ function EngineSection() {
               ? 'loading…'
               : bigHelper.status === 'error'
                 ? `failed: ${bigHelper.note}`
-                : 'starts when needed, where a GPU or a strong computer can run it'}
+                : isPhoneLike()
+                  ? 'off on phones: not enough memory'
+                  : 'starts when needed, where a GPU or a strong computer can run it'}
         </span>
       </label>
       <p className="tiny muted">
