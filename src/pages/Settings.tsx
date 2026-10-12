@@ -27,6 +27,8 @@ import { storageEstimate } from '../lib/db/db';
 import { DEFAULT_THEME, THEMES, type ThemeId } from '../lib/themes';
 import { switchTheme } from '../components/Scenery';
 import { LOCAL_PC, probePc, usePc } from '../state/pc';
+import { pcLinkUrl } from '../../shared/pcLink';
+import { QrCode } from '../components/QrCode';
 
 const mb = (n: number) => `${(n / 1_048_576).toFixed(n > 1e8 ? 0 : 1)} MB`;
 
@@ -268,13 +270,17 @@ function PcSection() {
   const phone = isPhoneLike();
   const [address, setAddress] = useState(settings.pcAddress);
   const [code, setCode] = useState(settings.pcCode);
+  useEffect(() => setAddress(settings.pcAddress), [settings.pcAddress]);
+  useEffect(() => setCode(settings.pcCode), [settings.pcCode]);
   const [checking, setChecking] = useState(false);
   const check = async () => {
     setChecking(true);
-    await saveSettings({ pcAddress: address.trim(), pcCode: code.trim() });
-    await probePc();
+    await saveSettings({ pcAddress: address.trim().replace(/\/+$/, ''), pcCode: code.trim().toUpperCase() });
+    await probePc(true);
     setChecking(false);
   };
+  const onThisPc = pc.status === 'connected' && pc.address === LOCAL_PC;
+  const link = onThisPc && pc.tunnel && pc.code ? pcLinkUrl(location.origin, pc.tunnel, pc.code) : null;
   return (
     <div className="panel stack">
       <div className="spread">
@@ -287,58 +293,81 @@ function PcSection() {
       </div>
       {pc.status === 'connected' ? (
         <p className="small">
-          {pc.network ?? 'KataGo'} on {pc.backend ?? 'the PC'}. Live and game analysis run there
+          {pc.network ?? 'KataGo'} on {phone ? 'your PC' : (pc.backend ?? 'the PC')}. Analysis{pc.small ? ', first looks and Doppelgänger moves' : ''} run there
           {pc.analysed ? ` (${pc.analysed} positions so far)` : ''}.
         </p>
       ) : (
         <p className="small muted">
-          Everything runs on this {phone ? 'phone' : 'computer'} until the helper answers. With it, your graphics card searches with
-          a big network, many times faster.
+          Your PC's graphics card does the AI work, many times faster, for this {phone ? 'phone' : 'computer'} too. Without it everything runs here.
         </p>
       )}
       {pc.note && <div className="callout small">{pc.note}</div>}
-      <ol className="small stack tight" style={{ margin: 0, paddingLeft: 18 }}>
-        <li>
-          <a href="/downloads/dop-pc-helper.zip" download>
-            Download the helper
-          </a>{' '}
-          on your Windows PC and unzip it.
-        </li>
-        <li>Double-click start-windows.bat. It installs what it needs the first time.</li>
-        <li>
-          {phone
-            ? 'For this phone, use start-phone-too.bat instead and type the address and code it prints below.'
-            : 'Keep its window open. This page finds it by itself.'}
-        </li>
-      </ol>
+      {link && (
+        <div className="row wrap" style={{ alignItems: 'center', gap: 16 }}>
+          <QrCode text={link} label="QR code that links your phone to this PC" />
+          <div className="stack tight small" style={{ flex: '1 1 180px' }}>
+            <strong>Link your phone</strong>
+            <span>Scan this with the phone's camera and open the link. It works on any network, at home or away.</span>
+            <span className="muted">
+              Or on the phone: Settings › PC helper, pairing code <code>{pc.code}</code>.
+            </span>
+          </div>
+        </div>
+      )}
+      {onThisPc && !pc.tunnel && <p className="small muted">For your phone, restart the helper without --no-tunnel.</p>}
+      {pc.status !== 'connected' &&
+        (phone && settings.pcCode ? (
+          <p className="small">Linked to your PC (code {settings.pcCode}). It connects by itself whenever the helper runs there.</p>
+        ) : phone ? (
+          <ol className="small stack tight" style={{ margin: 0, paddingLeft: 18 }}>
+            <li>On your Windows PC, open this site's Settings and follow the PC helper steps there.</li>
+            <li>Scan the QR code it shows with this phone's camera.</li>
+          </ol>
+        ) : (
+          <ol className="small stack tight" style={{ margin: 0, paddingLeft: 18 }}>
+            <li>
+              <a href="/downloads/dop-pc-helper.zip" download>
+                Download the helper
+              </a>{' '}
+              and unzip it.
+            </li>
+            <li>Double-click start-windows.bat. It installs what it needs the first time. Keep its window open.</li>
+            <li>This page finds it by itself and shows a code for your phone.</li>
+          </ol>
+        ))}
       {!phone && <p className="small muted">To train the site's small AI on your graphics card overnight, double-click start-training-windows.bat.</p>}
       <label className="row small">
         <input type="checkbox" checked={settings.pcUse !== 'off'} onChange={(e) => void saveSettings({ pcUse: e.target.checked ? 'auto' : 'off' })} /> Use
         the PC when it is on
       </label>
-      <label className="stack tight small">
-        <span className="field-label">Address {phone ? '' : '(only for another device)'}</span>
-        <input value={address} placeholder={LOCAL_PC} onChange={(e) => setAddress(e.target.value)} />
+      <details className="small" open={phone && !settings.pcCode}>
+        <summary>{phone ? 'Type the code instead' : 'Use a PC elsewhere'}</summary>
+        <div className="stack tight" style={{ marginTop: 8 }}>
+          <label className="stack tight">
+            <span className="field-label">Pairing code</span>
+            <input value={code} placeholder="ABCD-1234-EF56" autoCapitalize="characters" onChange={(e) => setCode(e.target.value)} />
+          </label>
+          <label className="stack tight">
+            <span className="field-label">Address (found by itself when the site has accounts set up)</span>
+            <input value={address} placeholder="https://….trycloudflare.com" onChange={(e) => setAddress(e.target.value)} />
+          </label>
+          <div className="row wrap">
+            <button className="btn small" disabled={checking} onClick={() => void check()}>
+              {checking ? 'Checking…' : 'Save and check'}
+            </button>
+          </div>
+        </div>
+      </details>
+      <label className="row small">
+        Visits per position
+        <select value={settings.pcVisits} onChange={(e) => void saveSettings({ pcVisits: Number(e.target.value) })}>
+          {[200, 400, 800, 1600, 3200].map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
       </label>
-      <label className="stack tight small">
-        <span className="field-label">Pairing code</span>
-        <input value={code} placeholder={phone ? 'printed by the helper' : 'found automatically'} onChange={(e) => setCode(e.target.value)} />
-      </label>
-      <div className="row wrap">
-        <button className="btn small" disabled={checking} onClick={() => void check()}>
-          {checking ? 'Checking…' : 'Save and check'}
-        </button>
-        <label className="row small">
-          Visits per position
-          <select value={settings.pcVisits} onChange={(e) => void saveSettings({ pcVisits: Number(e.target.value) })}>
-            {[200, 400, 800, 1600, 3200].map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
     </div>
   );
 }

@@ -2,9 +2,10 @@
 """
 DOPPELGANGER PC helper: runs native KataGo with a big network on this computer's graphics
 card and lets the site use it. While it runs, the site on this computer analyses with it
-(Lizzie-class speed and strength, instead of what a browser can do), and the analyses it
-makes sync to your phone through your account. Optionally (--tunnel) your phone can use it
-live too, over a free Cloudflare tunnel.
+(Lizzie-class speed and strength, instead of what a browser can do), and your phone can use
+it too, at home or away, over a free Cloudflare tunnel (no account; the pairing code guards
+it). Link the phone once by scanning the code on the PC's Settings page; when the helper
+restarts with a new tunnel address, the phone finds it again through the site.
 
 Nothing to install but Python 3 (standard library only). On first start it downloads
 KataGo (OpenCL build, works with NVIDIA, AMD and Intel graphics drivers) and the network
@@ -13,7 +14,7 @@ into ~/DopPC, then keeps them there.
     python dop_pc.py                 # kata1 b18 network (strong, ~100 MB)
     python dop_pc.py --network b28   # kata1 b28 (strongest, ~260 MB, needs a good GPU)
     python dop_pc.py --katago "C:/LizzieYzy/katago/katago.exe" --model "C:/LizzieYzy/weights/xxx.bin.gz"
-    python dop_pc.py --tunnel        # also reachable from your phone (prints an address and a code)
+    python dop_pc.py --no-tunnel     # this computer only (no phone)
     python dop_pc.py --train 8       # train the site's small network on this graphics card for 8 hours
                                      # (needs PyTorch; start-training-windows.bat installs it)
 
@@ -36,13 +37,20 @@ import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.0"
+VERSION = "1.1"
 KATAGO_VERSION = "v1.18.1"
 NETWORKS = {
     "b18": ("kata1-b18c384nbt", "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"),
     "b28": ("kata1-b28c512nbt", "kata1-b28c512nbt-s8326494464-d4628051565.bin.gz"),
 }
 NET_URL = "https://media.katagotraining.org/uploaded/networks/models/kata1/"
+# The site's own small network, for the Doppelganger copy's moves: the copy learned its
+# habits from this network's view, so the PC answers with the same one.
+SMALL_NET = "g170e-b10c128-s1141046784-d204142634.bin.gz"
+SMALL_URLS = [
+    "https://cdn.jsdelivr.net/gh/saigo-online/katago-webgpu@d5ad1c0423dba989c60a2f06b1848e7eec2b5941/cpp/tests/models/" + SMALL_NET,
+    "https://raw.githubusercontent.com/saigo-online/katago-webgpu/d5ad1c0423dba989c60a2f06b1848e7eec2b5941/cpp/tests/models/" + SMALL_NET,
+]
 PORT = 7474
 HOME = os.path.join(os.path.expanduser("~"), "DopPC")
 DEFAULT_ORIGINS = [
@@ -106,6 +114,16 @@ def find_katago(args):
     return path
 
 
+def find_small(sites):
+    dest = os.path.join(HOME, SMALL_NET)
+    for url in [s + "/models/" + SMALL_NET for s in sites] + SMALL_URLS:
+        try:
+            return download(url, dest)
+        except Exception as e:  # noqa: BLE001 (try the next copy)
+            log("could not download", url, e)
+    return None
+
+
 def find_model(args):
     if args.model:
         return args.model, os.path.basename(args.model).split(".bin")[0]
@@ -116,25 +134,29 @@ def find_model(args):
 class KataGo:
     """The `katago analysis` JSON engine, with answers routed back by query id."""
 
-    def __init__(self, binary, model, threads):
-        cfg = os.path.join(HOME, "analysis.cfg")
+    def __init__(self, binary, model, threads, name="analysis", search_threads=16):
+        cfg = os.path.join(HOME, name + ".cfg")
         with open(cfg, "w") as f:
             f.write(
                 "\n".join(
                     [
                         f"logDir = {os.path.join(HOME, 'logs')}",
                         f"numAnalysisThreads = {threads}",
-                        "numSearchThreadsPerAnalysisThread = 16",
+                        f"numSearchThreadsPerAnalysisThread = {search_threads}",
                         "nnMaxBatchSize = 64",
                         "nnCacheSizePowerOfTwo = 22",
                         "nnMutexPoolSizePowerOfTwo = 17",
                         "reportAnalysisWinratesAs = BLACK",
                         "wideRootNoise = 0.0",
+                        # The small network answers like the site's own copy: the board as given,
+                        # not turned at random (the site asks for turned boards itself).
+                        "nnRandomize = " + ("false" if name == "small" else "true"),
                         "",
                     ]
                 )
             )
-        log("starting KataGo:", binary)
+        self.name = name
+        log("starting KataGo:", binary, "(" + name + ")")
         self.proc = subprocess.Popen(
             [binary, "analysis", "-config", cfg, "-model", model],
             stdin=subprocess.PIPE,
@@ -156,7 +178,7 @@ class KataGo:
             line = line.rstrip()
             if "Started, ready to begin handling requests" in line:
                 self.ready.set()
-                log("KataGo is ready")
+                log("KataGo is ready" if self.name == "analysis" else "KataGo (small network) is ready")
             elif line and ("tun" in line.lower() or "error" in line.lower() or "Loaded" in line or "Found" in line):
                 log("katago:", line[:200])
         log("KataGo stopped")
@@ -198,8 +220,58 @@ ALLOWED_KEYS = {
 }
 
 
-def make_handler(kg, token, origins, info):
+class Engines:
+    """The big network for analysis, and the site's small network (started the first time
+    it is asked for) for the Doppelganger copy's moves."""
+
+    def __init__(self, big, binary, sites):
+        self.big = big
+        self.binary = binary
+        self.sites = sites
+        self.small = None
+        self.small_started = False
+        self.lock = threading.Lock()
+
+    def get_small(self):
+        with self.lock:
+            if not self.small_started:
+                self.small_started = True
+
+                def start():
+                    model = find_small(self.sites)
+                    if model:
+                        self.small = KataGo(self.binary, model, 2, name="small", search_threads=1)
+
+                threading.Thread(target=start, daemon=True).start()
+            return self.small
+
+
+class Guard:
+    """Wrong pairing codes: after 20 in a minute, everyone waits a minute (the helper is
+    reachable from the internet through the tunnel)."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.wrong = []
+        self.until = 0.0
+
+    def locked(self):
+        return time.time() < self.until
+
+    def failed(self):
+        with self.lock:
+            now = time.time()
+            self.wrong = [t for t in self.wrong if now - t < 60] + [now]
+            if len(self.wrong) >= 20:
+                self.until = now + 60
+                self.wrong = []
+                log("too many wrong pairing codes: refusing everyone for a minute")
+
+
+def make_handler(engines, token, origins, info):
     allowed = [re.compile("^" + o + "$") for o in origins]
+    kg = engines.big
+    guard = Guard()
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -239,7 +311,9 @@ def make_handler(kg, token, origins, info):
         def do_GET(self):
             if self.path.startswith("/status"):
                 up = max(1.0, time.time() - kg.started)
-                return self.reply(200, dict(info, app="dop-pc", version=VERSION, ready=kg.ready.is_set(), visits=kg.visits, uptime=int(up)))
+                small = engines.small
+                return self.reply(200, dict(info, app="dop-pc", version=VERSION, ready=kg.ready.is_set(), visits=kg.visits, uptime=int(up),
+                                            small=bool(small and small.ready.is_set())))
             if self.path.startswith("/pair"):
                 # Only the site itself (an allowed origin, checked by the browser) can read the code.
                 if not self.headers.get("Origin") or not self.origin_ok():
@@ -248,7 +322,10 @@ def make_handler(kg, token, origins, info):
             self.reply(404, {"error": "not found"})
 
         def do_POST(self):
-            if not self.origin_ok() or self.headers.get("X-Dop-Token") != token:
+            if guard.locked():
+                return self.reply(429, {"error": "too many wrong pairing codes; wait a minute"})
+            if not self.origin_ok() or not secrets.compare_digest(self.headers.get("X-Dop-Token") or "", token):
+                guard.failed()
                 return self.reply(403, {"error": "wrong or missing pairing code"})
             n = int(self.headers.get("Content-Length") or 0)
             try:
@@ -260,7 +337,13 @@ def make_handler(kg, token, origins, info):
                 return self.reply(200, {"ok": True})
             if not self.path.startswith("/analyze"):
                 return self.reply(404, {"error": "not found"})
-            if not kg.ready.wait(timeout=600):
+            eng = kg
+            if body.get("net") == "small":
+                # Answer at once while the small network starts; the site looks itself meanwhile.
+                eng = engines.get_small()
+                if eng is None or not eng.ready.is_set():
+                    return self.reply(503, {"error": "the small network is starting"})
+            elif not kg.ready.wait(timeout=600):
                 return self.reply(503, {"error": "KataGo is still starting"})
             query = {k: v for k, v in body.items() if k in ALLOWED_KEYS}
             query.setdefault("rules", "chinese")
@@ -269,13 +352,16 @@ def make_handler(kg, token, origins, info):
             query["maxVisits"] = max(1, min(int(query.get("maxVisits", 500)), 1_000_000))
             turns = len(query.get("analyzeTurns") or [None])
             stream = bool(query.get("reportDuringSearchEvery"))
-            qid, q = kg.send(query)
+            qid, q = eng.send(query)
             try:
                 if stream:
                     # One JSON line per update until the search ends (or the browser goes away).
                     self.send_response(200)
                     self.cors()
                     self.send_header("Content-Type", "application/x-ndjson")
+                    # The tunnel must pass each line on at once, not gather or compress them.
+                    self.send_header("Cache-Control", "no-cache, no-transform")
+                    self.send_header("X-Accel-Buffering", "no")
                     self.send_header("Transfer-Encoding", "chunked")
                     self.send_header("X-Query-Id", qid)
                     self.end_headers()
@@ -296,9 +382,9 @@ def make_handler(kg, token, origins, info):
                             out.append(msg)
                     self.reply(200, sorted(out, key=lambda m: m.get("turnNumber", 0)))
             except (BrokenPipeError, ConnectionResetError):
-                kg.terminate(qid)
+                eng.terminate(qid)
             finally:
-                kg.done(qid)
+                eng.done(qid)
 
         def chunk(self, text):
             data = text.encode()
@@ -325,16 +411,22 @@ def start_tunnel():
 
     def watch():
         for line in proc.stderr:
-            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
+            # The address it prints in a box; error lines name api.trycloudflare.com, which is not it.
+            m = re.search(r"https://(?!api\.)[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com", line)
             if m:
                 found.put(m.group(0))
+            elif " ERR " in line or "error" in line.lower() or "failed" in line.lower():
+                log("tunnel:", line.strip()[:200])
+        found.put(None)  # cloudflared stopped
 
     threading.Thread(target=watch, daemon=True).start()
     try:
-        return found.get(timeout=60)
+        url = found.get(timeout=60)
     except queue.Empty:
-        log("the tunnel did not start")
-        return None
+        url = None
+    if not url:
+        log("the tunnel did not start, so only this computer can use the helper (check the internet connection and start again)")
+    return url
 
 
 def site_origins():
@@ -343,7 +435,34 @@ def site_origins():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site.txt")
     if not os.path.exists(path):
         return []
-    return [re.escape(line.strip().rstrip("/")) for line in open(path) if line.strip().startswith("https://")]
+    return [re.escape(s) for s in site_urls()]
+
+
+def site_urls():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "site.txt")
+    if not os.path.exists(path):
+        return []
+    return [line.strip().rstrip("/") for line in open(path) if line.strip().startswith("https://")]
+
+
+def announce(sites, token, url):
+    """Tell the site where this helper is now (a quick tunnel gets a new address on every
+    start), so a phone already linked with the pairing code finds it again by itself. Needs
+    the site's account storage; without it the phone scans the code again."""
+    body = json.dumps({"code": token, "address": url}).encode()
+    for site in sites:
+        try:
+            req = urllib.request.Request(site + "/api/account?action=pc-here", data=body, method="POST",
+                                         headers={"content-type": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                if r.status == 200:
+                    log("the site knows the new address; linked phones find it by themselves")
+                    return True
+        except Exception as e:  # noqa: BLE001
+            if getattr(e, "code", None) == 503:
+                log("the site has no account storage, so after a restart scan the code on the PC's Settings page again")
+                return False
+    return False
 
 
 REPO = "PERILTHESKYWING/Dop"
@@ -385,7 +504,9 @@ def main():
     ap.add_argument("--model", help="use this network file")
     ap.add_argument("--threads", type=int, default=4, help="positions searched at once")
     ap.add_argument("--origin", action="append", default=[], help="another site address allowed to use the helper (regex)")
-    ap.add_argument("--tunnel", action="store_true", help="also reachable from your phone through a free Cloudflare tunnel")
+    ap.add_argument("--tunnel", action="store_true", help=argparse.SUPPRESS)  # the default now
+    ap.add_argument("--no-tunnel", action="store_true", help="this computer only: no tunnel for the phone")
+    ap.add_argument("--site", action="append", default=[], help="the site's address (https://...), if not in site.txt")
     ap.add_argument("--train", type=float, metavar="HOURS", help="train the site's small network on this graphics card instead")
     ap.add_argument("--upload", action="store_true", help="with --train: send a winner to the cloud arena (needs GITHUB_TOKEN)")
     args = ap.parse_args()
@@ -401,20 +522,28 @@ def main():
             f.write(token)
     binary = find_katago(args)
     model, net_id = find_model(args)
+    sites = [s.rstrip("/") for s in args.site] + site_urls()
     kg = KataGo(binary, model, args.threads)
+    engines = Engines(kg, binary, sites)
     info = {"network": net_id, "katago": os.path.basename(binary), "backend": "opencl" if "opencl" in binary.lower() else "native"}
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(kg, token, DEFAULT_ORIGINS + site_origins() + args.origin, info))
-    log(f"PC helper on http://127.0.0.1:{PORT} with {net_id}. Keep this window open; open the site on this computer.")
-    if args.tunnel:
+    origins = DEFAULT_ORIGINS + [re.escape(s) for s in sites] + args.origin
+    server = ThreadingHTTPServer(("127.0.0.1", PORT), make_handler(engines, token, origins, info))
+    log(f"PC helper on http://127.0.0.1:{PORT} with {net_id}. Keep this window open.")
+    if not args.no_tunnel:
         url = start_tunnel()
         if url:
-            log("On your phone: Settings > Engine > PC helper, address", url, "and pairing code", token)
+            info["tunnel"] = url
+            log("Phone: open the site's Settings page on this PC and scan the code with your phone.")
+            log("Or on the phone: Settings > PC helper, address", url, "and pairing code", token)
+            threading.Thread(target=announce, args=(sites, token, url), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         kg.proc.terminate()
+        if engines.small:
+            engines.small.proc.terminate()
 
 
 if __name__ == "__main__":

@@ -1,10 +1,14 @@
 import { create } from 'zustand';
 import type { PositionSpec } from '../lib/analysis/analyzer';
+import { pairingCode, pcLinkOf } from '../../shared/pcLink';
+import { BUNDLED_ID, WINRATE_FROM_SCORE } from '../lib/engine/models';
+import type { EngineBackend, EngineRequest, RawSearchResult } from '../lib/engine/types';
+import type { PostProcessParams, RawNetOutput } from '../lib/engine/parse';
 import { gtpToLoc, locToGtp } from '../lib/go/coords';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import type { SearchCandidate, SearchSnapshot } from '../lib/engine/mcts';
 import { encodeOwnership, round, topPolicy } from '../lib/engine/parse';
-import type { Candidate, GameRecord, PositionEval } from '../lib/types';
+import type { Candidate, EngineInfo, GameRecord, PositionEval, Settings } from '../lib/types';
 import { engineKomi } from '../lib/go/rules';
 import { isPhoneLike } from '../lib/engine/governor';
 import { get as getApp } from './store';
@@ -12,10 +16,17 @@ import { setPcAnswer } from './brain';
 
 /**
  * The PC helper (pc-helper/dop_pc.py): native KataGo with a big network on the user's own
- * graphics card, at http://127.0.0.1:7474 on that computer (or, for a phone, at the
- * Cloudflare tunnel address the helper prints). While it answers, the site uses it for
- * live analysis and for game analysis instead of computing in the browser; when it does
- * not, everything runs here as before.
+ * graphics card, at http://127.0.0.1:7474 on that computer, and for a phone (at home or
+ * away) at the Cloudflare quick tunnel address the helper opens. A phone browser cannot
+ * reach the PC over the home network directly: the site is https and the helper plain
+ * http, which phones block. While it answers, the site uses it for live analysis and game
+ * analysis, and (with the site's own small network, also on the PC) for the first look
+ * at games and the Doppelgänger copy's moves; when it does not, everything runs here.
+ *
+ * Linking a phone: the PC's Settings page shows a QR code with the tunnel address and the
+ * pairing code (pcLinkUrl). The tunnel address changes whenever the helper restarts; the
+ * helper then announces the new one to the site (/api/account?action=pc-here, keyed by the
+ * code), and a linked phone looks it up (pc-where) when the old one stops answering.
  */
 
 export interface PcState {
@@ -24,6 +35,12 @@ export interface PcState {
   network?: string;
   backend?: string;
   note?: string;
+  /** The helper's public address for phones (its tunnel), when it has one. */
+  tunnel?: string;
+  /** The pairing code, when this computer read it from the helper itself. */
+  code?: string;
+  /** The site's small network is running on the PC too. */
+  small?: boolean;
   /** Positions it has analysed for this browser. */
   analysed: number;
 }
@@ -36,6 +53,11 @@ const codeOf = () => getApp().settings.pcCode || pairedCode || '';
 let pairedCode = '';
 
 export const pcReady = () => usePc.getState().status === 'connected';
+/** The PC answers with the site's small network as well (see pcSmallEngine). */
+export const pcSmallReady = () => pcReady() && !!usePc.getState().small;
+
+type SaveSettings = (patch: Partial<Settings>) => Promise<void>;
+let saveSettings: SaveSettings | null = null;
 
 /**
  * Chrome asks before a public site talks to this computer or the home network (Private
@@ -50,8 +72,9 @@ function localSpace(): object {
       return '';
     }
   })();
-  const local = host === 'localhost' || host === '[::1]' || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-  return local ? { targetAddressSpace: 'local' } : {};
+  // Chrome's names: 'loopback' for this computer, 'local' for the home network.
+  if (host === 'localhost' || host === '[::1]' || /^127\./.test(host)) return { targetAddressSpace: 'loopback' };
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) ? { targetAddressSpace: 'local' } : {};
 }
 
 async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 4000): Promise<T> {
@@ -72,20 +95,90 @@ async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 4000): 
 }
 
 /** Look for the helper once; returns whether it answers. */
-export async function probePc(): Promise<boolean> {
+export async function probePc(fresh = false): Promise<boolean> {
+  if (fresh) lastLookup = 0;
+  if (await probeOnce()) return true;
+  // A linked phone: the helper may have restarted with a new tunnel address.
+  if (await relocate()) return probeOnce();
+  return false;
+}
+
+async function probeOnce(): Promise<boolean> {
   const address = addressOf();
+  // A phone with only the code (no address yet) asks the site where the PC is first.
+  if (address === LOCAL_PC && isPhoneLike()) return false;
   try {
-    const st = await call<{ app: string; ready: boolean; network: string; backend: string }>('/status', {}, 1500);
+    const st = await call<{ app: string; ready: boolean; network: string; backend: string; tunnel?: string; small?: boolean }>('/status', {}, address === LOCAL_PC ? 1500 : 6000);
     if (st.app !== 'dop-pc') throw new Error('not the PC helper');
-    if (!codeOf() && address === LOCAL_PC) pairedCode = (await call<{ token: string }>('/pair', {}, 1500)).token;
-    usePc.setState({ status: st.ready ? 'connected' : 'off', address, network: st.network, backend: st.backend, note: st.ready ? undefined : 'KataGo is starting on the PC' });
+    if (!getApp().settings.pcCode && address === LOCAL_PC) pairedCode = (await call<{ token: string }>('/pair', {}, 1500)).token;
+    usePc.setState({
+      status: st.ready ? 'connected' : 'off',
+      address,
+      network: st.network,
+      backend: st.backend,
+      tunnel: st.tunnel,
+      small: !!st.small,
+      code: address === LOCAL_PC ? codeOf() : undefined,
+      note: st.ready ? undefined : 'KataGo is starting on the PC',
+    });
+    // The small network starts on the PC the first time it is asked for.
+    if (st.ready && !st.small) void wakeSmall();
     return st.ready;
   } catch (e) {
     const was = usePc.getState().status;
-    usePc.setState({ status: was === 'connected' ? 'error' : 'off', address, note: was === 'connected' ? (e as Error).message : undefined });
+    smallAsked = false;
+    usePc.setState({ status: was === 'connected' ? 'error' : 'off', address, small: false, note: was === 'connected' ? (e as Error).message : undefined });
     return false;
   }
 }
+
+let smallAsked = false;
+async function wakeSmall() {
+  if (smallAsked) return;
+  smallAsked = true;
+  await call('/analyze', { method: 'POST', body: JSON.stringify({ net: 'small', moves: [], komi: 7.5, maxVisits: 1 }) }).catch(() => {});
+  // It is usually up within seconds; look again rather than at the next minute's check.
+  setTimeout(() => void probeOnce(), 10_000);
+}
+
+let lastLookup = 0;
+/**
+ * Ask the site where the PC helper is now (it announces its tunnel address on every start),
+ * at most once a minute. Returns whether the address changed.
+ */
+async function relocate(): Promise<boolean> {
+  const code = pairingCode(getApp().settings.pcCode);
+  if (!code || !saveSettings || Date.now() - lastLookup < 60_000) return false;
+  if (!isPhoneLike() && !getApp().settings.pcAddress) return false;
+  lastLookup = Date.now();
+  try {
+    const r = await fetch('/api/account?action=pc-where', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+    if (!r.ok) return false;
+    const { address } = (await r.json()) as { address?: string };
+    if (!address || address === getApp().settings.pcAddress) return false;
+    await saveSettings({ pcAddress: address });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A link from the PC's QR code (?pc=…&pcCode=…), read once when the site opens and taken
+ * out of the address bar; the settings load applies it.
+ */
+const urlLink: { address: string; code: string } | null = (() => {
+  if (typeof location === 'undefined' || typeof history === 'undefined') return null;
+  const link = pcLinkOf(location.href);
+  const u = new URL(location.href);
+  if (u.searchParams.has('pc') || u.searchParams.has('pcCode')) {
+    u.searchParams.delete('pc');
+    u.searchParams.delete('pcCode');
+    history.replaceState(null, '', u.toString());
+  }
+  return link;
+})();
+export const pcLinkFromUrl = () => urlLink;
 
 let watching = false;
 /**
@@ -93,12 +186,14 @@ let watching = false;
  * phone only when an address was entered. Every 20 seconds while absent, every minute
  * while present.
  */
-export function watchPc() {
+export function watchPc(save: SaveSettings) {
   if (watching || typeof window === 'undefined') return;
   watching = true;
+  saveSettings = save;
   setPcAnswer(pcAnswer);
   const loop = async () => {
-    const wanted = !isPhoneLike() || !!getApp().settings.pcAddress;
+    const { pcAddress, pcCode } = getApp().settings;
+    const wanted = !isPhoneLike() || !!pcAddress || !!pcCode;
     const ok = wanted && getApp().settings.pcUse !== 'off' ? await probePc() : false;
     if (!wanted) usePc.setState({ status: 'off' });
     setTimeout(loop, ok ? 60_000 : 20_000);
@@ -314,3 +409,92 @@ export function pcQueryOf(size: number, komi: number, setup: Move[], moves: Move
   return { size, komi, setup, moves, toPlay };
 }
 
+
+// ------------------------------------------------- the site's small network, on the PC
+
+/** Board symmetry `sym` (0..7: bit 0 flips rows, bit 1 flips columns, bit 2 swaps them). */
+export function symLoc(loc: Loc, size: number, sym: number): Loc {
+  if (loc === PASS || loc < 0) return loc;
+  let x = loc % size;
+  let y = (loc - x) / size;
+  if (sym & 1) y = size - 1 - y;
+  if (sym & 2) x = size - 1 - x;
+  if (sym & 4) [x, y] = [y, x];
+  return y * size + x;
+}
+
+/**
+ * One answer of the PC's small network as the raw network output the site's analyser
+ * expects (with PC_POSTPROCESS): the policy as log-probabilities, the winrate as value
+ * logits, scores unscaled, ownership before tanh, all for the side to move. Policy and
+ * ownership are turned back from the board symmetry the position was sent in.
+ */
+export function pcRaw(r: KgResult, toPlay: Color, size: number, sym = 0): RawNetOutput {
+  const hw = size * size;
+  const root = r.rootInfo as KgResult['rootInfo'] & { rawWinrate?: number; rawLead?: number; rawScoreSelfplay?: number };
+  const bWin = root.rawWinrate ?? root.winrate;
+  const bLead = root.rawLead ?? root.scoreLead;
+  const side = toPlay === 1 ? 1 : -1;
+  const win = Math.min(1 - 1e-6, Math.max(1e-6, toPlay === 1 ? bWin : 1 - bWin));
+  const policyLogits = new Float32Array(hw + 1).fill(-Infinity);
+  for (let loc = 0; loc <= hw; loc++) {
+    const p = r.policy?.[loc === hw ? hw : symLoc(loc, size, sym)] ?? -1;
+    if (p > 0) policyLogits[loc] = Math.log(p);
+  }
+  let ownership: Float32Array | null = null;
+  if (r.ownership?.length === hw) {
+    ownership = new Float32Array(hw);
+    for (let loc = 0; loc < hw; loc++) ownership[loc] = Math.atanh(Math.max(-0.999999, Math.min(0.999999, side * r.ownership[symLoc(loc, size, sym)])));
+  }
+  return { policyLogits, value: Float32Array.of(Math.log(win), Math.log(1 - win), -Infinity, side * (root.rawScoreSelfplay ?? bLead), side * bLead), ownership };
+}
+
+/** How pcRaw's numbers are read: unscaled, and the winrate from the score lead as for the bundled network. */
+export const PC_POSTPROCESS: PostProcessParams = { outputScale: 1, scoreMeanMultiplier: 1, leadMultiplier: 1, winrateScale: WINRATE_FROM_SCORE };
+
+/** The PC stopped answering in the middle of a job; the caller carries on here. */
+export class PcGone extends Error {}
+
+/**
+ * The site's own small network (the bundled g170e-b10c128) running on the PC, as an
+ * engine the analyser can use: the same network as on this device, so the first look at
+ * games and the copy's moves are the same, but the phone does none of the work. Positions
+ * go out side by side (the PC batches them).
+ */
+export const pcSmallEngine: EngineBackend = {
+  info: { engine: 'katago-native (PC helper)', backend: 'pc', modelId: BUNDLED_ID, modelName: 'g170e b10 (on your PC)', modelVersion: 8 } satisfies EngineInfo,
+  postProcess: PC_POSTPROCESS,
+  batch: 16,
+  pipeline: 4,
+  async evalRaw(req: EngineRequest) {
+    return (await pcSmallMany([req]))[0];
+  },
+  async evalSeqBatchRaw(reqs) {
+    return pcSmallMany(reqs);
+  },
+  async searchRaw(): Promise<RawSearchResult> {
+    throw new Error('searches on the PC go through the big network (pcAnswer)');
+  },
+};
+
+async function pcSmallMany(reqs: (EngineRequest & { symmetry?: number })[]): Promise<RawNetOutput[]> {
+  try {
+    return await Promise.all(
+      reqs.map(async (q) => {
+        const sym = (q.symmetry ?? 0) & 7;
+        const moves = q.moves.map((m) => ({ ...m, loc: symLoc(m.loc, q.size, sym) }));
+        const [r] = await call<KgResult[]>(
+          '/analyze',
+          { method: 'POST', body: JSON.stringify(body({ size: q.size, komi: q.komi, setup: [], moves, toPlay: q.toPlay }, { net: 'small', maxVisits: 1, includePolicy: true, includeOwnership: true })) },
+          20_000,
+        );
+        if (!r?.moveInfos && !r?.rootInfo) throw new Error('no answer');
+        return pcRaw(r, q.toPlay, q.size, sym);
+      }),
+    );
+  } catch (e) {
+    usePc.setState({ small: false });
+    void probePc();
+    throw new PcGone(`the PC stopped answering: ${(e as Error).message}`);
+  }
+}
