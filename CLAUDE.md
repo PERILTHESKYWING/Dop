@@ -25,3 +25,4 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - `data.md` game datasets and their limits
 - `open-items.md` unfinished or unverified things
 - `project-instructions.md` paste-ready project instructions + thread/PR history
+- `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change); `tools/claude-mods/` optional token-saving mods

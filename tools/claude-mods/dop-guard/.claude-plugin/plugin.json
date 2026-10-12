@@ -1,0 +1,1 @@
+{ "name": "dop-guard", "version": "0.1.0", "description": "Enforces Dop hard rules: no leaked keys, no draft PRs, no stray weights, no force-push to main, ENGINE_FILES reminder." }
