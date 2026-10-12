@@ -116,6 +116,39 @@ describe('tree search', () => {
     expect(more.visits).toBe(340);
   });
 
+  it('reports the speed over wall time when calls overlap', async () => {
+    const net = toyNet();
+    const slow: LeafEvaluator = async (leaves) => {
+      await new Promise((r) => setTimeout(r, 20));
+      return net(leaves);
+    };
+    slow.batch = () => 4;
+    slow.pipeline = () => 4;
+    const s = new Search(slow, position());
+    const t = performance.now();
+    const seen: number[] = [];
+    const snap = await s.run({ visits: 81, updateMs: 30, onUpdate: (u) => seen.push(u.evalsPerSec) });
+    const wall = (snap.visits * 1000) / (performance.now() - t);
+    // Mid-search readings too, while calls are still out.
+    for (const r of seen.slice(1, -1)) expect(r).toBeLessThan(2 * wall);
+    // Calls of 20 ms overlap: the speed is what the wall clock saw, not one call at a time.
+    expect(snap.evalsPerSec).toBeGreaterThan(0.75 * wall);
+    expect(snap.evalsPerSec).toBeLessThan(1.25 * wall);
+  });
+
+  it('explores more under a node whose values disagree (utility spread)', async () => {
+    // KataGo's spread factor: 1 at the prior spread, below 1 when every visit agrees.
+    const s = new Search(toyNet(), position(), { cpuctStdevScale: 0.85 });
+    const factor = (s as unknown as { stdevFactor: (n: object, v: number) => number }).stdevFactor.bind(s);
+    expect(factor({ visits: 0, utilSqSum: 0 }, 0)).toBeCloseTo(1);
+    const calm = factor({ visits: 100, utilSqSum: 100 * 0.5 * 0.5 }, 0.5);
+    const sharp = factor({ visits: 100, utilSqSum: 100 * (0.5 * 0.5 + 0.6 * 0.6) }, 0.5);
+    expect(calm).toBeLessThan(0.5);
+    expect(sharp).toBeGreaterThan(1);
+    const snap = await s.run({ visits: 120 });
+    expect(snap.visits).toBe(120);
+  });
+
   it('returns a failed evaluation as an error and can search again', async () => {
     const net = toyNet();
     let n = 0;

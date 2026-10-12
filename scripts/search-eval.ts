@@ -14,6 +14,10 @@
  *            reference searched too little is measured by its own 400-visit search).
  *
  *   npx tsx scripts/search-eval.ts refs --extra 90 --out refs.json [--part 0 --parts 4]
+ *   KATAGO=/path/to/katago npx tsx scripts/search-eval.ts refs --native --visits 2000 --extra 90 --out refs.json
+ *            (references from unmodified native KataGo instead of this search, so they do
+ *            not favour the search being measured; compare then also judges moves the
+ *            reference barely searched with native KataGo)
  *   npx tsx scripts/search-eval.ts compare --refs 'refs*.json' --budgets 8,16,32,64,128 --methods puct,gumbel8,gumbel16
  *     [--part 0 --parts 4 --out rows-0.json]   (then: report --rows 'rows-*.json')
  */
@@ -25,6 +29,8 @@ import { replay } from '../src/lib/go/board';
 import { PASS, other, type Color, type Loc, type Move } from '../src/lib/go/types';
 import { engineEvaluator, Search, type LeafEvaluator, type RootPosition, type SearchParams } from '../src/lib/engine/mcts';
 import { NNCache } from '../src/lib/engine/nncache';
+import { gtpToLoc, locToGtp } from '../src/lib/go/coords';
+import { startKataGo, type KataGo } from './katagoAnalysis';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -89,7 +95,36 @@ async function evaluator(): Promise<LeafEvaluator> {
 
 const moverWin = (bWin: number, toPlay: Color) => (toPlay === 1 ? bWin : 1 - bWin);
 
+const gtp = (l: Loc) => (l === PASS ? 'pass' : locToGtp(l, 19));
+const fromGtp = (m: string) => (m.toLowerCase() === 'pass' ? PASS : gtpToLoc(m, 19));
+let native: KataGo | null = null;
+const nativeKg = () => (native ??= startKataGo({ binary: process.env.KATAGO!, model: MODEL, threads: 4 }));
+const nativeQuery = (p: { moves: [Color, Loc][]; komi: number }, visits: number) =>
+  nativeKg().query({ moves: p.moves.map(([c, l]) => [c === 1 ? 'B' : 'W', gtp(l)] as [string, string]), komi: p.komi, rules: 'chinese', initialPlayer: 'B', maxVisits: visits });
+
+/** References from native KataGo: every root move it searched, from the mover's side. */
+async function nativeRefs() {
+  const all = positions(Number(arg('extra', '90')));
+  const visits = Number(arg('visits', '2000'));
+  let done = 0;
+  const out = await Promise.all(
+    all.map(async (p): Promise<RefPos> => {
+      const r = await nativeQuery(p, visits);
+      const moveWin: RefPos['moveWin'] = {};
+      for (const m of r.moveInfos) moveWin[fromGtp(m.move)] = { visits: m.visits, win: moverWin(m.winrate, p.toPlay), lead: p.toPlay === 1 ? m.scoreLead : -m.scoreLead };
+      const best = [...r.moveInfos].sort((a, b) => a.order - b.order)[0];
+      const loc = fromGtp(best.move);
+      process.stdout.write(`\r${++done}/${all.length}`);
+      return { ...p, visits, best: loc, bestWin: moveWin[loc].win, bestLead: moveWin[loc].lead, moveWin };
+    }),
+  );
+  await native?.close();
+  writeFileSync(arg('out')!, JSON.stringify({ visits, native: true, positions: out }));
+  console.log(`\nwrote ${out.length} positions`);
+}
+
 async function refs() {
+  if (rest.includes('--native')) return nativeRefs();
   const all = positions(Number(arg('extra', '90')));
   const part = Number(arg('part', '0'));
   const parts = Number(arg('parts', '1'));
@@ -116,6 +151,9 @@ const METHODS: Record<string, Partial<SearchParams>> = {
   gumbel8: { gumbel: 8, gumbelMaxVisits: 1e9 },
   gumbel16: { gumbel: 16, gumbelMaxVisits: 1e9 },
   gumbel32: { gumbel: 32, gumbelMaxVisits: 1e9 },
+  // KataGo's utility-spread exploration (its defaults: scale 0.85, prior 0.4, weight 2).
+  stdev: { cpuctStdevScale: 0.85 },
+  stdev50: { cpuctStdevScale: 0.5 },
 };
 
 function readGlob(pat: string): unknown[] {
@@ -151,6 +189,10 @@ async function compare() {
     const known = p.moveWin[loc];
     if (known && known.visits >= 20) return known;
     const key = `${p.id}:${loc}`;
+    if (!extraWin.has(key) && process.env.KATAGO) {
+      const r = await nativeQuery({ moves: [...p.moves, [p.toPlay, loc]], komi: p.komi }, 400);
+      extraWin.set(key, { win: moverWin(r.rootInfo.winrate, p.toPlay), lead: p.toPlay === 1 ? r.rootInfo.scoreLead : -r.rootInfo.scoreLead });
+    }
     if (!extraWin.has(key)) {
       const r = rootOf(p);
       const board = r.board.clone();
@@ -183,6 +225,7 @@ async function compare() {
     console.log(`${i + 1}/${mine.length} ${p.id}`);
     if (arg('out')) writeFileSync(arg('out')!, JSON.stringify({ rows }));
   }
+  await native?.close();
   if (!arg('out')) report(rows);
 }
 
