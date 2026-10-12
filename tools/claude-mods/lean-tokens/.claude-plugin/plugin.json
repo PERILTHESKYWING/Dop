@@ -1,0 +1,1 @@
+{ "name": "lean-tokens", "version": "0.2.0", "description": "Blocks whole-file reads of big files, quiets npm and git log, and trims long build/test output." }
