@@ -2,7 +2,7 @@
   "name": "dop-tools",
   "owner": { "name": "PERILTHESKYWING" },
   "plugins": [
-    { "name": "lean-tokens", "source": "./tools/claude-mods/lean-tokens" },
-    { "name": "dop-guard", "source": "./tools/claude-mods/dop-guard" }
+    { "name": "lean-tokens", "source": "./.claude/skills/lean-tokens" },
+    { "name": "dop-guard", "source": "./.claude/skills/dop-guard" }
   ]
 }
