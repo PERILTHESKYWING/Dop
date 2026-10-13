@@ -62,6 +62,19 @@ describe('account server', () => {
     expect((await call(kv, 'part', 'PUT', { id: 'upload0003', index: 0, data: 'not base64!' }, c)).status).toBe(400);
   });
 
+  it('refuses an upload merged from an older copy than the account now has', async () => {
+    const kv = memoryKv();
+    const c = cookieOf((await call(kv, 'register', 'POST', { username: 'twodev', password: 'long enough pw' })).cookies)!;
+    await call(kv, 'part', 'PUT', { id: 'phone00001', index: 0, data: 'AAAA' }, c);
+    expect((await call(kv, 'commit', 'POST', { id: 'phone00001', parts: 1, base: null }, c)).status).toBe(200);
+    // The PC still thinks the account is empty: told to merge the phone's copy first.
+    await call(kv, 'part', 'PUT', { id: 'pc00000001', index: 0, data: 'BBBB' }, c);
+    const stale = await call(kv, 'commit', 'POST', { id: 'pc00000001', parts: 1, base: null }, c);
+    expect(stale.status).toBe(409);
+    expect(stale.body).toMatchObject({ code: 'stale' });
+    expect((await call(kv, 'commit', 'POST', { id: 'pc00000001', parts: 1, base: 'phone00001' }, c)).status).toBe(200);
+  });
+
   it('deletes an account only with its password', async () => {
     const kv = memoryKv();
     const c = cookieOf((await call(kv, 'register', 'POST', { username: 'gone', password: 'long enough pw' })).cookies)!;

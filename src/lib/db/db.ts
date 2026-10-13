@@ -90,6 +90,18 @@ export async function kvGet<T>(key: string): Promise<T | undefined> {
 
 export async function kvSet(key: string, value: unknown) {
   await (await db()).put('kv', { key, value });
+  markChanged();
+}
+
+// Saved data changed here (the account syncs after it; see state/account.ts). The app's own
+// state store covers games, analyses and player data; this covers what lives only in IndexedDB.
+const changeListeners = new Set<() => void>();
+export function onLocalChange(fn: () => void): () => void {
+  changeListeners.add(fn);
+  return () => changeListeners.delete(fn);
+}
+export function markChanged() {
+  changeListeners.forEach((fn) => fn());
 }
 
 /** IndexedDB-backed store for the analysis pipeline (position cache + checkpoints). */
@@ -105,9 +117,11 @@ export const idbAnalysisStore: AnalysisStore = {
   },
   async saveAnalysis(a) {
     await (await db()).put('analyses', a);
+    markChanged();
   },
   async saveGame(g) {
     await (await db()).put('games', g);
+    markChanged();
   },
 };
 

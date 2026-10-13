@@ -27,7 +27,7 @@ import {
   toPlayAt,
   type Kifu,
 } from '../lib/kifu/kifu';
-import { deleteKifu, getKifu, listKifus, saveKifu } from '../lib/kifu/store';
+import { clearDraft, deleteKifu, getKifu, listKifus, loadDraft, saveDraft, saveKifu } from '../lib/kifu/store';
 import { loadBroadcast } from '../lib/broadcast/data';
 import { findShowing, floorOfKey, makeSchedule, showingMoves } from '../lib/broadcast/schedule';
 import { useStore, toast } from '../state/store';
@@ -40,7 +40,7 @@ import { SkillPanel } from '../components/Skill';
 import type { PosValue } from '../lib/analysis/lineStats';
 import { useQuickValues, type QuickItem } from '../state/quickValues';
 import { Icon } from '../components/Icons';
-import { go, href } from '../router';
+import { go, href, replaceQuiet } from '../router';
 import './study.css';
 
 type Mode = 'play' | 'black' | 'white' | 'erase';
@@ -64,7 +64,10 @@ const writePref = (k: string, v: boolean) => {
 };
 const moveKey = (ms: Move[]) => ms.map((m) => `${m.color}${m.loc}`).join(',');
 
-/** Where the study board opens: a saved kifu, a live AI game, one of your games, or a new empty board. */
+const hasContent = (k: Kifu) => countMoves(k) > 0 || k.setup.length > 0;
+
+/** Where the study board opens: a saved kifu, a live AI game, one of your games, the working
+ * draft (after a reload), or a new empty board. */
 async function openKifu(id: string | undefined, query: URLSearchParams): Promise<Kifu> {
   const live = query.get('live');
   if (live) {
@@ -101,7 +104,11 @@ async function openKifu(id: string | undefined, query: URLSearchParams): Promise
     if (!k) throw new Error('that kifu was deleted');
     return k;
   }
-  // Opened on its own, the study board always starts empty.
+  if (query.get('draft')) {
+    const d = await loadDraft();
+    if (d && hasContent(d)) return d;
+  }
+  // Opened on its own, the study board starts empty (the last draft is offered as Resume).
   return blankKifu();
 }
 
@@ -122,19 +129,26 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const [tab, setTab] = useState<string | null>('data');
   const [notice, setNotice] = useState<null | 'save' | 'leave' | { newSize: number }>(null);
   const [saveTitle, setSaveTitle] = useState('');
+  const [resume, setResume] = useState<Kifu | null>(null);
   const qs = query.toString();
+  // The address the board on screen was opened from (or moved to by replaceQuiet below).
+  const openedFor = useRef<string | null>(null);
 
   // Open whatever the address asks for; a live game or a game from the library becomes a new draft.
   useEffect(() => {
+    const key = `${id ?? ''}|${qs}`;
+    if (openedFor.current === key) return;
     let alive = true;
     setError(null);
+    setResume(null);
     openKifu(id, query)
       .then((k) => {
         if (!alive) return;
+        openedFor.current = key;
         setKifu(k);
         setCursor(k.nodes[k.cursor] && !k.nodes[k.cursor].gone ? k.cursor : 0);
         setMode('play');
-        if (query.get('live') || query.get('game')) history.replaceState(null, '', '#/study');
+        if (!hasContent(k)) void loadDraft().then((d) => alive && d && hasContent(d) && setResume(d));
       })
       .catch((e) => {
         if (!alive) return;
@@ -150,15 +164,47 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const refreshLibrary = useCallback(() => void listKifus().then(setLibrary).catch(() => undefined), []);
   useEffect(refreshLibrary, [refreshLibrary]);
 
-  // Keep the working copy (and a saved kifu) up to date as you go.
+  // Keep the working copy (and a saved kifu) up to date as you go, so a reload or a crash loses
+  // nothing; an account syncs it too (the draft is in the key-value store).
+  const latest = useRef<{ k: Kifu; cursor: number } | null>(null);
+  const persist = useCallback(() => {
+    const cur = latest.current;
+    if (!cur) return;
+    latest.current = null;
+    const k = { ...cur.k, cursor: cur.cursor };
+    if (k.saved) void saveKifu(k).then(refreshLibrary).catch(() => undefined);
+    else if (hasContent(k)) void saveDraft(k).catch(() => undefined);
+  }, [refreshLibrary]);
   useEffect(() => {
     if (!kifu) return;
-    const t = setTimeout(() => {
-      const k = { ...kifu, cursor };
-      if (k.saved) void saveKifu(k).then(refreshLibrary).catch(() => undefined);
-    }, 500);
+    // A different board replaces this one: write the old one out first.
+    if (latest.current && latest.current.k.id !== kifu.id) persist();
+    latest.current = { k: kifu, cursor };
+    const t = setTimeout(persist, 400);
     return () => clearTimeout(t);
-  }, [kifu, cursor, refreshLibrary]);
+  }, [kifu, cursor, persist]);
+  useEffect(() => {
+    const flush = () => document.visibilityState === 'hidden' && persist();
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', persist);
+    return () => {
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', persist);
+      persist();
+    };
+  }, [persist]);
+
+  // The address follows the board, so a reload reopens it: a saved kifu by id, a draft as ?draft=1.
+  const addr = !kifu ? null : kifu.saved ? `study/${kifu.id}` : hasContent(kifu) ? 'study?draft=1' : 'study';
+  useEffect(() => {
+    if (!addr) return;
+    const [p, q = ''] = addr.split('?');
+    openedFor.current = `${p.split('/')[1] ?? ''}|${q}`;
+    replaceQuiet(addr);
+  }, [addr]);
+  useEffect(() => {
+    if (kifu && hasContent(kifu)) setResume(null);
+  }, [kifu]);
 
   const k = kifu;
   const played = useMemo(() => (k ? movesTo(k, cursor) : []), [k, cursor]);
@@ -306,7 +352,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   const size = k.size;
   const depth = depthOf(k, cursor);
   // Unsaved work worth asking about before leaving: a draft with moves or setup stones.
-  const unsaved = !k.saved && (countMoves(k) > 0 || k.setup.length > 0);
+  const unsaved = !k.saved && hasContent(k);
 
   const marks: Mark[] = [];
   if (numbers && !hoverPv?.length) {
@@ -364,6 +410,8 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
     setNotice('save');
   };
   const fresh = (sz: number) => {
+    void clearDraft().catch(() => undefined);
+    setResume(null);
     setKifu(blankKifu(sz, sz === 19 ? k.komi : sz === 13 ? 6.5 : 5.5, k.rules));
     setCursor(0);
     setMode('play');
@@ -562,6 +610,9 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
         { id: 'ai', label: 'AI analysis', icon: 'ai', on: true, onClick: () => setAnalysisPref(false), title: 'Back to recording' },
       ]
     : [
+        ...(resume
+          ? [{ id: 'resume', label: 'Resume', icon: 'sync', title: `Back to ${resume.title || 'your last board'} (${countMoves(resume)} moves)`, onClick: () => (setKifu(resume), setCursor(resume.nodes[resume.cursor] && !resume.nodes[resume.cursor].gone ? resume.cursor : 0), setResume(null)) }]
+          : []),
         { id: 'new', label: 'New', icon: 'plus', onClick: () => setNotice({ newSize: k.size }) },
         { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
         { id: 'ai', label: 'AI analysis', icon: 'ai', onClick: () => setAnalysisPref(true) },

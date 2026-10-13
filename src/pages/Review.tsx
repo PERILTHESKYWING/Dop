@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useWheelSteps } from '../components/MoveNav';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
 import { BlunderPanel, PerformancePanel, TrendPanel } from '../components/Report';
@@ -36,7 +36,7 @@ import type { SearchSnapshot } from '../lib/engine/mcts';
 import { predictForPosition } from '../lib/profile/doppel';
 import { DoppelLine, useCopy } from '../components/Doppel';
 import { signatureById } from '../lib/profile/signatures';
-import { go, href } from '../router';
+import { go, href, replaceQuiet } from '../router';
 
 const KOMI_CHOICES = [7.5, 7, 6.5, 5.5, 3.75, 0.5, 0];
 
@@ -94,15 +94,26 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
     setPendingPlay(null);
   }, [explore, pendingPlay, analysisBoard.board, playInAnalysis]);
 
+  // Where the game was just placed, until the board gets there (then the address follows the board).
+  const placing = useRef<number | null>(null);
+  const curNow = useRef(cur);
+  curNow.current = cur;
   useEffect(() => {
     if (!game) return;
-    if (Number.isFinite(move) && move! > 0) setCur(Math.min(n, Math.max(0, move! - 1)));
+    let at: number;
+    if (Number.isFinite(move) && move! > 0) at = Math.min(n, Math.max(0, move! - 1));
     else {
       // Start at the player's first costly move.
       const first = corpus()
         .playerRecords()
         .find((r) => r.gameId === game.id && (r.severity === 'mistake' || r.severity === 'blunder'));
-      setCur(first ? first.index : 0);
+      at = first ? first.index : 0;
+    }
+    // Already there (the address just followed the board): nothing to place.
+    if (at === curNow.current) placing.current = null;
+    else {
+      placing.current = at;
+      setCur(at);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id, move]);
@@ -110,6 +121,13 @@ export function Review({ gameId, move }: { gameId?: string; move?: number }) {
   useEffect(() => {
     setHoverPv(null);
   }, [cur, explore]);
+
+  // Keep the move in the address, so a reload comes back to the same place in the game.
+  useEffect(() => {
+    if (!gid || (placing.current !== null && placing.current !== cur)) return;
+    placing.current = null;
+    replaceQuiet(`review/${gid}?move=${cur + 1}`);
+  }, [gid, cur]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
