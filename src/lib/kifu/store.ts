@@ -1,4 +1,4 @@
-import { db, kvGet, kvSet, markChanged } from '../db/db';
+import { addTombstones, db, kvGet, kvSet, markChanged, tombKey } from '../db/db';
 import { blankKifu, type Kifu } from './kifu';
 
 /** Saved kifu live in the key-value store under "kifu:<id>"; the study board's working copy under "study.draft". */
@@ -18,6 +18,7 @@ export async function saveKifu(k: Kifu) {
 
 export async function deleteKifu(id: string) {
   await (await db()).delete('kv', PREFIX + id);
+  await addTombstones([tombKey('kv', PREFIX + id)]);
   markChanged();
 }
 

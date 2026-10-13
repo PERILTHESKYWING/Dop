@@ -29,6 +29,8 @@ export interface GameRecord {
   /** Which colour the studied player had in this game (null = unknown). */
   playerColor: Color | null;
   importedAt: number;
+  /** When the game was last moved between the user and an opponent (newest wins when an account syncs). */
+  updatedAt?: number;
   status: AnalysisStatus;
   error?: string;
   warnings: string[];

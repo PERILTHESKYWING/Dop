@@ -1,6 +1,6 @@
 import { analysisIsCurrent, analyzeGame, AnalysisStopped, type AnalysisStore } from '../lib/analysis/pipeline';
 import { Corpus } from '../lib/corpus';
-import { clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet } from '../lib/db/db';
+import { addTombstones, clearAll, db, deleteGames, idbAnalysisStore, kvGet, kvSet, tombKey } from '../lib/db/db';
 import { BrowserEngine, cacheKeyFor, detectCapabilities, isEngineFailure, type Capabilities, type StartAttempt } from '../lib/engine/browserEngine';
 import { BUNDLED_ID, bundledModel, modelOrderFor } from '../lib/engine/models';
 import type { EngineBackend } from '../lib/engine/types';
@@ -12,7 +12,7 @@ import { practiceItems } from '../lib/forge/worth';
 import { answerCovered, gradeAnswer, itemBoard, type LiveCheck } from '../lib/forge/grading';
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
-import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts } from '../lib/games';
+import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts, opponentSide } from '../lib/games';
 import { buildContext } from '../lib/go/features';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import { toSgf } from '../lib/go/sgf';
@@ -616,13 +616,75 @@ function scheduleRebuild() {
   rebuildTimer = setTimeout(() => void rebuildProfile(), 700);
 }
 
+/** Delete games and their analyses, here and (through the account) on every device. */
 export async function removeGames(ids: string[]) {
+  if (!ids.length) return;
+  const gone = new Set(ids);
+  const mine = get().games.some((g) => gone.has(g.id) && isPlayerGame(g));
   await deleteGames(ids);
   set((s) => {
     const analyses = { ...s.analyses };
     for (const id of ids) delete analyses[id];
-    return { games: s.games.filter((g) => !ids.includes(g.id)), analyses, corpusVersion: s.corpusVersion + 1 };
+    return { games: s.games.filter((g) => !gone.has(g.id)), analyses, corpusVersion: s.corpusVersion + 1 };
   });
+  await dropFromOpponents(gone);
+  if (mine) scheduleRebuild();
+}
+
+/** Take games out of the opponent profiles that list them (their stats and copies are rebuilt). */
+async function dropFromOpponents(ids: Set<string>, except?: string) {
+  for (const o of get().opponents)
+    if (o.id !== except && o.gameIds.some((id) => ids.has(id))) await saveOpponent({ ...o, gameIds: o.gameIds.filter((id) => !ids.has(id)) });
+}
+
+/**
+ * Games uploaded as the user's that are really an opponent's: they move to that opponent's
+ * profile (an existing one by id, or a new one by name), stop counting for the user's
+ * fingerprint, copy and stats, and start counting for the opponent's. The side the opponent
+ * played is found from the names; a name not yet known for them becomes one of their aliases.
+ */
+export async function moveGamesToOpponent(ids: string[], target: { id: string } | { name: string }) {
+  const s = get();
+  const games = s.games.filter((g) => ids.includes(g.id));
+  if (!games.length) return null;
+  const found = 'id' in target ? s.opponents.find((o) => o.id === target.id) : s.opponents.find((o) => [o.name, ...o.aliases].some((n) => n.trim().toLowerCase() === target.name.trim().toLowerCase()));
+  const name = 'name' in target ? target.name.trim() : '';
+  if (!found && !name) return null;
+  const now = Date.now();
+  const profile: OpponentProfile = found ? { ...found, aliases: [...found.aliases] } : { id: uid('opp-'), name, aliases: [], gameIds: [], createdAt: now, updatedAt: now };
+  const known = () => [profile.name, ...profile.aliases];
+  let unmatched = 0;
+  for (const g of games) {
+    const side = opponentSide(g, known(), s.settings.playerNames);
+    const who = side ? (side === 1 ? g.black : g.white).trim() : '';
+    if (!who) unmatched++;
+    else if (!known().some((n) => n.trim().toLowerCase() === who.toLowerCase())) profile.aliases.push(who);
+  }
+  const moved = new Set(games.map((g) => g.id));
+  const wasMine = games.some(isPlayerGame);
+  await patchGames(new Map(games.map((g) => [g.id, { source: 'opponent' as const, opponentId: profile.id, playerColor: null, updatedAt: now }])));
+  await dropFromOpponents(moved, profile.id);
+  const saved = await saveOpponent({ ...profile, gameIds: [...new Set([...profile.gameIds, ...moved])] });
+  if (wasMine) scheduleRebuild();
+  toast(
+    `Moved ${games.length} game${games.length > 1 ? 's' : ''} to ${saved.name}.` +
+      (unmatched ? ` In ${unmatched} of them neither player is named ${saved.name}, so they don't count toward ${saved.name}'s style yet.` : ''),
+    unmatched ? 'info' : 'ok',
+  );
+  return saved;
+}
+
+/** The other way: opponent games that are really the user's own. */
+export async function moveGamesToMine(ids: string[]) {
+  const s = get();
+  const games = s.games.filter((g) => ids.includes(g.id) && g.source !== 'user');
+  if (!games.length) return;
+  const now = Date.now();
+  await patchGames(new Map(games.map((g) => [g.id, { source: 'user' as const, opponentId: undefined, playerColor: detectPlayerColor(g, s.settings.playerNames), updatedAt: now }])));
+  await dropFromOpponents(new Set(games.map((g) => g.id)));
+  scheduleRebuild();
+  const unknown = games.filter((g) => !detectPlayerColor(g, s.settings.playerNames)).length;
+  toast(`Moved ${games.length} game${games.length > 1 ? 's' : ''} to your games.` + (unknown ? ` Pick your side in ${unknown === 1 ? 'it' : `${unknown} of them`} so ${unknown === 1 ? 'it counts' : 'they count'}.` : ''), unknown ? 'info' : 'ok');
 }
 
 export async function loadDemo() {
@@ -666,6 +728,7 @@ export async function removeDemo() {
   const ids = s.games.filter((g) => g.source === 'demo' || g.source === 'demo-opponent').map((g) => g.id);
   if (s.opponents.some((o) => o.id === DEMO_RIVAL_ID)) {
     await (await db()).delete('opponents', DEMO_RIVAL_ID);
+    await addTombstones([tombKey('opponents', DEMO_RIVAL_ID)]);
     set((st) => ({ opponents: st.opponents.filter((o) => o.id !== DEMO_RIVAL_ID) }));
   }
   await removeGames(ids);
@@ -1237,9 +1300,10 @@ export async function deleteOpponent(id: string) {
   const o = get().opponents.find((x) => x.id === id);
   if (!o) return;
   await (await db()).delete('opponents', id);
+  await addTombstones([tombKey('opponents', id)]);
+  set((s) => ({ opponents: s.opponents.filter((x) => x.id !== id) }));
   const own = get().games.filter((g) => g.opponentId === id).map((g) => g.id);
   await removeGames(own);
-  set((s) => ({ opponents: s.opponents.filter((x) => x.id !== id) }));
 }
 
 export async function renameOpponent(id: string, name: string) {

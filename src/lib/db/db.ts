@@ -133,6 +133,25 @@ export async function clearAll() {
   await tx.done;
 }
 
+/**
+ * Rows deleted here, as "store/key" → when. An account merges these so a deletion reaches
+ * every device instead of the row coming back from the account's copy (see sync/snapshot.ts).
+ */
+export const TOMBSTONES = 'deleted';
+export type Tombstones = Record<string, number>;
+export const tombKey = (store: string, key: string | number) => `${store}/${key}`;
+
+export async function addTombstones(keys: string[]) {
+  if (!keys.length) return;
+  const d = await db();
+  const tx = d.transaction('kv', 'readwrite');
+  const cur = ((await tx.store.get(TOMBSTONES))?.value as Tombstones | undefined) ?? {};
+  const now = Date.now();
+  for (const k of keys) cur[k] = now;
+  await tx.store.put({ key: TOMBSTONES, value: cur });
+  await tx.done;
+}
+
 export async function deleteGames(ids: string[]) {
   const d = await db();
   const tx = d.transaction(['games', 'analyses'], 'readwrite');
@@ -141,6 +160,8 @@ export async function deleteGames(ids: string[]) {
     await tx.objectStore('analyses').delete(id);
   }
   await tx.done;
+  await addTombstones(ids.flatMap((id) => [tombKey('games', id), tombKey('analyses', id)]));
+  markChanged();
 }
 
 export async function storageEstimate(): Promise<{ usage: number; quota: number } | null> {
