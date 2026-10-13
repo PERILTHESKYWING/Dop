@@ -91,3 +91,39 @@ export function guessPlayerName(games: Pick<GameRecord, 'black' | 'white'>[]): s
     }
   return best && bestN >= Math.max(2, Math.ceil(games.length * 0.5)) ? best : null;
 }
+
+type Sides = Pick<GameRecord, 'black' | 'white' | 'playerColor' | 'source'>;
+
+/**
+ * Which side the opponent played in a game being moved to their profile: the side named
+ * like them, else the side the user did not play (known colour, or the user's own names).
+ * null when neither tells (a game between two other people, neither named like them).
+ */
+export function opponentSide(g: Sides, opponentNames: string[], myNames: string[]): Color | null {
+  const theirs = detectPlayerColor(g, opponentNames);
+  if (theirs) return theirs;
+  if ((g.source === 'user' || g.source === 'demo') && g.playerColor) return g.playerColor === 1 ? 2 : 1;
+  const mine = detectPlayerColor(g, myNames);
+  return mine ? (mine === 1 ? 2 : 1) : null;
+}
+
+/** The likeliest opponent name for games uploaded as the user's by mistake (null if none). */
+export function guessOpponentName(games: Sides[], myNames: string[]): string | null {
+  const counts = new Map<string, number>();
+  const add = (n: string, w: number) => {
+    if (!n.trim() || /^(black|white|\?)$/i.test(n.trim())) return;
+    counts.set(n, (counts.get(n) ?? 0) + w);
+  };
+  for (const g of games) {
+    const side = opponentSide(g, [], myNames);
+    if (side) add(side === 1 ? g.black : g.white, 2);
+    else {
+      add(g.black, 1);
+      add(g.white, 1);
+    }
+  }
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [n, c] of counts) if (c > bestN) [best, bestN] = [n, c];
+  return best;
+}

@@ -1,12 +1,78 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
-import { corpus, importFiles, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
+import { corpus, importFiles, moveGamesToMine, moveGamesToOpponent, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
 import { DropZone, gameTitle } from '../components/common';
 import { EngineNotice, SideChooser } from '../components/Notices';
 import { go } from '../router';
 import type { GameRecord } from '../lib/types';
 import { countMoves, kifuToSgf, type Kifu } from '../lib/kifu/kifu';
 import { deleteKifu, listKifus } from '../lib/kifu/store';
+import { guessOpponentName } from '../lib/games';
+
+const isOpp = (g: GameRecord) => g.source === 'opponent' || g.source === 'demo-opponent';
+
+/** Pick (or name) the opponent that games uploaded by mistake really belong to. */
+function MoveDialog({ games, onClose }: { games: GameRecord[]; onClose: () => void }) {
+  const opponents = useStore((s) => s.opponents);
+  const myNames = useStore((s) => s.settings.playerNames);
+  const guess = useMemo(() => guessOpponentName(games, myNames) ?? '', [games, myNames]);
+  const lower = guess.trim().toLowerCase();
+  const match = opponents.find((o) => [o.name, ...o.aliases].some((n) => n.trim().toLowerCase() === lower));
+  const [pick, setPick] = useState<string>(match?.id ?? 'new');
+  const [name, setName] = useState(guess);
+  const [busy, setBusy] = useState(false);
+  const sorted = [...opponents].sort((a, b) => a.name.localeCompare(b.name));
+  const ok = pick !== 'new' || name.trim().length > 0;
+  const submit = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    await moveGamesToOpponent(
+      games.map((g) => g.id),
+      pick === 'new' ? { name: name.trim() } : { id: pick },
+    );
+    onClose();
+  };
+  return (
+    <div className="lib-dialog-wrap" onClick={onClose}>
+      <div className="lib-dialog panel" role="dialog" aria-label="Move to an opponent" onClick={(e) => e.stopPropagation()}>
+        <div className="lib-dialog-title">Move {games.length === 1 ? 'this game' : `${games.length} games`} to an opponent</div>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          {games.length === 1 ? 'It stops' : 'They stop'} counting toward your own style and stats, and count toward the opponent's profile and copy instead.
+        </p>
+        <label className="small">Opponent</label>
+        <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ width: '100%', margin: '4px 0 10px' }}>
+          {sorted.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name} ({o.gameIds.length} game{o.gameIds.length === 1 ? '' : 's'})
+            </option>
+          ))}
+          <option value="new">New opponent…</option>
+        </select>
+        {pick === 'new' && (
+          <>
+            <label className="small">Their name</label>
+            <input
+              value={name}
+              autoFocus
+              placeholder="As written in the game record"
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void submit()}
+              style={{ width: '100%', margin: '4px 0 10px' }}
+            />
+          </>
+        )}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn primary" disabled={!ok || busy} onClick={() => void submit()}>
+            Move
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
   if (g.status === 'done') return <span className="chip good">analysed</span>;
@@ -133,8 +199,28 @@ export function Library() {
     .filter((g) => (filter === 'all' ? true : filter === 'mine' ? g.source === 'user' || g.source === 'demo' || g.source === 'doppel' : g.source === 'opponent' || g.source === 'demo-opponent'))
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.importedAt - a.importedAt);
   const pending = games.filter((g) => g.status !== 'done' && g.status !== 'error' && g.status !== 'skipped').length;
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [moving, setMoving] = useState<GameRecord[] | null>(null);
+  // Only what is on screen can be acted on (a filter change hides the rest).
+  const sel = shown.filter((g) => picked.has(g.id));
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const allPicked = shown.length > 0 && sel.length === shown.length;
+  const clear = () => setPicked(new Set());
+  const del = (list: GameRecord[]) => {
+    const what = list.length === 1 ? gameTitle(list[0]) : `${list.length} games`;
+    if (!confirm(`Delete ${what}? ${list.length === 1 ? 'Its' : 'Their'} analysis goes too, on every device you sync.`)) return;
+    void removeGames(list.map((g) => g.id)).then(clear);
+  };
+  const movable = sel.filter((g) => !isOpp(g) && g.source !== 'doppel');
 
   return (
+    <>
     <div className="page">
       <div className="page-head">
         <div>
@@ -165,12 +251,40 @@ export function Library() {
       <EngineNotice />
       <SideChooser limit={6} />
       <DropZone compact onFiles={(f) => void importFiles(f)} />
+      {sel.length > 0 && (
+        <div className="panel lib-selbar">
+          <span className="small">
+            <strong>{sel.length}</strong> selected
+          </span>
+          <div className="row">
+            {movable.length > 0 && (
+              <button className="btn small" onClick={() => setMoving(movable)}>
+                Move to opponent
+              </button>
+            )}
+            {sel.some(isOpp) && (
+              <button className="btn small" onClick={() => void moveGamesToMine(sel.filter(isOpp).map((g) => g.id)).then(clear)}>
+                Move to my games
+              </button>
+            )}
+            <button className="btn small danger" onClick={() => del(sel)}>
+              Delete
+            </button>
+            <button className="btn small ghost" onClick={clear}>
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
       <div className="panel" style={{ marginTop: 14, padding: '6px 8px' }}>
         {shown.length ? (
           <div className="table-scroll">
           <table className="data lib-table">
             <thead>
               <tr>
+                <th className="lib-check">
+                  <input type="checkbox" aria-label="Select all" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(shown.map((g) => g.id)))} />
+                </th>
                 <th>Game</th>
                 <th className="narrow-hide">Date</th>
                 <th>You</th>
@@ -183,7 +297,10 @@ export function Library() {
             </thead>
             <tbody>
               {shown.map((g) => (
-                <tr key={g.id} className="click" onClick={() => go(`review/${g.id}`)}>
+                <tr key={g.id} className={`click${picked.has(g.id) ? ' picked' : ''}`} onClick={() => go(`review/${g.id}`)}>
+                  <td className="lib-check" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" aria-label={`Select ${gameTitle(g)}`} checked={picked.has(g.id)} onChange={() => toggle(g.id)} />
+                  </td>
                   <td>
                     <div>{gameTitle(g)}</div>
                     <div className="tiny muted">
@@ -219,15 +336,22 @@ export function Library() {
                     <StatusCell g={g} current={queue.currentGameId === g.id} />
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className="btn small ghost"
-                      title="Delete"
-                      onClick={() => {
-                        if (confirm(`Delete ${gameTitle(g)}?`)) void removeGames([g.id]);
-                      }}
-                    >
-                      ✕
-                    </button>
+                    <div className="row lib-acts">
+                      {isOpp(g) ? (
+                        <button className="btn small ghost" title="Not theirs: move to my games" aria-label="Move to my games" onClick={() => void moveGamesToMine([g.id])}>
+                          ⇄
+                        </button>
+                      ) : (
+                        g.source !== 'doppel' && (
+                          <button className="btn small ghost" title="Not mine: move to an opponent" aria-label="Move to an opponent" onClick={() => setMoving([g])}>
+                            ⇄
+                          </button>
+                        )
+                      )}
+                      <button className="btn small ghost" title="Delete" aria-label="Delete" onClick={() => del([g])}>
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -242,5 +366,16 @@ export function Library() {
       </div>
       <KifuSection />
     </div>
+    {/* Outside .page: its children animate in, which would pin a fixed overlay to them. */}
+    {moving && (
+      <MoveDialog
+        games={moving}
+        onClose={() => {
+          setMoving(null);
+          clear();
+        }}
+      />
+    )}
+    </>
   );
 }

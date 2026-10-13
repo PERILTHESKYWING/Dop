@@ -1,4 +1,4 @@
-import { db } from '../db/db';
+import { db, TOMBSTONES, tombKey, type Tombstones } from '../db/db';
 
 /**
  * Everything worth carrying to another device, as one JSON document: games and their
@@ -46,16 +46,25 @@ export interface MergeReport {
   added: number;
   updated: number;
   kept: number;
+  /** Rows deleted here because they were deleted on another device. */
+  removed: number;
 }
 
 /**
  * Bring a snapshot into this browser without losing anything here: rows this browser lacks
- * are added, rows both have keep whichever was changed last, and nothing is deleted. The
- * settings keep this browser's choices once it has been set up, but learn the player's names.
+ * are added, rows both have keep whichever was changed last. Only deletions are carried
+ * across: a row deleted on either side (see the tombstones in db.ts) is dropped on both,
+ * unless it was changed again after it was deleted (a game imported again). The settings
+ * keep this browser's choices once it has been set up, but learn the player's names.
  */
 export async function mergeSnapshot(snap: Snapshot): Promise<MergeReport> {
   const d = await db();
-  const report: MergeReport = { added: 0, updated: 0, kept: 0 };
+  const report: MergeReport = { added: 0, updated: 0, kept: 0, removed: 0 };
+  // Both sides' deletions, the later time winning.
+  const theirs = (snap.stores.kv as { key?: string; value?: unknown }[] | undefined)?.find((r) => r?.key === TOMBSTONES)?.value as Tombstones | undefined;
+  const dead: Tombstones = { ...(((await d.get('kv', TOMBSTONES))?.value as Tombstones | undefined) ?? {}) };
+  for (const [k, t] of Object.entries(theirs ?? {})) if (typeof t === 'number' && !(t <= (dead[k] ?? 0))) dead[k] = t;
+  const deadAt = (name: string, key: string | number) => dead[tombKey(name, key)];
   for (const name of SNAPSHOT_STORES) {
     const rows = snap.stores[name];
     if (!Array.isArray(rows) || !rows.length) continue;
@@ -66,6 +75,9 @@ export async function mergeSnapshot(snap: Snapshot): Promise<MergeReport> {
       if (!row || typeof row !== 'object') continue;
       const key = (row as Record<string, unknown>)[keyPath] as string | number | undefined;
       if (key === undefined) continue;
+      if (name === 'kv' && key === TOMBSTONES) continue;
+      const t = deadAt(name, key);
+      if (t !== undefined && stampOf(row) <= t) continue;
       const mine = (await store.get(key as never)) as unknown;
       if (mine === undefined) {
         await store.put(row as never);
@@ -80,6 +92,20 @@ export async function mergeSnapshot(snap: Snapshot): Promise<MergeReport> {
     }
     await tx.done;
   }
+  // Drop what the other side deleted (and was not changed here since).
+  const stores = new Set<string>(SNAPSHOT_STORES);
+  for (const [k, t] of Object.entries(dead)) {
+    const i = k.indexOf('/');
+    const name = k.slice(0, i) as StoreName;
+    if (i < 0 || !stores.has(name)) continue;
+    const key = k.slice(i + 1);
+    const mine = (await d.get(name, key as never)) as unknown;
+    if (mine !== undefined && stampOf(mine) <= t) {
+      await d.delete(name, key as never);
+      report.removed++;
+    }
+  }
+  await d.put('kv', { key: TOMBSTONES, value: dead });
   return report;
 }
 

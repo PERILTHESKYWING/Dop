@@ -171,7 +171,7 @@ export async function syncNow(opts: { quiet?: boolean; pullOnly?: boolean } = {}
         report = await mergeSnapshot(await unpackSnapshot(parts));
         // Other devices' shared results may have come in.
         reloadShared();
-        if (report.added || report.updated) await init();
+        if (report.added || report.updated || report.removed) await init();
       } finally {
         merging = false;
       }
