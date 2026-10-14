@@ -35,9 +35,20 @@ function Profile({ o }: { o: OpponentProfile }) {
     <div className="stack">
       <div className="page-head">
         <div>
-          <input className="title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== o.name && void renameOpponent(o.id, name.trim())} />
+          <input
+            className="title-input"
+            value={name}
+            aria-label="Shown name"
+            title="Shown name: tap to rename"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            onBlur={() => (name.trim() && name !== o.name ? void renameOpponent(o.id, name.trim()) : setName(o.name))}
+          />
           <p className="sub">
             {games.length} games · {analysed} analysed
+          </p>
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Tap the name to rename them.{o.aliases.length > 0 && ` Their games match ${o.aliases.map((a) => `"${a}"`).join(', ')} in the game records.`}
           </p>
         </div>
         <div className="row">
@@ -233,7 +244,7 @@ export function Opponents({ id }: { id?: string }) {
         </div>
       </div>
       <div className="panel stack">
-        <input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+        <input placeholder="Shown name (optional; their games still match the name in the records)" value={name} onChange={(e) => setName(e.target.value)} />
         <DropZone
           compact
           label="Drop SGF files"

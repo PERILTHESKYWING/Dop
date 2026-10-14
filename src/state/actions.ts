@@ -643,7 +643,7 @@ async function dropFromOpponents(ids: Set<string>, except?: string) {
  * fingerprint, copy and stats, and start counting for the opponent's. The side the opponent
  * played is found from the names; a name not yet known for them becomes one of their aliases.
  */
-export async function moveGamesToOpponent(ids: string[], target: { id: string } | { name: string }) {
+export async function moveGamesToOpponent(ids: string[], target: { id: string } | { name: string }, sides: Record<string, Color> = {}) {
   const s = get();
   const games = s.games.filter((g) => ids.includes(g.id));
   if (!games.length) return null;
@@ -655,7 +655,8 @@ export async function moveGamesToOpponent(ids: string[], target: { id: string } 
   const known = () => [profile.name, ...profile.aliases];
   let unmatched = 0;
   for (const g of games) {
-    const side = opponentSide(g, known(), s.settings.playerNames);
+    // A side the user picked wins; otherwise it is found from the names.
+    const side = sides[g.id] ?? opponentSide(g, known(), s.settings.playerNames);
     const who = side ? (side === 1 ? g.black : g.white).trim() : '';
     if (!who) unmatched++;
     else if (!known().some((n) => n.trim().toLowerCase() === who.toLowerCase())) profile.aliases.push(who);
@@ -1280,7 +1281,9 @@ export async function importOpponentFiles(files: File[], name?: string, existing
     toast(errors[0] ? `No games imported: ${errors[0].message}` : 'No games found in those files.', 'error');
     return null;
   }
-  const who = name || existing?.name || guessPlayerName(games) || games[0].black;
+  // The name in the game records; a name typed for them is only what they are shown as.
+  const recorded = guessPlayerName(games) ?? (games.length === 1 ? null : games[0].black);
+  const who = name || existing?.name || recorded || games[0].black;
   const id = existing?.id ?? uid('opp-');
   for (const g of games) g.opponentId = id;
   const known = new Set(get().games.map((g) => g.id));
@@ -1290,7 +1293,7 @@ export async function importOpponentFiles(files: File[], name?: string, existing
   set((s) => ({ games: [...s.games, ...fresh] }));
   const profile: OpponentProfile = existing
     ? { ...existing, gameIds: [...new Set([...existing.gameIds, ...games.map((g) => g.id)])] }
-    : { id, name: who, aliases: [], gameIds: games.map((g) => g.id), createdAt: Date.now(), updatedAt: Date.now() };
+    : { id, name: who, aliases: recorded && recorded.toLowerCase() !== who.toLowerCase() ? [recorded] : [], gameIds: games.map((g) => g.id), createdAt: Date.now(), updatedAt: Date.now() };
   const saved = await saveOpponent(profile);
   toast(`${games.length} game${games.length > 1 ? 's' : ''} added to ${saved.name}'s profile.`, 'ok');
   return saved;
@@ -1306,9 +1309,16 @@ export async function deleteOpponent(id: string) {
   await removeGames(own);
 }
 
+/**
+ * Change the name an opponent is shown by. Their games are matched by name, so the old name
+ * stays one of their aliases (the names in the game records).
+ */
 export async function renameOpponent(id: string, name: string) {
   const o = get().opponents.find((x) => x.id === id);
-  if (o) await saveOpponent({ ...o, name });
+  if (!o || !name.trim()) return;
+  const lower = name.trim().toLowerCase();
+  const aliases = [...new Set([o.name, ...o.aliases].map((n) => n.trim()).filter((n) => n && n.toLowerCase() !== lower))];
+  await saveOpponent({ ...o, name: name.trim(), aliases });
 }
 
 // ---------------------------------------------------------------- model lab

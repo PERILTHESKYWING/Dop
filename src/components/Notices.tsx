@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
-import { chooseSide, removeDemo, restartEngine, usesDemoData } from '../state/actions';
+import { chooseSide, removeDemo, removeGames, restartEngine, usesDemoData } from '../state/actions';
+import { MoveDialog } from './MoveDialog';
+import type { GameRecord } from '../lib/types';
 import { gameTitle } from './common';
 import { Icon } from './Icons';
 import { href } from '../router';
@@ -9,8 +11,12 @@ import { href } from '../router';
 export function SideChooser({ limit = 4 }: { limit?: number }) {
   const games = useStore((s) => s.games);
   const [remember, setRemember] = useState(true);
+  const [moving, setMoving] = useState<GameRecord[] | null>(null);
   const unknown = games.filter((g) => g.source === 'user' && g.playerColor === null);
   if (!unknown.length) return null;
+  const del = (list: GameRecord[]) => {
+    if (confirm(list.length === 1 ? `Delete ${gameTitle(list[0])}?` : `Delete all ${list.length} of these games?`)) void removeGames(list.map((g) => g.id));
+  };
   return (
     <div className="banner warn">
       <div className="grow stack tight">
@@ -32,15 +38,32 @@ export function SideChooser({ limit = 4 }: { limit?: number }) {
                 <button className="btn small" onClick={() => void chooseSide(g.id, 2, remember)} title="White">
                   <i className="stone-dot w" /> {g.white || 'White'}
                 </button>
+                <button className="btn small ghost side-other" onClick={() => setMoving([g])} title="Neither: this is an opponent's game">
+                  Opponent's game
+                </button>
+                <button className="btn small ghost side-del" onClick={() => del([g])} title="Delete this game" aria-label="Delete this game">
+                  ✕
+                </button>
               </div>
             </div>
           ))}
         </div>
         {unknown.length > limit && <span className="tiny muted">+{unknown.length - limit} more in Library.</span>}
+        {unknown.length > 1 && (
+          <div className="row wrap">
+            <button className="btn small" onClick={() => setMoving(unknown)}>
+              All {unknown.length} are an opponent's
+            </button>
+            <button className="btn small ghost" onClick={() => del(unknown)}>
+              Delete all {unknown.length}
+            </button>
+          </div>
+        )}
         <label className="check small">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember name
         </label>
       </div>
+      {moving && <MoveDialog games={moving} onClose={() => setMoving(null)} />}
     </div>
   );
 }
