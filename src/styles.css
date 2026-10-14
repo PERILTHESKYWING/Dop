@@ -1938,3 +1938,23 @@ table.live-cands th:first-child {
     flex: 0 0 auto;
   }
 }
+
+/* Opponents: who in the dropped games is the opponent */
+.who-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.who-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.who-opt.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}

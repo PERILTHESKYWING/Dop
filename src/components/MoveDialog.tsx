@@ -25,16 +25,17 @@ export function MoveDialog({ games, onClose }: { games: GameRecord[]; onClose: (
   const sorted = [...opponents].sort((a, b) => a.name.localeCompare(b.name));
   const target = pick === 'new' ? null : opponents.find((o) => o.id === pick);
   // The names the chosen opponent is known by; a new one is known by the guessed record name.
-  const known = target ? [target.name, ...target.aliases] : [guess];
-  const unsure = games.filter((g) => !opponentSide(g, known, myNames));
-  const ok = (pick !== 'new' || name.trim().length > 0) && unsure.every((g) => sides[g.id]);
+  const known = target ? [target.name, ...target.aliases] : guess ? [guess] : [];
+  // Every game shows which side counts as them; the user can change any, and must pick where the names don't tell.
+  const sideOf = (g: GameRecord) => sides[g.id] ?? opponentSide(g, known, myNames);
+  const ok = (pick !== 'new' || name.trim().length > 0) && games.every((g) => sideOf(g));
   const submit = async () => {
     if (!ok || busy) return;
     setBusy(true);
     // Pass every side the dialog settled on: a new shown name may match none of the games.
     const all: Record<string, Color> = {};
     for (const g of games) {
-      const c = sides[g.id] ?? opponentSide(g, known, myNames);
+      const c = sideOf(g);
       if (c) all[g.id] = c;
     }
     await moveGamesToOpponent(
@@ -77,24 +78,22 @@ export function MoveDialog({ games, onClose }: { games: GameRecord[]; onClose: (
             </p>
           </>
         )}
-        {unsure.length > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            <label className="small">Which side were they?</label>
-            {unsure.map((g) => (
-              <div key={g.id} className="move-side">
-                {unsure.length > 1 && <div className="tiny muted">{gameTitle(g)}</div>}
-                <div className="seg">
-                  {([1, 2] as const).map((c) => (
-                    <button key={c} className={`btn small${sides[g.id] === c ? ' primary' : ''}`} onClick={() => setSides((s) => ({ ...s, [g.id]: c }))}>
-                      <i className={`stone-dot ${c === 1 ? 'b' : 'w'}`} /> {(c === 1 ? g.black : g.white) || (c === 1 ? 'Black' : 'White')}
-                    </button>
-                  ))}
-                </div>
+        <div style={{ marginBottom: 10 }}>
+          <label className="small">Which player is the opponent?</label>
+          {games.map((g) => (
+            <div key={g.id} className="move-side">
+              {games.length > 1 && <div className="tiny muted">{gameTitle(g)}</div>}
+              <div className="seg">
+                {([1, 2] as const).map((c) => (
+                  <button key={c} className={`btn small${sideOf(g) === c ? ' primary' : ''}`} onClick={() => setSides((s) => ({ ...s, [g.id]: c }))}>
+                    <i className={`stone-dot ${c === 1 ? 'b' : 'w'}`} /> {(c === 1 ? g.black : g.white) || (c === 1 ? 'Black' : 'White')}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
+            </div>
+          ))}
+        </div>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn ghost" onClick={onClose}>
             Cancel
           </button>

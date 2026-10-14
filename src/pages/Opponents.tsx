@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { LevelPanel } from '../components/Level';
 import { opponentTargets } from '../state/level';
 import { useStore } from '../state/store';
-import { deleteOpponent, importOpponentFiles, renameOpponent, saveOpponent } from '../state/actions';
+import { addOpponentGames, deleteOpponent, playersIn, readOpponentFiles, renameOpponent, saveOpponent, setOpponentColor } from '../state/actions';
+import { opponentColorOf } from '../lib/games';
 import { Board } from '../components/Board';
 import { DropZone, fmtPct, gameTitle } from '../components/common';
 import type { SequenceStat } from '../lib/opponents/profile';
-import type { OpponentProfile } from '../lib/types';
+import type { GameRecord, OpponentProfile } from '../lib/types';
 import { go, href } from '../router';
 import { BackLink } from '../components/ControlSheet';
 
@@ -24,11 +25,73 @@ function SeqBoard({ seq, size, crop }: { seq: SequenceStat; size: number; crop?:
   );
 }
 
+/**
+ * After SGFs are dropped: who in them is the opponent? Nothing is picked for the user unless
+ * one name clearly recurs (or already belongs to this opponent), never just "Black".
+ */
+function WhoIsIt({ games, existing, shown: shown0, onDone }: { games: GameRecord[]; existing?: OpponentProfile; shown?: string; onDone: (o: OpponentProfile | null) => void }) {
+  const players = playersIn(games);
+  const mine = existing ? players.find((p) => [existing.name, ...existing.aliases].some((n) => n.trim().toLowerCase() === p.name.toLowerCase())) : undefined;
+  const clear = players.length > 1 && players[0].games >= 2 && players[0].games > players[1].games ? players[0] : undefined;
+  const [pick, setPick] = useState(mine?.name ?? clear?.name ?? '');
+  const [shown, setShown] = useState(shown0 ?? '');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!pick || busy) return;
+    setBusy(true);
+    onDone(await addOpponentGames(games, pick, { shown: shown.trim() || undefined, existing }));
+  };
+  return (
+    <div className="panel stack who-is-it">
+      <strong>
+        Who is the opponent in {games.length === 1 ? 'this game' : `these ${games.length} games`}?
+      </strong>
+      <div className="who-list">
+        {players.map((p) => (
+          <label key={p.name} className={`who-opt${pick === p.name ? ' on' : ''}`}>
+            <input type="radio" name="who" checked={pick === p.name} onChange={() => setPick(p.name)} />
+            <span>{p.name}</span>
+            {games.length > 1 && <span className="tiny muted">{p.games} game{p.games === 1 ? '' : 's'}</span>}
+          </label>
+        ))}
+      </div>
+      {!existing && (
+        <label className="small stack tight">
+          Shown as
+          <input value={shown} placeholder={pick || 'Any name you like'} onChange={(e) => setShown(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void save()} />
+        </label>
+      )}
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button className="btn ghost" onClick={() => onDone(null)}>
+          Cancel
+        </button>
+        <button className="btn primary" disabled={!pick || busy} onClick={() => void save()}>
+          Add {games.length === 1 ? 'game' : `${games.length} games`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Which side the opponent played in one game; the user can change it. */
+function SideCell({ g, o }: { g: GameRecord; o: OpponentProfile }) {
+  const byName = opponentColorOf({ black: g.black, white: g.white }, new Set([o.name, ...o.aliases].map((n) => n.trim().toLowerCase())));
+  const value = g.opponentColor ?? byName ?? 0;
+  return (
+    <select value={value} onClick={(e) => e.stopPropagation()} onChange={(e) => void setOpponentColor(g.id, (Number(e.target.value) || null) as 1 | 2 | null)} style={{ padding: '2px 4px', fontSize: 12, maxWidth: 150 }} aria-label={`${o.name}'s side`}>
+      {!value && <option value={0}>Not counted: pick</option>}
+      <option value={1}>● {g.black || 'Black'}</option>
+      <option value={2}>○ {g.white || 'White'}</option>
+    </select>
+  );
+}
+
 function Profile({ o }: { o: OpponentProfile }) {
   const allGames = useStore((s) => s.games);
   const games = allGames.filter((g) => o.gameIds.includes(g.id));
   const analysed = games.filter((g) => g.status === 'done').length;
   const [name, setName] = useState(o.name);
+  const [adding, setAdding] = useState<GameRecord[] | null>(null);
   const s = o.stats;
   const size = games[0]?.size ?? 19;
   return (
@@ -90,7 +153,15 @@ function Profile({ o }: { o: OpponentProfile }) {
           <p className="small dim">Needs 30 analysed moves ({analysed}/{games.length} games done).</p>
         )}
       </div>
-      <DropZone compact label="Add games" onFiles={(f) => void importOpponentFiles(f, undefined, o)} />
+      {adding ? (
+        <WhoIsIt games={adding} existing={o} onDone={() => setAdding(null)} />
+      ) : (
+        <DropZone compact label="Add games" onFiles={async (f) => {
+            const games = await readOpponentFiles(f);
+            if (games.length) setAdding(games);
+          }}
+        />
+      )}
       {!s ? (
         <div className="empty">No stats yet.</div>
       ) : (
@@ -209,6 +280,9 @@ function Profile({ o }: { o: OpponentProfile }) {
                   {games.map((g) => (
                     <tr key={g.id} className="click" onClick={() => go(`review/${g.id}`)}>
                       <td>{gameTitle(g)}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <SideCell g={g} o={o} />
+                      </td>
                       <td className="small dim">{g.date ?? ''}</td>
                       <td className="small">{g.result ?? ''}</td>
                       <td className="small muted">{g.status === 'done' ? 'analysed' : g.status}</td>
@@ -227,6 +301,7 @@ function Profile({ o }: { o: OpponentProfile }) {
 export function Opponents({ id }: { id?: string }) {
   const opponents = useStore((s) => s.opponents);
   const [name, setName] = useState('');
+  const [pending, setPending] = useState<GameRecord[] | null>(null);
   const o = opponents.find((x) => x.id === id);
   if (o)
     return (
@@ -244,15 +319,28 @@ export function Opponents({ id }: { id?: string }) {
         </div>
       </div>
       <div className="panel stack">
-        <input placeholder="Shown name (optional; their games still match the name in the records)" value={name} onChange={(e) => setName(e.target.value)} />
-        <DropZone
-          compact
-          label="Drop SGF files"
-          onFiles={async (f) => {
-            const p = await importOpponentFiles(f, name.trim() || undefined);
-            if (p) go(`opponents/${p.id}`);
-          }}
-        />
+        {pending ? (
+          <WhoIsIt
+            games={pending}
+            shown={name}
+            onDone={(p) => {
+              setPending(null);
+              if (p) go(`opponents/${p.id}`);
+            }}
+          />
+        ) : (
+          <>
+            <input placeholder="Shown name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+            <DropZone
+              compact
+              label="Drop SGF files"
+              onFiles={async (f) => {
+                const games = await readOpponentFiles(f);
+                if (games.length) setPending(games);
+              }}
+            />
+          </>
+        )}
       </div>
       <div className="card-list" style={{ marginTop: 16 }}>
         {opponents.map((p) => (

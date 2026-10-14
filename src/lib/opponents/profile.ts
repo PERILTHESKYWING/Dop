@@ -1,3 +1,4 @@
+import { opponentColorOf } from '../games';
 import { allPositions } from '../go/board';
 import { chebyshev, lineOf, symmetric, xy } from '../go/coords';
 import { buildContext, pointFeatures } from '../go/features';
@@ -88,7 +89,7 @@ export function buildOpponentStats(name: string, aliases: string[], games: GameR
   let mistakes = 0, analysed = 0;
 
   for (const g of games) {
-    const color: Color | null = names.has(g.black.trim().toLowerCase()) ? 1 : names.has(g.white.trim().toLowerCase()) ? 2 : null;
+    const color: Color | null = opponentColorOf(g, names);
     if (!color) continue;
     if (color === 1) asBlack++;
     const res = (g.result ?? '').toUpperCase();
