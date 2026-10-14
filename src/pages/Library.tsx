@@ -1,78 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
-import { corpus, importFiles, moveGamesToMine, moveGamesToOpponent, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
+import { corpus, importFiles, moveGamesToMine, pauseQueue, removeGames, resumeQueue, retryGame, setGameColor } from '../state/actions';
 import { DropZone, gameTitle } from '../components/common';
 import { EngineNotice, SideChooser } from '../components/Notices';
 import { go } from '../router';
 import type { GameRecord } from '../lib/types';
 import { countMoves, kifuToSgf, type Kifu } from '../lib/kifu/kifu';
 import { deleteKifu, listKifus } from '../lib/kifu/store';
-import { guessOpponentName } from '../lib/games';
+import { MoveDialog } from '../components/MoveDialog';
 
 const isOpp = (g: GameRecord) => g.source === 'opponent' || g.source === 'demo-opponent';
-
-/** Pick (or name) the opponent that games uploaded by mistake really belong to. */
-function MoveDialog({ games, onClose }: { games: GameRecord[]; onClose: () => void }) {
-  const opponents = useStore((s) => s.opponents);
-  const myNames = useStore((s) => s.settings.playerNames);
-  const guess = useMemo(() => guessOpponentName(games, myNames) ?? '', [games, myNames]);
-  const lower = guess.trim().toLowerCase();
-  const match = opponents.find((o) => [o.name, ...o.aliases].some((n) => n.trim().toLowerCase() === lower));
-  const [pick, setPick] = useState<string>(match?.id ?? 'new');
-  const [name, setName] = useState(guess);
-  const [busy, setBusy] = useState(false);
-  const sorted = [...opponents].sort((a, b) => a.name.localeCompare(b.name));
-  const ok = pick !== 'new' || name.trim().length > 0;
-  const submit = async () => {
-    if (!ok || busy) return;
-    setBusy(true);
-    await moveGamesToOpponent(
-      games.map((g) => g.id),
-      pick === 'new' ? { name: name.trim() } : { id: pick },
-    );
-    onClose();
-  };
-  return (
-    <div className="lib-dialog-wrap" onClick={onClose}>
-      <div className="lib-dialog panel" role="dialog" aria-label="Move to an opponent" onClick={(e) => e.stopPropagation()}>
-        <div className="lib-dialog-title">Move {games.length === 1 ? 'this game' : `${games.length} games`} to an opponent</div>
-        <p className="small muted" style={{ marginTop: 0 }}>
-          {games.length === 1 ? 'It stops' : 'They stop'} counting toward your own style and stats, and count toward the opponent's profile and copy instead.
-        </p>
-        <label className="small">Opponent</label>
-        <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ width: '100%', margin: '4px 0 10px' }}>
-          {sorted.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name} ({o.gameIds.length} game{o.gameIds.length === 1 ? '' : 's'})
-            </option>
-          ))}
-          <option value="new">New opponent…</option>
-        </select>
-        {pick === 'new' && (
-          <>
-            <label className="small">Their name</label>
-            <input
-              value={name}
-              autoFocus
-              placeholder="As written in the game record"
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void submit()}
-              style={{ width: '100%', margin: '4px 0 10px' }}
-            />
-          </>
-        )}
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn primary" disabled={!ok || busy} onClick={() => void submit()}>
-            Move
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function StatusCell({ g, current }: { g: GameRecord; current: boolean }) {
   if (g.status === 'done') return <span className="chip good">analysed</span>;
@@ -366,7 +303,6 @@ export function Library() {
       </div>
       <KifuSection />
     </div>
-    {/* Outside .page: its children animate in, which would pin a fixed overlay to them. */}
     {moving && (
       <MoveDialog
         games={moving}

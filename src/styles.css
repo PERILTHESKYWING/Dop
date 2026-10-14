@@ -1538,6 +1538,13 @@ table.cands th {
   min-width: 150px;
   justify-content: flex-start;
 }
+.side-pick .btn.side-other {
+  min-width: 0;
+}
+.side-pick .btn.side-del {
+  min-width: 0;
+  padding-inline: 10px;
+}
 
 /* ------------------------------------------------ dashboard pieces */
 .steps {
@@ -1904,4 +1911,30 @@ table.live-cands th:first-child {
   width: min(420px, 100%);
   max-height: calc(100% - 32px);
   overflow-y: auto;
+}
+.move-side {
+  margin-top: 6px;
+}
+.move-side .seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.move-side .seg .btn {
+  flex: 1 1 140px;
+  justify-content: flex-start;
+}
+@media (max-width: 640px) {
+  .side-game {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side-pick .btn {
+    min-width: 0;
+    flex: 1 1 130px;
+  }
+  .side-pick .btn.side-other,
+  .side-pick .btn.side-del {
+    flex: 0 0 auto;
+  }
 }
