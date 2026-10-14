@@ -1,34 +1,34 @@
 {
   "version": 1,
   "file": "dopnet.dopnet",
-  "name": "dopnet-c35",
+  "name": "dopnet-c36",
   "enabled": false,
   "gate": {
-    "at": "2026-10-14T12:26:28.387Z",
+    "at": "2026-10-14T13:25:20.148Z",
     "reference": "kata1-b18c384nbt at 800 visits",
     "positions": 140,
     "ms": 1500,
     "student": {
-      "top1": 0.32142857142857145,
-      "winError": 0.19658185615156704,
-      "evalsPerSec": 207
+      "top1": 0.3,
+      "winError": 0.19992598529762826,
+      "evalsPerSec": 188
     },
     "baseline": {
       "name": "b10",
       "top1": 0.5071428571428571,
-      "winError": 0.08922969951190171,
-      "evalsPerSec": 31
+      "winError": 0.08922740182038742,
+      "evalsPerSec": 32
     },
-    "speedup": 6.6,
+    "speedup": 5.9,
     "passed": false
   },
   "trained": {
-    "samples": 8418304,
+    "samples": 8894720,
     "records": 822304,
     "teacher": "kata1-b18c384nbt",
     "minds": 1,
-    "nights": 13,
-    "shape": "64x7"
+    "nights": 14,
+    "shape": "64x8"
   },
-  "updated": "2026-10-14T12:26:28.388Z"
+  "updated": "2026-10-14T13:25:20.149Z"
 }
