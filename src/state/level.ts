@@ -1,3 +1,4 @@
+import { opponentColorOf } from '../lib/games';
 import { create } from 'zustand';
 import { analyzeGame, MemoryStore } from '../lib/analysis/pipeline';
 import { kvGet, kvSet } from '../lib/db/db';
@@ -76,7 +77,7 @@ export function opponentTargets(o: { name: string; aliases: string[] }, games: r
   const names = new Set([o.name, ...o.aliases].map((n) => n.trim().toLowerCase()));
   const out: LevelTarget[] = [];
   for (const g of games) {
-    const color: Color | null = names.has(g.black.trim().toLowerCase()) ? 1 : names.has(g.white.trim().toLowerCase()) ? 2 : null;
+    const color: Color | null = opponentColorOf(g, names);
     if (color) out.push({ game: g, color });
   }
   return out;

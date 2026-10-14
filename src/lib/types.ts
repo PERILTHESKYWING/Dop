@@ -10,6 +10,8 @@ export interface GameRecord {
   source: GameSource;
   /** Opponent profile this game belongs to (source = opponent). */
   opponentId?: string;
+  /** Which side that opponent played, when the user chose it (else it is found from their names). */
+  opponentColor?: Color;
   fileName: string;
   sgf: string;
   size: number;

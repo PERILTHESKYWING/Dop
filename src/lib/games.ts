@@ -15,6 +15,12 @@ export function detectPlayerColor(g: Pick<ParsedGame, 'black' | 'white'>, names:
   return null;
 }
 
+/** The side an opponent played in one of their games: the side the user chose, else the side named like them. */
+export function opponentColorOf(g: Pick<GameRecord, 'black' | 'white' | 'opponentColor'>, names: Set<string>): Color | null {
+  if (g.opponentColor) return g.opponentColor;
+  return names.has(norm(g.black)) ? 1 : names.has(norm(g.white)) ? 2 : null;
+}
+
 export function gameId(g: ParsedGame): string {
   const moves = g.moves.map((m) => `${m.color}${m.loc}`).join(',');
   const setup = g.setup.map((m) => `${m.color}${m.loc}`).join(',');
@@ -122,8 +128,7 @@ export function guessOpponentName(games: Sides[], myNames: string[]): string | n
       add(g.white, 1);
     }
   }
-  let best: string | null = null;
-  let bestN = 0;
-  for (const [n, c] of counts) if (c > bestN) [best, bestN] = [n, c];
-  return best;
+  // A tie (one game between two strangers) is no guess at all: the user picks, not "Black".
+  const ranked = [...counts].sort((x, y) => y[1] - x[1]);
+  return ranked.length && (ranked.length === 1 || ranked[0][1] > ranked[1][1]) ? ranked[0][0] : null;
 }

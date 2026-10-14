@@ -3,7 +3,8 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db, deleteGames, resetDbHandle, TOMBSTONES } from '../src/lib/db/db';
 import { exportSnapshot, mergeSnapshot, type Snapshot } from '../src/lib/sync/snapshot';
-import { guessOpponentName, opponentSide } from '../src/lib/games';
+import { guessOpponentName, opponentColorOf, opponentSide } from '../src/lib/games';
+import { buildOpponentStats } from '../src/lib/opponents/profile';
 import type { GameRecord } from '../src/lib/types';
 
 const game = (id: string, over: Partial<GameRecord> = {}): GameRecord => ({
@@ -78,5 +79,18 @@ describe('finding the opponent in a moved game', () => {
   it('guesses the name that recurs on the opponent side', () => {
     const gs = [game('a'), game('b', { black: 'rival', white: 'xiao', playerColor: 2 }), game('c', { black: 'other', white: 'rival', playerColor: null })];
     expect(guessOpponentName(gs, ['xiao'])).toBe('rival');
+  });
+
+  it('makes no guess (never just Black) when one game is between two strangers', () => {
+    expect(guessOpponentName([game('a', { black: 'sora', white: 'ren', playerColor: null })], ['xiao'])).toBeNull();
+  });
+
+  it('counts the side the user chose before any name match', () => {
+    const g = game('a', { source: 'opponent', black: 'sora', white: 'ren', playerColor: null, opponentColor: 2, result: 'W+R' });
+    expect(opponentColorOf(g, new Set(['sora']))).toBe(2);
+    expect(opponentColorOf({ ...g, opponentColor: undefined }, new Set(['sora']))).toBe(1);
+    const st = buildOpponentStats('Kenji the Rival', [], [g], new Map());
+    expect(st.games).toBe(1);
+    expect(st.wins).toBe(1);
   });
 });

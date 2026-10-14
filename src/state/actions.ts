@@ -12,7 +12,7 @@ import { practiceItems } from '../lib/forge/worth';
 import { answerCovered, gradeAnswer, itemBoard, type LiveCheck } from '../lib/forge/grading';
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
-import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts, opponentSide } from '../lib/games';
+import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts, opponentColorOf, opponentSide } from '../lib/games';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import { toSgf } from '../lib/go/sgf';
 import { allPositions, type Board } from '../lib/go/board';
@@ -662,7 +662,8 @@ export async function moveGamesToOpponent(ids: string[], target: { id: string } 
   }
   const moved = new Set(games.map((g) => g.id));
   const wasMine = games.some(isPlayerGame);
-  await patchGames(new Map(games.map((g) => [g.id, { source: 'opponent' as const, opponentId: profile.id, playerColor: null, updatedAt: now }])));
+  const sideOf = new Map(games.map((g) => [g.id, sides[g.id] ?? opponentSide(g, known(), s.settings.playerNames) ?? undefined]));
+  await patchGames(new Map(games.map((g) => [g.id, { source: 'opponent' as const, opponentId: profile.id, opponentColor: sideOf.get(g.id), playerColor: null, updatedAt: now }])));
   await dropFromOpponents(moved, profile.id);
   const saved = await saveOpponent({ ...profile, gameIds: [...new Set([...profile.gameIds, ...moved])] });
   if (wasMine) scheduleRebuild();
@@ -680,7 +681,7 @@ export async function moveGamesToMine(ids: string[]) {
   const games = s.games.filter((g) => ids.includes(g.id) && g.source !== 'user');
   if (!games.length) return;
   const now = Date.now();
-  await patchGames(new Map(games.map((g) => [g.id, { source: 'user' as const, opponentId: undefined, playerColor: detectPlayerColor(g, s.settings.playerNames), updatedAt: now }])));
+  await patchGames(new Map(games.map((g) => [g.id, { source: 'user' as const, opponentId: undefined, opponentColor: undefined, playerColor: detectPlayerColor(g, s.settings.playerNames), updatedAt: now }])));
   await dropFromOpponents(new Set(games.map((g) => g.id)));
   scheduleRebuild();
   const unknown = games.filter((g) => !detectPlayerColor(g, s.settings.playerNames)).length;
@@ -1265,7 +1266,7 @@ async function opponentCopy(o: OpponentProfile, games: GameRecord[], analyses: R
   const boards = new Map<string, Board[]>();
   for (const g of games) {
     if (!analyses[g.id]) continue;
-    const color: Color | null = names.has(g.black.trim().toLowerCase()) ? 1 : names.has(g.white.trim().toLowerCase()) ? 2 : null;
+    const color: Color | null = opponentColorOf(g, names);
     if (!color) continue;
     g.moves.forEach((m, index) => m.color === color && moves.push({ gameId: g.id, index, color, loc: m.loc }));
   }
@@ -1302,29 +1303,67 @@ export async function saveOpponent(o: OpponentProfile) {
   return next;
 }
 
-export async function importOpponentFiles(files: File[], name?: string, existing?: OpponentProfile) {
-  const texts = await readFiles(files);
-  const { games, errors } = importSgfTexts(texts, 'opponent', []);
-  if (!games.length) {
-    toast(errors[0] ? `No games imported: ${errors[0].message}` : 'No games found in those files.', 'error');
-    return null;
-  }
-  // The name in the game records; a name typed for them is only what they are shown as.
-  const recorded = guessPlayerName(games) ?? (games.length === 1 ? null : games[0].black);
-  const who = name || existing?.name || recorded || games[0].black;
+/** Read SGF files for an opponent without saving anything yet (the user then says which player they are). */
+export async function readOpponentFiles(files: File[]) {
+  const { games, errors } = importSgfTexts(await readFiles(files), 'opponent', []);
+  if (!games.length) toast(errors[0] ? `No games imported: ${errors[0].message}` : 'No games found in those files.', 'error');
+  return games;
+}
+
+/** Every player named in some games, most frequent first (the choices for "who is the opponent?"). */
+export function playersIn(games: Pick<GameRecord, 'black' | 'white'>[]): { name: string; games: number }[] {
+  const counts = new Map<string, { name: string; games: number }>();
+  for (const g of games)
+    for (const n of new Set([g.black.trim(), g.white.trim()])) {
+      if (!n) continue;
+      const k = n.toLowerCase();
+      const c = counts.get(k) ?? { name: n, games: 0 };
+      c.games++;
+      counts.set(k, c);
+    }
+  return [...counts.values()].sort((a, b) => b.games - a.games || a.name.localeCompare(b.name));
+}
+
+/**
+ * Save an opponent's games. `player` is who they are in the game records (the user chose
+ * it); `shown` is what they are called here (any name, defaults to `player`).
+ */
+export async function addOpponentGames(games: GameRecord[], player: string, opts: { shown?: string; existing?: OpponentProfile } = {}) {
+  if (!games.length) return null;
+  const { existing } = opts;
+  const who = player.trim();
+  const shown = opts.shown?.trim() || existing?.name || who;
   const id = existing?.id ?? uid('opp-');
-  for (const g of games) g.opponentId = id;
+  const names = new Set([who.toLowerCase()]);
+  for (const g of games) {
+    g.opponentId = id;
+    g.opponentColor = opponentColorOf({ black: g.black, white: g.white }, names) ?? undefined;
+  }
   const known = new Set(get().games.map((g) => g.id));
   const fresh = games.filter((g) => !known.has(g.id));
   const d = await db();
   for (const g of fresh) await d.put('games', g);
   set((s) => ({ games: [...s.games, ...fresh] }));
+  const all = (o?: OpponentProfile) => [...(o ? [o.name, ...o.aliases] : []), shown];
+  const aliases = (o?: OpponentProfile) => (all(o).some((n) => n.trim().toLowerCase() === who.toLowerCase()) ? (o?.aliases ?? []) : [...(o?.aliases ?? []), who]);
   const profile: OpponentProfile = existing
-    ? { ...existing, gameIds: [...new Set([...existing.gameIds, ...games.map((g) => g.id)])] }
-    : { id, name: who, aliases: recorded && recorded.toLowerCase() !== who.toLowerCase() ? [recorded] : [], gameIds: games.map((g) => g.id), createdAt: Date.now(), updatedAt: Date.now() };
+    ? { ...existing, aliases: aliases(existing), gameIds: [...new Set([...existing.gameIds, ...games.map((g) => g.id)])] }
+    : { id, name: shown, aliases: aliases(), gameIds: games.map((g) => g.id), createdAt: Date.now(), updatedAt: Date.now() };
   const saved = await saveOpponent(profile);
-  toast(`${games.length} game${games.length > 1 ? 's' : ''} added to ${saved.name}'s profile.`, 'ok');
+  const missing = games.filter((g) => !g.opponentColor).length;
+  toast(
+    `${games.length} game${games.length > 1 ? 's' : ''} added to ${saved.name}'s profile.` + (missing ? ` ${who} isn't in ${missing} of them: pick their side in the game list.` : ''),
+    missing ? 'info' : 'ok',
+  );
   return saved;
+}
+
+/** Say which side an opponent played in one of their games (null: go back to matching names). */
+export async function setOpponentColor(gameId: string, color: Color | null) {
+  const g = get().games.find((x) => x.id === gameId);
+  if (!g) return;
+  await patchGames(new Map([[gameId, { opponentColor: color ?? undefined, updatedAt: Date.now() }]]));
+  for (const o of get().opponents.filter((x) => x.gameIds.includes(gameId))) await saveOpponent(o);
 }
 
 export async function deleteOpponent(id: string) {
