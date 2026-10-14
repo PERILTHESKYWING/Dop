@@ -13,17 +13,16 @@ import { answerCovered, gradeAnswer, itemBoard, type LiveCheck } from '../lib/fo
 import { newMastery, scoreBlindTest, updateMastery } from '../lib/forge/scheduler';
 import { makeVariation } from '../lib/forge/variations';
 import { detectPlayerColor, gameId, guessPlayerName, importSgfTexts, opponentColorOf, opponentSide } from '../lib/games';
-import { buildContext } from '../lib/go/features';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import { toSgf } from '../lib/go/sgf';
 import { allPositions, type Board } from '../lib/go/board';
-import { decodeOwnership } from '../lib/engine/parse';
 import { ANALYSIS_VERSION, engineMoves, searchedEval } from '../lib/analysis/analyzer';
 import { engineEvaluator, nnCacheFor, Search, type SearchSnapshot } from '../lib/engine/mcts';
 import type { CacheRow } from '../lib/engine/nncache';
 import { engineKomi, standardKomi } from '../lib/go/rules';
 import { buildDiscoveryRequest, discoverPatterns, llmStatus, mergePatterns } from '../lib/llm/client';
-import { buildExample, trainDoppel, type DoppelExample, type DoppelModel } from '../lib/profile/doppel';
+import type { DoppelModel } from '../lib/profile/doppel';
+import { copyExamples, feedbackExamples, loadCopyLab, putCopyModel, trainCopyModel, useCopyLab } from './copy';
 import { computeFingerprint } from '../lib/profile/fingerprint';
 import { detectWeaknesses } from '../lib/profile/weaknesses';
 import { weaknessPriority, withPeers } from '../lib/level/peers';
@@ -1008,10 +1007,12 @@ export function rebuildProfile(): Promise<void> {
       const level = levelOf(c.gameOrder().map((id) => c.games.get(id)!).filter((g) => g.playerColor !== null).map((g) => ({ game: g, color: g.playerColor! })));
       const all = sortWeaknesses(withPeers([...weaknesses, ...llmOnly], level));
 
-      // Doppelgänger training data.
-      const examples = await copyExamples(player, (id) => c.games.get(id), (id) => c.analyses.get(id), (id) => c.boards(id));
+      // Doppelgänger training data (the copy trains in a worker; evolution follows in the background).
+      await loadCopyLab();
+      const examples = await copyExamples(player, (id) => c.games.get(id), (id) => c.analyses.get(id), (id) => c.boards(id), c.gameOrder());
+      myExamples = { version: s.corpusVersion, examples };
       const version = (s.doppel?.version ?? 0) + 1;
-      const doppel = examples.length >= 30 ? trainDoppel(examples, { version }) : s.doppel;
+      const doppel = examples.length >= 30 ? await trainCopyModel([...examples, ...feedbackExamples('me')], { version, prev: s.doppel }) : s.doppel;
 
       const names = s.settings.playerNames;
       const profile: PlayerProfile = {
@@ -1046,7 +1047,10 @@ export function rebuildProfile(): Promise<void> {
       await tx.objectStore('items').clear();
       for (const list of Object.values(items)) for (const it of list) await tx.objectStore('items').put(it);
       await tx.done;
+      if (doppel && doppel !== s.doppel) await putCopyModel(doppel);
       set({ profile, weaknesses: all, doppel: doppel ?? null, items });
+      // New games since the copy last evolved: let it evolve a little, off the page's thread.
+      if (doppel && doppel !== s.doppel && doppel.evo?.moves !== doppel.moves && !isCool()) setTimeout(() => void evolveCopy(2, true), 3000);
     } catch (e) {
       toast(`Could not rebuild the player model: ${(e as Error).message}`, 'error');
     } finally {
@@ -1055,6 +1059,48 @@ export function rebuildProfile(): Promise<void> {
     }
   })();
   return rebuilding;
+}
+
+/** The player's copy examples from the last rebuild (evolution reuses them). */
+let myExamples: { version: number; examples: Awaited<ReturnType<typeof copyExamples>> } | null = null;
+
+/**
+ * Evolve the player's copy for some generations (in a worker), then keep the copy trained
+ * with the best settings found. `quiet`: started by itself (no toast unless it improved).
+ */
+export async function evolveCopy(generations = 4, quiet = false): Promise<void> {
+  const lab = useCopyLab.getState();
+  const start = get().doppel;
+  if (lab.evolving || !start || get().busy.profile) return;
+  useCopyLab.setState({ evolving: { target: 'me', done: 0, total: generations * 8, best: null } });
+  try {
+    await loadCopyLab();
+    let examples = myExamples?.examples;
+    if (!examples || myExamples?.version !== get().corpusVersion) {
+      const c = corpus();
+      examples = await copyExamples(c.playerRecords(), (id) => c.games.get(id), (id) => c.analyses.get(id), (id) => c.boards(id), c.gameOrder());
+      myExamples = { version: get().corpusVersion, examples };
+    }
+    if (examples.length < 30) return;
+    const before = start.evo?.history.at(-1)?.best ?? null;
+    const model = await trainCopyModel([...examples, ...feedbackExamples('me')], {
+      version: start.version + 1,
+      prev: start,
+      generations,
+      onProgress: (done, total, best) => useCopyLab.setState({ evolving: { target: 'me', done, total, best } }),
+    });
+    // A rebuild that finished meanwhile wins (it learned from newer games).
+    if (get().doppel !== start) return;
+    await putCopyModel(model);
+    set({ doppel: model });
+    const after = model.evo?.history.at(-1)?.best ?? null;
+    if (!quiet) toast(after !== null && before !== null && after > before + 1e-4 ? 'Your copy evolved and matches you better.' : 'Evolution ran; the best settings so far are kept.', 'ok');
+    else if (after !== null && before !== null && after > before + 1e-4) toast('Your copy evolved a little closer to you.', 'ok');
+  } catch (e) {
+    if (!quiet) toast(`Evolution stopped: ${(e as Error).message}`, 'error');
+  } finally {
+    useCopyLab.setState({ evolving: null });
+  }
 }
 
 // ---------------------------------------------------------------- LLM
@@ -1213,27 +1259,6 @@ export async function saveBlindTest(t: BlindTest) {
 // ---------------------------------------------------------------- opponents
 
 /** Copy training examples from the moves in `moves` (one side's moves in analysed games). */
-async function copyExamples(
-  moves: readonly { gameId: string; index: number; color: Color; loc: Loc }[],
-  gameOf: (id: string) => GameRecord | undefined,
-  analysisOf: (id: string) => GameAnalysis | undefined,
-  boardsOf: (id: string) => Board[],
-): Promise<DoppelExample[]> {
-  const examples: DoppelExample[] = [];
-  let n = 0;
-  for (const r of moves) {
-    const g = gameOf(r.gameId);
-    const e = analysisOf(r.gameId)?.evals[r.index];
-    if (!g || !e || r.loc === PASS) continue;
-    const ctx = buildContext(boardsOf(r.gameId)[r.index], decodeOwnership(e.ownership));
-    const prev = r.index > 0 ? g.moves[r.index - 1] : null;
-    const ex = buildExample(ctx, e.policy, r.color, prev && prev.color !== r.color ? prev.loc : null, r.loc, r.gameId);
-    if (ex) examples.push(ex);
-    if (++n % 150 === 0) await tick();
-  }
-  return examples;
-}
-
 /** A copy of an imported player, learned from their analysed games (null until 30 moves). */
 async function opponentCopy(o: OpponentProfile, games: GameRecord[], analyses: Record<string, GameAnalysis>): Promise<DoppelModel | undefined> {
   const names = new Set([o.name, ...o.aliases].map((x) => x.trim().toLowerCase()));
@@ -1246,6 +1271,8 @@ async function opponentCopy(o: OpponentProfile, games: GameRecord[], analyses: R
     g.moves.forEach((m, index) => m.color === color && moves.push({ gameId: g.id, index, color, loc: m.loc }));
   }
   const byId = new Map(games.map((g) => [g.id, g]));
+  const order = [...games].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.importedAt - b.importedAt).map((g) => g.id);
+  await loadCopyLab();
   const examples = await copyExamples(
     moves,
     (id) => byId.get(id),
@@ -1259,9 +1286,10 @@ async function opponentCopy(o: OpponentProfile, games: GameRecord[], analyses: R
       }
       return b;
     },
+    order,
   );
   if (examples.length < 30) return undefined;
-  return trainDoppel(examples, { version: (o.copy?.version ?? 0) + 1 });
+  return trainCopyModel([...examples, ...feedbackExamples(o.id)], { version: (o.copy?.version ?? 0) + 1, prev: o.copy });
 }
 
 export async function saveOpponent(o: OpponentProfile) {
