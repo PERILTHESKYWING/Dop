@@ -6,6 +6,7 @@ import {
   copyStatus,
   copyVsKataGo,
   describeHabits,
+  DOPPEL_ALGO,
   featureVector,
   habitCost,
   initialWeights,
@@ -156,7 +157,7 @@ describe('trainDoppel', () => {
     }
     const m = trainDoppel(data, { version: 3 });
     expect(m.version).toBe(3);
-    expect(m.algo).toBe(2);
+    expect(m.algo).toBe(DOPPEL_ALGO);
     expect(m.weights).toHaveLength(NF);
     expect(m.weights[1]).toBeGreaterThan(0.5);
     expect(m.gameIds).toHaveLength(10);

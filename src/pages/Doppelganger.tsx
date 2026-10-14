@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast, useStore } from '../state/store';
-import { corpus, getEngine, isPlayerGame, loadDemo, markInteractive, pcSmallIfSame, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
+import { corpus, evolveCopy, getEngine, isPlayerGame, loadDemo, markInteractive, pcSmallIfSame, rebuildProfile, runQueue, saveDoppelGame, startEngine } from '../state/actions';
 import { Board, type Mark } from '../components/Board';
 import { fmtPct, gameTitle, Legend, MoveThumb } from '../components/common';
 import { BoardScreen, HeadButton, Notice, PlayersBar, REPORT_TABS, type ScreenTool } from '../components/BoardScreen';
@@ -19,11 +19,14 @@ import { locToGtp } from '../lib/go/coords';
 import { other, PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import {
   copyVsKataGo,
+  describeContextHabits,
   describeHabits,
   DOPPEL_ALGO,
   habitCost,
   MIN_COPY_MOVES,
-  predictForPosition,
+  PHASES,
+  positionExample,
+  predict,
   rankDisagreements,
   sampleMove,
   type Disagreement,
@@ -32,7 +35,14 @@ import {
   type MoveValue,
 } from '../lib/profile/doppel';
 import type { GameRecord, OpponentProfile, PolicyEntry } from '../lib/types';
-import { chooseStyled, FULL_STRENGTH, lossBudget } from '../lib/profile/strength';
+import { FULL_STRENGTH, lossBudget } from '../lib/profile/strength';
+import { bookMoves } from '../lib/profile/book';
+import { choiceDistribution, describeCandidates, drawFrom, TILT_LOSS, type CandInfo, type ChoiceState } from '../lib/profile/human';
+import { DEFAULT_DIALS, PRESETS, presetDials, type CopyDials, type Mood } from '../lib/profile/dials';
+import { GENES } from '../lib/profile/genome';
+import { SIGNATURES } from '../lib/profile/signatures';
+import { moverView } from '../lib/engine/parse';
+import { addCopyFeedback, loadCopyLab, pendingFeedback, setCopyDials, useCopyLab } from '../state/copy';
 import { rankLabelWhole, rankTier } from '../lib/level/ranks';
 
 const rankLabel = (r: number) => rankTier(r) ?? rankLabelWhole(r);
@@ -146,6 +156,11 @@ function DopSheet({ sheet, copy }: { sheet: SheetCtl; copy: CopyInfo }) {
  * shown under the board on the play screen. */
 function DopSettings({ copy, onNav }: { copy: CopyInfo; onNav?: () => void }) {
   const busy = useStore((s) => s.busy.profile);
+  const doppel = useStore((s) => s.doppel);
+  const evolving = useCopyLab((s) => s.evolving);
+  useCopyLab((s) => s.feedback);
+  useEffect(() => void loadCopyLab(), []);
+  const pending = pendingFeedback('me', doppel);
   const opponents = useStore((s) => s.opponents).filter((o) => o.copy);
   const nav = (path: string) => {
     onNav?.();
@@ -154,7 +169,14 @@ function DopSettings({ copy, onNav }: { copy: CopyInfo; onNav?: () => void }) {
   return (
     <>
       <SheetSection title="Copy">
-        <ActionTile onClick={() => void rebuildProfile()} disabled={busy} icon="↻" label={busy ? 'Retraining…' : 'Retrain'} sub="All analysed games" />
+        <ActionTile
+          onClick={() => void rebuildProfile()}
+          disabled={busy}
+          icon="↻"
+          label={busy ? 'Retraining…' : 'Retrain'}
+          sub={pending ? `Learns ${plural(pending, '"not me"', '"not me"s')}` : 'All analysed games'}
+        />
+        {copy.owner !== 'demo' && <ActionTile onClick={() => void evolveCopy(4)} disabled={busy || !!evolving || !doppel} icon="🧬" label={evolving ? `Evolving ${evolving.done}/${evolving.total}` : 'Evolve'} sub="Tune it to you" />}
         <ActionTile onClick={() => nav('library')} icon={<Icon name="upload" />} label="Import games" sub={copy.owner === 'demo' ? 'Make it yours' : 'Add games'} />
       </SheetSection>
       <SheetSection title="Opponents">
@@ -429,6 +451,10 @@ function Overview({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
         <HabitsCard copy={copy} model={model} />
       </div>
       <div className="grid cols-hero" style={{ marginTop: 14 }}>
+        <PlayStyleCard copy={copy} model={model} />
+        <EvolutionCard copy={copy} model={model} />
+      </div>
+      <div className="grid cols-hero" style={{ marginTop: 14 }}>
         <DifferencesPreview copy={copy} model={model} />
         <div className="panel dop-cta stack">
           <BrandMark className="dop-cta-mark" />
@@ -562,6 +588,7 @@ function StatusCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
 
 function HabitsCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
   const habits = describeHabits(model, 8);
+  const changes = describeContextHabits(model, 5);
   const max = Math.max(0.5, ...habits.map((h) => Math.abs(h.weight)));
   return (
     <div className="panel stack">
@@ -583,6 +610,165 @@ function HabitsCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
         </>
       ) : (
         <p className="small dim">No clear habit yet.</p>
+      )}
+      {changes.length > 0 && (
+        <>
+          <h4>As the game changes</h4>
+          <ul className="small dop-changes">
+            {changes.map((c, i) => (
+              <li key={i}>
+                <strong>{c.when}:</strong> {c.text.charAt(0).toLowerCase() + c.text.slice(1)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+const pct0 = (v: number) => `${Math.round(v * 100)}%`;
+
+/** How the copy plays, mistakes included, next to the player: measured on games it did not learn from. */
+function PlayStyleCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
+  const play = model.metrics.play;
+  const mk = model.mistakes;
+  const you = copy.owner === 'demo' ? copy.demoName ?? 'The player' : 'You';
+  const your = copy.owner === 'demo' ? 'their' : 'your';
+  if (!play || !mk)
+    return (
+      <div className="panel stack">
+        <h3>How it plays</h3>
+        <p className="small dim">Retrain the copy to measure its mistakes against {your}s.</p>
+      </div>
+    );
+  const kinds = mk.types
+    .map((t, i) => ({ ...t, title: SIGNATURES[i]?.title ?? t.id }))
+    .filter((t) => t.you >= 3 && t.mult >= 1.3)
+    .sort((a, b) => b.mult - a.mult)
+    .slice(0, 3);
+  return (
+    <div className="panel stack">
+      <h3>How it plays</h3>
+      <h2>
+        Plays {your} move <span className="doppel">{pct0(play.match)}</span>
+      </h2>
+      <p className="small dim">
+        Chance it picks {your} exact move in games it never saw{play.habitsMatch < play.match - 0.005 ? ` (was ${pct0(play.habitsMatch)} before it learned ${your} mistakes)` : ''}.
+      </p>
+      {!play.byPhase.some((p) => p.you.moves) && <p className="small muted">Its mistakes are compared with {your}s once games have KataGo's full analysis (the quick first look has no move values).</p>}
+      <table className="data dop-mistakes">
+        <thead>
+          <tr>
+            <th />
+            <th>{you}</th>
+            <th className="doppel">Copy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {play.byPhase.map((p, i) =>
+            p.you.moves ? (
+              <tr key={i}>
+                <td>{PHASES[i].charAt(0).toUpperCase() + PHASES[i].slice(1)}</td>
+                <td className="mono">
+                  {p.you.meanLoss.toFixed(1)} pts · {pct0(p.you.mistakes)}
+                </td>
+                <td className="mono doppel">
+                  {p.copy.meanLoss.toFixed(1)} pts · {pct0(p.copy.mistakes)}
+                </td>
+              </tr>
+            ) : null,
+          )}
+          <tr>
+            <td>Obvious blunders</td>
+            <td className="mono">{fmtPct(play.obvious.you)}</td>
+            <td className="mono doppel">{fmtPct(play.obvious.copy)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="tiny muted">
+        Points lost per move · share of moves losing 2+ points. Obvious blunders: self-atari, filling an own eye, leaving a big group in atari. {pct0(play.outside.share)} of {your} moves were outside KataGo's top 10 ({play.outside.meanLoss.toFixed(1)} pts each); the copy never plays those, so the rows compare the rest.
+      </p>
+      <dl className="kv">
+        <dt>After a mistake</dt>
+        <dd>
+          {mk.tilt >= 1.15
+            ? `${you} ${your === 'your' ? 'lose' : 'loses'} ${mk.tilt.toFixed(1)}× as much on the next move; the copy tilts too.`
+            : mk.tilt <= 0.87
+              ? `${you} ${your === 'your' ? 'steady yourself' : 'steadies'} after one; so does the copy.`
+              : 'No tilt measured.'}
+        </dd>
+        {kinds.length > 0 && (
+          <>
+            <dt>{your === 'your' ? 'Your' : 'Their'} mistakes</dt>
+            <dd>{kinds.map((k) => `${k.title.toLowerCase()} (${k.mult.toFixed(1)}×)`).join('; ')}</dd>
+          </>
+        )}
+        {model.book && model.book.positions > 0 && (
+          <>
+            <dt>Opening book</dt>
+            <dd>{plural(model.book.positions, 'position')} from {your} games</dd>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
+
+/** Evolution: the copy tunes its own settings to the player, and keeps going as games come in. */
+function EvolutionCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
+  const evolving = useCopyLab((s) => s.evolving);
+  const busy = useStore((s) => s.busy.profile);
+  const evo = model.evo;
+  const hist = evo?.history ?? [];
+  const mine = copy.owner !== 'demo' || !copy.demoName;
+  const g = model.genome;
+  const W = 220;
+  const H = 46;
+  let path = '';
+  if (hist.length >= 2) {
+    const lo = Math.min(...hist.map((h) => h.best));
+    const hi = Math.max(...hist.map((h) => h.best));
+    path = hist.map((h, i) => `${i ? 'L' : 'M'}${((i / (hist.length - 1)) * W).toFixed(1)},${(H - 3 - ((h.best - lo) / Math.max(hi - lo, 1e-6)) * (H - 6)).toFixed(1)}`).join(' ');
+  }
+  const words = g
+    ? [
+        g.halfLife > 0 ? `recent games count more (half after ${Math.round(g.halfLife)} games)` : 'all games count the same',
+        `variety ${g.temperature.toFixed(2)}`,
+        g.gamma >= 0.25 ? 'mistakes must look natural' : 'any plausible mistake',
+        `trusts the book after ${g.bookAlpha < 1.5 ? 'one game' : `${Math.round(g.bookAlpha)} games`}`,
+      ]
+    : [];
+  return (
+    <div className="panel stack">
+      <div className="spread">
+        <h3>Evolution</h3>
+        {evo && <span className="chip doppel">generation {evo.generation}</span>}
+      </div>
+      <p className="small dim">
+        The copy breeds its own settings: {GENES.length} of them, scored on how well a copy built with them plays like {copy.owner === 'demo' ? copy.demoName ?? 'the player' : 'you'} in games it didn't learn from. It evolves a little after every update.
+      </p>
+      {path && (
+        <svg className="dop-evo" viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-label="Best score per generation">
+          <path d={path} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
+      {words.length > 0 && <p className="small">Best so far: {words.join(' · ')}.</p>}
+      {evolving ? (
+        <div className="stack tight">
+          <div className="bar dop-bar-copy">
+            <span style={{ width: `${(evolving.done / Math.max(evolving.total, 1)) * 100}%` }} />
+          </div>
+          <span className="tiny muted">
+            Evolving… {evolving.done}/{evolving.total}
+          </span>
+        </div>
+      ) : (
+        mine && (
+          <button className="btn" style={{ justifySelf: 'start' }} disabled={busy} onClick={() => void evolveCopy(4)}>
+            Evolve 4 more generations
+          </button>
+        )
       )}
     </div>
   );
@@ -831,10 +1017,6 @@ interface PlaySetup {
   gameId?: string;
   /** Moves of the game played before the starting position. */
   move: number;
-  /** Vary like a person (sample) or always play the copy's likeliest move. */
-  sample: boolean;
-  /** Target level for the copy (see profile/strength.ts); null plays as the player does. */
-  strength: number | null;
   /** Komi for a game from an empty board (area scoring). */
   komi?: number;
 }
@@ -850,8 +1032,10 @@ interface PlayGame {
   moves: Move[];
   start: Color;
   user: Color;
-  sample: boolean;
-  strength: number | null;
+  /** How the copy plays this game (profile/dials.ts). */
+  dials: CopyDials;
+  /** Points each of the copy's moves lost (by ply), so it can tilt after a mistake like the player. */
+  copyLoss: Record<number, number>;
   from?: { gameId: string; move: number };
   /** Whose copy plays: "me" or an imported player's id. */
   copyOf?: string;
@@ -869,10 +1053,13 @@ interface PositionRead {
   bWin: number;
   bLead: number;
   policy: PolicyEntry[];
-  /** The copy's probabilities for the side to move, likeliest first. */
+  /** The copy's habits' probabilities for the side to move, likeliest first. */
   preds: DoppelPrediction[];
-  /** Points each considered move loses (with the strength dial on). */
-  losses?: Map<Loc, number>;
+  /** KataGo's ownership (stored), kept for "not me" corrections. */
+  ownership?: string;
+  /** On the copy's turn: the moves it chooses among (with what each loses), and the state of its game. */
+  cands?: CandInfo[];
+  state?: ChoiceState;
 }
 
 /** Kept while the app is open, so a game survives switching tabs. */
@@ -883,7 +1070,7 @@ const play: {
   hints: boolean;
   autostart: boolean;
 } = {
-  setup: { user: 1, from: 'empty', size: 19, move: 0, sample: true, strength: null },
+  setup: { user: 1, from: 'empty', size: 19, move: 0 },
   game: null,
   reads: new Map(),
   hints: false,
@@ -913,7 +1100,7 @@ const readKey = (g: PlayGame, ply: number) => `${g.id}|${lineKey(g.moves.slice(0
 const colorAt = (g: PlayGame, ply: number): Color => (ply % 2 === 0 ? g.start : other(g.start));
 const isOver = (g: PlayGame) => !!g.resigned || (g.moves.length >= 2 && g.moves[g.moves.length - 1].loc === PASS && g.moves[g.moves.length - 2].loc === PASS);
 
-function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
+function newGame(s: PlaySetup, dials: CopyDials, source?: GameRecord): PlayGame {
   if (s.from === 'game' && source) {
     const n = Math.max(0, Math.min(source.moves.length, s.move));
     return {
@@ -926,12 +1113,12 @@ function newGame(s: PlaySetup, source?: GameRecord): PlayGame {
       moves: [],
       start: toPlayAt(source.setup, source.moves, n, source.handicap),
       user: s.user,
-      sample: s.sample,
-      strength: s.strength,
+      dials,
+      copyLoss: {},
       from: { gameId: source.id, move: n },
     };
   }
-  return { id: gameIds++, size: s.size, komi: s.komi ?? 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, sample: s.sample, strength: s.strength };
+  return { id: gameIds++, size: s.size, komi: s.komi ?? 7.5, setup: [], prefix: [], moves: [], start: 1, user: s.user, dials, copyLoss: {} };
 }
 
 /** Set up a game from a position of the player's games (used by "Play from here"). */
@@ -941,12 +1128,12 @@ function startFromPosition(g: GameRecord, move: number, user: Color, autostart: 
   play.autostart = autostart;
 }
 
-async function readPosition(g: PlayGame, ply: number, model: DoppelModel, withLosses = false): Promise<PositionRead> {
+async function readPosition(g: PlayGame, ply: number, model: DoppelModel, copyTurn = false): Promise<PositionRead> {
   // The PC's copy of the same network when it runs (nothing to compute here); this device's otherwise.
   const pc = pcSmallIfSame();
   if (pc) {
     try {
-      return await readWith(pc, g, ply, model, withLosses);
+      return await readWith(pc, g, ply, model, copyTurn);
     } catch (e) {
       if (!(e instanceof PcGone)) throw e;
     }
@@ -954,49 +1141,86 @@ async function readPosition(g: PlayGame, ply: number, model: DoppelModel, withLo
   markInteractive();
   const eng = getEngine() ?? (await startEngine());
   if (!eng) throw new Error('KataGo is not available');
-  return readWith(eng, g, ply, model, withLosses);
+  return readWith(eng, g, ply, model, copyTurn);
 }
 
-async function readWith(eng: EngineBackend, g: PlayGame, ply: number, model: DoppelModel, withLosses: boolean): Promise<PositionRead> {
+/** Moves the copy's habits must reach (times its favourite's probability) to be looked at. */
+const CONSIDER = 0.03;
+/** At most this many of the copy's own candidates are looked at. */
+const CONSIDER_MAX = 8;
+
+async function readWith(eng: EngineBackend, g: PlayGame, ply: number, model: DoppelModel, copyTurn: boolean): Promise<PositionRead> {
   markInteractive();
   const history = [...g.prefix, ...g.moves.slice(0, ply)];
   const board = replay(g.size, g.setup, history);
   const toPlay = colorAt(g, ply);
   const ev = await evaluateFast(eng, { size: g.size, komi: g.komi, setup: g.setup, history, toPlay, board });
-  const preds = predictForPosition(model, { size: g.size, setup: g.setup, history, toPlay, policy: ev.policy, ownership: ev.ownership, board }, 10);
-  const read: PositionRead = { toPlay, bWin: ev.bWin, bLead: ev.bLead, policy: ev.policy, preds };
-  if (withLosses && preds.length) {
-    // What each move the copy considers costs: KataGo's look at the position after it,
-    // compared with the best of them (KataGo's own first choices are always included).
-    const top = preds[0].p;
-    const locs = [...new Set([...preds.filter((p) => p.p >= top * 0.05).slice(0, 6).map((p) => p.loc), ...ev.policy.filter((e) => e.loc !== PASS).slice(0, 3).map((e) => e.loc)])];
-    const leads = new Map<Loc, number>();
-    const legal = locs.filter((loc) => loc !== PASS && board.isLegal(loc, toPlay));
-    const children = legal.map((loc) => {
-      const after = board.clone();
-      after.play(loc, toPlay);
-      return { size: g.size, komi: g.komi, setup: g.setup, history: [...history, { color: toPlay, loc }], toPlay: other(toPlay), board: after };
-    });
-    markInteractive();
-    const evs = await evaluateFastMany(eng, children);
-    legal.forEach((loc, i) => leads.set(loc, toPlay === 1 ? evs[i].bLead : -evs[i].bLead));
-    const best = Math.max(...leads.values());
-    read.losses = new Map([...leads].map(([loc, lead]) => [loc, best - lead]));
-  }
+  // The mood dial can make the copy play as it does when behind or ahead, whatever the score.
+  const mood = copyTurn ? g.dials.mood : 'auto';
+  const win = mood === 'behind' ? 0.15 : mood === 'ahead' ? 0.85 : moverView(ev.bWin, ev.bLead, toPlay).win;
+  const pos = positionExample({ size: g.size, setup: g.setup, history, toPlay, policy: ev.policy, ownership: ev.ownership, board, win });
+  const preds = pos ? predict(model, pos.example) : [];
+  const read: PositionRead = { toPlay, bWin: ev.bWin, bLead: ev.bLead, policy: ev.policy, preds, ownership: ev.ownership };
+  if (!copyTurn || !pos || !preds.length) return read;
+  // The copy's turn: what each move it might play costs, by KataGo's look at the position after
+  // it (its likelier candidates, KataGo's own first choices and the player's book moves).
+  const top = preds[0].p;
+  const book = g.dials.book > 0 ? bookMoves(model.book, board, toPlay, history.length, g.dials.book) : [];
+  const locs = [
+    ...new Set([
+      ...preds.filter((p) => p.p >= top * CONSIDER).slice(0, CONSIDER_MAX).map((p) => p.loc),
+      ...ev.policy.filter((e) => e.loc !== PASS).slice(0, 3).map((e) => e.loc),
+      ...book.map((b) => b.loc),
+    ]),
+  ].filter((loc) => loc !== PASS && board.isLegal(loc, toPlay));
+  const children = locs.map((loc) => {
+    const after = board.clone();
+    after.play(loc, toPlay);
+    return { size: g.size, komi: g.komi, setup: g.setup, history: [...history, { color: toPlay, loc }], toPlay: other(toPlay), board: after };
+  });
+  markInteractive();
+  const evs = await evaluateFastMany(eng, children);
+  const leads = new Map(locs.map((loc, i) => [loc, toPlay === 1 ? evs[i].bLead : -evs[i].bLead]));
+  const bestLead = Math.max(...leads.values());
+  let best = locs[0];
+  for (const [loc, lead] of leads) if (lead === bestLead) best = loc;
+  const all = [...new Set([...preds.map((p) => p.loc), ...book.map((b) => b.loc)])].filter((loc) => loc !== PASS);
+  const info = describeCandidates(pos.ctx, all, toPlay, pos.lastOpp, history.length, moverView(ev.bWin, ev.bLead, toPlay).lead, best);
+  read.cands = all.map((loc, i) => {
+    const lead = leads.get(loc);
+    const b = book.find((x) => x.loc === loc);
+    return {
+      loc,
+      p: preds.find((x) => x.loc === loc)?.p ?? 0,
+      prior: ev.policy.find((e) => e.loc === loc)?.p ?? 0,
+      ...(lead !== undefined ? { loss: Math.max(0, bestLead - lead) } : {}),
+      flags: info[i].flags,
+      sigs: info[i].sigs,
+      ...(b ? { book: b.n } : {}),
+    };
+  });
+  const lastCopyPly = ply - 2;
+  read.state = { phase: pos.example.phase ?? 1, sit: pos.example.sit ?? 1, afterMistake: (g.copyLoss[lastCopyPly] ?? 0) >= TILT_LOSS };
   return read;
 }
 
-/** The copy's move: from its own distribution; a pass when KataGo thinks the game is over or offers nothing. */
-function chooseReply(read: PositionRead, sample: boolean, strength: number | null): Loc {
+/**
+ * The copy's move: drawn from its choice (habits, what each move costs, the player's mistake
+ * profile, book and dials); a pass when KataGo thinks the game is over or offers nothing.
+ */
+function chooseReply(read: PositionRead, g: PlayGame, model: DoppelModel): { loc: Loc; loss?: number } {
   const passP = read.policy.find((e) => e.loc === PASS)?.p ?? 0;
-  if (passP >= 0.5) return PASS;
-  if (strength !== null && read.losses?.size) {
-    const styled = chooseStyled(read.preds, read.losses, lossBudget(strength, useLevel.getState().calibration), { sample });
-    if (styled) return styled.loc;
+  if (passP >= 0.5) return { loc: PASS };
+  const d = g.dials;
+  if (read.cands?.length && read.state) {
+    const budget = d.strength !== null ? lossBudget(d.strength, useLevel.getState().calibration) : undefined;
+    const dist = choiceDistribution(read.cands, read.state, model, d, budget !== undefined ? { budget } : {});
+    const c = read.cands[drawFrom(dist)];
+    if (c) return { loc: c.loc, loss: c.loss };
   }
-  const pick = sample ? sampleMove(read.preds) : read.preds[0] ?? null;
-  if (pick) return pick.loc;
-  return read.policy.find((e) => e.loc !== PASS)?.loc ?? PASS;
+  const pick = d.variety > 0 ? sampleMove(read.preds) : read.preds[0] ?? null;
+  if (pick) return { loc: pick.loc };
+  return { loc: read.policy.find((e) => e.loc !== PASS)?.loc ?? PASS };
 }
 
 function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelModel; opponent?: OpponentProfile }) {
@@ -1004,6 +1228,8 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   useLevel((s) => s.calibration);
   useEffect(() => void loadLevel(), []);
   const engine = useStore((s) => s.engine);
+  const dials = useCopyLab((s) => s.dials);
+  useEffect(() => void loadCopyLab(), []);
   const [setup, setSetupState] = useState<PlaySetup>(play.setup);
   const copyOf = opponent?.id ?? 'me';
   const [game, setGameState] = useState<PlayGame | null>((play.game?.copyOf ?? 'me') === copyOf ? play.game : null);
@@ -1023,6 +1249,9 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   const gameRef = useRef(game);
   gameRef.current = game;
   const [saving, setSaving] = useState(false);
+  // The copy's dials during a game, and "not me": the ply of the copy's move being corrected.
+  const [dialsOpen, setDialsOpen] = useState(false);
+  const [fixing, setFixing] = useState<number | null>(null);
 
   const setSetup = (s: PlaySetup) => {
     play.setup = s;
@@ -1047,6 +1276,8 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   // Someone else's copy (the demo player's or an imported player's) is named rather than "your copy".
   const demoMode = copy.owner === 'demo' || !!opponent;
   const whoLabel = demoMode ? copy.who : 'Your copy';
+  /** The person copied, in sentences ("you", or their name). */
+  const playerName = opponent?.name ?? (demoMode ? copy.demoName ?? 'the player' : 'you');
   const sources = useMemo(
     () => (opponent ? games.filter((g) => opponent.gameIds.includes(g.id)) : games.filter((g) => isPlayerGame(g) && (copy.owner === 'demo' ? g.source === 'demo' : g.source === 'user'))),
     [games, copy.owner, opponent],
@@ -1058,7 +1289,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     const src = sources.find((g) => g.id === s.gameId) ?? sources[0];
     if (play.reads.size > 400) play.reads.clear();
     setError(null);
-    setGame(() => ({ ...newGame(s, src), copyOf }));
+    setGame(() => ({ ...newGame(s, useCopyLab.getState().dials, src), copyOf }));
   }, [sources, setGame, copyOf]);
 
   // "Play from here" asks for a game to start right away.
@@ -1084,7 +1315,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
         setError(null);
         let read = reads.get(key);
         if (!read) {
-          read = await readPosition(game, ply, model, copyTurn && game.strength !== null);
+          read = await readPosition(game, ply, model, copyTurn);
           reads.set(key, read);
           setTick((t) => t + 1);
         }
@@ -1093,8 +1324,12 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
         const wait = 550 - (performance.now() - t0);
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
         if (cancelled) return;
-        const loc = chooseReply(read, game.sample, game.strength);
-        setGame((g) => (g && g.id === game.id && readKey(g, g.moves.length) === key ? { ...g, moves: [...g.moves, { color: colorAt(g, ply), loc }] } : g));
+        const { loc, loss } = chooseReply(read, game, model);
+        setGame((g) =>
+          g && g.id === game.id && readKey(g, g.moves.length) === key
+            ? { ...g, moves: [...g.moves, { color: colorAt(g, ply), loc }], copyLoss: loss !== undefined ? { ...g.copyLoss, [ply]: loss } : g.copyLoss }
+            : g,
+        );
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       }
@@ -1192,24 +1427,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
                   )
                 )}
               </SheetSection>
-              <SheetSection title="Copy">
-                <FieldTile label="Strength">
-                  <select value={setup.strength === null ? 'natural' : String(setup.strength)} onChange={(e) => setSetup({ ...setup, strength: e.target.value === 'natural' ? null : Number(e.target.value) })} aria-label="Strength">
-                    <option value="natural">Natural ({demoMode ? 'player' : 'you'})</option>
-                    {STRENGTHS.map((r) => (
-                      <option key={r} value={r}>
-                        {r === FULL_STRENGTH ? 'Full strength' : `~${rankLabel(r)}`}
-                      </option>
-                    ))}
-                  </select>
-                  {setup.strength !== null && (
-                    <span className="tiny muted">
-                      Same style, capped at ~{lossBudget(setup.strength, useLevel.getState().calibration).toFixed(1)} pts lost per move ({setup.strength === FULL_STRENGTH ? 'top player' : rankLabel(setup.strength)}).
-                    </span>
-                  )}
-                </FieldTile>
-                <ToggleTile on={setup.sample} onChange={(v) => setSetup({ ...setup, sample: v })} icon="⚄" label="Vary moves" sub="Like a person" />
-              </SheetSection>
+              <CopyDialsPanel dials={dials} onChange={(d) => void setCopyDials(d)} who={playerName} />
             </>
           )
         }
@@ -1237,15 +1455,20 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
 
   // Looking back at an earlier move: the board shows it, and no move can be played.
   const viewing = viewPly !== null && viewPly < ply ? viewPly : null;
-  const shownBoard = viewing === null ? board : replay(game.size, game.setup, [...game.prefix, ...game.moves.slice(0, viewing)]);
-  const shownLast = viewing === null ? last : viewing > 0 ? game.moves[viewing - 1].loc : game.prefix.length ? game.prefix[game.prefix.length - 1].loc : null;
+  const fixPly = fixing !== null && fixing < ply && game.moves[fixing]?.color !== game.user ? fixing : null;
+  const lookAt = fixPly ?? viewing;
+  const shownBoard = lookAt === null ? board : replay(game.size, game.setup, [...game.prefix, ...game.moves.slice(0, lookAt)]);
+  const shownLast = lookAt === null ? last : lookAt > 0 ? game.moves[lookAt - 1].loc : game.prefix.length ? game.prefix[game.prefix.length - 1].loc : null;
   const shownRead = viewing === null ? current : reads.get(readKey(game, viewing));
   const shownPly = viewing ?? ply;
   const prevRead = shownPly > 0 ? reads.get(readKey(game, shownPly - 1)) : undefined;
 
   const marks: Mark[] = [];
   let caption = '';
-  if (viewing !== null) {
+  if (fixPly !== null) {
+    const mv = game.moves[fixPly].loc;
+    if (mv !== PASS) marks.push({ loc: mv, kind: 'doppel', label: '✕' });
+  } else if (viewing !== null) {
     // An earlier position: just the stones.
   } else if (yourTurn && hints && current) {
     const kata = current.policy.find((e) => e.loc !== PASS);
@@ -1264,7 +1487,31 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     if (kata && mv !== PASS) caption = kata.loc === mv ? 'Same as KataGo.' : 'Purple: copy. K: KataGo.';
   }
 
+  /** "Not me": the copy's move at `fixPly` is not what the player would play (`mine`: what they would). */
+  const recordFix = async (mine: Loc | null) => {
+    if (fixPly === null) return;
+    const r = reads.get(readKey(game, fixPly));
+    const at = colorAt(game, fixPly);
+    if (!r) return;
+    if (mine !== null && (mine === game.moves[fixPly].loc || !shownBoard.isLegal(mine, at))) return;
+    setFixing(null);
+    await addCopyFeedback({
+      copyOf,
+      size: game.size,
+      setup: game.setup,
+      history: [...game.prefix, ...game.moves.slice(0, fixPly)],
+      toPlay: at,
+      policy: r.policy.slice(0, 24),
+      ownership: r.ownership,
+      win: moverView(r.bWin, r.bLead, at).win,
+      copyLoc: game.moves[fixPly].loc,
+      mine,
+    });
+    const n = pendingFeedback(copyOf, opponent ? opponent.copy : model);
+    toast(`Noted. ${demoMode ? 'The copy' : 'Your copy'} learns from ${n === 1 ? 'it' : `these ${n}`} when it next retrains.`, 'ok');
+  };
   const onPlay = (loc: Loc) => {
+    if (fixPly !== null) return void recordFix(loc);
     if (!yourTurn || viewing !== null) return;
     if (loc !== PASS && !board.isLegal(loc, game.user)) return;
     setGame((g) => (g && g.id === game.id && g.moves.length === ply ? { ...g, moves: [...g.moves, { color: game.user, loc }] } : g));
@@ -1378,7 +1625,38 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
       <div className="small dim dop-status">
         <span className="live-dot" data-on={thinking || loadingEngine ? '1' : '0'} /> {status}
       </div>
-      {caption && <div className="small dop-caption">{caption}</div>}
+      {caption && fixPly === null && <div className="small dop-caption">{caption}</div>}
+      {fixPly !== null ? (
+        <div className="callout small stack tight dop-notme">
+          <span>
+            Where would {playerName} have played instead of <strong className="doppel">{locToGtp(game.moves[fixPly].loc, size)}</strong>? Tap the board.
+          </span>
+          <div className="row">
+            <button className="btn small" onClick={() => void recordFix(null)}>
+              Just not that
+            </button>
+            <button className="btn small ghost" onClick={() => setFixing(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        !over &&
+        viewing === null &&
+        lastCopy !== undefined &&
+        lastCopy >= ply - 2 &&
+        game.moves[lastCopy].loc !== PASS && (
+          <div className="small dim dop-notme row">
+            <span>
+              {whoName} played <strong className="doppel">{locToGtp(game.moves[lastCopy].loc, size)}</strong>
+              {showAnalysis && game.copyLoss[lastCopy] !== undefined && <span className="muted"> · −{game.copyLoss[lastCopy].toFixed(1)} pts</span>}
+            </span>
+            <button className="btn small ghost" onClick={() => setFixing(lastCopy)} title={`Not what ${playerName} would play: the copy learns from it`}>
+              Not me
+            </button>
+          </div>
+        )
+      )}
       {over && (
         <button className="btn primary" onClick={() => void reviewGame()} disabled={saving}>
           <Icon name="board" /> {saving ? 'Saving…' : 'Review'}
@@ -1387,7 +1665,21 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     </>
   );
   let panel: ReactNode = playing;
-  if (showAnalysis && tab === 'data')
+  if (dialsOpen)
+    panel = (
+      <>
+        {playing}
+        <CopyDialsPanel
+          dials={game.dials}
+          onChange={(d) => {
+            setGame((g) => (g && g.id === game.id ? { ...g, dials: d } : g));
+            void setCopyDials(d);
+          }}
+          who={playerName}
+        />
+      </>
+    );
+  else if (showAnalysis && tab === 'data')
     panel = (
       <>
         {playing}
@@ -1449,6 +1741,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => onPlay(PASS), disabled: !yourTurn || viewing !== null },
     over ? { id: 'new', label: 'New game', icon: 'plus', onClick: () => setGame(() => null) } : { id: 'resign', label: 'Resign', icon: 'close', onClick: () => setNotice('resign') },
     { id: 'hints', label: 'Hints', icon: 'eye', on: hints, onClick: () => setHints(!hints), title: 'Your predicted move' },
+    { id: 'dials', label: 'Copy', icon: 'twin', on: dialsOpen, onClick: () => setDialsOpen(!dialsOpen), title: 'How the copy plays' },
     { id: 'analysis', label: 'Analysis', icon: 'trend', on: showAnalysis, onClick: () => setShowAnalysis(!showAnalysis), title: 'Eval bar and report tabs' },
   ];
 
@@ -1456,7 +1749,7 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
     <BoardScreen
       className="dop-screen"
       title={demoMode ? copy.who : 'Your copy'}
-      sub={`${game.size}×${game.size} · komi ${game.komi}${game.strength !== null ? ` · ${game.strength === FULL_STRENGTH ? 'full strength' : `~${rankLabel(game.strength)}`}` : ''}`}
+      sub={`${game.size}×${game.size} · komi ${game.komi} · ${dialsLabel(game.dials)}`}
       homeHref={href(home)}
       homeLabel={opponent ? 'Back' : 'Home'}
       onHome={unsaved && !over ? () => setNotice('leave') : undefined}
@@ -1475,7 +1768,18 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
           before={shownPly > 0 && prevRead ? { mover: game.moves[shownPly - 1].color, bWin: prevRead.bWin, bLead: prevRead.bLead } : null}
         />
       }
-      board={<Board size={size} stones={shownBoard.stones} lastMove={shownLast} toPlay={yourTurn && viewing === null ? game.user : undefined} onPlay={yourTurn && viewing === null ? onPlay : undefined} marks={marks} coords ariaLabel="Game board" />}
+      board={
+        <Board
+          size={size}
+          stones={shownBoard.stones}
+          lastMove={shownLast}
+          toPlay={fixPly !== null ? colorAt(game, fixPly) : yourTurn && viewing === null ? game.user : undefined}
+          onPlay={fixPly !== null || (yourTurn && viewing === null) ? onPlay : undefined}
+          marks={marks}
+          coords
+          ariaLabel="Game board"
+        />
+      }
       steps={{ pos: viewing ?? ply, total: ply, onGo: goPly }}
       tabs={showAnalysis ? REPORT_TABS : null}
       tab={tab}
@@ -1543,10 +1847,106 @@ function PlayCopy({ copy, model, opponent }: { copy: CopyInfo; model: DoppelMode
   );
 }
 
+const MOODS: { id: Mood; label: string }[] = [
+  { id: 'auto', label: 'As the game goes' },
+  { id: 'calm', label: 'Calm (never tilts)' },
+  { id: 'tilted', label: 'Tilted' },
+  { id: 'behind', label: 'As when behind' },
+  { id: 'ahead', label: 'As when ahead' },
+];
+
+function dialsLabel(d: CopyDials) {
+  const preset = d.preset === 'custom' ? 'custom' : PRESETS.find((p) => p.id === d.preset)?.label ?? 'Me';
+  const level = d.strength !== null ? ` · ${d.strength === FULL_STRENGTH ? 'full strength' : `~${rankLabel(d.strength)}`}` : '';
+  return preset + level;
+}
+
+const times = (v: number) => (v === 0 ? 'none' : `${v.toFixed(2).replace(/\.?0+$/, '')}×`);
+const lean = (v: number, lo: string, hi: string) => (Math.abs(v) < 0.05 ? 'as you' : `${v < 0 ? lo : hi} ${Math.round(Math.abs(v) * 100)}%`);
+
+/** How the copy plays: presets for the usual moods, and every dial behind them. */
+function CopyDialsPanel({ dials, onChange, who }: { dials: CopyDials; onChange: (d: CopyDials) => void; who: string }) {
+  const [more, setMore] = useState(dials.preset === 'custom');
+  const set = (patch: Partial<CopyDials>) => onChange({ ...dials, ...patch, preset: 'custom' });
+  const range = (key: 'mistakes' | 'variety' | 'faithfulness' | 'fighting' | 'territory' | 'tenuki', min: number, max: number, label: string) => (
+    <FieldTile label={label}>
+      <input type="range" min={min} max={max} step={0.05} value={dials[key]} onChange={(e) => set({ [key]: Number(e.target.value) })} aria-label={label} />
+    </FieldTile>
+  );
+  return (
+    <>
+      <SheetSection title="Copy">
+        {PRESETS.map((p) => (
+          <ToggleTile key={p.id} on={dials.preset === p.id} onChange={() => onChange(presetDials(p.id, dials))} label={p.label} sub={p.sub} />
+        ))}
+        <FieldTile label="Strength">
+          <select value={dials.strength === null ? 'natural' : String(dials.strength)} onChange={(e) => onChange({ ...dials, strength: e.target.value === 'natural' ? null : Number(e.target.value) })} aria-label="Strength">
+            <option value="natural">Natural ({who})</option>
+            {STRENGTHS.map((r) => (
+              <option key={r} value={r}>
+                {r === FULL_STRENGTH ? 'Full strength' : `~${rankLabel(r)}`}
+              </option>
+            ))}
+          </select>
+          {dials.strength !== null && (
+            <span className="tiny muted">
+              Same style, ~{lossBudget(dials.strength, useLevel.getState().calibration).toFixed(1)} pts lost per move ({dials.strength === FULL_STRENGTH ? 'top player' : rankLabel(dials.strength)}).
+            </span>
+          )}
+        </FieldTile>
+        <ToggleTile on={more} onChange={setMore} icon="⚙" label="All dials" sub={dials.preset === 'custom' ? 'Custom' : 'Fine-tune'} />
+      </SheetSection>
+      {more && (
+        <SheetSection title="Dials">
+          {range('mistakes', 0, 2, `Mistakes: ${times(dials.mistakes)} ${who === 'you' ? 'yours' : 'theirs'}`)}
+          <FieldTile label="Biggest mistake">
+            <select value={dials.maxMistake} onChange={(e) => set({ maxMistake: Number(e.target.value) })} aria-label="Biggest mistake">
+              <option value={0}>No limit</option>
+              {[2, 3, 5, 8, 12].map((v) => (
+                <option key={v} value={v}>
+                  {v} points
+                </option>
+              ))}
+            </select>
+          </FieldTile>
+          {range('variety', 0, 2, `Variety: ${dials.variety === 0 ? 'always its first choice' : times(dials.variety)}`)}
+          {range('faithfulness', 0, 1, `Style: ${Math.round(dials.faithfulness * 100)}% ${who === 'you' ? 'you' : 'them'}, ${Math.round((1 - dials.faithfulness) * 100)}% KataGo`)}
+          {range('fighting', -1, 1, `Fighting: ${lean(dials.fighting, 'calmer', 'fiercer')}`)}
+          {range('territory', -1, 1, `Territory: ${lean(dials.territory, 'more influence', 'more territory')}`)}
+          {range('tenuki', -1, 1, `Tenuki: ${lean(dials.tenuki, 'stays local', 'plays away')}`)}
+          <FieldTile label="Mood">
+            <select value={dials.mood} onChange={(e) => set({ mood: e.target.value as Mood })} aria-label="Mood">
+              {MOODS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </FieldTile>
+          <FieldTile label="Own opening book">
+            <select value={dials.book} onChange={(e) => set({ book: Number(e.target.value) })} aria-label="Opening book">
+              <option value={0}>Off</option>
+              {[20, 40, 60, 80, 120].map((v) => (
+                <option key={v} value={v}>
+                  First {v} moves
+                </option>
+              ))}
+            </select>
+          </FieldTile>
+          <ToggleTile on={dials.guard} onChange={(v) => set({ guard: v })} icon="🛡" label="Blunder guard" sub="No self-atari, no ignoring a big atari" />
+          <ToggleTile on={dials.types} onChange={(v) => set({ types: v })} icon="≈" label={`${who === 'you' ? 'Your' : 'Their'} kinds of mistakes`} sub="Not random ones" />
+          <ActionTile onClick={() => onChange({ ...DEFAULT_DIALS, strength: dials.strength })} icon="↺" label="Reset" sub="As measured" />
+        </SheetSection>
+      )}
+    </>
+  );
+}
+
 /** The copy's reply next to KataGo's choice: the candidates with both sets of probabilities. */
 function ReplyCompare({ read, played, size, who }: { read: PositionRead; played: Loc; size: number; who: string }) {
   if (played === PASS) return <p className="small">{who} passed{read.policy[0]?.loc === PASS ? ' (same as KataGo)' : ''}</p>;
   const kata = read.policy.find((e) => e.loc !== PASS);
+  const chosen = read.cands?.find((c) => c.loc === played);
   const rank = read.preds.findIndex((p) => p.loc === played);
   const p = read.preds[rank]?.p;
   const rows = read.preds.slice(0, 5);
@@ -1558,7 +1958,10 @@ function ReplyCompare({ read, played, size, who }: { read: PositionRead; played:
         <div>
           <span className="tiny muted">{who} played</span>
           <strong className="doppel dop-big">{locToGtp(played, size)}</strong>
-          <span className="tiny dim">{p !== undefined ? `#${rank + 1} · ${fmtPct(p)}` : 'KataGo move'}</span>
+          <span className="tiny dim">
+            {chosen?.book ? 'from the opening book' : p !== undefined ? `#${rank + 1} · ${fmtPct(p)}` : 'KataGo move'}
+            {chosen?.loss !== undefined && ` · −${chosen.loss.toFixed(1)} pts`}
+          </span>
         </div>
         <div>
           <span className="tiny muted">KataGo</span>

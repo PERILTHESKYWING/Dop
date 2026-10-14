@@ -74,10 +74,22 @@ patterns in compressed, representative evidence; every pattern it returns must c
 is discarded, and its confidence is capped by the statistics.
 
 ### The Doppelgänger model
-A conditional-logit model over KataGo's top policy moves plus your move, with 21 interpretable features,
-initialised to KataGo's policy and trained on your games (held out by game). It predicts the move *you* would
-play, and its weights read as habits ("extends small weak stones", "answers locally"). It is a behavioural
-model, not a claim to simulate you perfectly.
+A conditional-logit model over KataGo's top policy moves plus your move, with 34 interpretable features
+(including local shapes: hane, jumps, knight's moves, empty triangles...), initialised to KataGo's policy and
+trained on your games (held out by game). Its habits can differ by phase (opening, middle game, endgame) and by
+whether you are behind, level or ahead. It predicts the move *you* would play, and its weights read as habits
+("extends small weak stones", "answers locally"). It is a behavioural model, not a claim to simulate you perfectly.
+
+When it plays, the copy also knows how you go wrong (`src/lib/profile/human.ts`): it checks what each move it
+might play costs, and weighs its habits against those costs so it loses about as many points per move as you do
+in each phase and situation. Its mistakes favour moves KataGo's instinct likes (natural-looking ones) and the
+kinds of mistakes you make; a blunder guard removes self-atari, filling its own eye, ignoring an atari on a big
+group and long shots that lose a lot; and if you lose more after a mistake, so does the copy. It opens with
+your own openings (`book.ts`, all 8 symmetries). Eleven settings of all this evolve per player (`evolve.ts`): a
+population is scored on games the copy did not learn from, and carries on after every update. Games against the
+copy have presets (Me, good day, bad day, when behind, stronger me) and a dozen dials, and a "Not me" button
+teaches it which of its moves were not yours. `scripts/doppel-data.ts` + `scripts/doppel-eval.ts` measure it on
+real players' games; numbers in `docs/handoff/doppel.md`.
 
 ### Your level (rank estimate)
 Every analysed game side gives a few numbers measured on the bundled network's first look at each position:
@@ -160,7 +172,7 @@ data. It can also be started by hand from the Actions tab ("Coach training" → 
 Opponent profiles train the same copy on an imported player's analysed games, and you can play against it.
 When playing any copy you can set a strength: the copy keeps choosing the moves its player tends to choose, but
 each move's cost (KataGo's look after it, against the best alternative) is weighed against what a player of the
-chosen rank typically loses per move (`src/lib/profile/strength.ts`).
+chosen rank typically loses per move (`src/lib/profile/strength.ts`) instead of the player's own rate.
 
 ### Model lab
 A small pattern model is trained in a Web Worker on your KataGo data, benchmarked against KataGo's choices,
