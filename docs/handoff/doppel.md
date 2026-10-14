@@ -30,6 +30,17 @@ Two Fox 5k players (西瓜乖, mht099), 101 games, test 20 games (1,912 moves):
 - Ablations: the opening book is worth +1.2 pts exact-move and +0.08 log-lik; mistake kinds and tilt changed these numbers by under 0.2 pts (kept: they shape which mistakes, which these averages barely see); the guard costs a little likelihood (players do make those blunders 0.6% of the time) and is on because XIAO asked for fewer obvious blunders.
 - Habits alone (no mistake model): top-1 47.3% → 47.6%. The shape and phase features barely help prediction at 5k; the gains come from costs, book and evolution.
 
+One Fox 5-dan player (DaGuo01003), 44 games, test 8 games (782 moves), 6 generations:
+
+| Copy | Exact move | Log-lik | Opening pts/mistakes | Middle | Endgame | Obvious blunders |
+|---|---|---|---|---|---|---|
+| Old Natural mode | 41.1% | -2.148 | 0.40 / 3.8% | 2.21 / 34.6% | 3.68 / 46.8% | 0.3% |
+| New, default genes | 42.4% | -2.092 | 0.36 / 3.3% | 1.99 / 31.5% | 3.25 / 43.3% | 0.0% |
+| New, evolved | 40.6% | -2.031 | 0.46 / 4.7% | 2.19 / 34.1% | 3.41 / 44.5% | 0.0% |
+| Player (moves in top 10) | | | 0.36 / 2.3% | 2.15 / 35.6% | 3.30 / 45.9% | 0.5% |
+
+- At 5-dan evolution improved likelihood and the overall score (-1.480 → -1.444) but not exact-move (8 test games: about ±1.8 pts of noise). It turned the natural-looking-mistake bonus (gamma) off for this player. 13.3% of their moves are outside the top 10.
+
 ## Open
 - Not yet measured on XIAO's own games (they live only in the browser); the Copy page shows the same numbers after a retrain.
 - In-app the mistake profile uses KataGo's search values from the analysis; play uses one network look per candidate (noisier).

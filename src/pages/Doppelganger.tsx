@@ -576,7 +576,7 @@ function StatusCard({ copy, model }: { copy: CopyInfo; model: DoppelModel }) {
       </dl>
       {old && (
         <div className="callout small">
-          Trained with an old method. Numbers are inflated.{' '}
+          {(model.algo ?? 1) < 2 ? 'Trained with an old method. Numbers are inflated.' : 'Trained before the copy learned openings, phases and human mistakes.'}{' '}
           <button className="btn small" disabled={busy} onClick={() => void rebuildProfile()}>
             {busy ? 'Retraining…' : 'Retrain'}
           </button>
