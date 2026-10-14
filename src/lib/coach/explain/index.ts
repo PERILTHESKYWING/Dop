@@ -5,10 +5,11 @@
  */
 import { locToGtp } from '../../go/coords';
 import { other, PASS, type Move } from '../../go/types';
-import { DOP_VERSION, type ExplainFn, type Explanation, type Variation } from './types';
+import { KAMI_VERSION, type ExplainFn, type Explanation, type Variation } from './types';
 
 export * from './types';
 export { searchProber } from './searchProber';
+export { buildLmPrompt, LM_SYSTEM } from './prompt';
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
@@ -17,8 +18,9 @@ export const explain: ExplainFn = async (pos, question, prober, opts) => {
   const visits = opts.thinking === 'off' ? 100 : opts.thinking === 'low' ? 200 : opts.thinking === 'medium' ? 400 : 800;
   const read = await prober.read(pos, { visits, maxMs: 8000 });
   const out: Explanation = {
+    position: pos,
     model: opts.model,
-    version: DOP_VERSION,
+    version: KAMI_VERSION,
     thinking: opts.thinking,
     question,
     summary: 'KataGo could not read this position.',

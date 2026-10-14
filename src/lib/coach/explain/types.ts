@@ -1,17 +1,19 @@
 /**
- * The Dop explainer's shared contract: the engine side (src/lib/coach/explain), the chat UI
- * (src/pages/Chat.tsx) and the training kit (scripts/coachlm) all speak these types.
+ * Kami's shared contract (Kami = the Go coach site in kami/, built on Dop's engine): the
+ * engine side (src/lib/coach/explain), the Kami site (kami/), the task factory and verifier
+ * (scripts/coachlm/*.ts) and the training kit (scripts/coachlm/*.py, via tasks.jsonl) all
+ * speak these types.
  * Change them only together with every user.
  *
  * Idea: KataGo does all the thinking. A planner in code decides which lines to read, the
  * reads become checked facts and variations, and text is built from those facts. A language
- * model (Gemini today, Dop's own small model later) may only reword the facts and refer to
+ * model (Gemini today, Kami's own small model later) may only reword the facts and refer to
  * the variations by id; it never adds moves or numbers of its own.
  */
 import type { Color, Loc, Move } from '../../go/types';
 
-/** Dop's "models": the same KataGo with different planners and budgets. */
-export type ModelId = 'hane' | 'tesuji' | 'kami';
+/** Kami's "models": the same KataGo with different planners and budgets. */
+export type ModelId = 'hane' | 'tesuji' | 'myoshu';
 /** Claude-style thinking levels: how many reads and how deep. */
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high';
 
@@ -26,13 +28,13 @@ export interface ModelInfo {
 }
 
 export const MODELS: readonly ModelInfo[] = [
-  { id: 'hane', name: 'Dop Hane', blurb: 'Instant. Engine only.', llm: false, defaultThinking: 'off' },
-  { id: 'tesuji', name: 'Dop Tesuji', blurb: 'Reads ahead and shows why.', llm: false, defaultThinking: 'medium' },
-  { id: 'kami', name: 'Dop Kami', blurb: 'Deepest reads, best wording.', llm: true, defaultThinking: 'high' },
+  { id: 'hane', name: 'Kami Hane', blurb: 'Instant. Engine only.', llm: false, defaultThinking: 'off' },
+  { id: 'tesuji', name: 'Kami Tesuji', blurb: 'Reads ahead and shows why.', llm: false, defaultThinking: 'medium' },
+  { id: 'myoshu', name: 'Kami Myoshu', blurb: 'Deepest reads, best wording.', llm: true, defaultThinking: 'high' },
 ];
 
 /** Version shown next to the model name; bumped only when the coach test set score goes up. */
-export const DOP_VERSION = '1.0';
+export const KAMI_VERSION = '1.0';
 
 /** What the planner may spend on one answer. */
 export interface Budget {
@@ -152,6 +154,8 @@ export interface Fact {
 }
 
 export interface Explanation {
+  /** The position explained (variations start here). */
+  position: ExplainPosition;
   model: ModelId;
   version: string;
   thinking: ThinkingLevel;
