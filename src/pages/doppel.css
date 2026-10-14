@@ -361,3 +361,28 @@
     gap: 4px;
   }
 }
+
+/* ---- how it plays, evolution, "not me" ---- */
+.dop-changes {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+.dop-mistakes td,
+.dop-mistakes th {
+  white-space: nowrap;
+}
+.dop-evo {
+  color: var(--doppel, currentColor);
+  display: block;
+}
+.dop-notme {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dop-notme .btn {
+  flex: none;
+}
