@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { shortCount, type CandidateMark } from './Board';
+import { shortCount } from './Board';
 import { fmtPct } from './common';
 import { useStore } from '../state/store';
 import { setLiveTarget, togglePondering, useLive, type LiveTarget } from '../state/live';
 import { locToGtp } from '../lib/go/coords';
-import { PASS, type Color, type Loc, type Move, other } from '../lib/go/types';
+import { PASS, type Loc } from '../lib/go/types';
 import type { SearchSnapshot } from '../lib/engine/mcts';
 import type { Candidate } from '../lib/types';
 
@@ -30,39 +30,7 @@ export function fromStored(cands: Candidate[] | undefined): ShownCandidate[] {
     .sort((a, b) => b.visits - a.visits || b.winrate - a.winrate);
 }
 
-/**
- * Candidate discs for the board, as Lizzie draws them: moves with a meaningful share of
- * the visits, the most visited one first. Colour says how much worse than the best a
- * move is (by winrate, or by score once the game is decided).
- */
-export function candidateMarks(cands: ShownCandidate[], max = 10): CandidateMark[] {
-  const list = cands.filter((c) => c.loc !== PASS);
-  if (!list.length) return [];
-  const best = list[0];
-  const top = best.visits || 1;
-  return list
-    .filter((c, i) => i < 3 || c.visits >= Math.max(2, top * 0.02))
-    .slice(0, max)
-    .map((c, i) => ({
-      loc: c.loc,
-      rank: i,
-      winrate: c.winrate,
-      scoreLead: c.scoreLead,
-      visits: c.visits,
-      share: c.visits / top,
-      badness: Math.max((best.winrate - c.winrate) / 0.12, (best.scoreLead - c.scoreLead) / 6, 0),
-    }));
-}
-
-/** A candidate's line as moves (colours alternate from the side to move). */
-export function lineOf(pv: Loc[], toPlay: Color): Move[] {
-  let c = toPlay;
-  return pv.map((loc) => {
-    const m = { color: c, loc };
-    c = other(c);
-    return m;
-  });
-}
+export { candidateMarks, lineOf } from '../lib/analysis/candidates';
 
 /**
  * Keep live analysis on `target` while `enabled`; Space switches pondering on and off.
