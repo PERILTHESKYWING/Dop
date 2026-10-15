@@ -289,7 +289,7 @@ export const STRATEGY: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'Engine play fits the profit view: KataGo's attacking moves tend to build something at the same time, and it switches to a big point as soon as the attack stops gaining. Kami shows this by comparing the lead after the attacking move with the lead after the biggest move elsewhere.',
+        text: 'Engine play fits the profit view: KataGo\'s attacking moves tend to build something at the same time, and it switches to a big point as soon as the attack stops gaining. Kami shows this by comparing the lead after the attacking move with the lead after the biggest move elsewhere.',
       },
     ],
     mistakes: [

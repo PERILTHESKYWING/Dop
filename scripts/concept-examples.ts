@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Board, replay } from '../src/lib/go/board';
-import { gtpToLoc, locToGtp, locToSgf, sgfToLoc } from '../src/lib/go/coords';
+import { chebyshev, gtpToLoc, locToGtp, locToSgf, sgfToLoc } from '../src/lib/go/coords';
 import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
 import { framePosition } from '../src/lib/problems/frame';
 import { problemBoard } from '../src/lib/problems/play';
@@ -208,7 +208,12 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
       if (best.loc !== line[0].loc && !(c.maxLoss !== undefined && mine && mine.visits >= 20 && loss <= c.maxLoss))
         return { why: `${s.line[0]} is not KataGo's choice (best ${locToGtp(best.loc, pos.size)}, loss ${fmt(loss)})`, log };
       const chosen = mine ?? best;
-      vars.rank = best.loc === line[0].loc ? 'is KataGo’s first choice' : `is within ${fmt(loss)} points of KataGo’s first choice`;
+      vars.rank =
+        best.loc === line[0].loc
+          ? 'is KataGo’s first choice'
+          : loss < 0.15
+            ? 'is level with KataGo’s first choice'
+            : `is within ${fmt(loss)} points of KataGo’s first choice`;
       vars.lead = fmt(chosen.scoreLead);
       vars.win = `${Math.round(chosen.winrate * 100)}%`;
       vars.score = `${chosen.scoreLead >= 0 ? name(mover) : name(otherColor(mover))} leads by ${fmt(chosen.scoreLead)} points`;
@@ -249,9 +254,10 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
       log.push(`illegal: ${c.move} for ${name(side)} after ${c.after} moves: ${ok ? 'illegal' : 'LEGAL'}`);
       if (!ok) return { why: `${c.move} is legal after ${c.after} moves`, log };
     } else if (c.kind === 'swing') {
-      // What the point is worth: the mover playing it against the opponent playing it there
-      // (the mover passes first). The difference is the "deiri" (swing) value.
-      const mine = await read(p, after(pos, line.slice(0, 1)));
+      // What the point is worth: the mover playing it (then the opponent passes) against the
+      // opponent playing it (after the mover passes). Both reads have the mover to play, so
+      // the tempo cancels and the difference is the "deiri" (swing) value.
+      const mine = await read(p, after(pos, [line[0], { color: otherColor(mover), loc: PASS }]));
       const theirs = await read(p, after(pos, [{ color: mover, loc: PASS }, { color: otherColor(mover), loc: line[0].loc }]));
       const swing = leadFor(mine, mover) - leadFor(theirs, mover);
       log.push(`swing: ${s.line[0]} for ${name(mover)} ${leadFor(mine, mover).toFixed(1)}, for the opponent ${leadFor(theirs, mover).toFixed(1)} → ${swing.toFixed(1)}`);
@@ -278,14 +284,16 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
       if (best.loc !== line[k].loc) return { why: `after ${k} moves KataGo answers ${locToGtp(best.loc, pos.size)}, not ${s.line[k]}`, log };
       vars[`${key}Score`] = scoreText(r);
     } else if (c.kind === 'tenuki') {
-      // Cost of ignoring line[k-1]: the side that should answer passes instead (a stand-in
-      // for playing elsewhere in a settled position).
+      // Cost of ignoring line[k-1]: KataGo's best answer against its best move at least four
+      // lines away (or a pass, in framed positions where everything else is settled).
       const k = c.after ?? 1;
       const answerer = otherColor(line[k - 1].color);
       const r1 = await read(p, after(pos, line.slice(0, k)));
-      const r2 = await read(p, after(pos, [...line.slice(0, k), { color: answerer, loc: PASS }]));
+      const far = view ? undefined : r1.candidates.find((x) => x.loc !== PASS && chebyshev(x.loc, line[k - 1].loc, pos.size) >= 4);
+      const elsewhere = far?.loc ?? PASS;
+      const r2 = await read(p, after(pos, [...line.slice(0, k), { color: answerer, loc: elsewhere }]));
       const cost = leadFor(r1, answerer) - leadFor(r2, answerer);
-      log.push(`tenuki: answering keeps ${leadFor(r1, answerer).toFixed(1)}, ignoring gives ${leadFor(r2, answerer).toFixed(1)} → cost ${cost.toFixed(1)}`);
+      log.push(`tenuki: best answer keeps ${leadFor(r1, answerer).toFixed(1)}, elsewhere (${locToGtp(elsewhere, pos.size)}) gives ${leadFor(r2, answerer).toFixed(1)} → cost ${cost.toFixed(1)}`);
       if (cost < c.minCost) return { why: `ignoring costs only ${cost.toFixed(1)} (needs ${c.minCost})`, log };
       if (c.maxCost !== undefined && cost > c.maxCost) return { why: `ignoring costs ${cost.toFixed(1)} (more than ${c.maxCost})`, log };
       vars[key] = fmt(cost);
