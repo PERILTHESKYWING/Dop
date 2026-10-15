@@ -1,0 +1,129 @@
+# Makes training tasks for Kami's own writer model every day in GitHub's cloud (free runners).
+# KataGo (the site's WASM engine with the bundled b10 network, committed in public/engine and
+# public/models, so nothing is built or downloaded) explains real positions from the repo's own
+# data; scripts/coachlm/factory.ts turns each explanation into a task and drops any whose
+# reference text fails the answer check. New tasks are merged into tasks.jsonl.gz on the
+# release "coach-lm". The held-out test set eval.jsonl.gz is built once and only rebuilt when
+# PROMPT_VERSION (src/lib/coach/explain/prompt.ts) changes. The trainer on the PC writes
+# pool.jsonl.gz there itself; if it uploads requests.jsonl(.gz), the next run answers those too.
+# Start it by hand: Actions -> "Kami coach tasks" -> "Run workflow".
+name: Kami coach tasks
+
+on:
+  schedule:
+    - cron: '23 8 * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes each machine spends making tasks
+        default: '45'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coach-lm
+  cancel-in-progress: false
+
+env:
+  MINUTES: ${{ inputs.minutes || '45' }}
+  GH_TOKEN: ${{ github.token }}
+  # Test set size aimed for, and the least worth keeping (fewer: try again next run).
+  EVAL_N: '300'
+  EVAL_MIN: '50'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      eval: ${{ steps.check.outputs.eval }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release, and is the test set current?
+        id: check
+        run: |
+          gh release view coach-lm > /dev/null 2>&1 || gh release create coach-lm --title "Kami coach LM data" \
+            --notes "Training tasks (tasks.jsonl.gz), the held-out test set (eval.jsonl.gz) and the trainer's population (pool.jsonl.gz) for Kami's writer model. Updated by .github/workflows/coach-lm.yml and the PC trainer."
+          CUR=$(grep -oP 'export const PROMPT_VERSION = \K[0-9]+' src/lib/coach/explain/prompt.ts)
+          OLD=0
+          if gh release download coach-lm -p eval.jsonl.gz -D rel 2> /dev/null; then
+            OLD=$(zcat rel/eval.jsonl.gz | head -n 1 | jq -r '.promptVersion // 0')
+          fi
+          echo "prompt version $CUR, test set made with version $OLD"
+          if [ "$OLD" = "$CUR" ]; then echo "eval=no" >> "$GITHUB_OUTPUT"; else echo "eval=yes" >> "$GITHUB_OUTPUT"; fi
+
+  eval:
+    needs: prepare
+    if: needs.prepare.outputs.eval == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the test set (Tesuji/high), one factory per core
+        run: |
+          N=$(nproc)
+          for i in $(seq 1 "$N"); do
+            npx tsx scripts/coachlm/factory.ts --split eval --out "eval-$i.jsonl" --n $((EVAL_N / N + 1)) \
+              --minutes "$MINUTES" --seed "eval-${{ github.run_id }}-$i" > "eval-$i.log" 2>&1 &
+          done
+          wait
+          cat eval-*.log
+          npx tsx scripts/coachlm/merge.ts --split eval --out eval.jsonl.gz eval-*.jsonl
+          npx tsx scripts/coachlm/verify.ts --tasks eval.jsonl.gz --self --out eval-self.jsonl
+      - name: Keep it (release "coach-lm")
+        run: |
+          COUNT=$(zcat eval.jsonl.gz | wc -l)
+          if [ "$COUNT" -lt "$EVAL_MIN" ]; then
+            echo "Only $COUNT test tasks (need $EVAL_MIN): not uploaded, the next run tries again."
+            exit 0
+          fi
+          gh release upload coach-lm eval.jsonl.gz --clobber
+
+  tasks:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Get the current tasks
+        run: |
+          mkdir -p rel
+          ASSETS=$(gh release view coach-lm --json assets -q '.assets[].name')
+          # When the file exists it must download, or the merge below would drop it.
+          if echo "$ASSETS" | grep -qx 'tasks.jsonl.gz'; then gh release download coach-lm -p tasks.jsonl.gz -D rel; fi
+          for f in requests.jsonl requests.jsonl.gz; do
+            if echo "$ASSETS" | grep -qx "$f"; then gh release download coach-lm -p "$f" -D rel || true; fi
+          done
+          echo "OLD=$( [ -f rel/tasks.jsonl.gz ] && zcat rel/tasks.jsonl.gz | wc -l || echo 0)" >> "$GITHUB_ENV"
+      - name: Make tasks (Tesuji/medium), one factory per core
+        run: |
+          N=$(nproc)
+          EXISTING=""
+          [ -f rel/tasks.jsonl.gz ] && EXISTING="--existing rel/tasks.jsonl.gz"
+          REQ=$(ls rel/requests.jsonl* 2> /dev/null | head -n 1 || true)
+          for i in $(seq 1 "$N"); do
+            R=""
+            [ "$i" = 1 ] && [ -n "$REQ" ] && R="--requests $REQ"
+            npx tsx scripts/coachlm/factory.ts --split train --out "new-$i.jsonl" --n 2000 --minutes "$MINUTES" \
+              --seed "${{ github.run_id }}-$i" $EXISTING $R > "new-$i.log" 2>&1 &
+          done
+          wait
+          cat new-*.log
+      - name: Merge and keep them (release "coach-lm")
+        run: |
+          npx tsx scripts/coachlm/merge.ts --split train --out tasks.jsonl.gz rel/tasks.jsonl.gz new-*.jsonl
+          NEW=$(zcat tasks.jsonl.gz | wc -l)
+          echo "tasks: $OLD before, $NEW now"
+          if [ "$NEW" -lt "$OLD" ]; then echo "The merged file is smaller than the old one: not uploaded."; exit 1; fi
+          if [ "$NEW" -gt "$OLD" ]; then gh release upload coach-lm tasks.jsonl.gz --clobber; fi
