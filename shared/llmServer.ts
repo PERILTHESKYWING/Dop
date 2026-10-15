@@ -10,6 +10,7 @@ import { ASK_SYSTEM, buildAskPrompt, parseAskReply, unsupportedFigures, validAsk
 import { handleForgeWrite } from './forgeWriter.js';
 import { buildChatPrompt, CHAT_SYSTEM, checkable, checkAnswer, parseChatReply, parseReview, REVIEW_SYSTEM, validChatRequest, type ChatRequest, type ChatResponse } from './chat.js';
 import { describeFacts } from './ask.js';
+import { handleKamiWrite } from './kami.js';
 import { buildUserPrompt, resolveLlmConfig, safeJson, SYSTEM_PROMPT, validatePatterns, type DiscoveryRequest, type DiscoveryResponse } from './llm.js';
 
 export interface LlmHttpResult {
@@ -62,7 +63,8 @@ function redact(s: string, key: string) {
  * skipped, and a 400 about the thinking settings is retried without them.
  */
 export async function generateJson(
-  prompt: { system: string; user: string; maxOutputTokens?: number },
+  /** `text: true` asks for plain text instead of JSON (Kami's writer). */
+  prompt: { system: string; user: string; maxOutputTokens?: number; text?: boolean },
   env: Record<string, string | undefined>,
   fetchImpl: FetchLike,
   opts: CallOptions = {},
@@ -85,7 +87,7 @@ export async function generateJson(
       const timer = setTimeout(() => controller.abort(), Math.min(opts.attemptMs ?? 30_000, left - 500));
       try {
         const generationConfig: Record<string, unknown> = {
-          responseMimeType: 'application/json',
+          responseMimeType: prompt.text ? 'text/plain' : 'application/json',
           temperature: 0.3,
           maxOutputTokens: prompt.maxOutputTokens ?? 8192,
         };
@@ -169,6 +171,7 @@ export async function handleLlmRequest(
     return handleForgeWrite(parsed, (prompt, left) => generateJson(prompt, env, fetchImpl, { ...opts, budgetMs: Math.max(5000, left) }), budget, opts.now);
   }
   if (parsed?.task === 'chat') return handleChat(parsed, env, fetchImpl, opts);
+  if (parsed?.task === 'kami-write') return handleKamiWrite(parsed, (p) => generateJson(p, env, fetchImpl, opts));
   const req = parsed as DiscoveryRequest | null;
   if (!req || req.task !== 'discover-patterns' || !Array.isArray(req.clusters) || !req.player) {
     return { status: 400, body: { error: 'invalid request' } };

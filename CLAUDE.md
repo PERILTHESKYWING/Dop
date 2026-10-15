@@ -25,5 +25,6 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - `data.md` game datasets and their limits
 - `doppel.md` how the copy plays, its mistakes, evolution, measurements
 - `open-items.md` unfinished or unverified things
+- `kami.md` + `kami-*.md` Kami site, explain engine, factory, trainer, library
 - `project-instructions.md` paste-ready project instructions + thread/PR history
 - `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change) and two hook mods, `lean-tokens` and `dop-guard`, that load on their own (see `.claude/MODS.md`)

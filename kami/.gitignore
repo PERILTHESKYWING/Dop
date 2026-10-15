@@ -1,0 +1,5 @@
+# Copied from ../public by kami/vite.config.ts at dev/build time; never commit them.
+public/engine/
+public/models/
+public/art/
+dist/

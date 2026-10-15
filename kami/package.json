@@ -1,0 +1,11 @@
+{
+  "name": "kami",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Kami: a Go coach chat site built on DOPPELGÄNGER's KataGo engine. Dependencies live in the repo root package.json.",
+  "scripts": {
+    "dev": "cd .. && npm run kami:dev",
+    "build": "cd .. && npm run kami:build"
+  }
+}
