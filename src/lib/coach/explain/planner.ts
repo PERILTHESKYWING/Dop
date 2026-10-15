@@ -171,7 +171,13 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
   const after = (locs: Loc[]) => afterMoves(pos, locs);
   const moverLead = (r: EngineRead) => sideLead(r.bLead, mover);
 
-  const root = await reader.read(pos, budget.visits);
+  // Time plans: each read gets the share of the time left that its visits are of the visits
+  // still planned. The root read cannot know the path yet, so it plans for the likely one.
+  const lv = budget.lineVisits || budget.visits;
+  const lineReads = budget.lineDepth > 0 ? Math.max(0, budget.reads - 2) : 0;
+  const M0 = question.move;
+  const asks = (question.kind === 'why-move' || question.kind === 'why-not') && M0 !== undefined;
+  const root = await reader.read(pos, budget.visits, asks ? 2 * budget.visits + 0.75 * lineReads * lv : budget.visits + lv + 0.5 * lineReads * lv);
   if (!root || !root.candidates.length) {
     if (root) reader.think('Read the position → KataGo gave no moves');
     return done();
@@ -233,8 +239,10 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
     for (const alt of f.alternatives.slice(0, budget.lineDepth > 0 ? 2 : 1)) {
       f.vars.alts.push(addVar({ label: C(alt.loc), kind: 'alternative', moves: lineMoves(mover, shownPv(alt)), scoreLoss: Math.max(0, best.lead - alt.lead) }));
     }
+    const alt0 = f.alternatives[0];
+    const willCompare = !!alt0 && budget.lineDepth > 0 && best.lead - alt0.lead >= EQUAL_PTS;
     if (reader.readsLeft() > 0 && best.loc !== PASS) {
-      f.afterBest = await reader.read(after([best.loc]), budget.lineVisits || budget.visits);
+      f.afterBest = await reader.read(after([best.loc]), lv, lv + (willCompare ? lineReads * lv : 0));
       if (f.afterBest) replyThought(best.loc, f.afterBest, null, f.vars.best);
     }
     const alt = f.alternatives[0];
@@ -256,7 +264,9 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
   } else if (M === best.loc) {
     // The asked move is KataGo's choice: show why, against the runner-up.
     f.mode = 'good';
-    const r = await reader.read(after([M]), budget.visits);
+    const alt0 = f.alternatives[0];
+    const willCompare = !!alt0 && budget.lineDepth > 0 && best.lead - alt0.lead >= EQUAL_PTS;
+    const r = await reader.read(after([M]), budget.visits, budget.visits + (willCompare ? lineReads * lv : 0));
     f.afterBest = r;
     f.asked = { loc: M, legal: true, isBest: true, read: r, lead: best.lead, win: best.win, loss: 0, reply: r?.candidates[0]?.loc };
     if (r) replyThought(M, r, null, f.vars.best);
@@ -270,7 +280,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
       }
     }
   } else {
-    const r = await reader.read(after([M]), budget.visits);
+    const r = await reader.read(after([M]), budget.visits, budget.visits + lineReads * lv);
     const rootCand = root.candidates.find((c) => c.loc === M);
     if (!r) {
       // Out of time: fall back to what the root read said about the move, if anything.
@@ -289,7 +299,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
       f.vars.asked = addVar({ label: C(M), kind: 'what-if', moves: lineMoves(mover, [M, ...(reply ? shownPv(reply) : [])]), scoreLoss: Math.max(0, loss) });
       replyThought(M, r, loss, f.vars.asked);
       if (reader.readsLeft() > 0) {
-        f.afterBest = await reader.read(after([best.loc]), budget.lineVisits || budget.visits);
+        f.afterBest = await reader.read(after([best.loc]), lv, lv);
         if (f.afterBest) replyThought(best.loc, f.afterBest, null, f.vars.best);
       }
     } else if ((loss >= BIG_PTS && (loss >= HUGE_PTS || !reply || reply.loc === PASS || chebyshev(reply.loc, M, size) <= localR(size) + 1)) || budget.lineDepth <= 0 || reader.readsLeft() < 2) {
@@ -299,7 +309,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
       let endRead = r;
       let extended = false;
       if (f.mode === 'refutation' && reply && locs.length - 1 < SHORT_LINE && reader.readsLeft() > 0 && budget.lineDepth > 0) {
-        const r2 = await reader.read(after(locs), budget.lineVisits || budget.visits);
+        const r2 = await reader.read(after(locs), lv, 2 * lv);
         const top2 = r2?.candidates[0];
         if (r2 && top2) {
           locs.push(...shownPv(top2));
@@ -309,7 +319,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
         }
       }
       if (reader.readsLeft() > 0 && budget.lineDepth > 0) {
-        f.afterBest = await reader.read(after([best.loc]), budget.lineVisits || budget.visits);
+        f.afterBest = await reader.read(after([best.loc]), lv, lv);
         if (f.afterBest) replyThought(best.loc, f.afterBest, null, f.vars.best);
       }
       const refOwn = f.afterBest?.ownership ?? root.ownership;
