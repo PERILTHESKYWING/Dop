@@ -19,6 +19,7 @@ import { chebyshev } from '../../go/coords';
 import { other, PASS, type Color, type Loc, type Move } from '../../go/types';
 import { capitalize, cutAt, cutPly, ownerWords, playLines, regionLoss, turnPhrase, TURN_PTS, type ConsequenceResult, type RegionLoss } from './consequence';
 import { afterMoves, boardOf, colorWord, coord, fmt1, lineMoves, sideLead, sideWin, trustedLen } from './geometry';
+import { localR } from './concepts';
 import { Reader, type ReaderOptions } from './reader';
 import type { Budget, EngineRead, ExplainPosition, Prober, Question, ThoughtStep, Variation } from './types';
 
@@ -185,7 +186,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
   /** The opponent's answer to a move, as a thought. */
   const replyThought = (move: Loc, r: EngineRead, loss: number | null, variation?: string) => {
     const reply = r.candidates[0];
-    const ans = reply ? `${colorWord(opp)} answers ${C(reply.loc)}${chebyshev(reply.loc, move, size) <= 3 ? ' nearby' : ' elsewhere'}` : `${colorWord(opp)} has no answer`;
+    const ans = reply ? `${colorWord(opp)} answers ${C(reply.loc)}${chebyshev(reply.loc, move, size) <= localR(size) ? ' nearby' : ' elsewhere'}` : `${colorWord(opp)} has no answer`;
     const tail = loss === null ? `, ${sideLeadPhrase(moverLead(r), mover)}` : loss >= 0.05 ? `, −${fmt1(loss)} pts` : loss <= -0.05 ? `, +${fmt1(-loss)} pts` : ', same score';
     reader.think(`Checked ${C(move)} → ${ans}${tail}`, variation);
   };

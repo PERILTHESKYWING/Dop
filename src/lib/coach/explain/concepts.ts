@@ -9,8 +9,9 @@ import { colorAdj, colorWord, coord, fmt1, groupAnchor, groupOwn, looseGroups, p
 import type { Findings } from './planner';
 import type { ConceptHit, EngineRead } from './types';
 
-/** A reply this close (Chebyshev) to a move answers it locally. */
+/** A reply this close (Chebyshev) to a move answers it locally (19x19; smaller boards use less). */
 export const LOCAL_R = 3;
+export const localR = (size: number) => (size >= 15 ? LOCAL_R : 2);
 /** Playing elsewhere instead of answering must cost this much for sente. */
 export const SENTE_PTS = 1.5;
 /** Without a tenuki candidate to price, this share of visits on local replies makes sente. */
@@ -26,8 +27,9 @@ export const URGENT_PTS = 1.5;
 /** Summed ownership gain, near the edge and sure (territory) or toward the centre and not sure (influence). */
 export const TERRITORY_PTS = 3;
 export const INFLUENCE_PTS = 4;
-/** A move this far from the opponent's last move plays elsewhere. */
+/** A move this far from the opponent's last move plays elsewhere (19x19; smaller boards use less). */
 export const TENUKI_R = 6;
+export const tenukiR = (size: number) => (size >= 15 ? TENUKI_R : 4);
 
 interface Ctx {
   f: Findings;
@@ -48,7 +50,7 @@ export function senteGote(ctx: Ctx, move: Loc, after: EngineRead | null, variati
   const cands = after.candidates.filter((c) => c.visits > 0);
   if (!cands.length) return null;
   const total = cands.reduce((t, c) => t + c.visits, 0);
-  const local = (l: Loc) => l !== PASS && chebyshev(l, move, size) <= LOCAL_R;
+  const local = (l: Loc) => l !== PASS && chebyshev(l, move, size) <= localR(size);
   const top = cands[0];
   const localShare = cands.filter((c) => local(c.loc)).reduce((t, c) => t + c.visits, 0) / total;
   const contact = stonesNear(f.board, move, 2);
@@ -65,7 +67,8 @@ export function senteGote(ctx: Ctx, move: Loc, after: EngineRead | null, variati
     }
     return null;
   }
-  if (contact && top.visits / total >= 0.3) {
+  // Gote only for a contact play (a stone next to it or diagonal): a local exchange that ended.
+  if (stonesNear(f.board, move, 1) && top.visits / total >= 0.3) {
     return hit('gote', `After ${C(move)}, ${colorWord(opp)}'s best reply is elsewhere (${C(top.loc)}): the local play is over and ${colorWord(opp)} moves first somewhere else.`);
   }
   return null;
@@ -214,17 +217,17 @@ export function tenuki(ctx: Ctx, move: Loc, loss: number, variation?: string): C
   const { f, size, C } = ctx;
   const last = f.pos.moves[f.pos.moves.length - 1];
   if (!last || last.loc === PASS || last.color === f.mover || move === PASS || !f.root || !f.best) return null;
-  if (chebyshev(move, last.loc, size) < TENUKI_R || !stonesNear(f.board, last.loc, 2)) return null;
+  if (chebyshev(move, last.loc, size) < tenukiR(size) || !stonesNear(f.board, last.loc, 2)) return null;
   const v = variation ? { variation } : {};
   const isBest = move === f.best.loc;
   if (isBest) {
-    const local = f.root.candidates.filter((c) => c.visits >= 3 && c.loc !== PASS && chebyshev(c.loc, last.loc, size) <= LOCAL_R)[0];
+    const local = f.root.candidates.filter((c) => c.visits >= 3 && c.loc !== PASS && chebyshev(c.loc, last.loc, size) <= localR(size))[0];
     const evidence = local
       ? `KataGo plays elsewhere (${C(move)}) instead of answering ${C(last.loc)}: the best reply nearby, ${C(local.loc)}, is ${fmt1(Math.max(0, f.best.lead - local.scoreLead))} points worse.`
       : `KataGo plays elsewhere (${C(move)}) instead of answering ${C(last.loc)}; no move near ${C(last.loc)} is among its choices.`;
     return { id: 'tenuki', at: [move], evidence, ...v };
   }
-  if (loss >= URGENT_PTS && chebyshev(f.best.loc, last.loc, size) <= LOCAL_R) {
+  if (loss >= URGENT_PTS && chebyshev(f.best.loc, last.loc, size) <= localR(size)) {
     return { id: 'tenuki', at: [move], evidence: `${C(move)} plays elsewhere and leaves ${C(last.loc)} unanswered; KataGo answers at ${C(f.best.loc)}, ${fmt1(loss)} points better.`, ...v };
   }
   return null;
