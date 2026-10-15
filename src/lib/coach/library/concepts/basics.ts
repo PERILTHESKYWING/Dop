@@ -115,7 +115,7 @@ export const BASICS: ConceptText[] = [
       },
       {
         title: 'Why it matters',
-        text: 'Two common losses come from misjudging dead stones. One is adding moves to stones that cannot be saved: each extra stone makes the opponent\'s area bigger (and is one more prisoner under Japanese rules). The other is the opposite: capturing dead stones that were no threat, which is a wasted move (gote) while the opponent plays a big point. Knowing exactly what is dead tells you where you do not need to play.',
+        text: 'Two common losses come from misjudging dead stones. One is adding moves to stones that cannot be saved: under Japanese rules each extra stone is one more prisoner, and under any rules a move that saves nothing is a move not played somewhere useful. The other is the opposite: capturing dead stones that were no threat, which is a wasted move (gote) while the opponent plays a big point. Knowing exactly what is dead tells you where you do not need to play.',
       },
       {
         title: 'Dead is not the same as useless',
@@ -147,7 +147,7 @@ export const BASICS: ConceptText[] = [
       },
       {
         title: 'The counting rules',
-        text: 'With no eyes on either side: the group with more liberties wins; with equal counts, the side to move wins. If there are two or more shared liberties and the outside counts are close, the result is often seki. With one eye against no eye, the shared liberties count only for the side with the eye: "one eye beats no eye" unless the eyeless group has many more outside liberties. A big eye is worth more liberties than its size: a three-point eye gives 3, four gives 5, five gives 8, six gives 12. That is why "big eye beats small eye".',
+        text: 'With no eyes on either side: the group with more liberties wins; with equal counts, the side to move wins. If there are two or more shared liberties and the outside counts are close, the result is often seki. With one eye against no eye, the shared liberties count only for the side with the eye: "one eye beats no eye" unless the eyeless group has many more outside liberties. From four points up, a big eye is worth more liberties than its size: a three-point eye gives 3, four gives 5, five gives 8, six gives 12. That is why "big eye beats small eye".',
       },
       {
         title: 'How to win races',

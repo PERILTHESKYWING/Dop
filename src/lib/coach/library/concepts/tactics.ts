@@ -27,7 +27,7 @@ export const TACTICS: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'KataGo reads ladders reliably, so its ownership after the first atari already shows the result: a chased stone owned by the attacker means the ladder works; owned by the runner means it fails. If a joseki you know needs a ladder, check the ownership before you play it.',
+        text: 'KataGo reads ladders well, and its best line plays the chase out to the end. Trust that line more than the ownership map just after the first atari: a chased stone often still looks undecided there, because a later ladder breaker could rescue it. If a joseki you know needs a ladder, ask KataGo for the line before you play it.',
       },
     ],
     mistakes: [
@@ -108,7 +108,7 @@ export const TACTICS: ConceptText[] = [
     body: [
       {
         title: 'What it is',
-        text: 'Two chains that could be joined by one move have a cutting point. If the opponent plays there, you have two groups to take care of instead of one. Ways to connect: the solid connection (no weakness at all), the hanging connection or tiger\'s mouth (more flexible, can be forced), the bamboo joint (two ways to connect, miai), the diagonal and the one-point jump (can be wedged or peeped but are usually fine).',
+        text: 'Two chains that could be joined by one move have a cutting point. If the opponent plays there, you have two groups to take care of instead of one. Ways to connect: the solid connection (no weakness at all), the hanging connection or tiger\'s mouth (more flexible, can be forced), the bamboo joint (two ways to connect, miai), the diagonal (cut only if the opponent gets both points beside it) and the one-point jump (can be peeped or wedged). Both are usually fine.',
       },
       {
         title: 'When a cut is good',

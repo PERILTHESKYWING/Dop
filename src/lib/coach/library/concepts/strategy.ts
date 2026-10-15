@@ -349,7 +349,7 @@ export const STRATEGY: ConceptText[] = [
       },
       {
         title: 'When to invade',
-        text: 'Invade when the area is large enough to give room for a base (on the third line, about two points on each side), when the opponent\'s surrounding stones have weaknesses, and when the area is about to become secure if you wait. Do not invade where the opponent is thick on all sides: the invasion may live, but the opponent gains outside while you struggle.',
+        text: 'Invade when the area is large enough to give room for a base (on the third line, room to extend two points to at least one side), when the opponent\'s surrounding stones have weaknesses, and when the area is about to become secure if you wait. Do not invade where the opponent is thick on all sides: the invasion may live, but the opponent gains outside while you struggle.',
       },
       {
         title: 'How to invade',

@@ -11,7 +11,7 @@ export const ENDGAME: ConceptText[] = [
     body: [
       {
         title: 'Kinds of endgame moves',
-        text: 'Double sente: sente for whichever side plays it, so it should be played as soon as possible. One-sided sente: sente for one side only; for the other side, playing there is gote and is called reverse sente, because it takes away the opponent\'s sente move. Gote: neither side keeps sente afterwards. Dame: neutral points worth nothing under territory scoring (and decided by parity under area scoring), filled last.',
+        text: 'Double sente: sente for whichever side plays it, so it should be played as soon as possible. One-sided sente: sente for one side only; for the other side, playing there is gote and is called reverse sente, because it takes away the opponent\'s sente move. Gote: neither side keeps sente afterwards. Dame: neutral points, worth nothing under territory scoring and one point to whoever fills them under area scoring; filled last.',
       },
       {
         title: 'The order',
@@ -19,7 +19,7 @@ export const ENDGAME: ConceptText[] = [
       },
       {
         title: 'Typical moves',
-        text: 'Hane and connect on the first or second line, the descent that threatens to go further, the monkey jump along the first line under a second-line group, and the moves that capture or rescue cutting stones. Many of these are sente for one side only; recognising which side gets sente is half of the endgame.',
+        text: 'Hane and connect on the first or second line, the descent that threatens to go further, the monkey jump (a long first-line slide from your second-line stone into the opponent\'s area), and the moves that capture or rescue cutting stones. Many of these are sente for one side only; recognising which side gets sente is half of the endgame.',
       },
       {
         title: 'How strong players think about it',

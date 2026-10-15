@@ -9,7 +9,7 @@ Summary: hand-written answers to concept questions ("what is miai?") in `src/lib
 
 ## Counts (this PR)
 - 45 concepts; all 14 `ConceptId`s from `explain/types.ts` have an entry with the same meaning.
-- EXAMPLES_LINE
+- 17 examples on 14 concepts (b10 net, 800 visits), all checks passed. Dropped, with reasons printed by the script: net (the net beat the failed ladder by only 0.8 pts), sente (the endgame move tested was gote; that position now shows `gote`), endgame and move-value (swings of 83 and 53 pts: a group's life, not a typical endgame lesson; `maxSwing: 30` keeps such cases out). Concepts without examples are text-only for now.
 - Bundle: about 120 KB minified, 39 KB gzipped for the whole library. Kami can lazy-load it.
 
 ## Add a concept
@@ -29,3 +29,5 @@ Summary: hand-written answers to concept questions ("what is miai?") in `src/lib
 - The b10 net at 800 visits sometimes disagrees with the problem bank's answer (built natively); those examples are dropped, not forced.
 - Swing values compare "mover plays X, opponent passes" with "mover passes, opponent plays X", both with the mover to play, so the tempo cancels and the number is the deiri value.
 - `tenuki` compares KataGo's best answer with its best move at least 4 lines away (a pass in framed positions).
+- Open-board specs must be real positions: equal stone counts with Black to move (or Black one ahead with White to move). An earlier 3-3 spec gave Black a free stone and read "Black leads by 12.5".
+- The `local` check needs a nearby candidate with 10+ root visits; when KataGo barely looks at local answers, use `beats` against the local move instead (it reads both moves fully).

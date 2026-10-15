@@ -104,7 +104,7 @@ export const SHAPE: ConceptText[] = [
     body: [
       {
         title: 'What it is',
-        text: 'Two of your stones stand next to each other, and two more stand next to each other one line away, with two empty points between the pairs. If the opponent wedges into one of the points, you connect at the other. The shape is as safe as a solid connection against cuts but covers more ground.',
+        text: 'Two of your stones stand next to each other, and two more stand parallel to them two lines over, so one empty line of two points lies between the pairs. If the opponent wedges into one of the points, you connect at the other. The shape is as safe as a solid connection against cuts but covers more ground.',
       },
       {
         title: 'Its limits',
