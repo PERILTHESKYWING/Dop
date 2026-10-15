@@ -10,7 +10,7 @@ Summary: hand-written answers to concept questions ("what is miai?") in `src/lib
 ## Counts (this PR)
 - 45 concepts; all 14 `ConceptId`s from `explain/types.ts` have an entry with the same meaning.
 - 17 examples on 14 concepts (b10 net, 800 visits), all checks passed. Dropped, with reasons printed by the script: net (the net beat the failed ladder by only 0.8 pts), sente (the endgame move tested was gote; that position now shows `gote`), endgame and move-value (swings of 83 and 53 pts: a group's life, not a typical endgame lesson; `maxSwing: 30` keeps such cases out). Concepts without examples are text-only for now.
-- Bundle: about 120 KB minified, 39 KB gzipped for the whole library. Kami can lazy-load it.
+- Bundle: 127 KB minified, 40 KB gzipped for the whole library (esbuild, measured). Kami can lazy-load it.
 
 ## Add a concept
 1. Add an entry to the matching `concepts/*.ts` file; ids are kebab-case, `related` must point at existing ids.
