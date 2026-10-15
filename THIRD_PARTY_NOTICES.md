@@ -82,6 +82,14 @@ first use and caches them locally.
 - The **PC helper** (`pc-helper/dop_pc.py`), run by the user on their own PC, downloads KataGo (MIT) from its
   GitHub releases, a kata1 network, the built-in g170e-b10c128 network, and Cloudflare's `cloudflared`
   (Apache 2.0) for the phone link.
+- The **Kami training kit** (`scripts/coachlm/`, `pc-helper/start-kami-training-windows.bat`), run by the user
+  on their own PC or Kaggle, downloads a base language model from Hugging Face: **Qwen3-1.7B** by default
+  (Qwen team, Alibaba Cloud, Apache 2.0), or Qwen2.5-1.5B-Instruct / Qwen3-0.6B (Apache 2.0) if chosen. The
+  models it publishes (LoRA adapters and a merged ONNX export) are derived from that base and keep its
+  Apache 2.0 licence. It installs PyTorch (BSD-3-Clause), NumPy (BSD-3-Clause), Hugging Face transformers,
+  peft, trl, accelerate, datasets, tokenizers, safetensors and huggingface_hub (Apache 2.0), and for the
+  export optimum and optimum-onnx (Apache 2.0), ONNX and onnx-ir (Apache 2.0) and ONNX Runtime (MIT). The
+  optional writing judge sends answers to Google's Gemini API under the user's own key.
 
 ## Demo data
 
