@@ -1,6 +1,6 @@
 /**
  * Explainer bench: runs Kami's explain (src/lib/coach/explain) through the WASM engine in
- * Node (scripts/explainNode.ts, bundled b10) on real positions from
+ * Node (as scripts/explainNode.ts, bundled b10, a cold cache per answer) on real positions from
  * public/engine/bench-positions.json plus one hand-made opening, and reports per model and
  * thinking level: reads, visits, ms, whether a turning point was found. Prints one full
  * example at the end.
@@ -12,13 +12,15 @@
  * Node runs one engine thread (about 40 visits/s on the 2-core cloud box); a laptop browser
  * runs several workers, so its times are lower. Report what this prints, not guesses.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Loc, Move } from '../src/lib/go/types';
-import { budgetFor, explainWithBudget, type Explanation, type ExplainPosition, type ModelId, type Question, type ThinkingLevel } from '../src/lib/coach/explain';
-import { nodeProber } from './explainNode';
+import { budgetFor, explainWithBudget, searchProber, type Explanation, type ExplainPosition, type ModelId, type Question, type ThinkingLevel } from '../src/lib/coach/explain';
+import { engineEvaluator } from '../src/lib/engine/mcts';
+import { NNCache } from '../src/lib/engine/nncache';
+import { loadNodeEngine } from './nodeEngine';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -100,7 +102,13 @@ async function main() {
   const scale = Number(arg('time-scale') ?? 1);
   const exampleIdx = Number(arg('example') ?? 0);
   const t0 = Date.now();
-  const prober = await nodeProber(19);
+  // The same engine as scripts/explainNode.ts, but a cold evaluation cache for every answer:
+  // with one shared cache, later runs reuse earlier runs' evaluations and look faster.
+  const models = path.join(root, 'public', 'models');
+  const file = readdirSync(models).find((f) => f.startsWith('g170e-b10c128') && f.endsWith('.bin.gz'));
+  if (!file) throw new Error(`no bundled network in ${models}`);
+  const eng = await loadNodeEngine(path.join(models, file), 'g170e-b10c128', 19, 1);
+  const freshProber = () => searchProber(engineEvaluator(eng, { cache: new NNCache() }));
   const { loadavg } = await import('node:os');
   console.log(`engine loaded in ${Date.now() - t0} ms; ${chosen.length} positions; time scale ${scale}; load average ${loadavg()[0].toFixed(1)}`);
   const examples: { c: Case; ex: Explanation }[] = [];
@@ -113,7 +121,7 @@ async function main() {
     const rows: { reads: number; visits: number; ms: number; cpu: number; tp: boolean | null }[] = [];
     for (const c of chosen) {
       const cpu0 = process.cpuUsage();
-      const ex = await explainWithBudget(c.pos, c.q, prober, budget, { model, thinking });
+      const ex = await explainWithBudget(c.pos, c.q, freshProber(), budget, { model, thinking });
       const du = process.cpuUsage(cpu0);
       const cpu = Math.round((du.user + du.system) / 1000);
       const v = ex.variations.find((x) => x.kind === 'consequence');
