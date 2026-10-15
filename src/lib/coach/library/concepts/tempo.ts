@@ -27,7 +27,7 @@ export const TEMPO: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'A clean test of sente is the cost of ignoring: compare the lead when the opponent answers your move with the lead when they play elsewhere instead. If ignoring costs more than the biggest move elsewhere is worth, the move was sente. Kami runs exactly this comparison when it says a move is sente.',
+        text: 'A clean test of sente is the cost of ignoring: compare the lead after the opponent\'s best answer with the lead after their best move elsewhere. If playing elsewhere is clearly worse, your move was sente; if the two are about equal, it was gote.',
       },
     ],
     mistakes: [
@@ -94,7 +94,7 @@ export const TEMPO: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'Kami measures tenuki directly: it compares the lead after the local answer with the lead after the best move elsewhere. When the difference is small, tenuki was fine; when it is large, the local move was urgent.',
+        text: 'KataGo makes tenuki measurable: compare the lead after the best local answer with the lead after the best move elsewhere. When the difference is small, tenuki is fine; when it is large, the local move was urgent.',
       },
     ],
     mistakes: [

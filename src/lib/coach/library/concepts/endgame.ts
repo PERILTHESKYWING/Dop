@@ -27,7 +27,7 @@ export const ENDGAME: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'KataGo\'s score lead makes endgame values measurable: the value of a move is the difference between the lead after you play it and the lead after the opponent plays there. Kami uses this "swing" to say how big a move is and whether ignoring it is costly (sente) or not (gote).',
+        text: 'KataGo\'s score lead makes endgame values measurable: the value of a move is the difference between the lead after you play it and the lead after the opponent plays there. The same reads show whether ignoring a move is costly (sente) or not (gote): compare the lead after the best answer with the lead after the best move elsewhere.',
       },
     ],
     mistakes: [

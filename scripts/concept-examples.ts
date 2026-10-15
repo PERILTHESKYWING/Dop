@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Board, replay } from '../src/lib/go/board';
 import { chebyshev, gtpToLoc, locToGtp, locToSgf, sgfToLoc } from '../src/lib/go/coords';
-import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
+import { PASS, type Color, type Move } from '../src/lib/go/types';
 import { framePosition } from '../src/lib/problems/frame';
 import { problemBoard } from '../src/lib/problems/play';
 import type { Problem } from '../src/lib/problems/types';
@@ -195,7 +195,11 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
   const vars: Record<string, string> = Object.fromEntries(line.map((m, i) => [`m${i + 1}`, locToGtp(m.loc, pos.size)]));
   let rootRead: EngineRead | null = null;
   const getRoot = async () => (rootRead ??= await read(p, pos));
-  if (inspect) log.push(`root: ${show(await getRoot(), pos.size)}`);
+  if (inspect) {
+    log.push(`root: ${show(await getRoot(), pos.size)}`);
+    const b = replay(pos.size, pos.setup, []);
+    log.push(`line: ${line.map((m) => `${locToGtp(m.loc, pos.size)}${(n => (n ? `(x${n})` : ''))(b.play(m.loc, m.color).captured.length)}`).join(' ')}`);
+  }
 
   for (const c of s.checks) {
     const key = c.key ?? c.kind;
@@ -214,6 +218,7 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
           : loss < 0.15
             ? 'is level with KataGo’s first choice'
             : `is within ${fmt(loss)} points of KataGo’s first choice`;
+      vars.rankShort = vars.rank.replace(/^is /, '');
       vars.lead = fmt(chosen.scoreLead);
       vars.win = `${Math.round(chosen.winrate * 100)}%`;
       vars.score = `${chosen.scoreLead >= 0 ? name(mover) : name(otherColor(mover))} leads by ${fmt(chosen.scoreLead)} points`;
@@ -241,6 +246,20 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
       if (cost < c.min) return { why: `the line costs only ${cost.toFixed(1)} (needs ${c.min})`, log };
       vars[key] = fmt(cost);
       vars[`${key}Score`] = scoreText(r);
+    } else if (c.kind === 'local') {
+      // The best move near `near` (within maxDist lines) against KataGo's first choice.
+      const r = await getRoot();
+      const nearLoc = gtpToLoc(c.near, pos.size);
+      const best = r.candidates[0];
+      const cand = r.candidates.find((x) => x.loc !== PASS && x.visits >= 10 && chebyshev(x.loc, nearLoc, pos.size) <= (c.maxDist ?? 3));
+      if (!cand) return { why: `no searched move near ${c.near}`, log };
+      const loss = best.scoreLead - cand.scoreLead;
+      log.push(`local: best near ${c.near} is ${locToGtp(cand.loc, pos.size)} (${cand.scoreLead.toFixed(1)}), ${loss.toFixed(1)} behind ${locToGtp(best.loc, pos.size)}`);
+      if (c.maxLoss !== undefined && loss > c.maxLoss) return { why: `local move ${loss.toFixed(1)} behind (more than ${c.maxLoss})`, log };
+      if (c.minLoss !== undefined && loss < c.minLoss) return { why: `local move only ${loss.toFixed(1)} behind (needs ${c.minLoss})`, log };
+      vars[key] = fmt(Math.max(0, loss));
+      vars[`${key}Move`] = locToGtp(cand.loc, pos.size);
+      if (chebyshev(line[0].loc, nearLoc, pos.size) <= (c.maxDist ?? 3)) throw new Error(`${s.title}: line[0] is itself near ${c.near}`);
     } else if (c.kind === 'captures') {
       const b = replay(pos.size, pos.setup, line.slice(0, c.after - 1));
       const n = b.play(line[c.after - 1].loc, line[c.after - 1].color).captured.length;
@@ -286,11 +305,14 @@ async function check(p: Prober, s: Spec): Promise<{ ex?: ExampleRecord; why?: st
     } else if (c.kind === 'tenuki') {
       // Cost of ignoring line[k-1]: KataGo's best answer against its best move at least four
       // lines away (or a pass, in framed positions where everything else is settled).
+      // With after: 0 it is the mover's own choice: line[0] against the best move far from it.
       const k = c.after ?? 1;
-      const answerer = otherColor(line[k - 1].color);
-      const r1 = await read(p, after(pos, line.slice(0, k)));
-      const far = view ? undefined : r1.candidates.find((x) => x.loc !== PASS && chebyshev(x.loc, line[k - 1].loc, pos.size) >= 4);
+      const answerer = k === 0 ? mover : otherColor(line[k - 1].color);
+      const ref = k === 0 ? line[0].loc : line[k - 1].loc;
+      const r1 = k === 0 ? await getRoot() : await read(p, after(pos, line.slice(0, k)));
+      const far = view ? undefined : r1.candidates.find((x) => x.loc !== PASS && chebyshev(x.loc, ref, pos.size) >= 4);
       const elsewhere = far?.loc ?? PASS;
+      vars[`${key}Far`] = locToGtp(elsewhere, pos.size);
       const r2 = await read(p, after(pos, [...line.slice(0, k), { color: answerer, loc: elsewhere }]));
       const cost = leadFor(r1, answerer) - leadFor(r2, answerer);
       log.push(`tenuki: best answer keeps ${leadFor(r1, answerer).toFixed(1)}, elsewhere (${locToGtp(elsewhere, pos.size)}) gives ${leadFor(r2, answerer).toFixed(1)} → cost ${cost.toFixed(1)}`);
@@ -380,6 +402,8 @@ type Check =
   | { kind: 'swing'; minSwing: number; maxSwing?: number; key?: string }
   /** Playing out the whole line (even length) costs the mover at least `min` points. */
   | { kind: 'costs'; min: number; key?: string }
+  /** The best searched move near `near` against KataGo's first choice; line[0] must be far from it. Sets <key> (loss), <key>Move. */
+  | { kind: 'local'; near: string; maxDist?: number; minLoss?: number; maxLoss?: number; key?: string }
   /** Rules check (board): move number `after` (1-based) captures min..max stones. Sets <key> to the count. */
   | { kind: 'captures'; after: number; min: number; max?: number; key?: string }
   /** Rules check (board, not KataGo): after `after` moves, `move` is illegal for the side to move. */
@@ -414,18 +438,21 @@ interface Spec {
 const sgf = (s: string, size = 19) => s.split(' ').map((c) => locToGtp(sgfToLoc(c, size), size));
 const bankSource = (id: string) => {
   const p = bankProblem(id);
-  return p.src.kind === 'pro' ? `problem bank (professional game, move ${p.src.move})` : `problem bank (Fox game, move ${p.src.move})`;
+  return `problem bank (${p.src.kind === 'pro' ? 'professional' : 'Fox'} game, move ${p.src.move})`;
 };
 
 // The ladder diagrams: a White cutting stone at G7; Black's ataris chase it toward Q16.
+// K3 and R10 are off the ladder's path; they only balance the material.
 const LADDER_B = ['F7', 'G6', 'F8', 'H6', 'Q4'];
-const LADDER_W = ['G7', 'C4'];
+const LADDER_W = ['G7', 'C4', 'K3', 'R10'];
 const LADDER_LINE = 'H7 G8 G9 H8 J8 H9 H10 J9 K9 J10 J11 K10 L10 K11 K12 L11 M11 L12 L13 M12 N12 M13 M14 N13 O13 N14 N15 O14 P14 O15 O16 P15 Q15 P16'.split(' ');
-// Bottom-left corner diagrams (framed): straight three, a false eye, seki, straight four.
+// Bottom-left corner diagrams (framed): straight three, a false eye, seki, straight four, a dead group.
 const STRAIGHT_THREE = ['OOOOOOO', 'OXXXXXO', 'OX...XO'];
 const FALSE_EYE = ['OOOOOOOO', 'OXXXX.OO', 'OX.X.XOO'];
-const SEKI = ['XXXXXXXX', 'XOOOOOOX', 'XO.XX.OX'];
+const SEKI = ['XXXXXXXXX', 'XOOOOOOOX', 'XO.XXX.OX'];
 const STRAIGHT_FOUR = ['OOOOOOOO', 'OXXXXXXO', 'OX....XO'];
+const DEAD = ['OOOOOOO', 'OXXXXXO', 'OX.O.XO'];
+const CORNER_GROUP = ['B2', 'C2', 'D2', 'E2', 'F2'];
 
 const SPECS: Spec[] = [
   {
@@ -438,10 +465,10 @@ const SPECS: Spec[] = [
     white: [...LADDER_W, 'D16'],
     line: [...LADDER_LINE, 'P17'],
     checks: [
-      { kind: 'owns', after: 1, points: ['G7'], color: 'B', min: 0.8 },
       { kind: 'captures', after: 35, min: 17 },
+      { kind: 'owns', points: ['G7', 'K10', 'P16'], color: 'B', min: 0.8 },
     ],
-    note: 'After the first atari at H7, KataGo already counts the cutting stone as Black’s ({owns}): every escape leaves two liberties, and at the end Black’s Q16 stone blocks and P17 captures {captures} stones.',
+    note: 'Black starts with the atari at {m1}. Every escape leaves White two liberties, the chase runs diagonally across the board, and at the end Black’s stone at Q16 blocks the way: {m35} captures {captures} stones, and KataGo gives the whole diagonal to Black ({owns}).',
   },
   {
     concept: 'ladder',
@@ -456,7 +483,7 @@ const SPECS: Spec[] = [
       { kind: 'costs', min: 5 },
       { kind: 'owns', points: ['G7', 'K10', 'P16'], color: 'W', min: 0.5 },
     ],
-    note: 'Same shape, but White’s Q16 sits on the ladder’s path. Chasing anyway costs Black {costs} points by KataGo’s count: White connects at P16 ({owns} White) and Black is left with cutting points all along the line.',
+    note: 'Same shape, but White’s Q16 sits on the ladder’s path. Chasing anyway costs Black {costs} points by KataGo’s count: White connects at {m34} (the chased stones are {owns} White’s) and Black is left with cutting points all along the line.',
   },
   {
     concept: 'net',
@@ -466,12 +493,13 @@ const SPECS: Spec[] = [
     toPlay: 'B',
     black: [...LADDER_B, 'D16'],
     white: [...LADDER_W, 'Q16'],
-    line: ['H8'],
+    line: ['H8', 'H7', 'J7', 'G8', 'G9'],
     checks: [
-      { kind: 'owns', points: ['G7'], color: 'B', min: 0.8 },
-      { kind: 'beats', alt: 'H7', minGain: 3 },
+      { kind: 'beats', alt: 'H7', minGain: 2 },
+      { kind: 'reply', after: 2 },
+      { kind: 'captures', after: 5, min: 3 },
     ],
-    note: 'With the ladder broken, the loose move H8 still captures: both ways out lead into Black stones and KataGo gives the cutting stone to Black ({owns}). It is {beats} points better than starting the failed ladder at H7.',
+    note: 'With the ladder broken, the loose move {m1} still works: if White pushes at {m2}, KataGo answers {m3}, and after {m4} the stones run into Black’s net and {m5} captures {captures}. {m1} is {beats} points better than starting the failed ladder at H7.',
   },
   {
     concept: 'life-and-death',
@@ -483,9 +511,9 @@ const SPECS: Spec[] = [
     line: ['D1'],
     checks: [
       { kind: 'top' },
-      { kind: 'owns', points: ['B2', 'C2', 'D2', 'E2', 'F2'], color: 'B', min: 0.8 },
+      { kind: 'owns', points: CORNER_GROUP, color: 'B', min: 0.8 },
     ],
-    note: 'D1, the middle of the three points, splits the space into two separate eyes. It {rank}, and afterwards KataGo counts the group as alive ({owns}).',
+    note: '{m1}, the middle of the three points, splits the space into two separate eyes. It {rank}, and afterwards KataGo counts the group as alive ({owns}).',
   },
   {
     concept: 'life-and-death',
@@ -497,9 +525,9 @@ const SPECS: Spec[] = [
     line: ['D1'],
     checks: [
       { kind: 'top' },
-      { kind: 'owns', points: ['B2', 'C2', 'D2', 'E2', 'F2'], color: 'W', min: 0.8 },
+      { kind: 'owns', points: CORNER_GROUP, color: 'W', min: 0.8 },
     ],
-    note: 'The same point kills when White gets it first: the space can no longer become two eyes. D1 {rank} and KataGo counts the Black group as dead ({owns}).',
+    note: 'The same point kills when White gets it first: the space can no longer become two eyes. {m1} {rank} and KataGo counts the Black group as dead ({owns}).',
   },
   {
     concept: 'eyes',
@@ -513,7 +541,7 @@ const SPECS: Spec[] = [
       { kind: 'top' },
       { kind: 'owns', points: ['B2', 'C2', 'D2', 'E2'], color: 'B', min: 0.8 },
     ],
-    note: 'F2 joins the lone stone at F1 to the group, so E1 becomes a real eye next to C1. F2 {rank} and the group lives ({owns}).',
+    note: '{m1} joins the lone stone at F1 to the group, so E1 becomes a real eye next to C1. {m1} {rank} and the group lives ({owns}).',
   },
   {
     concept: 'eyes',
@@ -527,7 +555,21 @@ const SPECS: Spec[] = [
       { kind: 'top' },
       { kind: 'owns', after: 1, points: ['B2', 'C2', 'D2', 'E2'], color: 'W', min: 0.8 },
     ],
-    note: 'With White on F2, the stone at F1 is in atari and Black must fill E1 to save it, so E1 was never an eye. F2 {rank} and KataGo counts the group as dead ({owns}).',
+    note: 'With White on {m1}, the stone at F1 is in atari and Black must fill {m2} to save it, so E1 was never an eye. {m1} {rank} and KataGo counts the group as dead ({owns}).',
+  },
+  {
+    concept: 'dead-group',
+    title: 'Dead even with the move',
+    size: 19,
+    komi: 'even',
+    toPlay: 'B',
+    local: { rows: DEAD, at: [0, 16], attacker: 'W' },
+    line: ['C1', 'E1'],
+    checks: [
+      { kind: 'owns', after: 0, points: CORNER_GROUP, color: 'W', min: 0.8 },
+      { kind: 'captures', after: 2, min: 7 },
+    ],
+    note: 'White’s stone at D1 sits on the vital point. Even with Black to move, KataGo already counts the group as White’s ({owns}); if Black tries {m1}, {m2} captures {captures} stones. White does not need to spend a move here.',
   },
   {
     concept: 'seki',
@@ -536,14 +578,14 @@ const SPECS: Spec[] = [
     komi: 'even',
     toPlay: 'B',
     local: { rows: SEKI, at: [0, 16], attacker: 'B' },
-    line: ['C1', 'F1'],
+    line: ['C1', 'G1'],
     checks: [
-      { kind: 'owns', after: 0, points: ['D1', 'E1'], color: 'B', min: 0.5, key: 'ownB' },
-      { kind: 'owns', after: 0, points: ['B2', 'C2', 'D2', 'E2', 'F2', 'G2'], color: 'W', min: 0.5, key: 'ownW' },
+      { kind: 'owns', after: 0, points: ['D1', 'E1', 'F1'], color: 'B', min: 0.5, key: 'ownB' },
+      { kind: 'owns', after: 0, points: ['B2', 'C2', 'D2', 'E2', 'F2', 'G2', 'H2'], color: 'W', min: 0.5, key: 'ownW' },
       { kind: 'loses', alt: 'pass', minLoss: 5 },
-      { kind: 'captures', after: 2, min: 3 },
+      { kind: 'captures', after: 2, min: 4 },
     ],
-    note: 'Neither side can fill C1 or F1 without putting itself in atari, so both groups stay on the board (KataGo: Black stones {ownB} Black, White stones {ownW} White). If Black fills C1 anyway, F1 captures {captures} stones and Black loses {loses} points against leaving it alone.',
+    note: 'Neither side can fill C1 or G1 without putting itself in atari, so both groups stay on the board (KataGo: Black’s inside stones {ownB} Black, the White group {ownW} White). If Black fills {m1} anyway, {m2} captures {captures} stones and Black loses {loses} points against leaving it alone.',
   },
   {
     concept: 'miai',
@@ -571,7 +613,7 @@ const SPECS: Spec[] = [
       { kind: 'beats', alt: 'K10', minGain: 0.5, key: 'tengen' },
       { kind: 'beats', alt: 'Q10', minGain: 0.5, key: 'side' },
     ],
-    note: 'On the empty board the 4-4 point {rank} ({score}); the center point costs {tengen} points and the side star point {side}.',
+    note: 'On the empty board the 4-4 point {rank} ({score}); the center point costs {tengen} points and the star point on the side {side}.',
   },
   {
     concept: 'three-three-invasion',
@@ -583,11 +625,26 @@ const SPECS: Spec[] = [
     white: ['D16'],
     line: ['R17'],
     checks: [{ kind: 'top', maxLoss: 1 }],
-    note: 'On move 5 the immediate 3-3 invasion {rank} ({score}).',
+    note: 'On move 5 the immediate 3-3 invasion at {m1} {rank} ({score}).',
+  },
+  {
+    concept: 'tenuki',
+    title: 'Ignoring an approach',
+    size: 19,
+    komi: 7.5,
+    toPlay: 'B',
+    black: ['Q16', 'D4'],
+    white: ['D16', 'Q4', 'R14'],
+    line: ['C17'],
+    checks: [
+      { kind: 'top' },
+      { kind: 'local', near: 'R14', maxLoss: 1.5 },
+    ],
+    note: 'White has just approached Black’s corner at R14. KataGo’s first choice ignores it: {m1}, the 3-3 point under White’s star point on the other side ({score}). Its best answer near the approach ({localMove}) is {local} points behind, so the approach can wait.',
   },
   {
     concept: 'ko',
-    title: 'Taking a ko',
+    title: 'A ko in a real game',
     size: 19,
     komi: 7.5,
     toPlay: 'W',
@@ -595,11 +652,10 @@ const SPECS: Spec[] = [
     line: sgf('ra sa'),
     checks: [
       { kind: 'top' },
-      { kind: 'captures', after: 1, min: 1, max: 1, key: 'cap1' },
-      { kind: 'captures', after: 2, min: 1, max: 1, key: 'cap2' },
+      { kind: 'captures', after: 2, min: 1, max: 1 },
       { kind: 'illegal', move: sgf('ra')[0], after: 2 },
     ],
-    note: 'From a real game: White captures one stone at {m1} ({rank}); Black takes one back at {m2}, and White may not retake at {m1} at once. That is a ko.',
+    note: 'White throws a stone in at {m1} ({rankShort}) and Black captures it with {m2}. White may not take back at {m1} at once, because that would repeat the position: this is a ko, and White must play elsewhere first.',
     source: bankSource('pjfvdaq7jhi5g'),
   },
   {
@@ -614,60 +670,31 @@ const SPECS: Spec[] = [
       { kind: 'illegal', move: sgf('ra')[0], after: 2 },
       { kind: 'reply', after: 3 },
       { kind: 'tenuki', after: 3, minCost: 3 },
+      { kind: 'captures', after: 5, min: 1, max: 1 },
     ],
-    note: 'White cannot retake {m1} at once, so White plays a threat at {m3} first. Ignoring it would cost Black {tenuki} points by KataGo’s read, so Black answers at {m4} and White retakes the ko at {m5}.',
+    note: 'After Black takes the ko at {m2}, White may not retake at {m1} at once, so White plays a threat at {m3}. Ignoring it would cost Black {tenuki} points by KataGo’s read, so Black answers at {m4} and White retakes the ko at {m5}.',
     source: bankSource('pjfvdaq7jhi5g'),
   },
   {
-    concept: 'snapback',
-    title: 'Snapback (real game)',
-    size: 19,
-    komi: 7.5,
-    toPlay: 'B',
-    bank: 'ppm0vw9hvef7b',
-    line: sgf('ne ng ne'),
-    checks: [
-      { kind: 'top' },
-      { kind: 'captures', after: 2, min: 1, max: 1, key: 'cap1' },
-      { kind: 'captures', after: 3, min: 2, key: 'cap2' },
-    ],
-    note: 'Black gives up one stone at {m1} ({rank}); White captures it with {m2}, and Black plays {m3} again to capture {cap2} stones. Not a ko: more than one stone comes back.',
-    source: bankSource('ppm0vw9hvef7b'),
-  },
-  {
-    concept: 'snapback',
-    title: 'Snapback (pro game)',
+    concept: 'sacrifice',
+    title: 'Giving up a stone (professional game)',
     size: 19,
     komi: 7.5,
     toPlay: 'W',
-    bank: 'p19vnizkq59qf',
-    line: sgf('ms ls ns mr ns'),
+    bank: 'pr53j62y2hrtc',
+    line: sgf('fo gn do dp ep'),
     checks: [
       { kind: 'top' },
-      { kind: 'captures', after: 4, min: 1, max: 1, key: 'cap1' },
-      { kind: 'captures', after: 5, min: 2, key: 'cap2' },
+      { kind: 'reply', after: 1 },
+      { kind: 'reply', after: 3 },
+      { kind: 'captures', after: 4, min: 1, max: 1 },
     ],
-    note: 'White starts with {m1} ({rank}) and then gives up a stone at {m3}; Black captures it with {m4}, and White plays {m5} again to take {cap2} stones.',
-    source: bankSource('p19vnizkq59qf'),
-  },
-  {
-    concept: 'sacrifice',
-    title: 'A throw-in (real game)',
-    size: 19,
-    komi: 7.5,
-    toPlay: 'B',
-    bank: 'p1ycwlf7uywqj',
-    line: sgf('eq er fr fs'),
-    checks: [
-      { kind: 'top' },
-      { kind: 'captures', after: 2, min: 1, key: 'cap1' },
-    ],
-    note: 'Black throws a stone in at {m1} and lets White capture it with {m2}; the throw-in {rank}, and it lets Black follow up at {m3}.',
-    source: bankSource('p1ycwlf7uywqj'),
+    note: 'White’s {m1} {rank}. After {m2}, White plays {m3}, a stone meant to be captured: KataGo’s answer is to take it with {m4}, and White follows with {m5}.',
+    source: bankSource('pr53j62y2hrtc'),
   },
   {
     concept: 'tesuji',
-    title: 'Placement and throw-in (real game)',
+    title: 'A first-line tesuji (real game)',
     size: 19,
     komi: 7.5,
     toPlay: 'B',
@@ -676,6 +703,54 @@ const SPECS: Spec[] = [
     checks: [{ kind: 'top' }],
     note: 'The first-line move {m1} {rank} ({score}); it works only because of the follow-up at {m3} and {m5}, which KataGo reads out.',
     source: bankSource('ph8fn1rv495d'),
+  },
+  {
+    concept: 'sente',
+    title: 'A sente endgame move',
+    size: 19,
+    komi: 7.5,
+    toPlay: 'B',
+    bank: 'p1t7mq8h1y2f3',
+    line: ['A7'],
+    checks: [{ kind: 'top' }, { kind: 'tenuki', minCost: 2 }],
+    note: 'Late in a professional game, Black’s {m1} {rank}. White should answer it: KataGo’s best move elsewhere ({tenukiFar}) would cost White {tenuki} points compared with its best answer. Black keeps sente.',
+    source: bankSource('p1t7mq8h1y2f3'),
+  },
+  {
+    concept: 'gote',
+    title: 'A gote endgame move',
+    size: 19,
+    komi: 7.5,
+    toPlay: 'B',
+    bank: 'p1t7mq8h1y2f3',
+    line: ['A7'],
+    checks: [{ kind: 'top' }, { kind: 'tenuki', minCost: -100, maxCost: 0.5 }],
+    note: 'Late in a professional game, Black’s {m1} {rank}, but it threatens nothing big afterwards: White can play elsewhere ({tenukiFar}) and lose only {tenuki} points against answering. The move ends in gote.',
+    source: bankSource('p1t7mq8h1y2f3'),
+  },
+  {
+    concept: 'endgame',
+    title: 'The biggest endgame move',
+    size: 19,
+    komi: 7.5,
+    toPlay: 'B',
+    bank: 'p1t7mq8h1y2f3',
+    line: ['A7'],
+    checks: [{ kind: 'top' }, { kind: 'swing', minSwing: 1 }],
+    note: 'At move 261 of a professional game, KataGo’s first choice is {m1}. With Black to move in both reads, Black on {m1} against White on {m1} differs by {swing} points: that is what the point is worth to both sides (its swing, or deiri).',
+    source: bankSource('p1t7mq8h1y2f3'),
+  },
+  {
+    concept: 'move-value',
+    title: 'Measuring a big point',
+    size: 19,
+    komi: 7.5,
+    toPlay: 'B',
+    bank: 'p1xu0bq81i59t',
+    line: sgf('id'),
+    checks: [{ kind: 'top' }, { kind: 'swing', minSwing: 2 }],
+    note: 'KataGo’s first choice here is {m1}. Its lead with Black on {m1} and with White on {m1}, both read with Black to move, differs by {swing} points: that swing is the point’s value in deiri counting. If the move is gote, miai counting halves it, to about {swingHalf}.',
+    source: bankSource('p1xu0bq81i59t'),
   },
 ];
 

@@ -27,7 +27,7 @@ export const STRATEGY: ConceptText[] = [
       },
       {
         title: 'What AI changed',
-        text: 'Engines showed two things at once. Walls built by classic joseki (for example, the outside wall from an early 3-3 invasion) are often worth less than humans assumed, so taking the corner is more common now. But solid, thick moves that humans called slow, like connecting instead of a hanging connection, are often the engine\'s first choice, because they remove weaknesses before a fight. Thickness is valued for its safety more than for its influence.',
+        text: 'Engines showed two things at once. Walls built by classic joseki (for example, the outside wall from an early 3-3 invasion) are often worth less than humans assumed, so taking the corner is more common now. But solid, thick moves that humans called slow, such as a plain connection where a hanging connection looked faster, are often the engine\'s first choice, because they remove weaknesses before a fight. Thickness is valued for its safety more than for its influence.',
       },
     ],
     mistakes: [
@@ -218,7 +218,7 @@ export const STRATEGY: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'An urgent move stands out in KataGo\'s reads: one local candidate is clearly ahead of all the big points elsewhere, and if you play elsewhere the opponent\'s best reply is right there. Kami compares the lead after the urgent move with the lead after the biggest move elsewhere to show how urgent it is.',
+        text: 'An urgent move stands out in KataGo\'s reads: one local candidate is clearly ahead of all the big points elsewhere, and if you play elsewhere the opponent\'s best reply is right there. Comparing the lead after the urgent move with the lead after the biggest move elsewhere shows how urgent it is.',
       },
     ],
     mistakes: [
@@ -289,7 +289,7 @@ export const STRATEGY: ConceptText[] = [
       },
       {
         title: 'What KataGo adds',
-        text: 'Engine play fits the profit view: KataGo\'s attacking moves tend to build something at the same time, and it switches to a big point as soon as the attack stops gaining. Kami shows this by comparing the lead after the attacking move with the lead after the biggest move elsewhere.',
+        text: 'Engine play fits the profit view: KataGo\'s attacking moves tend to build something at the same time, and it switches to a big point as soon as the attack stops gaining. To check an attack, compare the lead after the attacking move with the lead after the biggest move elsewhere.',
       },
     ],
     mistakes: [

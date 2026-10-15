@@ -11,7 +11,7 @@ export const BASICS: ConceptText[] = [
     body: [
       {
         title: 'What it is',
-        text: 'Stones that touch along the lines (not diagonally) form one chain and share their liberties: the empty points directly next to any stone of the chain. When the opponent fills the last liberty, the whole chain is removed at once. "Atari" means a chain is down to one liberty, so it can be captured on the next move. A move that leaves your own chain with no liberty is not allowed unless it captures something first.',
+        text: 'Stones that touch along the lines (not diagonally) form one chain and share their liberties: the empty points directly next to any stone of the chain. When the opponent fills the last liberty, the whole chain is removed at once. "Atari" means a chain is down to one liberty, so it can be captured on the next move. Under almost all rules, a move that leaves your own chain with no liberty is not allowed unless it captures something first.',
       },
       {
         title: 'Why it matters',
