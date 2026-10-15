@@ -113,6 +113,7 @@ def answer(base: Base, adapter_dir: Path | None, member: str, tasks: list[dict],
             batch = jobs[i:i + cfg.gen_batch]
             enc = tok([texts[t['id']] for t, _s in batch], return_tensors='pt', padding=True,
                       add_special_tokens=False, truncation=True, max_length=cfg.max_len).to(base.device)
+            enc = {k: enc[k] for k in ('input_ids', 'attention_mask')}
             kw = {'max_new_tokens': cfg.max_new_tokens, 'pad_token_id': tok.pad_token_id}
             if greedy:
                 kw.update(do_sample=False)
