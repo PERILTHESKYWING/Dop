@@ -72,7 +72,7 @@ export const TEMPO: ConceptText[] = [
   {
     id: 'tenuki',
     name: 'Tenuki',
-    aliases: ['tenuki', 'play elsewhere', 'playing elsewhere', 'ignoring a move', 'ignore the move', 'te nuki', '手抜き', '手を抜く', '脱先', '脫先', '손빼기', '손뺌'],
+    aliases: ['tenuki', 'play elsewhere', 'playing elsewhere', 'ignore', 'ignoring a move', 'ignore the move', 'te nuki', '手抜き', '手を抜く', '脱先', '脫先', '손빼기', '손뺌'],
     level: 'intermediate',
     short: 'Tenuki is playing elsewhere instead of answering the opponent\'s last move locally, because something else on the board is bigger.',
     body: [

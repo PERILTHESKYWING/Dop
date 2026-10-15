@@ -86,7 +86,7 @@ const WEAK = new Set(
     'base', 'cap', 'count', 'counting', 'kill', 'killing', 'alive', 'living', 'placement', 'reduce', 'reducing', 'reduction',
     'profit', 'swing', 'tactic', 'tactics', 'squeeze', 'clamp', 'initiative', 'thick', 'inefficient', 'inefficiency',
     'duplication', 'extension', 'enclosure', 'dame', 'cut', 'cutting', 'connect', 'connection', 'connecting', 'race',
-    'probe', 'probing', 'urgent', 'opening', 'settling', 'how many points', 'territory',
+    'probe', 'probing', 'urgent', 'opening', 'settling', 'how many points', 'territory', 'ignore',
   ].map(normalizeQuestion),
 );
 
