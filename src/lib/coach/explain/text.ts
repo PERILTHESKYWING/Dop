@@ -8,7 +8,7 @@
 import { other, PASS, type Loc } from '../../go/types';
 import { ownerWords, turnPhrase, type TurningPoint } from './consequence';
 import { colorWord, coord, fmt1, leadPhrase, pct, sideLead } from './geometry';
-import { sideLeadPhrase, type Findings } from './planner';
+import { EQUAL_PTS, sideLeadPhrase, type Findings } from './planner';
 import type { ConceptHit, Fact } from './types';
 
 export interface TextOut {
@@ -99,12 +99,15 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
     }
   };
   const ideas = concepts.map((h) => `${h.evidence}${ref(h.variation)}`);
-  const conceptLines = (n: number, skip: (h: ConceptHit) => boolean = () => false) =>
-    concepts
-      .filter((h) => !skip(h))
+  /** Up to n short concept lines, one per kind (two "sente" lines say no more than one). */
+  const conceptLines = (n: number, skip: (h: ConceptHit) => boolean = () => false) => {
+    const seen = new Set<string>();
+    return concepts
+      .filter((h) => !skip(h) && !seen.has(h.id) && seen.add(h.id))
       .slice(0, n)
       .map(shortOf)
       .filter(Boolean);
+  };
 
   const cons = f.consequence;
   const tp = cons?.turning ?? null;
@@ -120,7 +123,8 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
     if (tp) {
       turn = turnPhrase(tp, mover);
       parts.push(fact(`In the ${C(a)} line, against the ${C(b)} line, ${turn}.`));
-      parts.push(fact(`At move ${tp.shownMove} that is about ${fmt1(-tp.gap)} points less for ${me} in the ${tp.region}; ${pts(tp.leadA)} in the ${C(a)} line and ${pts(tp.leadB)} in the ${C(b)} line.`));
+      const trade = tp.gain ? `, and about ${fmt1(tp.gain.gap)} more in the ${tp.gain.region}` : '';
+      parts.push(fact(`At move ${tp.shownMove} that is about ${fmt1(-tp.gap)} points less for ${me} in the ${tp.region}${trade}; ${pts(tp.leadA)} in the ${C(a)} line and ${pts(tp.leadB)} in the ${C(b)} line.`));
     } else if (lastCommon !== undefined) {
       const ca = cons.a.checkpoints.find((c) => c.ply === lastCommon)!.read;
       const cb = cons.b.checkpoints.find((c) => c.ply === lastCommon)!.read;
@@ -204,7 +208,15 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
       if (!asked) break;
       const loss = asked.loss;
       const fReply = asked.reply !== undefined ? fact(`After ${C(asked.loc)}, ${them}'s best answer is ${C(asked.reply)}; then ${pts(asked.lead)} (${me}'s winrate ${pct(asked.win)}).`) : '';
-      if (f.mode === 'equal') {
+      if (f.mode === 'equal' && loss <= -EQUAL_PTS) {
+        // The asked move read better than KataGo's first look at its own choice.
+        const ab = f.afterBest;
+        const fAfterBest = ab ? fact(`After ${C(best.loc)}, ${pts(sideLead(ab.bLead, mover))}.`) : '';
+        summary.push(
+          `${C(asked.loc)} is a good move: in KataGo's reads it does at least as well as ${C(best.loc)}${ref(f.vars.best)}. After it ${replyText(asked.reply)}${ref(f.vars.asked)} and ${pts(asked.lead)}${ab ? `; after ${C(best.loc)}, ${pts(sideLead(ab.bLead, mover))}` : ''}.`,
+        );
+        sections.push({ title: `After ${C(asked.loc)}`, text: `${fReply} ${fAfterBest}${ref(f.vars.asked)}`.trim() });
+      } else if (f.mode === 'equal') {
         const fGap = fact(`${C(asked.loc)} and ${C(best.loc)} are ${fmt1(Math.abs(loss))} points apart.`);
         summary.push(`${C(asked.loc)} is about as good as ${C(best.loc)}${ref(f.vars.best)}: ${replyText(asked.reply)}${ref(f.vars.asked)}, and the two are ${fmt1(Math.abs(loss))} points apart.`);
         sections.push({ title: `After ${C(asked.loc)}`, text: `${fReply} ${fGap}${ref(f.vars.asked)}`.trim() });
@@ -212,7 +224,9 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
         const fLoss = fact(`${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}.`);
         if (f.mode === 'refutation' || f.mode === 'whatif') {
           const rf = f.refutation;
-          const dead = concepts.find((h) => h.id === 'dead-group' && h.variation === f.vars.asked);
+          const deadHits = concepts.filter((h) => h.id === 'dead-group' && h.variation === f.vars.asked);
+          const dead = deadHits.find((h) => f.board.stones[h.at[0]] === mover);
+          const won = deadHits.find((h) => f.board.stones[h.at[0]] !== mover);
           const end: string[] = [];
           let damage = '';
           if (rf?.region) {
@@ -223,7 +237,9 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
           if (rf?.extended) end.push(fact(`At move ${f.pos.moves.length + rf.moves.length} of that line, ${pts(sideLead(rf.endRead.bLead, mover))}.`));
           if (dead) damage = `the stones at ${C(dead.at[0])} die`;
           if (f.mode === 'refutation') {
-            summary.push(`${C(asked.loc)} loses ${fmt1(loss)} points against ${C(best.loc)}. ${replyText(asked.reply) || `${them} answers`}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`);
+            const gain = won ? `${C(asked.loc)} captures the stones at ${C(won.at[0])}, but ` : '';
+            const reply = replyText(asked.reply) || `${them} answers`;
+            summary.push(`${C(asked.loc)} loses ${fmt1(loss)} points against ${C(best.loc)}. ${gain}${reply}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`);
           } else {
             summary.push(`${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}. After it, ${replyText(asked.reply) || `${them} plays`}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`);
           }

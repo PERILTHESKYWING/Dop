@@ -84,6 +84,8 @@ export interface RegionLoss {
   ownA: number;
   ownB: number;
   highlight: Loc[];
+  /** The region where the mover does best in A against B, when that is worth TURN_PTS too (a trade). */
+  gain?: { region: string; gap: number };
 }
 
 function regionAt(ownA: Float32Array, ownB: Float32Array, mover: Color, size: number, zone: number, gap: number): RegionLoss {
@@ -92,7 +94,12 @@ function regionAt(ownA: Float32Array, ownB: Float32Array, mover: Color, size: nu
   let highlight = pts.filter((p) => s * (ownA[p] - ownB[p]) <= -POINT_GAP);
   if (!highlight.length) highlight = pts.filter((p) => s * (ownA[p] - ownB[p]) < 0);
   const avg = (own: Float32Array) => highlight.reduce((t, p) => t + own[p], 0) / Math.max(1, highlight.length);
-  return { zone, region: zoneName(zone), gap, ownA: avg(ownA), ownB: avg(ownB), highlight };
+  const out: RegionLoss = { zone, region: zoneName(zone), gap, ownA: avg(ownA), ownB: avg(ownB), highlight };
+  const gaps = zoneGaps(ownA, ownB, mover, size);
+  let up = 0;
+  for (let z = 1; z < 9; z++) if (gaps[z] > gaps[up]) up = z;
+  if (gaps[up] >= TURN_PTS) out.gain = { region: zoneName(up), gap: gaps[up] };
+  return out;
 }
 
 /** The region where A is worst for the mover against B, if it is at least `minPts` worse. */
@@ -280,10 +287,12 @@ export function cutAt(moves: readonly Move[], ply: number): Move[] {
  * described at the last read.
  */
 export function turnPhrase(tp: TurningPoint, mover: Color): string {
+  const me = mover === 1 ? 'Black' : 'White';
   const c = `${ownerWords(tp.ownA)} instead of ${ownerWords(tp.ownB)}`;
-  if (tp.ply > 1) return `by move ${tp.moveNumber} the ${tp.region} is ${c}`;
-  if (tp.shownPly > tp.ply) return `the ${tp.region} is worse for ${mover === 1 ? 'Black' : 'White'} from the first move, and by move ${tp.shownMove} it is ${c}`;
-  return `right after the move the ${tp.region} is ${c}`;
+  const trade = tp.gain ? `, while ${me} gets more in the ${tp.gain.region}` : '';
+  if (tp.ply > 1) return `by move ${tp.moveNumber} the ${tp.region} is ${c}${trade}`;
+  if (tp.shownPly > tp.ply) return `the ${tp.region} is worse for ${me} from the first move, and by move ${tp.shownMove} it is ${c}${trade}`;
+  return `right after the move the ${tp.region} is ${c}${trade}`;
 }
 
 /** Where a consequence line is cut: where the turning point is shown. */

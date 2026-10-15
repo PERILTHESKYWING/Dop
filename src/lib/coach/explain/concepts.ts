@@ -14,8 +14,9 @@ export const LOCAL_R = 3;
 export const localR = (size: number) => (size >= 15 ? LOCAL_R : 2);
 /** Playing elsewhere instead of answering must cost this much for sente. */
 export const SENTE_PTS = 1.5;
-/** Without a tenuki candidate to price, this share of visits on local replies makes sente. */
-export const SENTE_SHARE = 0.9;
+/** Without a tenuki candidate to price, this share of visits on local replies makes sente (with at least SENTE_VISITS). */
+export const SENTE_SHARE = 0.95;
+export const SENTE_VISITS = 40;
 /** Group ownership (for its colour) in this band is "weak". */
 export const WEAK_LO = -0.3;
 export const WEAK_HI = 0.35;
@@ -30,6 +31,8 @@ export const INFLUENCE_PTS = 4;
 /** A move this far from the opponent's last move plays elsewhere (19x19; smaller boards use less). */
 export const TENUKI_R = 6;
 export const tenukiR = (size: number) => (size >= 15 ? TENUKI_R : 4);
+/** Playing elsewhere is worth naming only when answering locally is this much worse. */
+export const TENUKI_GAIN = 0.5;
 
 interface Ctx {
   f: Findings;
@@ -62,7 +65,7 @@ export function senteGote(ctx: Ctx, move: Loc, after: EngineRead | null, variati
       if (cost >= SENTE_PTS && localShare >= 0.6) {
         return hit('sente', `After ${C(move)}, ${colorWord(opp)}'s best reply is ${C(top.loc)} nearby; playing elsewhere (${C(tenuki.loc)}) costs ${colorWord(opp)} ${fmt1(cost)} points.`);
       }
-    } else if (localShare >= SENTE_SHARE && contact && total >= 30) {
+    } else if (localShare >= SENTE_SHARE && contact && total >= SENTE_VISITS) {
       return hit('sente', `After ${C(move)}, ${colorWord(opp)} answers nearby at ${C(top.loc)}: KataGo spends ${pct(localShare)} of its visits on replies there.`);
     }
     return null;
@@ -91,7 +94,7 @@ export function weakGroups(ctx: Ctx, focus: Loc[] | null, max: number): ConceptH
     id: 'weak-group' as const,
     at: [groupAnchor(g, ctx.size)],
     evidence:
-      v >= 0
+      Math.round(v * 10) >= 0
         ? `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo's ownership of its stones is only ${fmt1(v)} for ${colorWord(g.color)}.`
         : `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo already leans to ${colorWord(other(g.color))} owning its stones (${fmt1(-v)}).`,
   }));
@@ -178,7 +181,7 @@ export function urgent(ctx: Ctx, variation?: string): ConceptHit | null {
   const weak = ctx.groups.find((g) => g.stones.length >= 2 && nearGroup(g, best.loc, size, 2) && groupOwn(g, own) >= WEAK_LO && groupOwn(g, own) <= WEAK_HI);
   if (!weak) return null;
   const far = (l: Loc) => l === PASS || !nearGroup(weak, l, size, 4);
-  const name = `the weak ${groupName(ctx, weak)} (${fmt1(Math.abs(groupOwn(weak, own)))})`;
+  const name = `the weak ${groupName(ctx, weak)} (${colorWord(weak.color)}'s ownership ${fmt1(groupOwn(weak, own))})`;
   const hit = (evidence: string): ConceptHit => ({ id: 'urgent', at: [best.loc], evidence, ...(variation ? { variation } : {}) });
   const asked = f.asked;
   if (asked && !asked.isBest && asked.legal && (asked.read || f.mode === 'unchecked') && far(asked.loc) && asked.loss >= URGENT_PTS) {
@@ -222,8 +225,9 @@ export function tenuki(ctx: Ctx, move: Loc, loss: number, variation?: string): C
   const isBest = move === f.best.loc;
   if (isBest) {
     const local = f.root.candidates.filter((c) => c.visits >= 3 && c.loc !== PASS && chebyshev(c.loc, last.loc, size) <= localR(size))[0];
+    if (local && f.best.lead - local.scoreLead < TENUKI_GAIN) return null;
     const evidence = local
-      ? `KataGo plays elsewhere (${C(move)}) instead of answering ${C(last.loc)}: the best reply nearby, ${C(local.loc)}, is ${fmt1(Math.max(0, f.best.lead - local.scoreLead))} points worse.`
+      ? `KataGo plays elsewhere (${C(move)}) instead of answering ${C(last.loc)}: the best reply nearby, ${C(local.loc)}, is ${fmt1(f.best.lead - local.scoreLead)} points worse.`
       : `KataGo plays elsewhere (${C(move)}) instead of answering ${C(last.loc)}; no move near ${C(last.loc)} is among its choices.`;
     return { id: 'tenuki', at: [move], evidence, ...v };
   }
@@ -279,7 +283,8 @@ export function detectConcepts(f: Findings): ConceptHit[] {
     add(tenuki(ctx, asked.loc, asked.loss, f.vars.asked));
     add(senteGote(ctx, best.loc, f.afterBest, bestVar));
     add(senteGote(ctx, asked.loc, asked.read, f.vars.asked));
-    if (asked.read && f.afterBest) {
+    // Territory against influence is a strategy choice: only for small losses, not life and death.
+    if (asked.read && f.afterBest && f.mode !== 'refutation' && !out.some((h) => h.id === 'dead-group')) {
       add(territoryInfluence(ctx, best.loc, f.afterBest.ownership, asked.read.ownership, `after ${ctx.C(asked.loc)}`, 1, bestVar));
       add(territoryInfluence(ctx, asked.loc, asked.read.ownership, f.afterBest.ownership, `after ${ctx.C(best.loc)}`, 1, f.vars.asked));
     }
@@ -299,12 +304,10 @@ export function detectConcepts(f: Findings): ConceptHit[] {
     }
   }
   add(miai(ctx, f.vars.best));
-  if (f.mode === 'overview') {
-    add(weakGroups(ctx, null, 2));
-    add(alreadyDead(ctx));
-  } else {
-    add(weakGroups(ctx, asked ? [best.loc, asked.loc] : [best.loc], 1));
-  }
+  const weak = f.mode === 'overview' ? weakGroups(ctx, null, 2) : weakGroups(ctx, asked ? [best.loc, asked.loc] : [best.loc], 1);
+  // A group already shown dying, or tended by an "urgent" move, needs no "weak" line too.
+  add(weak.filter((w) => !out.some((h) => (h.id === 'dead-group' || h.id === 'urgent') && (h.at[0] === w.at[0] || h.evidence.includes(` at ${ctx.C(w.at[0])} `)))));
+  if (f.mode === 'overview') add(alreadyDead(ctx));
   return out;
 }
 

@@ -264,6 +264,25 @@ describe('Kami explain: what to read', () => {
     expect(v.note).toMatch(/spread/);
   });
 
+  it('a big loss where the opponent simply plays elsewhere is played out, not "refuted"', async () => {
+    const script: Script = (extra, pos) => {
+      const r = scenario(-3.9)(extra, pos);
+      // After B5 White's best reply is far away (H9).
+      if (r && extra.length === 1 && extra[0] === P('B5')) return { ...r, candidates: [{ ...r.candidates[0], loc: P('H9'), pv: [P('H9'), P('D4')] }] };
+      return r;
+    };
+    const f = await runPlan(BASE, why('B5'), fake(script).prober, budget);
+    expect(f.mode).toBe('consequence');
+  });
+
+  it('an asked move that reads better than the first look is called good, not "worse"', async () => {
+    const rec = recordingScript(scenario(3.9));
+    const ex = await explainWithBudget(BASE, why('B5'), fake(rec.script).prober, budget, { model: 'tesuji', thinking: 'medium' });
+    expect(ex.summary).toMatch(/^B5 is a good move/);
+    expect(numbersSupported(ex)).toEqual([]);
+    expect(inventedDecimals(ex, rec.reads)).toEqual([]);
+  });
+
   it('about equal moves are shown side by side; Hane shows a small loss as a what-if', async () => {
     const eq = await runPlan(BASE, why('B5'), fake(scenario(1.1)).prober, budget);
     expect(eq.mode).toBe('equal');
@@ -318,6 +337,15 @@ describe('Kami explain: turning point', () => {
     expect(tp.ply).toBe(1);
     expect(tp.shownPly).toBe(7);
     expect(tp.ownA).toBeCloseTo(-0.5, 5);
+  });
+
+  it('names the region that gained in a trade', () => {
+    const a = [cp(1, {}), cp(7, { 8: -0.7, 0: 0.8 })];
+    const b = [cp(1, {}), cp(7, { 8: 0.4, 0: 0.2 })];
+    const tp = findTurningPoint(a, b, 1, S, 21)!;
+    expect(tp.region).toBe('lower right');
+    expect(tp.gain?.region).toBe('upper left');
+    expect(tp.gain?.gap).toBeCloseTo(5.4, 4);
   });
 
   it('a difference seen only at the last read must be bigger', () => {

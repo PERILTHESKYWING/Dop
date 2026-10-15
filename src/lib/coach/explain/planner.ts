@@ -25,8 +25,10 @@ import type { Budget, EngineRead, ExplainPosition, Prober, Question, ThoughtStep
 
 /** Below this the asked move is "about as good" as the best. */
 export const EQUAL_PTS = 0.5;
-/** From this loss on, look for a refutation rather than a slow consequence. */
+/** From this loss on, a local reply is read as a refutation rather than a slow consequence. */
 export const BIG_PTS = 3;
+/** From this loss on it is a refutation even when the reply is elsewhere. */
+export const HUGE_PTS = 10;
 /** Two candidates this close can be miai. */
 export const MIAI_PTS = 0.6;
 /** Root candidates need this share of the root's visits to count as alternatives. */
@@ -290,7 +292,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
         f.afterBest = await reader.read(after([best.loc]), budget.lineVisits || budget.visits);
         if (f.afterBest) replyThought(best.loc, f.afterBest, null, f.vars.best);
       }
-    } else if (loss >= BIG_PTS || budget.lineDepth <= 0 || reader.readsLeft() < 2) {
+    } else if ((loss >= BIG_PTS && (loss >= HUGE_PTS || !reply || reply.loc === PASS || chebyshev(reply.loc, M, size) <= localR(size) + 1)) || budget.lineDepth <= 0 || reader.readsLeft() < 2) {
       f.mode = loss >= BIG_PTS ? 'refutation' : 'whatif';
       const locs = [M, ...(reply ? shownPv(reply) : [])];
       replyThought(M, r, loss);

@@ -6,7 +6,7 @@
  * example at the end.
  *
  *   npx tsx scripts/explain-bench.ts
- *   npx tsx scripts/explain-bench.ts --combos tesuji:medium,hane:off --positions 0,1 --example 0
+ *   npx tsx scripts/explain-bench.ts --combos tesuji:medium,hane:off --positions 0,1 --example 0   (--example all prints each)
  *   npx tsx scripts/explain-bench.ts --time-scale 2   # 2x every maxMs (a machine half as fast as the target)
  *
  * Node runs one engine thread (about 40 visits/s on the 2-core cloud box); a laptop browser
@@ -103,7 +103,8 @@ async function main() {
   const prober = await nodeProber(19);
   const { loadavg } = await import('node:os');
   console.log(`engine loaded in ${Date.now() - t0} ms; ${chosen.length} positions; time scale ${scale}; load average ${loadavg()[0].toFixed(1)}`);
-  let example: { c: Case; ex: Explanation } | null = null;
+  const examples: { c: Case; ex: Explanation }[] = [];
+  const all = arg('example') === 'all';
   for (const [model, thinking] of combos) {
     const budget = budgetFor(model, thinking);
     budget.maxMs = Math.round(budget.maxMs * scale);
@@ -122,8 +123,8 @@ async function main() {
       const loss = ex.variations.find((x) => x.kind === 'refutation' || x.kind === 'consequence' || x.kind === 'what-if')?.scoreLoss;
       rows.push({ reads: ex.reads, visits: ex.totalVisits, ms: ex.ms, cpu, tp });
       console.log(`${c.name} | ${mode} | ${ex.reads} | ${ex.totalVisits} | ${ex.ms} | ${cpu} | ${loss ?? '-'} | ${tp === null ? '-' : tp ? 'yes' : 'no'} | ${ex.concepts.map((h) => h.id).join(' ') || '-'}`);
-      if (!example && chosen.indexOf(c) === exampleIdx && model === 'tesuji' && thinking === 'medium') example = { c, ex };
-      if (!example && combos.length === 1 && chosen.indexOf(c) === exampleIdx) example = { c, ex };
+      if (all) examples.push({ c, ex });
+      else if (!examples.length && chosen.indexOf(c) === exampleIdx && ((model === 'tesuji' && thinking === 'medium') || combos.length === 1)) examples.push({ c, ex });
     }
     const n = rows.length;
     const avg = (k: 'reads' | 'visits' | 'ms' | 'cpu') => Math.round(rows.reduce((t, r) => t + r[k], 0) / n);
@@ -132,7 +133,7 @@ async function main() {
       `=> mean reads ${avg('reads')}, mean visits ${avg('visits')}, mean ms ${avg('ms')} (cpu ${avg('cpu')}), max ms ${Math.max(...rows.map((r) => r.ms))}; turning points ${lines.filter((r) => r.tp).length}/${lines.length} consequence lines`,
     );
   }
-  if (example) printExample(example.c, example.ex);
+  for (const e of examples) printExample(e.c, e.ex);
 }
 
 main().then(
