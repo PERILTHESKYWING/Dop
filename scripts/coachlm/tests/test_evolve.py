@@ -45,6 +45,9 @@ class FakeBackend:
         self.trained.append({'init': init_dir, 'sft': sft_rows, 'dpo': dpo_rows, 'steps': (sft_steps, dpo_steps)})
         return {'sft_rows': len(sft_rows)}
 
+    def close(self):
+        pass
+
 
 class FakeJudge:
     def __init__(self, cap=100):

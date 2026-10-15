@@ -63,7 +63,8 @@ def loc_to_gtp(loc: int, size: int) -> str | None:
     return f'{GTP_COLS[x]}{size - y}'
 
 
-_LINE = re.compile(r'^- \[\[(v\d+)\]\][^:]*\(([a-z-]+)[^)]*\):\s*[BW] ([A-HJ-Z]\d{1,2})', re.M)
+# prompt.ts: "- [[v2]] <label> (<kind>, loses 4.5 pts): B D4, W C3. <note>"
+_LINE = re.compile(r'^- \[\[(v\d+)\]\].*?\(([a-z-]+)(?:, [^)]*)?\):\s*[BW] ([A-HJ-Z]\d{1,2})', re.M)
 
 
 def task_moves(task: dict) -> list[tuple[str, str]]:

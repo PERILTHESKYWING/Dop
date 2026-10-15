@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from config import load_config, load_env_file  # noqa: E402
+from truth import VerifyError  # noqa: E402
 from util import log, read_jsonl, text_key, write_jsonl  # noqa: E402
 
 TASK_NAME = 'KamiTraining'
@@ -204,11 +205,11 @@ def schedule(cfg, hours: float, at: str, name: str) -> int:
         return 1
     wrapper = cfg.path('kami-nightly.cmd')
     wrapper.parent.mkdir(parents=True, exist_ok=True)
-    wrapper.write_text('@echo off\r\n'
-                       f'cd /d "{cfg.repo_root}"\r\n'
-                       f'git pull --ff-only >> "{cfg.path("nightly.log")}" 2>&1\r\n'
+    wrapper.write_text('@echo off\n'
+                       f'cd /d "{cfg.repo_root}"\n'
+                       f'git pull --ff-only >> "{cfg.path("nightly.log")}" 2>&1\n'
                        f'"{sys.executable}" "{HERE / "run.py"}" --hours {hours:g} --upload --name {name} '
-                       f'--data-dir "{cfg.data_dir}" >> "{cfg.path("nightly.log")}" 2>&1\r\n', encoding='utf-8')
+                       f'--data-dir "{cfg.data_dir}" >> "{cfg.path("nightly.log")}" 2>&1\n', encoding='utf-8', newline='\r\n')
     cmd = ['schtasks', '/Create', '/TN', TASK_NAME, '/TR', f'"{wrapper}"', '/SC', 'DAILY', '/ST', at, '/RL', 'LIMITED', '/F']
     p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0:
@@ -314,6 +315,10 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         print('\nStopped. Everything so far is saved; run again to continue.')
         return 0
+    except VerifyError as e:
+        print(f'\nStopped: the KataGo truth check did not work, and Kami never trains on unchecked text.\n{e}\n'
+              'Fix that (python scripts/coachlm/run.py --check), then run again to continue.')
+        return 1
     finally:
         if backend is not None:
             backend.close()
