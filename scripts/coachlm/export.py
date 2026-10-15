@@ -2,6 +2,7 @@
 
     python scripts/coachlm/export.py                       # champion adapter, default output folder
     python scripts/coachlm/export.py --adapter <dir> --out <dir> --dtypes q4f16
+    python scripts/coachlm/export.py --upload               # and put it on <hf-user>/kami-coach-web
 
 Steps:
   1. merge   (this venv)  base weights + the champion's LoRA delta, written as plain safetensors
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -238,6 +240,7 @@ def main(argv=None):
     ap.add_argument('--out', help='web export folder (default: <data dir>/export/web)')
     ap.add_argument('--dtypes', default='q4f16,q4')
     ap.add_argument('--merge-only', action='store_true', help='stop after writing the merged model')
+    ap.add_argument('--upload', action='store_true', help='then upload it to <hf-user>/kami-coach-web (HF_TOKEN)')
     a = ap.parse_args(argv)
     if a.cmd == 'onnx-step':
         print(json.dumps(onnx_step(Path(a.merged), Path(a.out), a.dtypes.split(','))))
@@ -245,6 +248,7 @@ def main(argv=None):
     from config import load_config, load_env_file
     cfg = load_config(Path(a.data_dir) if a.data_dir else None)
     load_env_file(cfg.path('.env'))
+    os.environ.setdefault('HF_HOME', str(cfg.path('hf')))   # same model cache as run.py
     adapter = Path(a.adapter) if a.adapter else cfg.path('champion')
     if not (adapter / 'adapter_config.json').exists():
         raise SystemExit(f'no adapter in {adapter}: train first (run.py) or pass --adapter')
@@ -263,6 +267,9 @@ def main(argv=None):
         raise SystemExit('ONNX export failed:\n' + '\n'.join((p.stderr or '').strip().splitlines()[-15:]))
     report = json.loads(p.stdout.strip().splitlines()[-1])
     log(f'web export ready in {out}: {json.dumps(report)}')
+    if a.upload:
+        from upload import upload_web
+        log(upload_web(cfg, out))
 
 
 if __name__ == '__main__':

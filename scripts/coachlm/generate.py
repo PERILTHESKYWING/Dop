@@ -62,8 +62,13 @@ class Base:
         return self
 
     def free(self):
-        import gc
         self.model = None
+        self.clear_cache()
+
+    @staticmethod
+    def clear_cache():
+        """Give freed GPU memory back (optimizer states, KV caches) before the next step."""
+        import gc
         gc.collect()
         try:
             import torch
@@ -128,4 +133,5 @@ def answer(base: Base, adapter_dir: Path | None, member: str, tasks: list[dict],
             written += len(rows)
     finally:
         base.detach(model)
+        base.clear_cache()
     return written

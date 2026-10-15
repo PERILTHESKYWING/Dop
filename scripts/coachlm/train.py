@@ -99,6 +99,7 @@ def train_member(base: Base, init_dir: Path | None, out_dir: Path, genes: dict, 
         if hasattr(model, 'peft_config') and 'ref' in getattr(model, 'peft_config', {}):
             model.delete_adapter('ref')
         base.detach(model)
+        base.clear_cache()
         remove(work)
     log(f'trained {out_dir.name}: ' + ', '.join(f'{k} {v}' for k, v in info.items()))
     return info

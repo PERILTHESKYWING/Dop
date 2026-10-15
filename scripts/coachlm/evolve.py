@@ -235,7 +235,7 @@ class Evolution:
 
     # ---- breed ----
     def phase_breed(self, g: int) -> None:
-        st, cfg = self.state, self.cfg
+        st = self.state
         if st['breed'] is None:
             st['breed'] = self._plan_children(g)
             self.save()
@@ -438,7 +438,6 @@ class Evolution:
             answers = [a for a in read_jsonl(out) if untag_member(a['member'])[0] in names]
             scores = verify(answers, self.eval_file(), gd, self.cfg, tag='eval')
             judged = self._judge_eval(gd, answers, scores)
-            by: dict[str, list] = {n: [] for n in names}
             got = {(a['id'], untag_member(a['member'])[0]): s for a, s in zip(answers, scores)}
             for n in names:
                 sc = [got.get((t['id'], n)) for t in self.eval_tasks]
