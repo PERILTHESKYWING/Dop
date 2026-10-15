@@ -19,6 +19,9 @@ export interface BoardState {
   first: Color;
   /** Shown in the board panel: players of a loaded game, or an example's title. */
   title?: string;
+  /** Player names of a loaded game (the eval bar shows them). */
+  black?: string;
+  white?: string;
 }
 
 export const emptyBoard = (size = 19): BoardState => ({ size, komi: 7.5, setup: [], moves: [], cursor: 0, first: 1 });
@@ -75,6 +78,8 @@ export function boardFromSgf(text: string): BoardState {
     cursor: g.moves.length,
     first,
     title: names.length === 2 ? `${g.black} vs ${g.white}` : names[0],
+    black: g.black || undefined,
+    white: g.white || undefined,
   };
 }
 

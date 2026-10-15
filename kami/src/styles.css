@@ -865,3 +865,98 @@ a {
     bottom: 110px;
   }
 }
+
+/* ---------------------------------------------------------------- board panel = Dop's study board
+ * The pieces (eval bar, step buttons, Trend tabs, tools) are Dop's, from
+ * src/components/boardscreen.css. These rules size them. The panel never takes more than
+ * half the screen: 42% of the width in the right column, and at most half the height on phones.
+ * Plain on purpose: no blur, no gradients. */
+:root {
+  --glass: #fffdf8;
+  --glass-2: #fffdf9;
+  --glass-edge: var(--line);
+  --blur: none;
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12.5px;
+}
+.tiny {
+  font-size: 11.5px;
+}
+.stone-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+.stone-dot.b {
+  background: #1f1e1c;
+}
+.stone-dot.w {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.kami-bscreen {
+  /* Wide screens: the board as big as the height left under the rows around it. */
+  --bs-size: min(100%, max(240px, calc(100dvh - 330px)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 0;
+}
+.kami-bscreen > .bs-tabs,
+.kami-bscreen > .bs-panel,
+.kami-bscreen > .bs-tools,
+.kami-bscreen > .paste {
+  width: 100%;
+}
+.kami-bscreen > .bs-panel {
+  min-width: 0;
+  overflow-x: hidden;
+}
+.kami-bscreen > .bs-tools {
+  flex: none;
+}
+.kami-bscreen .bp-note {
+  width: 100%;
+}
+@media (max-width: 899px) {
+  /* Phones: the panel is the top half of the screen at most, and the board fills what is left
+     under the names, the step buttons and the tools. Labels on the tools go to tooltips to save
+     height; the Trend tabs keep their labels. */
+  .board-panel {
+    max-height: 50dvh;
+    overflow-y: auto;
+  }
+  .kami-bscreen {
+    --bs-size: min(100%, max(120px, calc(50dvh - 250px)));
+    gap: 4px;
+  }
+  .board-panel:not(.previewing) .bp-head {
+    display: none;
+  }
+  .kami-bscreen .bs-tools button {
+    min-height: 36px;
+    padding: 4px 2px;
+  }
+  .kami-bscreen .bs-tools button span {
+    display: none;
+  }
+  .kami-bscreen .bs-tools button svg {
+    width: 20px;
+    height: 20px;
+  }
+  .kami-bscreen .bs-tabs button {
+    padding: 4px 2px;
+  }
+}

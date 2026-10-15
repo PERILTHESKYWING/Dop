@@ -7,6 +7,7 @@ Summary: Kami is a separate ChatGPT-style Go coach site in `kami/`, built on Dop
 - Concept questions go to the library (`findConcepts`): when the text names a concept, asks "what is X?" without board words, or the board is empty. Empty library → short honest fallback. Myoshu may add one LLM expansion; any board coordinate in it rejects it.
 - Answers: "Thought for Ns" lists the real `onThought` steps; `[[vN]]` become chips. Hover (mouse) or tap (phone, pinned) plays the line as numbered stones with `highlight` points and the note; leaving restores the board.
 - Writers (`kami/src/lib/writer.ts`): Myoshu sends `buildLmPrompt(explanation)` to task `kami-write` (`shared/kami.ts`, plain text). The answer must pass `checkAnswer`; a throw shows "Wording unchecked, showing engine text", a fail or no LLM shows the engine text with its own note. If `GET /api/llm` says no key, no POST is made.
+- Board panel (2026-10-15): the same pieces as Dop's study board (`PlayersBar` eval bar, `Board` with candidate discs and territory, `Stepper`, Trend / Blunder / Performance tabs from `REPORT_TABS`, the tools row), from `src/components`. Numbers come only from KataGo: `kami/src/lib/analysis.ts` reads the board position at 120 visits (cached, a stale read is skipped) and, while a trend tab is open, every position of the game at 60 visits, one after another. Candidate helpers live in `src/lib/analysis/candidates.ts` (Dop's Live re-exports them). Panel size: 42% of the width on wide screens; on phones at most 50% of the height, the board fills the rest (about 170 px tall on an 844 px phone), tool labels become tooltips. Reading starts KataGo as soon as a stone is on the board, not on the first question.
 - Conversations (new, rename, delete) and each chat's board live in IndexedDB (`kami` db), localStorage if blocked. Board: click to play, undo, pass, step through a game, paste or open an SGF (also: paste SGF text into the composer), new 19/13/9 board.
 
 ## Structure
@@ -40,3 +41,5 @@ Notes: both projects now build on every push (Hobby runs one build at a time, so
 ## Not done / unverified
 - Never deployed to Vercel from here; the steps above follow Vercel's docs and Dop's working setup.
 - Never called real Gemini (no key in the sandbox); tests stub `/api/llm`.
+- Board panel (2026-10-15) never looked at in a browser: sizes come from reasoning and the build, not screenshots. Node timings on the sandbox (one thread, bundled b10): a 120-visit board read about 6–11 s, a 60-visit trend read about 3.2 s, so a 120-move game takes about 6 minutes on one thread (a browser with several workers is faster). Measure on the real device before tuning.
+- Kami's board has no Data or Skill tab (both need Dop's study data).
