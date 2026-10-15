@@ -9,7 +9,7 @@
  *   npx tsx scripts/explain-bench.ts --combos tesuji:medium,hane:off --positions 0,1 --example 0   (--example all prints each)
  *   npx tsx scripts/explain-bench.ts --time-scale 2   # 2x every maxMs (a machine half as fast as the target)
  *
- * Node runs one engine thread (about 40 visits/s on the 2-core cloud box); a laptop browser
+ * Node runs one engine thread (about 20 visits/s with a cold cache on the 2-core cloud box); a laptop browser
  * runs several workers, so its times are lower. Report what this prints, not guesses.
  */
 import { readdirSync, readFileSync } from 'node:fs';

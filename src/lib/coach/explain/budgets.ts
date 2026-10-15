@@ -1,8 +1,11 @@
 /**
- * What each Kami model may spend on one answer. Numbers come from scripts/explain-bench.ts
- * (WASM b10 in Node, one thread, about 40 visits a second on the 2-core cloud box; see
- * docs/handoff/kami-engine.md). maxMs is the hard cap the browser honours whatever its speed;
- * visits are what a laptop is expected to reach inside it.
+ * What each Kami model may spend on one answer. maxMs is the hard cap: the answer is done by
+ * then on any machine, and a slow machine simply gets fewer visits inside it. visits are the
+ * target. Measured with scripts/explain-bench.ts (WASM b10 in Node, one thread, about 20
+ * visits a second with a cold cache on the 2-core cloud box): Tesuji medium's full plan
+ * needs about 17 s there (mean of 11 positions), so a browser must run at least about 2.4x
+ * that to read it all inside 10 s. No browser has been measured; see
+ * docs/handoff/kami-engine.md.
  *
  * - Hane: two reads (the position, and the asked move or the best move), no line play.
  * - Tesuji: reads ahead; consequence lines grow with the thinking level.

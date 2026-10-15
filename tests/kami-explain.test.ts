@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc, lineOf, zoneOf } from '../src/lib/go/coords';
 import type { Loc } from '../src/lib/go/types';
-import { budgetFor, explain, explainWithBudget, MODELS, type Budget, type EngineRead, type Explanation, type ExplainPosition, type Prober, type Question } from '../src/lib/coach/explain';
+import { budgetFor, buildLmPrompt, explain, explainWithBudget, MODELS, type Budget, type EngineRead, type Explanation, type ExplainPosition, type Prober, type Question } from '../src/lib/coach/explain';
 import { conceptContext, bigPoint, deadGroups, miai, senteGote, tenuki, territoryInfluence, urgent, weakGroups } from '../src/lib/coach/explain/concepts';
 import { findTurningPoint, zoneGaps, type Checkpoint } from '../src/lib/coach/explain/consequence';
 import { runPlan, type Findings } from '../src/lib/coach/explain/planner';
@@ -508,6 +508,13 @@ describe('Kami explain: text from reads only', () => {
       for (const m of [ex.summary, ...ex.sections.map((s) => s.text)].join(' ').matchAll(/\[\[(v\d+)\]\]/g)) expect(ids.has(m[1])).toBe(true);
     });
   }
+
+  it('feeds the shared writer prompt', async () => {
+    const ex = await explain(BASE, why('B5'), fake(scenario(-0.21)).prober, { model: 'myoshu', thinking: 'medium' });
+    const prompt = buildLmPrompt(ex, 'about 5k');
+    for (const f of ex.facts) expect(prompt).toContain(f.text);
+    for (const v of ex.variations) expect(prompt).toContain(`[[${v.id}]]`);
+  });
 
   it('says so when KataGo gives nothing', async () => {
     const ex = await explain(BASE, { kind: 'best', text: '' }, { read: async () => null }, { model: 'tesuji', thinking: 'medium' });
