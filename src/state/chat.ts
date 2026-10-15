@@ -119,7 +119,7 @@ export async function searchPosition(base: AnalysisBase, visits: number, maxMs: 
   const board = replay(base.size, base.setup, base.moves);
   const search = new Search(
     engineEvaluator(eng),
-    { size: base.size, komi: engineKomi(base.komi, base.rules), moves: engineMoves(base.setup, base.moves), toPlay: base.toPlay, board },
+    { size: base.size, komi: engineKomi(base.komi, base.rules), moves: engineMoves(base.setup, base.moves, base.toPlay), toPlay: base.toPlay, board },
     { batch: eng.batch ?? 1 },
   );
   return search.run({ visits, maxMs });

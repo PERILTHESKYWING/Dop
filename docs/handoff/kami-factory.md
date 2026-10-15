@@ -40,3 +40,4 @@ Summary: how training tasks for Kami's own writer model are made, checked and st
 - Old-version tasks stay in tasks.jsonl.gz after a PROMPT_VERSION bump (new ids, nothing deleted): the trainer must keep only `promptVersion == max`.
 - The concept prompt lives in `scripts/coachlm/tasks.ts`; if the site asks the LM concept questions it should use the same text.
 - Demo and broadcast positions (~10k) run out after some weeks; pro walks keep going.
+- 2026-10-15: PROMPT_VERSION 2 after the explainer fixes (setup stones, wording, deeper reads); the next daily run rebuilds the test set. Forge problems were left out because KataGo read them as decided games ("pass" on top). That was the setup-stone bug in `engineMoves`, now fixed, so problems can likely go back into the mix: re-check a sample before adding them.

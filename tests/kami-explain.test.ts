@@ -161,7 +161,7 @@ describe('Kami explain: budgets', () => {
         expect(levels[i].maxMs).toBeGreaterThanOrEqual(levels[i - 1].maxMs);
       }
     }
-    expect(budgetFor('tesuji', 'medium').maxMs).toBeLessThanOrEqual(10000);
+    expect(budgetFor('tesuji', 'medium').maxMs).toBeLessThanOrEqual(15000);
     expect(MODELS.map((m) => m.id)).toEqual(['hane', 'tesuji', 'myoshu']);
   });
 
@@ -252,7 +252,9 @@ describe('Kami explain: what to read', () => {
     expect(v.kind).toBe('consequence');
     expect(v.moves.length).toBe(tp.ply);
     expect(v.highlight!.every((p) => zoneOf(p, S) === 8)).toBe(true);
-    expect(v.note).toMatch(/^By move \d+ the lower right is mostly White's \(0\.7\) instead of Black's \(0\.4\)\.$/);
+    // Ownership as shares (0.7 is 85%), with "leaning" under 0.6; no raw decimals.
+    expect(v.note).toMatch(/^By move \d+ the lower right is White's \(\d{2}%\) instead of leaning Black's \(\d{2}%\)\.$/);
+    expect(v.note).not.toMatch(/0\.\d/);
   });
 
   it('a slow loss with no region turning says it is spread out and still shows the line', async () => {
@@ -414,7 +416,7 @@ describe('Kami explain: concepts', () => {
     ref[P('C4')] = 0.6;
     const dead = deadGroups(ctxWeak, end, ref, 'after E5', 'v2');
     expect(dead[0]?.id).toBe('dead-group');
-    expect(dead[0]?.evidence).toContain('0.8');
+    expect(dead[0]?.evidence).toContain('80% for Black');
     const half = own({}, 0);
     half[P('C3')] = -0.3;
     half[P('C4')] = -0.3;
@@ -520,5 +522,43 @@ describe('Kami explain: text from reads only', () => {
     const ex = await explain(BASE, { kind: 'best', text: '' }, { read: async () => null }, { model: 'tesuji', thinking: 'medium' });
     expect(ex.summary).toMatch(/could not read/);
     expect(ex.variations).toEqual([]);
+  });
+});
+
+describe('Kami explain: the key point', () => {
+  /** B5 is answered by White taking E5, KataGo's own choice for Black. */
+  const keyScript: Script = (extra, pos) => {
+    if (!extra.length) return ROOT;
+    if (extra[0] === P('B5') && extra.length === 1) return read(-0.6, 0.45, [{ at: 'E5', lead: 0.6, visits: 60, pv: ['E5', 'D4', 'F5', 'E4'] }], own());
+    return scenario(-0.6)(extra, pos);
+  };
+
+  it('leads with the opponent taking the point KataGo wanted', async () => {
+    const ex = await explain(BASE, why('B5'), fake(keyScript).prober, { model: 'tesuji', thinking: 'medium' });
+    expect(ex.summary).toContain('After B5, White takes E5 itself, the point Black should have played');
+    const urgentHit = ex.concepts.find((c) => c.id === 'urgent');
+    expect(urgentHit?.evidence).toContain('urgent for both sides');
+    // Not also called "gote" or "sente": the key point is the story.
+    expect(ex.concepts.some((c) => (c.id === 'gote' || c.id === 'sente') && c.at[0] === P('B5'))).toBe(false);
+    expect(numbersSupported(ex)).toEqual([]);
+  });
+
+  it('says nothing about a key point when the answer is far from it', async () => {
+    const far: Script = (extra, pos) => {
+      if (!extra.length) return ROOT;
+      if (extra[0] === P('B5') && extra.length === 1) return read(-0.6, 0.45, [{ at: 'H8', lead: 0.6, visits: 60, pv: ['H8', 'D4', 'F5', 'E4'] }], own());
+      return scenario(-0.6)(extra, pos);
+    };
+    const ex = await explain(BASE, why('B5'), fake(far).prober, { model: 'tesuji', thinking: 'medium' });
+    expect(ex.summary).not.toContain('should have played');
+    expect(ex.concepts.some((c) => c.evidence.includes('for both sides'))).toBe(false);
+  });
+
+  it('never shows raw ownership decimals', async () => {
+    for (const s of [scenario(-0.21), scenario(-3.9), keyScript]) {
+      const ex = await explain(BASE, why('B5'), fake(s).prober, { model: 'tesuji', thinking: 'medium' });
+      const text = [ex.summary, ...ex.sections.map((x) => x.text), ...ex.variations.map((v) => v.note ?? '')].join(' ');
+      expect(text).not.toMatch(/\((?:0|1)\.\d\)/);
+    }
   });
 });

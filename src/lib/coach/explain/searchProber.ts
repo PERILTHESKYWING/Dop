@@ -14,7 +14,7 @@ export function searchProber(evaluator: LeafEvaluator, opts: { batch?: number } 
       const board = replay(pos.size, pos.setup, pos.moves);
       const search = new Search(
         evaluator,
-        { size: pos.size, komi: pos.komi, moves: engineMoves(pos.setup, pos.moves), toPlay: pos.toPlay, board },
+        { size: pos.size, komi: pos.komi, moves: engineMoves(pos.setup, pos.moves, pos.toPlay), toPlay: pos.toPlay, board },
         { batch: opts.batch ?? 1 },
       );
       const snap = await search.run({ visits: budget.visits, maxMs: budget.maxMs });

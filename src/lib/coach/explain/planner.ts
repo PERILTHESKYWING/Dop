@@ -214,7 +214,7 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
       moves: endA,
       highlight: tp?.highlight,
       scoreLoss: Math.max(0, loss),
-      note: tp ? `${capitalize(turnPhrase(tp, mover))}.` : 'No single area flips; the difference is spread over the board.',
+      note: tp ? `${capitalize(turnPhrase(tp, mover, { a: a.loc, b: b.loc, C }))}.` : 'No single area flips; the difference is spread over the board.',
     });
     f.vars.lineB = addVar({
       label: `${C(b.loc)} to move ${lastMove(endB)}`,

@@ -8,3 +8,5 @@ Summary: things not finished or never verified, as of 2026-10-12. Re-check befor
 - Forge: only 3 of 32 life problems are "kill"; framing could be tuned.
 - Coach chat never tried against live Gemini.
 - Closed idea: training a net from zero on XIAO's RTX 5070 (PR #6) was dropped as pointless.
+- Kami (2026-10-15): b18 on WebGPU inside Kami never measured; the Kami Vercel project, real Gemini wording (Myoshu) and Kami Local (no model uploaded yet) never tried live; the home trainer never ran on the RTX 5070. Forge problems can probably rejoin the training tasks now that setup stones read correctly (see kami-factory.md).
+- Stored analyses of games with setup stones (handicap) were wrong before 2026-10-15; with ANALYSIS_VERSION 4 they no longer count as current, so the analysis queue redoes them. A Doppelgänger copy built from handicap games may need a retrain (Copy page) once those analyses are redone.

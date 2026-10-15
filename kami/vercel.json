@@ -5,20 +5,42 @@
   "buildCommand": "cd .. && npm run kami:build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/((?!api/|engine/|models/|art/|assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/katago-models/:path*",
+      "destination": "https://media.katagotraining.org/uploaded/networks/models/kata1/:path*"
+    },
+    {
+      "source": "/((?!api/|engine/|models/|art/|assets/|katago-models/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/engine/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
     },
     {
       "source": "/models/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
     },
     {
       "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }

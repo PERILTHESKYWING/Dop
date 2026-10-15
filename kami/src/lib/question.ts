@@ -16,6 +16,8 @@ export interface ParsedQuestion {
   move?: Loc;
   /** "move 37": the 37th move of the line (1-based). */
   moveNumber?: number;
+  /** "my move", "this move", "what should I have played": the last move on the board. */
+  lastMove?: boolean;
   text: string;
 }
 
@@ -33,7 +35,12 @@ export function findCoords(text: string, size: number): { loc: Loc; at: number; 
 
 const WHY_NOT = /\bwhy\s+(?:not|didn'?t|don'?t|doesn'?t|can'?t|shouldn'?t|wouldn'?t|isn'?t)\b|\bwhat\s+about\b|\bhow\s+about\b|\bwhat\s+if\b|\b(?:can|could|may)\s+(?:i|black|white)\s+(?:play|try)\b|\binstead\b|\bisn'?t\s+\S+\s+better\b/i;
 const BEST =
-  /\bwhat\s+(?:should|do|would|can|could)\s+(?:i|we|you|black|white)\s+(?:play|do)\b|\bbest\s+move\b|\bwhere\s+(?:should|do|would|can|to)\b|\bwhat(?:'s|\s+is)\s+the\s+(?:best|right|correct|next)\s+(?:move|play)\b|\bnext\s+move\b|\bwhat\s+now\b|\bwhat\s+to\s+play\b|\bhow\s+(?:should|do)\s+(?:i|we|black|white)\s+(?:play|continue|respond|answer)\b|\bwhich\s+move\b|\bmy\s+move\b/i;
+  /\bwhat\s+(?:should|do|would|can|could)\s+(?:i|we|you|black|white)\s+(?:play|do)\b|\bbest\s+move\b|\bwhere\s+(?:should|do|would|can|to)\b|\bwhat(?:'s|\s+is)\s+the\s+(?:best|right|correct|next)\s+(?:move|play)\b|\bnext\s+move\b|\bwhat\s+now\b|\bwhat\s+to\s+play\b|\bhow\s+(?:should|do)\s+(?:i|we|black|white)\s+(?:play|continue|respond|answer)\b|\bwhich\s+move\b|\bwhat\s+should\s+(?:my|our)\s+(?:next\s+)?move\s+be\b/i;
+
+/** The move just played, named without a coordinate: "why was my move bad?", "is this move good?". */
+const LAST_MOVE = /\b(?:my|this|that|the\s+last|my\s+last|the\s+previous|last)\s+(?:move|play|stone)\b|\bwhat(?:'s|\s+is|\s+was)\s+wrong\s+with\s+(?:it|that|this)\b|\b(?:was|is)\s+(?:it|that)\s+(?:a\s+)?(?:good|bad|mistake|wrong|ok|okay|fine)\b/i;
+/** Asking what should have been played instead of the last move. */
+const SHOULD_HAVE = /\b(?:should|could|would)\s+(?:i|we|black|white)\s+have\s+(?:played|done)\b|\bwhat\s+was\s+(?:the\s+)?(?:best|right|correct)\s+(?:move|play)\b|\bbetter\s+(?:move|play)\s+(?:there|instead)\b/i;
 
 export function parseQuestion(text: string, size: number): ParsedQuestion {
   const t = text.trim().replace(/[’‘]/g, "'");
@@ -48,7 +55,11 @@ export function parseQuestion(text: string, size: number): ParsedQuestion {
   }
   if (coords.length) return { kind: 'why-move', move: coords[0].loc, text: t };
   if (moveNumber !== undefined && moveNumber > 0) return { kind: 'why-move', moveNumber, text: t };
+  // "What should I have played?" is the best move in the position before the last move.
+  if (SHOULD_HAVE.test(t)) return { kind: 'best', lastMove: true, text: t };
   if (BEST.test(t)) return { kind: 'best', text: t };
+  // "Why was my move bad?" is about the move on the board, not the opponent's next move.
+  if (LAST_MOVE.test(t)) return { kind: 'why-move', lastMove: true, text: t };
   return { kind: 'overview', text: t };
 }
 
@@ -69,7 +80,7 @@ export type Route =
  */
 export function routeQuestion(text: string, board: BoardState, findConcepts: (t: string) => ConceptEntry[]): Route {
   const parsed = parseQuestion(text, board.size);
-  if (parsed.move !== undefined || parsed.moveNumber !== undefined || parsed.kind === 'best') return { type: 'position', parsed };
+  if (parsed.move !== undefined || parsed.moveNumber !== undefined || parsed.lastMove || parsed.kind === 'best') return { type: 'position', parsed };
   const entries = findConcepts(text);
   if (entries.length || !hasPosition(board) || isConceptQuestion(text)) return { type: 'concept', entries };
   return { type: 'position', parsed };
@@ -84,20 +95,35 @@ export interface Asked {
 
 /**
  * The position and Question to explain. A move that is already on the board ("why was R16
- * bad?" right after R16, or "move 37") is asked about in the position before it was played,
- * since the engine can only judge a move on an empty point.
+ * bad?", "move 37", "why was my move bad?") is asked about in the position before it was
+ * played, since the engine can only judge a move on an empty point. "What should I have
+ * played?" asks for the best move in that same earlier position.
  */
 export function askFor(board: BoardState, parsed: ParsedQuestion): Asked {
   let upTo = board.cursor;
   let move = parsed.move;
+  const played = (i: number) => i >= 0 && i < board.moves.length && board.moves[i].loc !== PASS;
   if (parsed.moveNumber !== undefined && parsed.move === undefined) {
     const n = Math.min(parsed.moveNumber, board.moves.length);
-    if (n >= 1 && board.moves[n - 1].loc !== PASS) {
+    if (n >= 1 && played(n - 1)) {
       upTo = n - 1;
       move = board.moves[n - 1].loc;
     }
-  } else if (parsed.kind === 'why-move' && move !== undefined && upTo > 0 && board.moves[upTo - 1].loc === move) {
-    upTo -= 1;
+  } else if (parsed.lastMove) {
+    // "My move" / "this move": the last move on the board, judged before it was played.
+    if (played(upTo - 1)) {
+      upTo -= 1;
+      if (parsed.kind === 'why-move') move = board.moves[upTo].loc;
+    }
+  } else if (parsed.kind === 'why-move' && move !== undefined) {
+    // A point that was played earlier in the line ("why was R16 bad?" 30 moves later): go back
+    // to just before its latest play, so the engine judges that move, not an occupied point.
+    for (let i = upTo - 1; i >= 0; i--) {
+      if (board.moves[i].loc === move) {
+        upTo = i;
+        break;
+      }
+    }
   }
   const kind: QuestionKind = parsed.kind === 'why-move' && move === undefined ? 'overview' : parsed.kind;
   const question: Question = { kind, text: parsed.text, ...(move !== undefined && kind !== 'overview' && kind !== 'best' ? { move } : {}) };

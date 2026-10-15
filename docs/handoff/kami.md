@@ -20,6 +20,8 @@ Summary: Kami is a separate ChatGPT-style Go coach site in `kami/`, built on Dop
 ## Engine gotchas
 - Same worker and WASM as Dop, copied at build time, so `ENGINE_FILES` in `src/lib/engine/browserEngine.ts` busts the week-long `/engine` cache on both sites. Bump it once; nothing Kami-specific.
 - Kami is its own origin: the network is downloaded and cached again (about 14 MB with the engine) and the device is tuned once (first answer takes a few seconds longer).
+- Network (`kami/src/lib/engine.ts` `engineAttempts`, since 2026-10-15): kata1 b18 (about 97 MB, once) on a computer with WebGPU, through `/katago-models` (rewrite in `kami/vercel.json`, proxy in `kami/vite.config.ts`, same as Dop); b10 on the CPU on phones and tablets, without WebGPU, or after the GPU failed once (`kami.gpuBroken` in localStorage). The status line under the board says which ("KataGo b18 (strong) · GPU").
+- Questions (`kami/src/lib/question.ts`): "why was my move bad?", "is this move good?" and "what's wrong with it?" mean the last move, judged before it was played; "what should I have played?" is the best move there; "why was R16 bad?" goes back to R16's latest play. "What should I play?" and "what should my move be?" mean now.
 - Measured 2026-10-14 in headless Chromium on the 4-core cloud box (CPU, tuning picked 1 worker): first answer 11-14 s including download, load and tuning; the stand-in `explain` at medium hit its 8 s cap at 137-160 visits. Bundle: 342 KB JS (113 KB gzip), 21 KB CSS.
 
 ## Deploy (second Vercel project, Hobby)
@@ -38,4 +40,3 @@ Notes: both projects now build on every push (Hobby runs one build at a time, so
 ## Not done / unverified
 - Never deployed to Vercel from here; the steps above follow Vercel's docs and Dop's working setup.
 - Never called real Gemini (no key in the sandbox); tests stub `/api/llm`.
-- `checkAnswer` is a stub until coach/lm-factory lands, so Myoshu shows engine text with the "unchecked" note until then.

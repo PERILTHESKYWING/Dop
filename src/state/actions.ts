@@ -1158,7 +1158,7 @@ async function liveEval(item: TrainingItem, loc: Loc): Promise<LiveCheck | null>
     const board = itemBoard(item);
     if (loc !== PASS && !board.isLegal(loc, item.toPlay)) return null;
     const visits = Math.max(24, Math.min(160, Math.round(searchVisitsFor(eng, 0) / 2)));
-    const search = new Search(engineEvaluator(eng), { size: item.size, komi: engineKomi(item.komi, item.rules), moves: engineMoves(item.setup, item.moves), toPlay: item.toPlay, board }, { batch: eng.batch });
+    const search = new Search(engineEvaluator(eng), { size: item.size, komi: engineKomi(item.komi, item.rules), moves: engineMoves(item.setup, item.moves, item.toPlay), toPlay: item.toPlay, board }, { batch: eng.batch });
     markInteractive(8000);
     const snap = await search.run({ visits, maxMs: 6000, forced: loc, forcedShare: 0.3 });
     const answer = snap.candidates.find((c) => c.loc === loc);

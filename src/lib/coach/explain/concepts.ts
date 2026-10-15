@@ -6,7 +6,7 @@
 import { chebyshev, lineOf } from '../../go/coords';
 import { other, PASS, type Color, type Loc } from '../../go/types';
 import { colorAdj, colorWord, coord, fmt1, groupAnchor, groupOwn, looseGroups, pct, stonesNear, type StoneGroup } from './geometry';
-import type { Findings } from './planner';
+import { EQUAL_PTS, type Findings } from './planner';
 import type { ConceptHit, EngineRead } from './types';
 
 /** A reply this close (Chebyshev) to a move answers it locally (19x19; smaller boards use less). */
@@ -42,6 +42,9 @@ interface Ctx {
   C: (l: Loc) => string;
   groups: StoneGroup[];
 }
+
+/** KataGo's ownership (-1..1, for one side) as a share: 0.6 is 80%. */
+const share = (v: number) => Math.round(50 + 50 * Math.max(-1, Math.min(1, v)));
 
 const groupName = (ctx: Ctx, g: StoneGroup) => `${colorAdj(g.color)} ${g.stones.length > 1 ? 'group' : 'stone'} at ${ctx.C(groupAnchor(g, ctx.size))}`;
 const nearGroup = (g: StoneGroup, loc: Loc, size: number, r: number) => loc !== PASS && g.stones.some((s) => chebyshev(s, loc, size) <= r);
@@ -94,9 +97,9 @@ export function weakGroups(ctx: Ctx, focus: Loc[] | null, max: number): ConceptH
     id: 'weak-group' as const,
     at: [groupAnchor(g, ctx.size)],
     evidence:
-      Math.round(v * 10) >= 0
-        ? `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo's ownership of its stones is only ${fmt1(v)} for ${colorWord(g.color)}.`
-        : `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo already leans to ${colorWord(other(g.color))} owning its stones (${fmt1(-v)}).`,
+      v >= 0
+        ? `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo gives ${colorWord(g.color)} only ${share(v)}% ownership of its stones.`
+        : `The ${groupName(ctx, g)} (${g.stones.length} stones) is weak: KataGo already gives ${colorWord(other(g.color))} ${share(-v)}% ownership of its stones.`,
   }));
 }
 
@@ -114,7 +117,7 @@ export function deadGroups(ctx: Ctx, end: Float32Array | null | undefined, ref: 
       hit: {
       id: 'dead-group',
       at: [groupAnchor(g, ctx.size)],
-      evidence: `The ${groupName(ctx, g)} (${g.stones.length} stones) dies: KataGo gives its stones to ${colorWord(other(g.color))} (${fmt1(-a)}), against ${colorWord(g.color)}'s (${fmt1(b)}) ${refWords}.`,
+      evidence: `The ${groupName(ctx, g)} (${g.stones.length} stones) dies: KataGo gives ${colorWord(other(g.color))} ${share(-a)}% ownership of its stones, against ${share(b)}% for ${colorWord(g.color)} ${refWords}.`,
       ...(variation ? { variation } : {}),
       },
     });
@@ -133,7 +136,7 @@ export function alreadyDead(ctx: Ctx): ConceptHit[] {
     .map((g) => ({
       id: 'dead-group' as const,
       at: [groupAnchor(g, ctx.size)],
-      evidence: `The ${groupName(ctx, g)} (${g.stones.length} stones) is already dead: KataGo gives its stones to ${colorWord(other(g.color))} (${fmt1(-groupOwn(g, own))}).`,
+      evidence: `The ${groupName(ctx, g)} (${g.stones.length} stones) is already dead: KataGo gives ${colorWord(other(g.color))} ${share(-groupOwn(g, own))}% ownership of its stones.`,
     }));
 }
 
@@ -167,7 +170,7 @@ export function territoryInfluence(ctx: Ctx, move: Loc, ownX: Float32Array | nul
     hits.push({ id: 'territory', at: [move], evidence: `After ${C(move)}, ${colorWord(mover)} has about ${fmt1(terr)} more points of sure area near the edge than ${refWords}.`, ...v });
   }
   if (infl >= INFLUENCE_PTS * scale && infl > terr) {
-    hits.push({ id: 'influence', at: [move], evidence: `After ${C(move)}, ${colorWord(mover)}'s ownership toward the center is higher by ${fmt1(infl)} (summed) than ${refWords}, though none of it is sure yet.`, ...v });
+    hits.push({ id: 'influence', at: [move], evidence: `After ${C(move)}, ${colorWord(mover)} has about ${fmt1(infl)} more points of potential toward the center than ${refWords}, though none of it is sure yet.`, ...v });
   }
   return hits;
 }
@@ -181,7 +184,7 @@ export function urgent(ctx: Ctx, variation?: string): ConceptHit | null {
   const weak = ctx.groups.find((g) => g.stones.length >= 2 && nearGroup(g, best.loc, size, 2) && groupOwn(g, own) >= WEAK_LO && groupOwn(g, own) <= WEAK_HI);
   if (!weak) return null;
   const far = (l: Loc) => l === PASS || !nearGroup(weak, l, size, 4);
-  const name = `the weak ${groupName(ctx, weak)} (${colorWord(weak.color)}'s ownership ${fmt1(groupOwn(weak, own))})`;
+  const name = `the weak ${groupName(ctx, weak)} (${colorWord(weak.color)} has only ${share(groupOwn(weak, own))}% ownership of it)`;
   const hit = (evidence: string): ConceptHit => ({ id: 'urgent', at: [best.loc], evidence, ...(variation ? { variation } : {}) });
   const asked = f.asked;
   if (asked && !asked.isBest && asked.legal && (asked.read || f.mode === 'unchecked') && far(asked.loc) && asked.loss >= URGENT_PTS) {
@@ -249,6 +252,33 @@ export function miai(ctx: Ctx, variation?: string): ConceptHit | null {
   };
 }
 
+/**
+ * The opponent's answer to the asked move lands on (or right next to) KataGo's best move:
+ * the asked move gave that point away. Only for real losses, never for "about as good".
+ */
+export function keyPointOf(f: Findings): { reply: Loc; exact: boolean } | null {
+  const a = f.asked;
+  const best = f.best;
+  if (!a || !best || a.isBest || !a.legal || a.reply === undefined || a.reply === PASS || best.loc === PASS) return null;
+  if (a.loss < EQUAL_PTS) return null;
+  const d = chebyshev(a.reply, best.loc, f.pos.size);
+  return d <= 1 ? { reply: a.reply, exact: d === 0 } : null;
+}
+
+/** "Urgent for both sides": the opponent answered the asked move by taking KataGo's point. */
+export function keyPointHit(ctx: Ctx, variation?: string): ConceptHit | null {
+  const { f, C, opp } = ctx;
+  const key = keyPointOf(f);
+  if (!key || !f.asked || !f.best) return null;
+  const where = key.exact ? C(f.best.loc) : `${C(key.reply)}, next to ${C(f.best.loc)}`;
+  return {
+    id: 'urgent',
+    at: [f.best.loc],
+    evidence: `${C(f.best.loc)} is urgent for both sides: after ${C(f.asked.loc)}, ${colorWord(opp)}'s best answer is ${where}.`,
+    ...(variation ? { variation } : {}),
+  };
+}
+
 export function conceptContext(f: Findings): Ctx {
   const size = f.pos.size;
   return { f, size, mover: f.mover, opp: other(f.mover), C: (l) => coord(l, size), groups: looseGroups(f.board) };
@@ -279,10 +309,14 @@ export function detectConcepts(f: Findings): ConceptHit[] {
       const b = f.consequence.b.checkpoints.find((c) => c.ply === tp.ply)?.read.ownership;
       add(deadGroups(ctx, a, b, `in the ${ctx.C(best.loc)} line`, f.vars.lineA));
     }
-    add(urgent(ctx, bestVar));
+    // When the opponent's answer takes KataGo's point, that is the story: the point was
+    // urgent for both sides, and calling the asked move "gote" or "sente" would only blur it.
+    const key = keyPointHit(ctx, f.vars.asked);
+    add(key);
+    if (!key) add(urgent(ctx, bestVar));
     add(tenuki(ctx, asked.loc, asked.loss, f.vars.asked));
     add(senteGote(ctx, best.loc, f.afterBest, bestVar));
-    add(senteGote(ctx, asked.loc, asked.read, f.vars.asked));
+    if (!key) add(senteGote(ctx, asked.loc, asked.read, f.vars.asked));
     // Territory against influence is a strategy choice: only for small losses, not life and death.
     if (asked.read && f.afterBest && f.mode !== 'refutation' && !out.some((h) => h.id === 'dead-group')) {
       add(territoryInfluence(ctx, best.loc, f.afterBest.ownership, asked.read.ownership, `after ${ctx.C(asked.loc)}`, 1, bestVar));

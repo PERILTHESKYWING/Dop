@@ -12,7 +12,9 @@ export function localAvailable(): boolean {
   return localConfigured() && typeof navigator !== 'undefined' && 'gpu' in navigator;
 }
 
-type Generator = (input: unknown, opts: Record<string, unknown>) => Promise<unknown>;
+type Generator = ((input: unknown, opts: Record<string, unknown>) => Promise<unknown>) & {
+  tokenizer?: { apply_chat_template: (messages: unknown, opts: Record<string, unknown>) => unknown };
+};
 let generator: Promise<Generator> | null = null;
 
 function load(onProgress?: (pct: number) => void): Promise<Generator> {
@@ -30,19 +32,26 @@ function load(onProgress?: (pct: number) => void): Promise<Generator> {
   return generator;
 }
 
-/** The local model's answer for one writer prompt. */
+/** Qwen3 "thinking" blocks, in case a model writes one anyway. */
+const THINK = /<think>[\s\S]*?<\/think>\s*/g;
+
+/**
+ * The local model's answer for one writer prompt. The prompt is built exactly as in training
+ * (scripts/coachlm/generate.py): the tokenizer's chat template with enable_thinking false,
+ * which Qwen3 needs or it answers in its "thinking" format the model was never trained on.
+ */
 export async function localWrite(prompt: string, signal?: AbortSignal, onProgress?: (pct: number) => void): Promise<string> {
   const gen = await load(onProgress);
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
-  const out = (await gen(
-    [
-      { role: 'system', content: LM_SYSTEM },
-      { role: 'user', content: prompt },
-    ],
-    { max_new_tokens: LOCAL_MODEL.maxNewTokens, do_sample: false, return_full_text: false },
-  )) as { generated_text: string | { role: string; content: string }[] }[];
+  const messages = [
+    { role: 'system', content: LM_SYSTEM },
+    { role: 'user', content: prompt },
+  ];
+  const input = gen.tokenizer ? gen.tokenizer.apply_chat_template(messages, { tokenize: false, add_generation_prompt: true, enable_thinking: false }) : messages;
+  const out = (await gen(input, { max_new_tokens: LOCAL_MODEL.maxNewTokens, do_sample: false, return_full_text: false })) as { generated_text: string | { role: string; content: string }[] }[];
   const g = out?.[0]?.generated_text;
-  const text = typeof g === 'string' ? g : Array.isArray(g) ? (g[g.length - 1]?.content ?? '') : '';
-  if (!text.trim()) throw new Error('the local model gave no text');
-  return text.trim();
+  const raw = typeof g === 'string' ? g : Array.isArray(g) ? (g[g.length - 1]?.content ?? '') : '';
+  const text = raw.replace(THINK, '').trim();
+  if (!text) throw new Error('the local model gave no text');
+  return text;
 }

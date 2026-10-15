@@ -31,7 +31,7 @@ export interface PositionChoices {
 export const CHOICE_COUNT = 8;
 
 export async function positionChoices(engine: EngineBackend, spec: PositionSpec, extra: readonly Loc[] = []): Promise<PositionChoices> {
-  const req = { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay };
+  const req = { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history, spec.toPlay), toPlay: spec.toPlay };
   const legal = spec.board.legalMask(spec.toPlay);
   const root = processRawOutput(await engine.evalRaw(req, false), spec.toPlay, (l) => legal[l] === 1, engine.postProcess);
   const hw = spec.size * spec.size;

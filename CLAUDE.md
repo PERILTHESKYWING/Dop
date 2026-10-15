@@ -17,6 +17,8 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 `npm run typecheck`, `npm test`, `npm run build`.
 
 ## More context (open only when relevant)
+New session? Start with `docs/handoff/START-HERE.md` (state, checklist, next steps).
+
 `README.md` is the full feature/engine/deploy guide (long). Short topic notes in `docs/handoff/`:
 - `ux.md` board screens and UI decisions
 - `engine.md` WASM engine, search, speed work
