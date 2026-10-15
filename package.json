@@ -12,7 +12,10 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
     "demo:generate": "tsx scripts/generate-demo.ts",
-    "broadcast:generate": "tsx scripts/generate-broadcast.ts"
+    "broadcast:generate": "tsx scripts/generate-broadcast.ts",
+    "kami:dev": "vite --config kami/vite.config.ts",
+    "kami:build": "tsc -b kami && vite build --config kami/vite.config.ts",
+    "kami:preview": "vite preview --config kami/vite.config.ts"
   },
   "engines": {
     "node": ">=20"
