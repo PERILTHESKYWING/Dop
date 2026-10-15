@@ -1,0 +1,21 @@
+# Kami coach LM trainer (scripts/coachlm). Python 3.11+.
+#
+# Install PyTorch FIRST, from the CUDA 12.8 index (RTX 50-series / Blackwell needs CUDA 12.8+):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+# then:
+#   pip install -r scripts/coachlm/requirements.txt
+#
+# Tested together on CPU with torch 2.14.1 (and the same set with torch 2.9.1+cu128).
+# trl stays on 1.14.2: trl 1.15 computes its loss with a Triton kernel, and the Windows
+# PyTorch wheels do not ship Triton.
+transformers==5.19.0
+peft==0.21.2
+trl==1.14.2
+accelerate==1.15.0
+datasets==5.1.0
+safetensors==0.8.0
+huggingface_hub==2.2.0
+tokenizers==0.23.3
+numpy>=1.26
+pytest>=8
+# export.py makes its own small venv for ONNX (optimum-onnx pins an older transformers).
