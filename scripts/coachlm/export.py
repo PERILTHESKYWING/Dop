@@ -33,7 +33,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-EXPORT_REQS = ['optimum-onnx==0.1.0', 'onnxruntime==1.31.0', 'onnx==1.23.2', 'onnxconverter-common==1.16.0']
+EXPORT_REQS = ['optimum-onnx==0.1.0', 'optimum==2.1.0', 'transformers==4.57.6', 'onnxruntime==1.31.0', 'onnx==1.23.2',
+               'onnx-ir==1.0.0']
 KEEP_FILES = ('config.json', 'generation_config.json', 'tokenizer.json', 'tokenizer_config.json',
               'special_tokens_map.json', 'vocab.json', 'merges.txt', 'added_tokens.json', 'chat_template.jinja', 'LICENSE')
 EXTERNAL_LIMIT = 1_900_000_000   # protobuf files cannot pass 2 GB; bigger models keep weights in .onnx_data
@@ -133,11 +134,19 @@ def onnx_step(merged: Path, out: Path, dtypes: list[str]) -> dict:
         else:
             onnx.save_model(model, str(dest))
         report[dt] = {'external': big, 'mb': round(sum(p.stat().st_size for p in dest.parent.glob(dest.name + '*')) / 1e6, 1)}
-    for name in KEEP_FILES:
-        if (raw / name).exists():
-            shutil.copy2(raw / name, out / name)
-        elif (merged / name).exists():
-            shutil.copy2(merged / name, out / name)
+    for name in KEEP_FILES:   # the base model's own tokenizer files; the exporter's config.json
+        src = (raw if name == 'config.json' else merged) / name
+        if not src.exists():
+            src = (merged if name == 'config.json' else raw) / name
+        if src.exists():
+            shutil.copy2(src, out / name)
+    # transformers.js reads the chat template from tokenizer_config.json, not chat_template.jinja
+    tc_path, jinja = out / 'tokenizer_config.json', out / 'chat_template.jinja'
+    if tc_path.exists() and jinja.exists():
+        tc = json.loads(tc_path.read_text(encoding='utf-8'))
+        if not tc.get('chat_template'):
+            tc['chat_template'] = jinja.read_text(encoding='utf-8')
+            tc_path.write_text(json.dumps(tc, indent=2, ensure_ascii=False), encoding='utf-8')
     conf = json.loads((out / 'config.json').read_text(encoding='utf-8'))
     conf['transformers.js_config'] = {
         'dtype': 'q4f16' if 'q4f16' in dtypes else dtypes[0],
@@ -151,11 +160,12 @@ def onnx_step(merged: Path, out: Path, dtypes: list[str]) -> dict:
 
 
 def to_fp16(model):
-    from onnxconverter_common import float16
-    # Keep numerically touchy ops in fp32 (same idea as transformers.js's own converter).
-    return float16.convert_float_to_float16(model, keep_io_types=False, disable_shape_infer=True,
-                                            op_block_list=['SimplifiedLayerNormalization', 'SkipSimplifiedLayerNormalization',
-                                                           'RotaryEmbedding', 'MultiHeadAttention', 'GroupQueryAttention'])
+    """Float16 weights, activations and KV cache (inputs/outputs too, as transformers.js expects
+    for q4f16). onnxruntime's converter: onnxconverter-common's left mixed-type Adds in the
+    RMSNorm of a Qwen3 export (seen in testing)."""
+    from onnxruntime.transformers.float16 import convert_float_to_float16
+    big = model.ByteSize() > EXTERNAL_LIMIT
+    return convert_float_to_float16(model, keep_io_types=False, disable_shape_infer=big)
 
 
 def quantize_q4(model):
@@ -172,7 +182,12 @@ def check(merged: Path, out: Path, dtypes: list[str], steps: int = 8) -> dict:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    tok = AutoTokenizer.from_pretrained(str(merged))
+    try:
+        tok = AutoTokenizer.from_pretrained(str(merged))
+    except (ValueError, OSError):
+        from transformers import PreTrainedTokenizerFast
+        tok = PreTrainedTokenizerFast(tokenizer_file=str(merged / 'tokenizer.json'))
+        tok.chat_template = (merged / 'chat_template.jinja').read_text(encoding='utf-8') if (merged / 'chat_template.jinja').exists() else None
     ref = AutoModelForCausalLM.from_pretrained(str(merged), torch_dtype=torch.float32).eval()
     msgs = [{'role': 'system', 'content': 'You are Kami, a Go teacher.'}, {'role': 'user', 'content': 'Question: Why not D4?'}]
     try:
