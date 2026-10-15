@@ -178,7 +178,7 @@ async function loop() {
       }
       if (my !== gen) continue;
     }
-    const pos = { size: t.size, komi: t.komi, moves: engineMoves(t.setup, t.moves), toPlay: t.toPlay, board };
+    const pos = { size: t.size, komi: t.komi, moves: engineMoves(t.setup, t.moves, t.toPlay), toPlay: t.toPlay, board };
     // The student network searches when it runs (19x19); KataGo judges the top of the tree.
     const stud = t.size === 19 ? await startStudent(() => eng!.activeLanes) : null;
     if (my !== gen) continue;

@@ -3,8 +3,8 @@
  *
  * Kami Local (beta) runs Kami's own small writer model in the browser (WebGPU, through
  * transformers.js loaded from a CDN only when picked). It stays hidden while `repo` is empty.
- * Set it to the Hugging Face repo id the training kit publishes (docs/handoff/kami-training.md),
- * e.g. 'PERILTHESKYWING/kami-writer-onnx', and redeploy.
+ * Set it to the Hugging Face repo the training kit's `export.py --upload` publishes:
+ * '<your Hugging Face user>/kami-coach-web' (docs/handoff/kami-training.md), and redeploy.
  */
 export const LOCAL_MODEL = {
   repo: '',

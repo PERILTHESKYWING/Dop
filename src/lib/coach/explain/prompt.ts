@@ -11,7 +11,11 @@ import { locToGtp } from '../../go/coords';
 import { PASS, type Move } from '../../go/types';
 import type { Explanation } from './types';
 
-export const PROMPT_VERSION = 1;
+/**
+ * 2: the explainer was fixed (setup stones read correctly, ownership as percentages, key
+ * points, deeper reads), so tasks and the test set made with version 1 are stale.
+ */
+export const PROMPT_VERSION = 2;
 
 export const LM_SYSTEM = `You are Kami, a Go (baduk) teacher. Turn the checked facts below into a clear, deep explanation for the student.
 Rules:

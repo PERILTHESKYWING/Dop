@@ -72,6 +72,12 @@ function llmApi(env: Record<string, string>): Plugin {
   };
 }
 
+const katagoProxy = {
+  target: 'https://media.katagotraining.org',
+  changeOrigin: true,
+  rewrite: (p: string) => p.replace(/^\/katago-models/, '/uploaded/networks/models/kata1'),
+};
+
 export default defineConfig(({ mode }) => {
   copyEngineFiles();
   // Every variable (no VITE_ prefix) for the dev server only; none reach the client bundle.
@@ -81,8 +87,9 @@ export default defineConfig(({ mode }) => {
     publicDir: 'public',
     plugins: [react(), llmApi(env)],
     worker: { format: 'es' },
-    server: { port: 5174, fs: { allow: [repo] } },
-    preview: { port: 4174 },
+    // The strong network (kata1 b18) downloads through /katago-models, as on Dop (vercel.json has the same rewrite).
+    server: { port: 5174, fs: { allow: [repo] }, proxy: { '/katago-models': katagoProxy } },
+    preview: { port: 4174, proxy: { '/katago-models': katagoProxy } },
     build: { outDir: 'dist', emptyOutDir: true, target: 'es2022', chunkSizeWarningLimit: 900 },
   };
 });

@@ -11,6 +11,7 @@
  * (a connected area changes shape between reads, so "it stays" is ill-defined); the
  * highlight is then narrowed to the region's points that really changed.
  */
+import { zoneOf } from '../../go/coords';
 import { PASS, type Color, type Loc, type Move } from '../../go/types';
 import { afterMoves, fmt1, lineMoves, sideLead, trustedLen, zoneName, zonePoints } from './geometry';
 import type { Reader } from './reader';
@@ -54,6 +55,8 @@ export interface TurningPoint extends RegionLoss {
   /** The mover's lead at shownPly in each line. */
   leadA: number;
   leadB: number;
+  /** Board size the regions were measured on. */
+  boardSize?: number;
 }
 
 export interface ConsequenceResult {
@@ -152,6 +155,7 @@ export function findTurningPoint(a: readonly Checkpoint[], b: readonly Checkpoin
     ...regionAt(ra.ownership!, rb.ownership!, mover, size, pick, gaps[shown][pick]),
     leadA: sideLead(ra.bLead, mover),
     leadB: sideLead(rb.bLead, mover),
+    boardSize: size,
   };
 }
 
@@ -281,18 +285,32 @@ export function cutAt(moves: readonly Move[], ply: number): Move[] {
   return moves.slice(0, Math.max(1, ply));
 }
 
+/** The two moves the consequence lines start with, to name what a region is about. */
+export interface LineStarts {
+  /** The worse move (line A) and the better move (line B). */
+  a: Loc;
+  b: Loc;
+  C: (l: Loc) => string;
+}
+
 /**
- * The turning point in words, lower case: "by move 27 the lower right is mostly White's (0.7)
- * instead of Black's (0.4)". A region that turned at the first move (the stone itself) is
- * described at the last read.
+ * The turning point in words, lower case: "by move 27 the lower right, where R6 would have
+ * gone, is White's (80%) instead of Black's (70%)". A region that differs from the first
+ * move on differs because of where the two stones went, so it is named that way: the better
+ * move's area that the worse move gave up, or the worse move's own area. Shown at the last
+ * read, where it is clearest.
  */
-export function turnPhrase(tp: TurningPoint, mover: Color): string {
+export function turnPhrase(tp: TurningPoint, mover: Color, starts?: LineStarts): string {
   const me = mover === 1 ? 'Black' : 'White';
   const c = `${ownerWords(tp.ownA)} instead of ${ownerWords(tp.ownB)}`;
-  const trade = tp.gain ? `, while ${me} gets more in the ${tp.gain.region}` : '';
-  if (tp.ply > 1) return `by move ${tp.moveNumber} the ${tp.region} is ${c}${trade}`;
-  if (tp.shownPly > tp.ply) return `the ${tp.region} is worse for ${me} from the first move, and by move ${tp.shownMove} it is ${c}${trade}`;
-  return `right after the move the ${tp.region} is ${c}${trade}`;
+  const trade = tp.gain ? `, though ${me} gets more in the ${tp.gain.region}` : '';
+  const n = tp.boardSize ?? 19;
+  const inZone = (l: Loc | undefined) => l !== undefined && l !== PASS && l >= 0 && zoneOf(l, n) === tp.zone;
+  const whereB = starts && inZone(starts.b) ? `, where ${starts.C(starts.b)} would have gone,` : '';
+  const ownA = starts && !whereB && inZone(starts.a) ? ` around ${starts.C(starts.a)} itself` : '';
+  if (tp.ply > 1) return `by move ${tp.moveNumber} the ${tp.region}${whereB}${ownA} is ${c}${trade}`;
+  if (whereB) return `the ${tp.region} is where ${starts!.C(starts!.b)} belongs: without it, by move ${tp.shownMove} the ${tp.region} is ${c}${trade}`;
+  return `by move ${tp.shownMove} the ${tp.region}${ownA} is ${c}${trade}`;
 }
 
 /** Where a consequence line is cut: where the turning point is shown. */
@@ -302,17 +320,19 @@ export function cutPly(tp: TurningPoint): number {
 
 export const capitalize = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** "the upper right is mostly White's (0.7) instead of Black's (0.4)". */
+/** "the upper right is White's (85%) instead of leaning Black's (70%)". */
 export function ownershipContrast(region: string, ownA: number, ownB: number): string {
   return `the ${region} is ${ownerWords(ownA)} instead of ${ownerWords(ownB)}`;
 }
 
-/** "mostly White's (0.7)", "Black's (0.4)", "even (0.1)" from a Black-positive average. */
+/**
+ * Whose an area is, from a Black-positive average ownership: "Black's (80%)", "leaning
+ * White's (65%)", "unsettled". The percentage is KataGo's ownership as a share: 0.6 is 80%.
+ */
 export function ownerWords(v: number): string {
-  const r = Math.round(Math.abs(v) * 10) / 10;
-  const n = r.toFixed(1);
-  if (r < 0.2) return `about even (${n})`;
+  const a = Math.abs(v);
+  if (a < 0.2) return 'unsettled';
   const who = v > 0 ? "Black's" : "White's";
-  return r >= 0.6 ? `mostly ${who} (${n})` : `${who} (${n})`;
+  const p = Math.round(50 + 50 * a);
+  return a >= 0.6 ? `${who} (${p}%)` : `leaning ${who} (${p}%)`;
 }
-

@@ -6,7 +6,8 @@
  * numbers are not in that pool.
  */
 import { other, PASS, type Loc } from '../../go/types';
-import { ownerWords, turnPhrase, type TurningPoint } from './consequence';
+import { keyPointOf } from './concepts';
+import { ownerWords, turnPhrase, type LineStarts, type TurningPoint } from './consequence';
 import { colorWord, coord, fmt1, leadPhrase, pct, sideLead } from './geometry';
 import { EQUAL_PTS, sideLeadPhrase, type Findings } from './planner';
 import type { ConceptHit, Fact } from './types';
@@ -26,8 +27,8 @@ export function numbersIn(text: string): string[] {
 const ref = (id?: string) => (id ? ` [[${id}]]` : '');
 
 /** The turning point for the summary. */
-function turnSummary(tp: TurningPoint, mover: 1 | 2): string {
-  const t = turnPhrase(tp, mover);
+function turnSummary(tp: TurningPoint, mover: 1 | 2, starts?: LineStarts): string {
+  const t = turnPhrase(tp, mover, starts);
   return tp.ply > 1 ? `Nothing breaks at once; the difference shows later: ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
 }
 
@@ -79,7 +80,9 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
       case 'gote':
         return `${at[0]} is gote: afterwards ${them} plays first elsewhere.`;
       case 'urgent':
-        return `${at[0]} is urgent: a weak group next to it needs it now.`;
+        return h.evidence.includes('for both sides')
+          ? `${at[0]} is urgent for both sides: whoever plays there first gains.`
+          : `${at[0]} is urgent: a weak group next to it needs it now.`;
       case 'big-point':
         return `${at[0]} is a big point in open space.`;
       case 'tenuki':
@@ -121,10 +124,11 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
     }
     let turn = '';
     if (tp) {
-      turn = turnPhrase(tp, mover);
+      turn = turnPhrase(tp, mover, { a, b, C });
       parts.push(fact(`In the ${C(a)} line, against the ${C(b)} line, ${turn}.`));
-      const trade = tp.gain ? `, and about ${fmt1(tp.gain.gap)} more in the ${tp.gain.region}` : '';
-      parts.push(fact(`At move ${tp.shownMove} that is about ${fmt1(-tp.gap)} points less for ${me} in the ${tp.region}${trade}; ${pts(tp.leadA)} in the ${C(a)} line and ${pts(tp.leadB)} in the ${C(b)} line.`));
+      // Region sums of ownership are not points (they swing with every trade), so only the
+      // searched leads are given as numbers.
+      parts.push(fact(`At move ${tp.shownMove}, ${pts(tp.leadA)} in the ${C(a)} line and ${pts(tp.leadB)} in the ${C(b)} line.`));
     } else if (lastCommon !== undefined) {
       const ca = cons.a.checkpoints.find((c) => c.ply === lastCommon)!.read;
       const cb = cons.b.checkpoints.find((c) => c.ply === lastCommon)!.read;
@@ -222,6 +226,13 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
         sections.push({ title: `After ${C(asked.loc)}`, text: `${fReply} ${fGap}${ref(f.vars.asked)}`.trim() });
       } else {
         const fLoss = fact(`${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}.`);
+        // The plainest reason a move is worse: the opponent answers by taking the point KataGo wanted.
+        const key = keyPointOf(f);
+        const keyLine = key
+          ? key.exact
+            ? `After ${C(asked.loc)}, ${them} takes ${C(best.loc)} itself, the point ${me} should have played${ref(f.vars.asked)}.`
+            : `After ${C(asked.loc)}, ${them} plays ${C(key.reply)}, right next to ${C(best.loc)}, the point ${me} should have played${ref(f.vars.asked)}.`
+          : '';
         if (f.mode === 'refutation' || f.mode === 'whatif') {
           const rf = f.refutation;
           const deadHits = concepts.filter((h) => h.id === 'dead-group' && h.variation === f.vars.asked);
@@ -239,22 +250,34 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
           if (f.mode === 'refutation') {
             const gain = won ? `${C(asked.loc)} captures the stones at ${C(won.at[0])}, but ` : '';
             const reply = replyText(asked.reply) || `${them} answers`;
-            summary.push(`${C(asked.loc)} loses ${fmt1(loss)} points against ${C(best.loc)}. ${gain}${reply}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`);
+            summary.push(
+              keyLine && !won
+                ? `${C(asked.loc)} loses ${fmt1(loss)} points against ${C(best.loc)}. ${keyLine}${damage ? ` Then ${damage}.` : ''}`
+                : `${C(asked.loc)} loses ${fmt1(loss)} points against ${C(best.loc)}. ${gain}${reply}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`,
+            );
+          } else if (keyLine) {
+            summary.push(`${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}. ${keyLine}${damage ? ` Then ${damage}.` : ''}`);
           } else {
             summary.push(`${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}. After it, ${replyText(asked.reply) || `${them} plays`}${ref(f.vars.asked)}${damage ? ` and ${damage}` : ''}.`);
           }
           sections.push({ title: f.mode === 'refutation' ? 'The refutation' : `After ${C(asked.loc)}`, text: [fLoss, fReply, ...end].filter(Boolean).join(' ') + ref(f.vars.asked) });
         } else {
           const c = consequenceFacts(asked.loc, best.loc, loss);
+          const starts = { a: asked.loc, b: best.loc, C };
+          // Without a key point, the opponent's answer still tells the story: say where it goes.
+          const answer = !keyLine && asked.reply !== undefined && asked.reply !== PASS ? ` After ${C(asked.loc)}, ${them} answers ${C(asked.reply)}${ref(f.vars.lineA)}.` : '';
           summary.push(
-            tp
-              ? `${C(asked.loc)} is ${fmt1(loss)} points slower than ${C(best.loc)}. ${turnSummary(tp, mover)}${ref(f.vars.lineA)}${ref(f.vars.lineB)}.`
-              : `${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}, but no single area flips: the loss is spread over the board${ref(f.vars.lineA)}.`,
+            keyLine
+              ? `${C(asked.loc)} is ${fmt1(loss)} points slower than ${C(best.loc)}. ${keyLine}${tp ? ` ${turnSummary(tp, mover, starts)}${ref(f.vars.lineA)}${ref(f.vars.lineB)}.` : ''}`
+              : tp
+                ? `${C(asked.loc)} is ${fmt1(loss)} points slower than ${C(best.loc)}.${answer} ${turnSummary(tp, mover, starts)}${ref(f.vars.lineA)}${ref(f.vars.lineB)}.`
+                : `${C(asked.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)}.${answer} No single area flips: the loss is spread over the board${ref(f.vars.lineA)}.`,
           );
           sections.push({ title: 'What goes wrong later', text: [fLoss, fReply, c.text].filter(Boolean).join(' ') + ref(f.vars.lineA) + ref(f.vars.lineB) });
         }
       }
-      summary.push(...conceptLines(2, (h) => h.id === 'dead-group'));
+      // The key-point sentence already says what the "urgent for both sides" line would.
+      summary.push(...conceptLines(2, (h) => h.id === 'dead-group' || (h.id === 'urgent' && !!keyPointOf(f) && h.evidence.includes('for both sides'))));
       if (f.mode !== 'equal') summary.push(`Play ${C(best.loc)}${ref(f.vars.lineB && f.mode === 'consequence' ? f.vars.lineB : f.vars.best)} instead.`);
       sections.push({ title: 'The better move', text: `${fBest}${ref(f.vars.best)}` });
       break;

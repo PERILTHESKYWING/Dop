@@ -123,7 +123,8 @@ function freshAnalysis(game: GameRecord, komi: number): GameAnalysis {
 export function analysisIsCurrent(a: GameAnalysis | undefined, game: GameRecord, modelId?: string): boolean {
   return (
     !!a &&
-    a.version === ANALYSIS_VERSION &&
+    // Version 3 only differs from 4 for setup stones (engineMoves), so it stays current without them.
+    (a.version === ANALYSIS_VERSION || (a.version === 3 && !game.setup.length)) &&
     a.komi === engineKomi(game.komi, game.rules) &&
     a.evals.length === game.moves.length + 1 &&
     (!modelId || !a.engine || a.engine.modelId === modelId)

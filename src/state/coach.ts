@@ -36,7 +36,7 @@ export async function runProbe(base: ProbeBase, p: ProbeRequest, visits = 160, m
   const eng = await startEngine();
   if (!eng) return { moves: p.moves, legal: true, note: 'KataGo is not running' };
   markInteractive(maxMs + 2000);
-  const search = new Search(engineEvaluator(eng), { size: base.size, komi: base.komi, moves: engineMoves(base.setup, [...base.moves, ...line]), toPlay: color, board }, { batch: eng.batch ?? 1 });
+  const search = new Search(engineEvaluator(eng), { size: base.size, komi: base.komi, moves: engineMoves(base.setup, [...base.moves, ...line], base.toPlay), toPlay: color, board }, { batch: eng.batch ?? 1 });
   const snap = await search.run({ visits, maxMs });
   const best = snap.candidates[0];
   return {

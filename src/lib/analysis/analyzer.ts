@@ -9,9 +9,13 @@ import { hashString } from '../util/hash';
 /**
  * Version of stored analyses. 3: values come from a tree search (not the network's first
  * impression), small networks' winrates are derived from the score, and komi follows the
- * rules (Fox's missing komi, territory scoring). Older analyses are redone.
+ * rules (Fox's missing komi, territory scoring). 4: setup stones reach the engine as
+ * alternating moves (engineMoves); version-3 analyses of games without setup stones are
+ * still current (pipeline.ts analysisIsCurrent). Older analyses are redone.
  */
-export const ANALYSIS_VERSION = 3;
+export const ANALYSIS_VERSION = 4;
+/** Prefix of position cache keys; positions with setup stones also hash a marker (positionKey). */
+const POSITION_KEY_VERSION = 3;
 
 export interface PositionSpec {
   size: number;
@@ -23,11 +27,31 @@ export interface PositionSpec {
   board: Board;
 }
 
-/** Setup stones become leading moves (Black first), as kataeval expects for handicap stones. */
-export function engineMoves(setup: Move[], history: Move[]): Move[] {
+/**
+ * Setup stones as leading moves for the engine, alternating colours with passes where one
+ * colour runs out, and a pass at the end when the next mover would otherwise play twice in a
+ * row. The network reads the last moves as history and assumes they alternate: fed as "all
+ * Black stones, then all White ones" the same four opening stones read Black +13.0 instead
+ * of White +0.9 (b10, 200 visits); interleaved they read exactly as the moves do.
+ * `toPlay` is who moves first after the setup when `history` is empty.
+ */
+export function engineMoves(setup: Move[], history: Move[], toPlay?: Color): Move[] {
+  if (!setup.length) return history;
   const blacks = setup.filter((m) => m.color === 1);
   const whites = setup.filter((m) => m.color === 2);
-  return [...blacks, ...whites, ...history];
+  const out: Move[] = [];
+  let color: Color = blacks.length ? 1 : 2;
+  let b = 0;
+  let w = 0;
+  while (b < blacks.length || w < whites.length) {
+    if (color === 1) out.push(b < blacks.length ? blacks[b++] : { color: 1, loc: PASS });
+    else out.push(w < whites.length ? whites[w++] : { color: 2, loc: PASS });
+    color = other(color);
+  }
+  // The loop always ends on a stone, so this adds at most one pass and never two in a row.
+  const next = history[0]?.color ?? toPlay;
+  if (next !== undefined && out[out.length - 1].color === next) out.push({ color: other(next), loc: PASS });
+  return [...out, ...history];
 }
 
 export function toPlayAt(setup: Move[], moves: Move[], index: number, handicap: number): Color {
@@ -48,16 +72,17 @@ export function positionKey(spec: PositionSpec, modelId: string): string {
     .slice(-5)
     .map((m) => `${m.color}${m.loc}`)
     .join(',');
-  return `v${ANALYSIS_VERSION}|${modelId}|${spec.size}|${hashString(`${s}|${spec.toPlay}|${spec.komi}|${b.koPoint}|${recent}`)}`;
+  const setupMark = spec.setup.length ? '|setup-alternating' : '';
+  return `v${POSITION_KEY_VERSION}|${modelId}|${spec.size}|${hashString(`${s}|${spec.toPlay}|${spec.komi}|${b.koPoint}|${recent}${setupMark}`)}`;
 }
 
 function request(spec: PositionSpec): EngineRequest {
-  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay };
+  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history, spec.toPlay), toPlay: spec.toPlay };
 }
 
 /** The tree search's view of a position. */
 export function rootPosition(spec: PositionSpec) {
-  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history), toPlay: spec.toPlay, board: spec.board };
+  return { size: spec.size, komi: spec.komi, moves: engineMoves(spec.setup, spec.history, spec.toPlay), toPlay: spec.toPlay, board: spec.board };
 }
 
 function fastEval(engine: EngineBackend, spec: PositionSpec, raw: RawNetOutput, second?: RawNetOutput): PositionEval {
