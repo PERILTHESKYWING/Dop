@@ -89,7 +89,7 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
     return p;
   };
   const evalOne = async (req: EngineRequest, ownership: boolean): Promise<RawNetOutput> => {
-    if (req.size !== size) throw new Error('board size mismatch');
+    if (req.size !== size) throw new Error(`board size mismatch: engine ${size}, asked ${req.size}`);
     const n = write(req);
     const ok = await M.ccall('kgeEvalSeq', 'number', Array(9).fill('number'), [b.ml, b.mc, n, req.toPlay, req.komi, b.board, b.pol, b.val, ownership ? b.own : 0], {
       async: true,
@@ -133,7 +133,7 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
     batch,
     evalBatchRaw: (sz: number, komi: number, positions: StonesPosition[]) =>
       serial(async (): Promise<RawNetOutput[]> => {
-        if (sz !== size) throw new Error('board size mismatch');
+        if (sz !== size) throw new Error(`board size mismatch: engine ${size}, asked ${sz}`);
         positions.forEach((p, j) => {
           for (let i = 0; i < hw; i++) M.HEAP32[(b.bs >> 2) + j * hw + i] = p.stones[i];
           M.HEAP32[(b.bp >> 2) + j] = p.toPlay;
@@ -149,7 +149,7 @@ export async function loadNodeEngine(modelPath: string, modelId: string, size = 
       }),
     evalRaw: (req, ownership) =>
       serial(async (): Promise<RawNetOutput> => {
-        if (req.size !== size) throw new Error('board size mismatch');
+        if (req.size !== size) throw new Error(`board size mismatch: engine ${size}, asked ${req.size}`);
         const n = write(req);
         const ok = await M.ccall(
           'kgeEvalSeq',

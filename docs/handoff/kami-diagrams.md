@@ -16,7 +16,7 @@ board (size, points on the board) → legal (replay, no suicide, no captures lef
 
 ## Measured (2026-10-16, Node WASM b10, 1 thread)
 - Bench, Tesuji/medium, 11 positions: 3 got a diagram, most others failed "claim" (KataGo prefers another move in the cut-out). Kept strict on purpose.
-- Critique batch, Tesuji/high, 28 items: see the thread for the count; answers with diagrams took 9-30 s.
+- Critique batch, Tesuji/high, 28 items: 3 got a diagram (items 6, 12, 19); answers took 5-31 s. Run each item in its own process (`--only N`): one long run once hit "board size mismatch" mid-batch and it did not repeat item by item (cause not found).
 - The writer's own diagram is unit-tested with a scripted engine only; not yet tried with real Gemini.
 
 ## Rubric
