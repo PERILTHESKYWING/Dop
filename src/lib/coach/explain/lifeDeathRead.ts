@@ -6,14 +6,16 @@
  * the result. Open fights (a group that can run) are left to KataGo.
  */
 import { PASS, type Loc } from '../../go/types';
-// TEMP until lifeDeath.ts lands
-const findTarget = (..._a: unknown[]): { stones: Loc[] } | null => null;
-const solveLifeDeath = (..._a: unknown[]): LifeDeathVerdict | null => null;
+import { findTarget, solveLifeDeath } from './lifeDeath';
 import type { Findings } from './planner';
 import type { ConceptHit, LifeDeathVerdict } from './types';
 
-/** Time for the reader inside one answer (it runs on the page's main thread). */
-export const LD_MS = 1500;
+/**
+ * Time for the reader inside one answer (it runs on the page's main thread). Proven results
+ * take a few ms (3.7 ms median on the bank); a read that is still open at the cap stays
+ * unresolved, so a longer cap mostly costs time (docs/handoff/kami-engine.md).
+ */
+export const LD_MS = 1200;
 
 export function readLifeDeath(f: Findings, concepts: ConceptHit[]): LifeDeathVerdict | null {
   const best = f.best;
@@ -30,11 +32,11 @@ export function readLifeDeath(f: Findings, concepts: ConceptHit[]): LifeDeathVer
     if (!concepts.some((h) => h.id === 'urgent' || h.id === 'weak-group' || h.id === 'save-stones' || h.id === 'dead-group')) return null;
   }
   const near: Loc[] = [best.loc, ...best.pv.slice(1, 3)].filter((l) => l !== PASS);
-  const target = findTarget(f.board, near, own);
+  const target = findTarget(f.board, near, own, f.mover);
   if (!target) return null;
   const hint = [...new Set([...best.pv.slice(0, 1), ...(f.root?.candidates.map((c) => c.loc) ?? []), ...best.pv])].filter((l) => l !== PASS);
   try {
-    return solveLifeDeath(f.board, target.stones[0], f.mover, { maxMs: LD_MS }, hint);
+    return solveLifeDeath(f.board, target.stones[0], f.mover, { maxMs: LD_MS, own }, hint);
   } catch {
     return null; // never let the reader break an answer
   }

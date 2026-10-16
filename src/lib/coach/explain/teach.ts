@@ -279,7 +279,7 @@ export function teach(input: TeachInput): Teaching {
         ? `Kami's life-and-death reader checked every move in this corner for both sides: the result above is proven, not just KataGo's opinion.`
         : ld
           ? `Kami's life-and-death reader could not settle every line here, so this rests on KataGo's reading. Treat it as very likely, not proven.`
-          : `This group can still run out or the area is too open for Kami's life-and-death reader, so this rests on KataGo's reading.`,
+          : `The area around this group is too big for Kami's life-and-death reader to check every move, so this rests on KataGo's reading.`,
     });
   }
 

@@ -11,9 +11,10 @@
  *   (a wall) when KataGo gives it to the attacker (ownership 0.8 or more) or, without
  *   ownership, when it has 6 or more stones, and it must keep two liberties outside the area
  *   (so local play cannot even put it in atari). A wall without them is pulled into the area,
- *   so a stone KataGo expects to connect, or a chain in a race, is read, not assumed safe. Moves are the area's empty points (points emptied by captures included) and,
- *   for the defender, a pass. Walls never change. An area with more than `maxEmpty` empty
- *   points (the group reaches open board) is not a tsumego: the reader returns null.
+ *   so a stone KataGo expects to connect, or a chain in a race, is read, not assumed safe.
+ *   Moves are the area's empty points (points emptied by captures included) and, for the
+ *   defender, a pass. Walls never change. An area with more than `maxEmpty` empty points (the
+ *   group reaches open board) is not a tsumego: the reader returns null.
  * - Goal. The group is the target's chain plus the defender chains linked to it by shared
  *   liberties. Its largest chain is the main chain. The attacker wins by capturing the main
  *   chain (so giving up the main chain to save a smaller part counts as dead). The defender
@@ -24,19 +25,22 @@
  * - Search. Depth-first proof-number search (df-pn, with the 1+ε threshold trick) over a
  *   transposition table keyed by a Zobrist hash of the area, the side to move and the ko
  *   point. Moves are tried in this order: KataGo's hint first, then captures, ataris, the main
- *   chain's liberties and points next to many empty points (vital points). Node and time
- *   limits are counted. A search that hits one before a proof gives 'unresolved', never a
- *   guess.
+ *   chain's liberties and points next to many empty points (vital points). Filling one's
+ *   own one-point eye is never tried (passing is always as good). Node and time limits are
+ *   counted. A search that hits one before a proof gives 'unresolved', never a guess.
  * - Ko. Each result is read twice: once with the defender allowed to retake a ko at once
  *   (unlimited ko threats), once with the attacker allowed to. If the group is dead even when
  *   the defender wins every ko, it is dead. If it is alive even when the attacker wins every
- *   ko, it is alive. Otherwise its fate is a ko. A position repeated along a line counts for
- *   the side with threats, and a result that used such a repetition is not called proven
+ *   ko, it is alive. Otherwise its fate is a ko. When the first read meets no ko at all, the
+ *   second would read the same tree and is skipped. A position repeated along a line counts
+ *   for the side with threats, and a result that used such a repetition is not called proven
  *   (double ko and other long cycles).
  * - Seki. The defender can live because the attacker gives up rather than by Benson's test.
  *   If an attacker chain in the area then shares a liberty with the group and has at least as
  *   many liberties as the group's chain next to it, the result is 'seki'. This name is a
  *   heuristic. The defender's survival itself is proven.
+ * - Key. When more than one first move works, KataGo's move is the key if the reader can
+ *   prove it as well with the budget left; otherwise the key is the move it proved.
  *
  * Snapback, throw-ins and false eyes need no special code. They come out of legal play and
  * Benson's test.
@@ -899,6 +903,36 @@ class Reader {
   }
 
   /**
+   * Whether local point `p` also wins for `mover` in the read where `free` may retake kos:
+   * read on from the position after it. Used to make KataGo's move the key when it works as
+   * well as the move the search happened to prove first. Only a clean proof counts (no limit
+   * hit, no repetition, no deep line).
+   */
+  proveMove(mover: Color, free: Color, ko: number, p: number, nodes: number, deadline: number): boolean {
+    const t = free - 1;
+    const clean = () => !this.cycT[t] && !this.deepT[t];
+    if (!clean()) return false;
+    this.reset(mover, free, ko);
+    this.path.clear();
+    this.chains();
+    const rootKey = this.key();
+    const k = this.gen(0);
+    let i = 0;
+    while (i < k.n && k.mv[i] !== p) i++;
+    if (i === k.n) return false; // not a move the reader tries (illegal, or filling an own eye)
+    if (k.term[i]) return k.term[i] === 2; // it captures the main chain
+    this.aborted = false;
+    this.budget = this.nodes + Math.max(1, Math.floor(nodes));
+    this.deadline = deadline;
+    this.path.add(rootKey);
+    this.play(p);
+    const e = this.mid(k.key[i], INF, INF, 1);
+    this.undo();
+    this.path.delete(rootKey);
+    return e.delta === 0 && !this.aborted && clean();
+  }
+
+  /**
    * The group's fate with `mover` first: the read with the defender's unlimited ko threats
    * first (dead there is dead), then the attacker's (alive there is alive), else ko. When the
    * first read met no ko ban and no repetition, the second would read the very same tree:
@@ -936,9 +970,13 @@ class Reader {
    * is pass-alive, the attacker has only hopeless tries left, or at LINE_CAP moves. The
    * loser passes only when it has no other legal move.
    */
-  line(mover: Color, free: Color, ko: number, pick?: (k: Kids, ok: number[]) => number): number[] {
+  line(mover: Color, free: Color, ko: number, pick?: (k: Kids, ok: number[]) => number, first = -1): number[] {
     this.reset(mover, free, ko);
     const out: number[] = [];
+    if (first >= 0) {
+      out.push(first);
+      this.play(first);
+    }
     const visited = new Set<number>();
     while (out.length < LINE_CAP) {
       const key = this.key();
@@ -1010,18 +1048,32 @@ class Reader {
 // API
 
 /**
- * The group a question is about: the weakest sizeable group near `near` (any colour), its
- * local area, or null. `own` = Black-positive ownership (-1..1, size*size) from KataGo when
- * available. Only enclosed groups count (open fights are not tsumego). Weakest: lowest
- * ownership for its owner (without ownership: fewest liberties), pass-alive groups last,
- * single stones only when nothing bigger is near.
+ * The group a question is about, its local area, or null. `near` is the move being explained
+ * first, then its follow-up (KataGo's PV). `own` = Black-positive ownership (-1..1, size*size)
+ * from KataGo when available. Only enclosed groups count (open fights are not tsumego).
+ *
+ * Ranking: the group the move touches (a stone next to it), then a group whose area holds it
+ * (or that the follow-up touches); a group neither touches is skipped, pass-alive groups go
+ * last. Then bigger and closer groups first, single stones last. Ownership is only a
+ * tie-break: after best play the group in question is near +1 or -1 like any settled group,
+ * so on its own it cannot tell the group at stake from a dead stone nearby. With `mover` (the
+ * side playing near[0]) it can: the move gets its way, so the mover's group that ends alive
+ * or the other side's group that ends dead is preferred. Without `mover`, weaker first.
  */
-export function findTarget(board: Board, near: Loc[], own: Float32Array | null): { stones: Loc[]; owner: Color; region: Loc[] } | null {
+export function findTarget(
+  board: Board,
+  near: Loc[],
+  own: Float32Array | null,
+  mover?: Color,
+): { stones: Loc[]; owner: Color; region: Loc[] } | null {
   const n = board.size;
   const seen = new Uint8Array(board.stones.length);
+  const moves = near.filter((c) => c >= 0 && c < board.stones.length);
+  // 0: a stone next to the point, 0.5: the point is in the group's area, 1: neither.
+  const contact = (c: Loc, stones: Set<Loc>, area: Set<Loc>) =>
+    board.neighbors(c).some((q) => stones.has(q)) ? 0 : area.has(c) ? 0.5 : 1;
   let best: { stones: Loc[]; owner: Color; region: Loc[]; score: number } | null = null;
-  for (const c of near) {
-    if (c < 0 || c >= board.stones.length) continue;
+  for (const c of moves) {
     const cx = c % n;
     const cy = (c - cx) / n;
     for (let y = Math.max(0, cy - 2); y <= Math.min(n - 1, cy + 2); y++)
@@ -1033,12 +1085,10 @@ export function findTarget(board: Board, near: Loc[], own: Float32Array | null):
         const area = buildArea(board, p, own, DEFAULTS.maxEmpty);
         if (!area) continue;
         const owner = board.stones[p] as Color;
-        // A pass-alive group is never the question (a frame's wall, a settled corner): last.
         const r = new Reader(board, area, g.main[0], g.stones, []);
         r.chains();
         let status: number;
-        if (r.passAlive()) status = 2;
-        else if (own) {
+        if (own) {
           let t = 0;
           for (const s of g.stones) t += own[s];
           status = (owner === 1 ? t : -t) / g.stones.length;
@@ -1047,13 +1097,21 @@ export function findTarget(board: Board, near: Loc[], own: Float32Array | null):
           for (const s of g.stones) for (const q of board.neighbors(s)) if (!board.stones[q]) libs.add(q);
           status = Math.min(1, libs.size / 10);
         }
+        const stones = new Set(g.stones);
+        const pts = new Set(area.points);
+        let touch = contact(moves[0], stones, pts);
+        for (let i = 1; i < moves.length; i++) touch = Math.min(touch, 0.6 + 0.4 * contact(moves[i], stones, pts));
+        if (touch >= 1) continue; // the move and its follow-up are not about this group
+        // KataGo's ownership is after best play, so with the mover known it says which group the
+        // move gets its way with: the mover's group alive, or the other side's group dead.
+        const lean = own && mover ? -0.2 * (owner === mover ? status : -status) : 0.02 * status;
         let dist = Infinity;
-        for (const s of g.stones) dist = Math.min(dist, Math.max(Math.abs((s % n) - cx), Math.abs(Math.floor(s / n) - cy)));
-        const score = status - 0.02 * Math.min(g.stones.length, 10) + (g.stones.length < 2 ? 0.5 : 0) + 0.01 * dist;
+        for (const s of g.stones) dist = Math.min(dist, Math.abs((s % n) - (moves[0] % n)) + Math.abs(Math.floor(s / n) - Math.floor(moves[0] / n)));
+        const score =
+          (r.passAlive() ? 10 : 0) + 2 * touch - 0.03 * Math.min(g.stones.length, 10) + (g.stones.length < 2 ? 0.3 : 0) + 0.03 * Math.min(dist, 6) + lean;
         if (!best || score < best.score) {
           const anchor = g.main[0];
-          const stones = [anchor, ...g.stones.filter((s) => s !== anchor)];
-          best = { stones, owner, region: [...area.points].sort((u, v) => u - v), score };
+          best = { stones: [anchor, ...g.stones.filter((s) => s !== anchor)], owner, region: [...area.points].sort((u, v) => u - v), score };
         }
       }
   }
@@ -1069,11 +1127,14 @@ export function findTarget(board: Board, near: Loc[], own: Float32Array | null):
  * `result` is the group's fate with `toPlay` first, `ifOtherFirst` with the other side first.
  * `key` is the first move of the winning line when the side to move gets its way by moving
  * (absent when no move is needed, i.e. both orders give the same fate, when the side to move
- * cannot get its way, or when unresolved). `line` starts at `key`; when the side to move
- * cannot get its way it holds its strongest try and the refutation instead (empty for seki).
- * Lines are local points as board Locs; PASS (-1) inside a line is a move elsewhere (a ko
- * threat or tenuki). `proven` is true only when both reads behind `result` finished without
- * hitting a limit.
+ * cannot get its way, or when unresolved). When several moves work, `key` is the first hint
+ * move inside the area if the reader can prove it too with the budget left, else the move it
+ * proved first: a key that differs from KataGo's move means KataGo's move is outside the area,
+ * fails, or was not proven in time. `line` starts at `key`; when the side to move cannot get
+ * its way it holds its strongest try and the refutation instead (empty for seki). Lines are
+ * local points as board Locs; PASS (-1) inside a line is a move elsewhere (a ko threat or
+ * tenuki). `proven` is true only when both reads behind `result` finished without hitting a
+ * limit.
  */
 export function solveLifeDeath(board: Board, target: Loc, toPlay: Color, opts: LifeDeathOptions = {}, hint: Loc[] = []): LifeDeathVerdict | null {
   if (target < 0 || target >= board.stones.length || !board.stones[target]) return null;
@@ -1099,17 +1160,32 @@ export function solveLifeDeath(board: Board, target: Loc, toPlay: Color, opts: L
 
   const goal = toPlay === owner ? (f: Fate) => f === 'alive' || f === 'seki' : (f: Fate) => f === 'dead';
   const same = (f: Fate, g: Fate) => (f === 'seki' ? 'alive' : f) === (g === 'seki' ? 'alive' : g);
-  let key: Loc | undefined;
   let line: number[] = [];
-  if (result === 'ko' || goal(result)) {
-    // The side to move gets its way. A move is needed unless the other side moving first
-    // changes nothing.
-    if (result === 'ko' || !same(result, ifOtherFirst)) {
-      line = result === 'seki' ? lines1.win.slice(0, 1) : lines1.win;
-      if (line.length && line[0] >= 0) key = r.glob[line[0]];
-      else line = [];
+  let key: Loc | undefined;
+  if (result === 'ko' || (goal(result) && !same(result, ifOtherFirst))) {
+    // The side to move gets its way, and a move is needed (the other side moving first
+    // changes something).
+    line = result === 'seki' ? lines1.win.slice(0, 1) : lines1.win;
+    if (line.length && line[0] < 0) line = [];
+    // When the search proved another move first, check KataGo's first move (the hint) too, so
+    // the key is the move being explained whenever it works as well. This read comes last:
+    // a proof it leaves in the table is used by the key's line only, never by a verdict.
+    let h = -1;
+    for (let i = 0; i < r.hint.length; i++) if (r.hint[i] === 0) h = i;
+    const nodesLeft = Math.min(maxNodes - r.nodes, maxNodes * 0.2);
+    const until = Math.min(t0 + maxMs, now() + maxMs * 0.2);
+    if (line.length && h >= 0 && line[0] !== h && nodesLeft > 0 && now() < until) {
+      // Alive is checked where the attacker wins every ko (alive there is alive whatever the
+      // kos); dead and ko in the same read as the decision.
+      const free = first.fate === 'alive' ? r.att : first.free;
+      if (r.proveMove(toPlay, free, r.rootKo, h, nodesLeft, until)) {
+        const alt = { win: r.line(toPlay, free, r.rootKo, undefined, h), lose: [] };
+        // Not when the hint only gets seki where the proved move lives outright.
+        if (named(r, toPlay, r.rootKo, first, alt) === result) line = result === 'seki' ? alt.win.slice(0, 1) : alt.win;
+      }
     }
-  } else if (result !== 'unresolved' && result !== 'seki') {
+    if (line.length) key = r.glob[line[0]];
+  } else if (result !== 'unresolved' && result !== 'seki' && !goal(result)) {
     line = lines1.lose;
   }
   const missLine = ifOtherFirst === 'unresolved' || ifOtherFirst === 'seki' ? [] : lines2.win.length ? lines2.win : lines2.lose;

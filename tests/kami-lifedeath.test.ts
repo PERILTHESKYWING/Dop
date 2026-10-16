@@ -61,6 +61,17 @@ describe('life and death: eye shapes', () => {
     expect(v).toMatchObject({ result: 'dead', key: P('C1'), proven: true });
   });
 
+  it('when two moves work, the key is the hint (the move being explained)', () => {
+    // Black kills at D1 (the vital point) or at E1 (taking F1, which is short of liberties).
+    // White first gets only a ko: F1 can still be taken at E1.
+    const b = W('X X X X X X X X X', 'X O O O O X X X X', 'X O . . . O X X X');
+    for (const k of ['D1', 'E1']) {
+      const v = solve(b, 'B2', 1, {}, [k]);
+      expect(v).toMatchObject({ result: 'dead', ifOtherFirst: 'ko', key: P(k), proven: true });
+      expect(v.line[0]).toBe(P(k));
+    }
+  });
+
   it('a group with two eyes is alive with no move needed', () => {
     const b = W('X X X X X X X X X', 'X O O O O O O X X', 'X O . O O . O X X');
     for (const toPlay of [1, 2] as Color[]) {
@@ -152,6 +163,18 @@ describe('life and death: limits and open groups', () => {
     expect(solveLifeDeath(BULKY_FIVE, P('A1'), 1, { maxEmpty: 4 })).toBeNull();
   });
 
+  it('a stone KataGo gives to the attacker is not a wall while it is short of liberties', () => {
+    // Black B1 is in atari, its last liberty (A1) behind it. Ownership calls it Black's, but a
+    // wall must keep two liberties outside the area: B1 is read, so White can take it at A1
+    // (and the eye at B1 becomes a ko), and Black kills by connecting there first.
+    const b = W('X X X X X X X X X', 'X O O O O O X X X', '. X O . . O X X X');
+    const own = new Float32Array(81);
+    for (let p = 0; p < 81; p++) own[p] = b.stones[p] === 1 ? 1 : b.stones[p] === 2 ? -1 : 0;
+    expect(findTarget(b, [P('D1')], own)?.region).toEqual(expect.arrayContaining([P('A1'), P('B1')]));
+    expect(solve(b, 'B2', 2, { own })).toMatchObject({ result: 'ko', ifOtherFirst: 'dead', key: P('A1'), proven: true });
+    expect(solve(b, 'B2', 1, { own })).toMatchObject({ result: 'dead', ifOtherFirst: 'ko', key: P('A1'), proven: true });
+  });
+
   it('hitting the node limit gives unresolved, never a guess', () => {
     const v = solve(BULKY_FIVE, 'A1', 1, { maxNodes: 3 });
     expect(v).toMatchObject({ result: 'unresolved', proven: false, line: [] });
@@ -172,11 +195,22 @@ describe('findTarget', () => {
     expect(t!.region).not.toContain(P('A1'));
   });
 
-  it('prefers the group KataGo calls weak', () => {
+  it('prefers the group the move touches', () => {
     const own = new Float32Array(81).fill(0.9);
     for (const s of ['B1', 'B2', 'C2', 'D2', 'E2', 'F2', 'F1']) own[P(s)] = -0.6;
     const t = findTarget(STRAIGHT_THREE, [P('D1'), P('G2')], own);
     expect(t?.owner).toBe(2);
     expect(t?.stones[0]).toBe(P('B2'));
+  });
+
+  it('with the mover known, picks the group the move gets its way with, not a dead one', () => {
+    // Two White groups share one area and E2 touches neither. Ownership after best play gives
+    // the left group to Black (abandoned) and the right one to White. White to play: the
+    // question is the right group. Without the mover, the weaker (left) group is picked.
+    const b = W('X X X X X X X X X', 'O O O X . X O O X', '. . O . . . O . X');
+    const own = new Float32Array(81).fill(0.9);
+    for (const s of ['G2', 'H2', 'G1', 'F1', 'H1']) own[P(s)] = -0.9;
+    expect(findTarget(b, [P('E2')], own, 2)?.stones).toContain(P('G2'));
+    expect(findTarget(b, [P('E2')], own)?.stones).toContain(P('C2'));
   });
 });
