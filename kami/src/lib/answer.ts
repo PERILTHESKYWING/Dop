@@ -24,6 +24,8 @@ export interface AnswerDeps extends Omit<WriterDeps, 'signal'> {
   findConcepts: (text: string) => ConceptEntry[];
   /** Diagram settings (Kami's Settings: minimum winrate, reads); false turns diagrams off. */
   illustrate?: () => Partial<IllustrateOptions> | false;
+  /** False: a diagram the writer sketches is dropped unchecked (Settings › Positions). */
+  writerDiagrams?: () => boolean;
 }
 
 export interface AnswerEvents {
@@ -61,7 +63,7 @@ export async function answerQuestion(
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
   if (pick === 'myoshu' || pick === 'local') ev.onStage?.('writing');
   const checkOpts: Partial<IllustrateOptions> = { ...(illustrateDefaults(model, thinking) ?? illustrateDefaults('tesuji', 'medium')!), ...(settings || {}) };
-  const verify = settings === false ? undefined : (spec: Parameters<typeof verifyDiagram>[0], id: string) => verifyDiagram(spec, prober, id, checkOpts, signal);
+  const verify = settings === false || deps.writerDiagrams?.() === false ? undefined : (spec: Parameters<typeof verifyDiagram>[0], id: string) => verifyDiagram(spec, prober, id, checkOpts, signal);
   const writing = await writeAnswer(explanation, pick, { ...deps, signal, verifyDiagram: verify });
   if (writing.diagram) {
     explanation.illustrations = [...(explanation.illustrations ?? []), writing.diagram.illustration];

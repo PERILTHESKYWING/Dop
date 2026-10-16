@@ -19,6 +19,7 @@ import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
 import { problemBoard } from '../src/lib/problems/play';
 import type { Problem } from '../src/lib/problems/types';
 import { nodeProber } from './explainNode';
+import type { Prober } from '../src/lib/coach/explain/types';
 
 const { values: arg } = parseArgs({ options: { out: { type: 'string', default: 'critique.json' }, only: { type: 'string' }, thinking: { type: 'string', default: 'high' } } });
 const root = new URL('../', import.meta.url);
@@ -109,7 +110,12 @@ ITEMS[1].q = { kind: 'why-not', move: g('C10'), text: 'Why not C10?' };
 
 const only = arg.only?.split(',').map(Number);
 const thinking = arg.thinking as ThinkingLevel;
-const prober = await nodeProber();
+// The WASM engine is built for one board size, so keep one per size.
+const probers = new Map<number, Prober>();
+const proberFor = async (size: number) => {
+  if (!probers.has(size)) probers.set(size, await nodeProber(size));
+  return probers.get(size)!;
+};
 const name = (l: Loc, size: number) => (l === PASS || l < 0 ? 'pass' : locToGtp(l, size));
 
 function stonesOf(pos: ExplainPosition) {
@@ -175,6 +181,7 @@ for (const it of ITEMS) {
     continue;
   }
   const pos = { ...it.pos! };
+  const prober = await proberFor(pos.size);
   if (it.evenKomi) {
     // A framed problem: the komi that makes the right answer an even game (as the bank does).
     const r = await prober.read(pos, { visits: 200, maxMs: 30_000 });

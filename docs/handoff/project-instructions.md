@@ -14,7 +14,7 @@ How I want you to work:
 - Bug reports mean: reproduce, fix, PR. Don't ask me first for reversible work.
 - Ask me first before anything that costs money, deletes data, or changes production settings.
 - I'm on free plans: Vercel Hobby, Gemini Flash on the Google AI Studio free tier, free GitHub Actions. Keep LLM calls per turn low. Any Vercel or GitHub step I must do: spell it out click by click, as few as possible.
-- The LLM only explains KataGo's numbers and real data; it never invents positions or analysis. The app must still work with no LLM.
+- The LLM only explains KataGo's numbers and real data; it never invents analysis. A position built to explain an idea is shown only after code checks and a final KataGo read. The app must still work with no LLM.
 - Measure speed or strength changes (Settings > Benchmark, scripts/ai-eval.ts) and give me honest before/after numbers, including when something didn't help.
 - The free AI study board and Doppelgänger are the main features. Keep the UI plain (no gradients, short copy) and phone-friendly.
 - Replies: short, plain language, answer first. No long reports in chat.
