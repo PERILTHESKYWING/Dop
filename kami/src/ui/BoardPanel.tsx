@@ -455,23 +455,24 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
       {!preview && (
         <div className="bp-foot">
-          <div className="bp-steps" role="group" aria-label="Move through the game">
-            <button type="button" className="icon-btn" onClick={() => go(0)} disabled={board.cursor <= 0} aria-label="First move" title="First move (Home)">
-              <Icon name="first" />
-            </button>
-            <button type="button" className="icon-btn" onClick={() => go(board.cursor - 1)} disabled={board.cursor <= 0} aria-label="Previous move" title="Previous move (←)">
-              <Icon name="prev" />
-            </button>
-            <span className="bp-count" title={moveLine}>
+          <div className="bp-scrub" title={moveLine}>
+            <input
+              type="range"
+              className="scrub"
+              min={0}
+              max={Math.max(n, 1)}
+              step={1}
+              value={board.cursor}
+              disabled={!n}
+              onChange={(e) => go(Number(e.target.value))}
+              aria-label="Move"
+              aria-valuetext={moveLine}
+              style={{ '--pct': `${n ? (100 * board.cursor) / n : 0}%` } as React.CSSProperties}
+            />
+            <span className="bp-count">
               {board.cursor}
               <span className="of"> / {n}</span>
             </span>
-            <button type="button" className="icon-btn" onClick={() => go(board.cursor + 1)} disabled={board.cursor >= n} aria-label="Next move" title="Next move (→)">
-              <Icon name="next" />
-            </button>
-            <button type="button" className="icon-btn" onClick={() => go(n)} disabled={board.cursor >= n} aria-label="Last move" title="Last move (End)">
-              <Icon name="last" />
-            </button>
           </div>
           {n > 0 && (
             <div className="bp-tabs" role="tablist" aria-label="Game graphs">

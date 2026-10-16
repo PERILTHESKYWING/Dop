@@ -1462,19 +1462,80 @@ kbd {
   gap: 8px;
   container-type: inline-size;
 }
-.bp-steps {
-  flex: none;
+/* The move slider: drag (or click anywhere on it) to go to any move; the count follows. */
+.bp-scrub {
+  flex: 1 1 auto;
+  min-width: 120px;
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 10px;
   height: 34px;
+  padding-left: 4px;
 }
-.bp-steps .icon-btn {
-  width: 34px;
+.scrub {
+  --pct: 0%;
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: none;
+}
+.scrub:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--pct), var(--line-strong) var(--pct));
+}
+.scrub::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.scrub::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s;
+}
+.scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.scrub:not(:disabled):hover::-webkit-slider-thumb,
+.scrub:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.scrub:focus-visible {
+  outline: none;
+}
+.scrub:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 .bp-count {
-  min-width: 70px;
-  text-align: center;
+  flex: none;
+  min-width: 64px;
+  text-align: right;
   font-size: 13.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -1570,11 +1631,6 @@ kbd {
   }
   .bp-tabs button {
     padding: 0 10px;
-  }
-}
-@container (max-width: 330px) {
-  .bp-steps .icon-btn:is(:first-child, :last-child) {
-    display: none;
   }
 }
 
