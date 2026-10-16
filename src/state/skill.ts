@@ -89,7 +89,7 @@ function estimate(cal: LevelCalibration, s: GameLevelSample | null): SideSkill {
   const phases: Partial<Record<Phase, LevelEstimate>> = {};
   for (const p of PHASES) {
     const f = s.phases[p];
-    const e = f ? estimateWith(cal, p, [f], overall?.rank) : null;
+    const e = f ? estimateWith(cal, p, [f], overall?.raw ?? overall?.rank) : null;
     if (e) phases[p] = e;
   }
   return { overall, phases };

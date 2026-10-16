@@ -26,8 +26,8 @@ function copyIfChanged(from: string, to: string) {
 }
 
 /**
- * Dop's engine worker + WebAssembly, the bundled b10 network and the board's wood texture,
- * copied into kami/public (git-ignored). BrowserEngine loads them from /engine/ and /models/,
+ * Dop's engine worker + WebAssembly, the bundled b10 network, the board's wood texture and
+ * the rank calibration, copied into kami/public (git-ignored). BrowserEngine loads them from /engine/ and /models/,
  * and ENGINE_FILES in src/lib/engine/browserEngine.ts busts the week-long /engine cache on
  * both sites, so nothing here needs bumping by hand.
  */
@@ -43,6 +43,8 @@ export function copyEngineFiles() {
     if (f.startsWith('g170e-b10c128-') && f.endsWith('.bin.gz')) copyIfChanged(path.join(models, f), path.join(pub, 'models', f));
   }
   copyIfChanged(path.join(repo, 'public', 'art', 'kaya.webp'), path.join(pub, 'art', 'kaya.webp'));
+  // The rank calibration behind the Performance tab's game rating (src/lib/level).
+  copyIfChanged(path.join(repo, 'public', 'level', 'calibration.json'), path.join(pub, 'level', 'calibration.json'));
 }
 
 /** /api/llm during `vite dev` and `vite preview`, with the same handler as kami/api/llm.ts. */

@@ -297,7 +297,7 @@ export function App() {
         }}
       />
       <div className="scrim" onClick={() => setDrawer(false)} />
-      <div className="work">
+      <div className="work split">
         <header className="topbar">
           <button className="icon-btn only-phone" aria-label="Open chats" onClick={() => setDrawer(true)}>
             <Icon name="sidebar" size={20} />
@@ -316,58 +316,56 @@ export function App() {
             <Icon name="plus" />
           </button>
         </header>
-        <div className="split">
-          <main className="chat">
-            <Messages
-              messages={current.messages}
-              running={running?.convId === current.id ? running : null}
-              board={current.board}
-              link={{ onHover: setHover, onPin: setPinned, pinnedKey: pinned?.key ?? null }}
-              onAsk={send}
-              onRegenerate={() => rerun()}
-              onEdit={(text) => rerun(text)}
-              onShowBoard={(b) => {
-                setBoard(b);
-                setBoardHidden(false);
-              }}
-              busy={!!running}
-            />
-            <Composer
-              value={draft}
-              onChange={setDraft}
-              tiers={tiers}
-              tier={tier}
-              onPick={setPick}
-              thinking={thinking}
-              onThinking={setThinking}
-              running={!!running}
-              onSend={send}
-              onStop={stop}
-              llmOn={llmOn}
-            />
-          </main>
-          {!boardHidden && <Splitter />}
-          {!boardHidden && (
-            <BoardPanel
-              board={current.board}
-              preview={preview}
-              onBoard={(b) => {
-                clearPreview();
-                setBoard(b);
-              }}
-              onPlay={(loc) => {
-                if (preview) return clearPreview();
-                const b = playAt(current.board, loc);
-                if (b) setBoard(b);
-              }}
-              onUndo={() => setBoard(undo(current.board))}
-              onClearPreview={clearPreview}
-              onSgfText={loadSgfText}
-              onSgfFile={loadSgfFile}
-              onSettings={(page) => setSettings(page ?? 'board')}
-            />
-          )}
-        </div>
+        <main className="chat">
+          <Messages
+            messages={current.messages}
+            running={running?.convId === current.id ? running : null}
+            board={current.board}
+            link={{ onHover: setHover, onPin: setPinned, pinnedKey: pinned?.key ?? null }}
+            onAsk={send}
+            onRegenerate={() => rerun()}
+            onEdit={(text) => rerun(text)}
+            onShowBoard={(b) => {
+              setBoard(b);
+              setBoardHidden(false);
+            }}
+            busy={!!running}
+          />
+          <Composer
+            value={draft}
+            onChange={setDraft}
+            tiers={tiers}
+            tier={tier}
+            onPick={setPick}
+            thinking={thinking}
+            onThinking={setThinking}
+            running={!!running}
+            onSend={send}
+            onStop={stop}
+            llmOn={llmOn}
+          />
+        </main>
+        {!boardHidden && <Splitter />}
+        {!boardHidden && (
+          <BoardPanel
+            board={current.board}
+            preview={preview}
+            onBoard={(b) => {
+              clearPreview();
+              setBoard(b);
+            }}
+            onPlay={(loc) => {
+              if (preview) return clearPreview();
+              const b = playAt(current.board, loc);
+              if (b) setBoard(b);
+            }}
+            onUndo={() => setBoard(undo(current.board))}
+            onClearPreview={clearPreview}
+            onSgfText={loadSgfText}
+            onSgfFile={loadSgfFile}
+            onSettings={(page) => setSettings(page ?? 'board')}
+          />
+        )}
       </div>
       {settings && <Settings page={settings} onPage={setSettings} onClose={() => setSettings(null)} convs={convs} llmOn={llmOn} onDeleteAll={removeAll} />}
       {toast && (
