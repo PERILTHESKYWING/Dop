@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KAMI_VERSION, type ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import { useSetting } from '../lib/settings';
 import type { PickId, Tier } from '../lib/writer';
 import { Icon } from './Icon';
 
@@ -58,6 +59,7 @@ interface Props {
 
 export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThinking, running, onSend, onStop, llmOn }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
+  const enterSends = useSetting<boolean>('chat.enterSends');
   useEffect(() => {
     const el = ta.current;
     if (!el) return;
@@ -85,7 +87,7 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
         aria-label="Message"
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing && (enterSends ? !e.shiftKey : e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             submit();
           }
