@@ -1,16 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Board, type Mark } from '../../../src/components/Board';
-import { BlunderPanel, PerformancePanel, TrendPanel } from '../../../src/components/Report';
+import { BlunderPanel, TrendPanel } from '../../../src/components/Report';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
 import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
 import { replay } from '../../../src/lib/go/board';
 import { colorName, PASS, type Loc, type Move } from '../../../src/lib/go/types';
-import { useBoardRead, useLineReads } from '../lib/analysis';
+import { cachedRead, useBoardRead, useLineReads } from '../lib/analysis';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { emptyBoard, explainPositionOf, goTo, hasPosition, toPlayAt, type BoardState } from '../lib/position';
+import { useGameRating } from '../lib/rating';
+import { reviewMoves } from '../lib/review';
 import { setSetting, useSetting } from '../lib/settings';
 import { Icon } from './Icon';
+import { Performance } from './Performance';
 import { Popover } from './Popover';
 import type { SettingsPage } from './Settings';
 
@@ -79,9 +82,10 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
 }
 
 /**
- * The board column: one thin line for the game and who plays, the board as big as the column
- * allows, the step buttons and the Trend / Blunders / Performance graphs. Everything else
- * (best moves, territory, pass, undo, loading a game, a new board) sits behind the gear.
+ * The board column: the players along the top with the gear, a thin eval bar, the board as
+ * big as the column allows (it grows when the column is dragged wider), and one row with the
+ * step buttons and the Trend / Blunders / Performance graphs. Everything else (best moves,
+ * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
 export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings }: Props) {
   const status = useSyncExternalStore(onEngineStatus, engineStatus);
@@ -100,7 +104,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
   // The position on the board, read by KataGo for the best moves and territory.
   const position = useMemo(() => (withStones && !preview ? explainPositionOf(board) : null), [board, preview, withStones]);
-  const { read, pending } = useBoardRead(position);
+  const { read, last, pending } = useBoardRead(position);
 
   // Every position along the game, read quickly while a graph is open.
   const line = useMemo(
@@ -172,8 +176,27 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   }, []);
 
   const passed = board.cursor > 0 && board.moves[board.cursor - 1].loc === PASS;
-  const caption = preview ? preview.title : `${board.cursor ? `Move ${board.cursor}` : n ? 'Start' : 'Empty board'} · ${colorName(toPlay)} to play${passed ? ' (after a pass)' : ''}`;
+  const moveLine = `${board.cursor ? `Move ${board.cursor}` : n ? 'Start' : 'Empty board'} · ${colorName(toPlay)} to play${passed ? ' (after a pass)' : ''}`;
 
+  // The Performance tab's numbers: move classes from the graph reads, the rating from b10.
+  const lineReadsFull = useMemo(
+    () => (tab === 'performance' && line ? line.map((p) => cachedRead(p)) : null),
+    // `lineReads.done` changes as reads land.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tab, line, lineReads.done],
+  );
+  const rating = useGameRating(board, tab === 'performance' && !preview && n > 0);
+  const reviewed = useMemo(
+    () => (lineReadsFull && line ? reviewMoves(line, lineReadsFull, board.moves, board.size, rating?.state === 'done' ? rating.policy : undefined) : []),
+    [lineReadsFull, line, board.moves, board.size, rating],
+  );
+
+  const progress =
+    lineReads.done < lineReads.total ? (
+      <span>
+        Reading the game… {lineReads.done}/{lineReads.total}
+      </span>
+    ) : null;
   const report = {
     values: lineReads.values,
     moves: board.moves,
@@ -182,43 +205,88 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     white: board.white ?? 'White',
     cursor: board.cursor,
     onPick: go,
-    progress: (
-      <span>
-        Reading the game… {lineReads.done}/{lineReads.total}
-      </span>
-    ),
+    progress: progress ?? undefined,
   };
   let panel: ReactNode = null;
   if (!preview && tab && n) {
     if (tab === 'trend') panel = <TrendPanel {...report} />;
     else if (tab === 'blunder') panel = <BlunderPanel {...report} />;
-    else panel = <PerformancePanel {...report} />;
+    else {
+      const measuring = rating?.state === 'measuring' ? `Rating the game… ${rating.done}/${rating.total}` : null;
+      panel = (
+        <Performance
+          black={report.black}
+          white={report.white}
+          moves={reviewed}
+          rating={rating}
+          cursor={board.cursor}
+          onPick={go}
+          progress={progress || measuring ? <span>{[progress ? `Reading the game… ${lineReads.done}/${lineReads.total}` : null, measuring].filter(Boolean).join(' · ')}</span> : null}
+        />
+      );
+    }
   }
 
+  // Escape closes an open graph (when nothing else has the focus).
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !tabRef.current || e.defaultPrevented) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, select, [role="dialog"], [role="menu"]')) return;
+      setTab(null);
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, []);
+
   const caps = view.captures;
-  // The names row and the step row (or the note) share the stage with the board.
-  const [boxRef, side] = useSquare(preview ? 36 + 6 : 22 + 34 + 12);
+  // Only the note under a previewed line shares the stage with the board.
+  const [boxRef, side] = useSquare(preview ? 42 : 0);
   const namesTitle = board.black || board.white ? `${board.black ?? 'Black'} vs ${board.white ?? 'White'}` : '';
   const title = board.title && board.title !== namesTitle ? board.title : '';
   const engineLine = status.state === 'idle' ? null : `${status.text}${status.state === 'loading' && status.pct !== undefined ? ` ${status.pct}%` : ''}`;
 
+  // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
+  const shown = withStones && !preview ? (read ?? last) : null;
+  const bWin = shown ? shown.bWin : 0.5;
+  const lead = shown ? shown.bLead : null;
+  const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'B' : 'W'}+${Math.abs(lead).toFixed(1)}`;
+
+  const player = (c: 1 | 2) => (
+    <span className={`pl${toPlay === c && !preview ? ' turn' : ''}`} title={toPlay === c ? `${c === 1 ? board.black || 'Black' : board.white || 'White'} to play` : undefined}>
+      <i className={`stone ${c === 1 ? 'b' : 'w'}`} />
+      <span className="pl-name">{(c === 1 ? board.black : board.white) || (c === 1 ? 'Black' : 'White')}</span>
+      {caps && caps[c] > 0 && (
+        <span className="pl-caps" title="Stones captured">
+          +{caps[c]}
+        </span>
+      )}
+    </span>
+  );
+  const tabInfo = TABS.find((t) => t.id === tab);
+
   return (
     <section className={`board-panel${preview ? ' previewing' : ''}${panel ? ' with-graph' : ''}`} aria-label="Board">
       <div className="bp-head">
-        <div className="bp-caption" title={title || undefined}>
-          {title && !preview && <span className="bp-title">{title}</span>}
-          <span>{caption}</span>
-        </div>
+        {preview ? (
+          <div className="bp-caption">
+            <span>{preview.title}</span>
+          </div>
+        ) : (
+          <div className="bp-players" title={[title, moveLine].filter(Boolean).join(' · ')}>
+            {player(1)}
+            <span className="pl-vs" aria-hidden="true">
+              vs
+            </span>
+            {player(2)}
+          </div>
+        )}
         {status.state !== 'idle' && status.state !== 'ready' && !preview && (
           <span className={`engine-chip ${status.state}`} title={engineLine ?? undefined}>
             <span className="dot" />
             {status.state === 'failed' ? 'KataGo failed' : `KataGo${status.pct !== undefined ? ` ${status.pct}%` : ''}`}
-          </span>
-        )}
-        {pending && status.state === 'ready' && !preview && (
-          <span className="engine-chip reading" title="KataGo is reading this position">
-            <span className="dot" />
-            Reading
           </span>
         )}
         {preview?.pinned ? (
@@ -238,7 +306,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           >
             {(close) => (
               <>
-                <div className="pop-head">Board</div>
+                <div className="pop-head">{title || 'Board'}</div>
                 <Switch on={bestOn} onChange={(v) => setSetting('board.best', v)} label="Best moves" icon="target" />
                 <Switch on={territoryOn} onChange={(v) => setSetting('board.territory', v)} label="Territory" icon="territory" />
                 <Switch on={coords} onChange={(v) => setSetting('board.coords', v)} label="Coordinates" icon="board" />
@@ -331,51 +399,62 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         )}
       </div>
 
-      <div className="bp-stage" ref={boxRef}>
-        {!preview ? (
-          <div className="bp-players">
-            <span className={`pl${toPlay === 1 ? ' turn' : ''}`}>
-              <i className="stone b" />
-              <span className="pl-name">{board.black || 'Black'}</span>
-              {caps && caps[1] > 0 && (
-                <span className="pl-caps" title="Stones captured">
-                  +{caps[1]}
-                </span>
-              )}
-            </span>
-            <span className={`pl${toPlay === 2 ? ' turn' : ''}`}>
-              <i className="stone w" />
-              <span className="pl-name">{board.white || 'White'}</span>
-              {caps && caps[2] > 0 && (
-                <span className="pl-caps" title="Stones captured">
-                  +{caps[2]}
-                </span>
-              )}
-            </span>
-          </div>
-        ) : null}
+      {!preview && (
+        <div
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}`}
+          title={
+            shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
+          }
+        >
+          <span className="ev-n">{shown ? `${(bWin * 100).toFixed(1)}%` : 'Black'}</span>
+          <span className="ev-track" aria-hidden="true">
+            <span className="ev-fill" style={{ width: `${(bWin * 100).toFixed(1)}%` }} />
+            <span className="ev-mid" />
+          </span>
+          <span className="ev-n">{shown ? `${((1 - bWin) * 100).toFixed(1)}%` : 'White'}</span>
+          {leadText && <span className="ev-lead">{leadText}</span>}
+          {pending && status.state === 'ready' && <span className="ev-dot" aria-label="KataGo is reading" />}
+        </div>
+      )}
 
-        <div className="bp-square" style={{ width: side, height: side }}>
-          <Board
-            size={view.size}
-            stones={view.stones}
-            lastMove={view.last}
-            toPlay={preview ? undefined : toPlay}
-            onPlay={play}
-            marks={view.marks}
-            candidates={candidates}
-            onCandidateHover={(l) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null))}
-            onCandidateClick={play}
-            variation={variation}
-            ownership={ownership}
-            coords={coords}
-            ariaLabel={preview ? `Variation: ${preview.title}` : 'Board: click to play'}
-          />
+      <div className="bp-body">
+        <div className="bp-stage" ref={boxRef}>
+          <div className="bp-square" style={{ width: side, height: side }}>
+            <Board
+              size={view.size}
+              stones={view.stones}
+              lastMove={view.last}
+              toPlay={preview ? undefined : toPlay}
+              onPlay={play}
+              marks={view.marks}
+              candidates={candidates}
+              onCandidateHover={(l) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null))}
+              onCandidateClick={play}
+              variation={variation}
+              ownership={ownership}
+              coords={coords}
+              ariaLabel={preview ? `Variation: ${preview.title}` : 'Board: click to play'}
+            />
+          </div>
+          {preview && <p className="bp-note">{preview.note || (preview.pinned ? 'Tap the board or the × to go back.' : ' ')}</p>}
         </div>
 
-        {preview ? (
-          <p className="bp-note">{preview.note || (preview.pinned ? 'Tap the board or the × to go back.' : ' ')}</p>
-        ) : (
+        {panel && tabInfo && (
+          <div className="bp-graph" role="region" aria-label={tabInfo.label}>
+            <div className="bp-graph-head">
+              <Icon name={tabInfo.icon} size={16} />
+              <span className="grow">{tabInfo.label}</span>
+              <button type="button" className="icon-btn sm" aria-label={`Close ${tabInfo.label}`} title="Close (Esc)" onClick={() => setTab(null)}>
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+            <div className="bp-graph-body">{panel}</div>
+          </div>
+        )}
+      </div>
+
+      {!preview && (
+        <div className="bp-foot">
           <div className="bp-steps" role="group" aria-label="Move through the game">
             <button type="button" className="icon-btn" onClick={() => go(0)} disabled={board.cursor <= 0} aria-label="First move" title="First move (Home)">
               <Icon name="first" />
@@ -383,7 +462,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             <button type="button" className="icon-btn" onClick={() => go(board.cursor - 1)} disabled={board.cursor <= 0} aria-label="Previous move" title="Previous move (←)">
               <Icon name="prev" />
             </button>
-            <span className="bp-count">
+            <span className="bp-count" title={moveLine}>
               {board.cursor}
               <span className="of"> / {n}</span>
             </span>
@@ -394,20 +473,27 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               <Icon name="last" />
             </button>
           </div>
-        )}
-      </div>
-
-      {!preview && n > 0 && (
-        <div className="bp-tabs" role="tablist" aria-label="Game graphs">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(tab === t.id ? null : t.id)}>
-              <Icon name={t.icon} size={16} />
-              <span>{t.label}</span>
-            </button>
-          ))}
+          {n > 0 && (
+            <div className="bp-tabs" role="tablist" aria-label="Game graphs">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-label={t.label}
+                  aria-selected={tab === t.id}
+                  className={tab === t.id ? 'on' : ''}
+                  title={tab === t.id ? `Close ${t.label}` : t.label}
+                  onClick={() => setTab(tab === t.id ? null : t.id)}
+                >
+                  <Icon name={t.icon} size={16} />
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {panel && <div className="bp-graph">{panel}</div>}
 
       {paste !== null && (
         <div className="bp-sheet" role="dialog" aria-label="Paste SGF">

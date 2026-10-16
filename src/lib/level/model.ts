@@ -62,6 +62,14 @@ export interface LevelCalibration {
   buckets: RankBucket[];
   /** Held-out accuracy when k games are averaged: k → mean absolute error in ranks. */
   maeByGames: Record<string, number>;
+  /**
+   * Bias correction, per model ('all' or a phase) and per number of games combined: pairs
+   * [typical estimate, true rank], both increasing, measured on held-out games. A single
+   * game's estimate is pulled toward the middle of the scale (strong players come out too
+   * low, beginners too high); this maps it back so that, on average, a player of rank r is
+   * shown rank r. See debias().
+   */
+  debias?: Partial<Record<'all' | Phase, Record<string, [number, number][]>>>;
   createdAt: string;
 }
 
@@ -153,6 +161,8 @@ export function logLikelihood(m: RidgeModel, score: number, n: number, r: number
 
 export interface LevelEstimate {
   rank: number;
+  /** The rank before the bias correction (what decides who counts as strong). */
+  raw?: number;
   /** 80% range. */
   low: number;
   high: number;
@@ -243,11 +253,56 @@ export function combineTiered(base: RidgeModel, top: RidgeModel | undefined, lis
   };
 }
 
-/** Estimate from games (whole game when `phase` is null, else that phase's numbers). */
+/** The correction table for `games` games combined: the nearest count measured at or below it. */
+export function debiasTable(cal: Pick<LevelCalibration, 'debias'>, phase: Phase | null, games: number): [number, number][] | null {
+  const byK = cal.debias?.[phase ?? 'all'];
+  if (!byK) return null;
+  const ks = Object.keys(byK)
+    .map(Number)
+    .filter((k) => k <= Math.max(1, games))
+    .sort((a, b) => b - a);
+  const t = ks.length ? byK[String(ks[0])] : null;
+  return t && t.length >= 2 ? t : null;
+}
+
+/** Map a raw estimate through a correction table (straight lines between its points, slope 1 past its ends). */
+export function debias(table: readonly [number, number][] | null, x: number): number {
+  if (!table || table.length < 2) return x;
+  if (x <= table[0][0]) return clampRank(x + table[0][1] - table[0][0]);
+  const last = table[table.length - 1];
+  if (x >= last[0]) return clampRank(x + last[1] - last[0]);
+  for (let i = 1; i < table.length; i++) {
+    const [p1, r1] = table[i];
+    if (x <= p1) {
+      const [p0, r0] = table[i - 1];
+      return clampRank(p1 > p0 ? r0 + ((x - p0) / (p1 - p0)) * (r1 - r0) : r1);
+    }
+  }
+  return x;
+}
+
+/**
+ * Estimate from games (whole game when `phase` is null, else that phase's numbers), with
+ * the held-out bias correction applied. `gate` is the whole game's raw estimate.
+ */
 export function estimateWith(cal: LevelCalibration, phase: Phase | null, list: readonly RidgeInput[], gate?: number): LevelEstimate | null {
   const base = phase ? cal.phases[phase] : cal.all;
   if (!base) return null;
-  return combineTiered(base, phase ? cal.top?.phases[phase] : cal.top?.all, list, gate);
+  const e = combineTiered(base, phase ? cal.top?.phases[phase] : cal.top?.all, list, gate);
+  if (!e) return e;
+  const t = debiasTable(cal, phase, e.games);
+  const one = debiasTable(cal, phase, 1);
+  if (!t) return { ...e, raw: e.rank };
+  const rank = debias(t, e.rank);
+  return {
+    ...e,
+    raw: e.rank,
+    rank,
+    // The range moves with the estimate.
+    low: Math.min(rank, debias(t, e.low)),
+    high: Math.max(rank, debias(t, e.high)),
+    perGame: e.perGame.map((r) => debias(one, r)),
+  };
 }
 
 export interface PlayerLevel {
@@ -266,7 +321,12 @@ export function estimateLevel(cal: LevelCalibration, samples: readonly GameLevel
   if (!overall) return null;
   const phases: Partial<Record<Phase, LevelEstimate>> = {};
   for (const p of PHASES) {
-    const e = estimateWith(cal, p, samples.map((s) => s.phases[p]).filter((f): f is LevelFeatures => !!f), overall.rank);
+    const e = estimateWith(
+      cal,
+      p,
+      samples.map((s) => s.phases[p]).filter((f): f is LevelFeatures => !!f),
+      overall.raw ?? overall.rank,
+    );
     if (e) phases[p] = e;
   }
   const signatures: Record<string, [number, number]> = {};

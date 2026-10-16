@@ -20,6 +20,7 @@ import {
   lengthBucket,
   MIN_GAME_MOVES,
   MIN_PHASE_MOVES,
+  debias as debiasRank,
   predictOne,
   ridgeFeatures,
   ridgeScore,
@@ -134,20 +135,24 @@ const round = (x: number, d = 4) => Math.round(x * 10 ** d) / 10 ** d;
 
 type Pick = (r: Row) => RidgeInput | undefined;
 const movesOf = (x: RidgeInput) => ('all' in x ? x.all.n : x.n);
-const usable = (phase: Phase | null) => (x: RidgeInput | undefined): x is RidgeInput => !!x && movesOf(x) >= (phase ? MIN_PHASE_MOVES * 2 : MIN_GAME_MOVES);
+const usable =
+  (phase: Phase | null) =>
+  (x: RidgeInput | undefined): x is RidgeInput =>
+    !!x && movesOf(x) >= (phase ? MIN_PHASE_MOVES * 2 : MIN_GAME_MOVES);
 
 /** Signatures common enough to be features. */
 const SIGS = (() => {
   const count = new Map<string, number>();
   for (const r of rows) for (const id of Object.keys(r.signatures)) count.set(id, (count.get(id) ?? 0) + 1);
-  return [...count].filter(([, c]) => c >= rows.length * 0.2).map(([id]) => id).sort();
+  return [...count]
+    .filter(([, c]) => c >= rows.length * 0.2)
+    .map(([id]) => id)
+    .sort();
 })();
 
 function fit(train: Row[], pick: Pick, phase: Phase | null): Omit<RidgeModel, 'maeGame'> {
   const shape = { phase, sigs: phase ? [] : SIGS };
-  const data = train
-    .map((r) => ({ x: pick(r), y: r.rank, recency: recency.get(r) ?? 1 }))
-    .filter((d): d is { x: RidgeInput; y: number; recency: number } => usable(phase)(d.x));
+  const data = train.map((r) => ({ x: pick(r), y: r.rank, recency: recency.get(r) ?? 1 })).filter((d): d is { x: RidgeInput; y: number; recency: number } => usable(phase)(d.x));
   const X = data.map((d) => ridgeFeatures(shape, d.x));
   const d = X[0].length;
   const mean = new Array(d).fill(0);
@@ -189,8 +194,13 @@ function fit(train: Row[], pick: Pick, phase: Phase | null): Omit<RidgeModel, 'm
     return { s: wsum ? qs.reduce((a, q) => a + q.w * q.s, 0) / wsum : NaN, w: wsum };
   });
   const smooth = ranks.map((_, i) => {
-    let s = 0, ws = 0;
-    for (const [j, k] of [[i - 1, 0.25], [i, 0.5], [i + 1, 0.25]] as const)
+    let s = 0,
+      ws = 0;
+    for (const [j, k] of [
+      [i - 1, 0.25],
+      [i, 0.5],
+      [i + 1, 0.25],
+    ] as const)
       if (raw[j] && raw[j].w > 0) {
         s += k * raw[j].w * raw[j].s;
         ws += k * raw[j].w;
@@ -218,7 +228,14 @@ function crossValidate(pick: Pick, phase: Phase | null, train: (r: Row) => boole
   const errs: { r: Row; pred: number }[] = [];
   const folds: RidgeModel[] = [];
   for (let fold = 0; fold < 5; fold++) {
-    const m: RidgeModel = { ...fit(rows.filter((r) => foldOf(r) !== fold && train(r)), pick, phase), maeGame: 0 };
+    const m: RidgeModel = {
+      ...fit(
+        rows.filter((r) => foldOf(r) !== fold && train(r)),
+        pick,
+        phase,
+      ),
+      maeGame: 0,
+    };
     folds.push(m);
     for (const r of rows.filter((r) => foldOf(r) === fold)) {
       const x = pick(r);
@@ -256,11 +273,14 @@ function tiered(name: string, pick: Pick, phase: Phase | null, ks: number[], gat
   const byRank = new Map<number, Row[]>();
   for (const e of base.errs) byRank.set(e.r.rank, [...(byRank.get(e.r.rank) ?? []), e.r]);
   let seed = 1;
-  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
   const mae: Record<string, number> = {};
   const one: { r: Row; pred: number }[] = [];
+  const preds: Record<string, { rank: number; pred: number; fold: number }[]> = {};
   for (const k of [1, ...ks]) {
-    let err = 0, n = 0;
+    let err = 0,
+      n = 0;
+    const kp: { rank: number; pred: number; fold: number }[] = (preds[String(k)] = []);
     for (const [rank, list] of byRank)
       for (let fold = 0; fold < 5; fold++) {
         // Games of one fold, scored by the models that never saw that fold.
@@ -268,24 +288,112 @@ function tiered(name: string, pick: Pick, phase: Phase | null, ks: number[], gat
         if (inFold.length < k) continue;
         const draws = k === 1 ? inFold.map((r) => [r]) : Array.from({ length: 8 }, () => [...inFold].sort(() => rnd() - 0.5).slice(0, k));
         for (const pickRows of draws) {
-          const e = combineTiered(base.folds[fold], top?.folds[fold], pickRows.map((r) => pick(r)!), gate?.(pickRows, fold));
+          const e = combineTiered(
+            base.folds[fold],
+            top?.folds[fold],
+            pickRows.map((r) => pick(r)!),
+            gate?.(pickRows, fold),
+          );
           if (!e) continue;
           err += Math.abs(e.rank - rank);
           n++;
+          kp.push({ rank, pred: e.rank, fold });
           if (k === 1) one.push({ r: pickRows[0], pred: e.rank });
         }
       }
     mae[String(k)] = round(err / n, 3);
   }
-  console.log(`${name}: mean error ${Object.entries(mae).map(([k, v]) => `${v} (${k} game${k === '1' ? '' : 's'})`).join(', ')}`);
-  for (const band of [[-17, -9], [-8, 0], [1, 9], [10, 12]]) {
+  console.log(
+    `${name}: mean error ${Object.entries(mae)
+      .map(([k, v]) => `${v} (${k} game${k === '1' ? '' : 's'})`)
+      .join(', ')}`,
+  );
+  for (const band of [
+    [-17, -9],
+    [-8, 0],
+    [1, 9],
+    [10, 12],
+  ]) {
     const e = one.filter((x) => x.r.rank >= band[0] && x.r.rank <= band[1]);
     if (e.length)
       console.log(
         `  ranks ${band[0]}..${band[1]}: ${e.length} sides, mean error ${(e.reduce((a, x) => a + Math.abs(x.pred - x.r.rank), 0) / e.length).toFixed(2)}, bias ${(e.reduce((a, x) => a + x.pred - x.r.rank, 0) / e.length).toFixed(2)}`,
       );
   }
-  return { base: { ...base.model, maeGame: mae['1'] }, top: top?.model, mae, folds: base.folds, topFolds: top?.folds };
+  // The bias correction: for each true rank, where held-out estimates land on average.
+  // Scored honestly, with tables built without the fold being scored.
+  const debias: Record<string, [number, number][]> = {};
+  const fixedMae: Record<string, number> = {};
+  for (const [k, list] of Object.entries(preds)) {
+    let err = 0;
+    const fixed: { rank: number; pred: number }[] = [];
+    for (let fold = 0; fold < 5; fold++) {
+      const t = debiasFrom(list.filter((p) => p.fold !== fold));
+      for (const p of list.filter((p) => p.fold === fold)) {
+        const x = debiasRank(t, p.pred);
+        err += Math.abs(x - p.rank);
+        fixed.push({ rank: p.rank, pred: x });
+      }
+    }
+    fixedMae[k] = round(err / list.length, 3);
+    debias[k] = debiasFrom(list);
+    if (k === '1')
+      for (const band of [
+        [-17, -9],
+        [-8, 0],
+        [1, 9],
+        [10, 12],
+      ]) {
+        const line = (xs: { rank: number; pred: number }[]) => {
+          const e = xs.filter((x) => x.rank >= band[0] && x.rank <= band[1]);
+          return `mean error ${(e.reduce((a, x) => a + Math.abs(x.pred - x.rank), 0) / e.length).toFixed(2)}, bias ${(e.reduce((a, x) => a + x.pred - x.rank, 0) / e.length).toFixed(2)}`;
+        };
+        if (list.some((x) => x.rank >= band[0] && x.rank <= band[1])) console.log(`  ranks ${band[0]}..${band[1]}: before ${line(list)}; corrected ${line(fixed)}`);
+      }
+  }
+  console.log(
+    `  corrected mean error ${Object.entries(fixedMae)
+      .map(([k, v]) => `${v} (${k} game${k === '1' ? '' : 's'})`)
+      .join(', ')}`,
+  );
+  return { base: { ...base.model, maeGame: mae['1'] }, top: top?.model, mae, fixedMae, debias, folds: base.folds, topFolds: top?.folds };
+}
+
+/**
+ * How far the correction goes (0..1), fading in from 5k to 1k. Measured on the full corpus
+ * (2026-10-16, one game, held out): dan games went from 1.17 ranks too low to 0.25 (mean
+ * error 2.76 → 2.89), pro-level games from 1.98 too low to 0.66 (2.06 → 1.64), kyu games
+ * barely move. The full shift everywhere removed more bias but made kyu games much noisier.
+ */
+const DEBIAS_STRENGTH = Number(process.env.DEBIAS_STRENGTH ?? 0.75);
+/** The correction fades in between these estimates (5k and 1k by default). */
+const DEBIAS_FROM = Number(process.env.DEBIAS_FROM ?? -4);
+const DEBIAS_FULL = Number(process.env.DEBIAS_FULL ?? 0);
+
+/**
+ * [typical estimate, true rank] for every true rank with enough held-out games, the
+ * estimates made non-decreasing and ties merged, so the table can be read both ways.
+ */
+function debiasFrom(list: { rank: number; pred: number }[]): [number, number][] {
+  const ranks = [...new Set(list.map((p) => Math.round(p.rank)))].sort((a, b) => a - b);
+  const cells = ranks
+    .map((r) => {
+      const ps = list.filter((p) => Math.round(p.rank) === r);
+      return { r, s: ps.reduce((a, p) => a + p.pred, 0) / Math.max(1, ps.length), w: ps.length };
+    })
+    .filter((c) => c.w >= 20);
+  const mono = isotonic(cells.map((c) => ({ s: c.s, w: c.w })));
+  const out: [number, number][] = [];
+  cells.forEach((c, i) => {
+    const p = round(mono[i], 3);
+    const last = out[out.length - 1];
+    if (last && p <= last[0] + 1e-6) last[1] = (last[1] + c.r) / 2;
+    else out.push([p, c.r]);
+  });
+  // Only part of the way, and only for stronger players: the full shift removes the bias but
+  // stretches the scale, which makes single kyu games noisier than the bias it removes.
+  const strength = (p: number) => DEBIAS_STRENGTH * Math.min(1, Math.max(0, (p - DEBIAS_FROM) / (DEBIAS_FULL - DEBIAS_FROM)));
+  return out.map(([p, r]) => [p, round(p + strength(p) * (r - p), 3)]);
 }
 
 /**
@@ -304,8 +412,7 @@ let ogsMap: { a: number; b: number; ranks: number } | null = null;
     const foxRankAt = (s: number) => {
       const c = m.centre;
       if (s <= c[0]) return m.lo;
-      for (let i = 1; i < c.length; i++)
-        if (s <= c[i]) return m.lo + i - 1 + (c[i] > c[i - 1] ? (s - c[i - 1]) / (c[i] - c[i - 1]) : 0);
+      for (let i = 1; i < c.length; i++) if (s <= c[i]) return m.lo + i - 1 + (c[i] > c[i - 1] ? (s - c[i - 1]) / (c[i] - c[i - 1]) : 0);
       return m.lo + c.length - 1;
     };
     const pts: { q: number; r: number; n: number }[] = [];
@@ -341,7 +448,8 @@ let ogsMap: { a: number; b: number; ranks: number } | null = null;
 }
 
 const all = tiered('whole game', (r) => r, null, [3, 5, 10]);
-const maeByGames = all.mae;
+const maeByGames = all.fixedMae;
+const debias: NonNullable<LevelCalibration['debias']> = { all: all.debias };
 const phases: LevelCalibration['phases'] = {};
 const topPhases: NonNullable<LevelCalibration['top']>['phases'] = {};
 for (const p of PHASES) {
@@ -350,8 +458,15 @@ for (const p of PHASES) {
     continue;
   }
   // A phase is judged strong when the whole game is (as the app does).
-  const m = tiered(p, (r) => r.phases[p], p, [], (rs, fold) => combineTiered(all.folds[fold], all.topFolds?.[fold], rs)?.rank);
-  phases[p] = m.base;
+  const m = tiered(
+    p,
+    (r) => r.phases[p],
+    p,
+    [],
+    (rs, fold) => combineTiered(all.folds[fold], all.topFolds?.[fold], rs)?.rank,
+  );
+  phases[p] = { ...m.base, maeGame: m.fixedMae['1'] };
+  debias[p] = m.debias;
   if (m.top) topPhases[p] = m.top;
 }
 
@@ -385,11 +500,12 @@ const cal: LevelCalibration = {
   samples: rows.length,
   games: new Set(rows.map((r) => r.file)).size,
   features: FEATURE_KEYS,
-  all: all.base,
+  all: { ...all.base, maeGame: all.fixedMae['1'] },
   phases,
   top: all.top ? { all: all.top, phases: topPhases } : undefined,
   buckets,
   maeByGames,
+  debias,
   createdAt: new Date().toISOString(),
 };
 mkdirSync(path.dirname(OUT), { recursive: true });

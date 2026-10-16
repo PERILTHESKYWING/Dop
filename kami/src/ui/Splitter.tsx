@@ -36,7 +36,7 @@ export function Splitter() {
       return f;
     }
     const total = split.clientWidth;
-    const w = Math.round(Math.min(total - 340, Math.max(300, value)));
+    const w = Math.round(Math.min(total - 380, Math.max(300, value)));
     split.style.setProperty('--board-w', `${w}px`);
     return w;
   };
@@ -60,7 +60,8 @@ export function Splitter() {
 
   const valueAt = (split: HTMLElement, x: number, y: number, p: boolean) => {
     const r = split.getBoundingClientRect();
-    return p ? (y - r.top) / window.innerHeight : r.right - x;
+    const top = (split.querySelector('.board-panel') as HTMLElement | null)?.getBoundingClientRect().top ?? r.top;
+    return p ? (y - top) / window.innerHeight : r.right - x;
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

@@ -98,6 +98,12 @@ per move, and the share of mistakes and blunders. `public/level/calibration.json
 18k to 9d, what those numbers typically are and how much they vary from game to game. The app scores every rank
 by how well it explains all of a player's games, and shows the best estimate with an 80% range, per phase too.
 Games analysed with another network are measured again with the bundled one (one look per position, no search).
+Estimates from few games drift toward the middle (strong players read too low, beginners too high), so the fit
+also stores a held-out bias correction per number of games (`debias` in the calibration), applied at 75% and only
+from about 5k up: on the full corpus a single dan game went from 1.17 ranks too low to 0.25, a pro game from
+1.98 to 0.66, with single-game error 2.76 → 2.89 for dans and 2.06 → 1.64 for pros (`DEBIAS_STRENGTH`,
+`DEBIAS_FROM`, `DEBIAS_FULL` tune it). Kyu games are left as they were (still read about 2.5 ranks too strong
+below 10k).
 The same corpus gives each rank's error rate per decision type, so weaknesses a player makes much more often
 than players of their level are trained first.
 

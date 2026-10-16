@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseRank, rankLabel, rankRangeLabel, rankTier } from '../src/lib/level/ranks';
 import { levelFeatures, poolFeatures, type LevelFeatures } from '../src/lib/level/stats';
-import { combine, estimateLevel, predictOne, ridgeFeatures, type LevelCalibration, type RidgeModel } from '../src/lib/level/model';
+import { combine, debias, debiasTable, estimateLevel, predictOne, ridgeFeatures, type LevelCalibration, type RidgeModel } from '../src/lib/level/model';
 import { peerComparison, weaknessPriority } from '../src/lib/level/peers';
 import { chooseStyled, FULL_STRENGTH, lossBudget } from '../src/lib/profile/strength';
 import type { MoveRecord, Weakness } from '../src/lib/types';
@@ -73,13 +73,26 @@ describe('level model', () => {
   it('rates stronger play higher, and finds the rank that produces the numbers', () => {
     expect(predictOne(model, sample(feats(0.5, 0.6)))).toBeGreaterThan(predictOne(model, sample(feats(0.3, 1.5))));
     // top1 0.45 scores 2: twenty such games put the player at 2d.
-    expect(combine(model, Array.from({ length: 20 }, () => sample(feats(0.45, 1))))!.rank).toBeCloseTo(2, 0);
+    expect(
+      combine(
+        model,
+        Array.from({ length: 20 }, () => sample(feats(0.45, 1))),
+      )!.rank,
+    ).toBeCloseTo(2, 0);
     // Far beyond anything human: capped at AI.
-    expect(combine(model, Array.from({ length: 20 }, () => sample(feats(0.9, 0))))!.rank).toBeCloseTo(12, 0);
+    expect(
+      combine(
+        model,
+        Array.from({ length: 20 }, () => sample(feats(0.9, 0))),
+      )!.rank,
+    ).toBeCloseTo(12, 0);
   });
   it('narrows the range as games are added', () => {
     const one = combine(model, [sample(feats(0.45, 0.8))])!;
-    const ten = combine(model, Array.from({ length: 10 }, () => sample(feats(0.45, 0.8))))!;
+    const ten = combine(
+      model,
+      Array.from({ length: 10 }, () => sample(feats(0.45, 0.8))),
+    )!;
     expect(Math.abs(ten.rank - one.rank)).toBeLessThan(1);
     expect(ten.high - ten.low).toBeLessThan(one.high - one.low);
     expect(combine(model, [sample(feats(0.45, 0.8, 5))])).toBeNull(); // too few moves
@@ -123,13 +136,57 @@ describe('strength dial', () => {
     expect(picks.filter((l) => l === 1).length).toBeGreaterThan(40); // sampled, the habit still shows up at a weak setting
   });
   it('takes budgets from the calibration, weaker ranks losing more', () => {
-    const cal = { buckets: [
-      { rank: -10, games: 20, features: feats(0.3, 2) },
-      { rank: 5, games: 20, features: feats(0.5, 0.5) },
-    ] } as unknown as LevelCalibration;
+    const cal = {
+      buckets: [
+        { rank: -10, games: 20, features: feats(0.3, 2) },
+        { rank: 5, games: 20, features: feats(0.5, 0.5) },
+      ],
+    } as unknown as LevelCalibration;
     expect(lossBudget(-10, cal)).toBe(2);
     expect(lossBudget(-2.5, cal)).toBeCloseTo(1.25);
     expect(lossBudget(FULL_STRENGTH, cal)).toBeLessThan(0.2);
     expect(lossBudget(-15, null)).toBeGreaterThan(lossBudget(5, null));
+  });
+});
+
+describe('bias correction', () => {
+  const table: [number, number][] = [
+    [-2, -2],
+    [2, 3],
+    [6, 7.5],
+  ];
+  it('reads a raw estimate through the table, straight between points', () => {
+    expect(debias(table, 0)).toBeCloseTo(0.5);
+    expect(debias(table, 4)).toBeCloseTo(5.25);
+    expect(debias(null, 4)).toBe(4);
+  });
+  it('keeps the end shifts past the table and stays on the rank scale', () => {
+    expect(debias(table, -5)).toBeCloseTo(-5);
+    expect(debias(table, 7)).toBeCloseTo(8.5);
+    expect(debias(table, 30)).toBe(12);
+  });
+  it('picks the table measured for the nearest game count at or below', () => {
+    const cal = {
+      debias: {
+        all: {
+          '1': table,
+          '5': [
+            [0, 1],
+            [1, 2],
+          ] as [number, number][],
+        },
+      },
+    };
+    expect(debiasTable(cal, null, 3)).toBe(table);
+    expect(debiasTable(cal, null, 8)?.[0]).toEqual([0, 1]);
+    expect(debiasTable(cal, 'opening', 1)).toBeNull();
+  });
+  it('lifts a strong game in the shipped calibration (it read too low before)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const cal = JSON.parse(readFileSync('public/level/calibration.json', 'utf8')) as LevelCalibration;
+    const t = debiasTable(cal, null, 1);
+    expect(t).not.toBeNull();
+    expect(debias(t, 5)).toBeGreaterThan(5.3);
+    expect(debias(t, -10)).toBeCloseTo(-10, 0);
   });
 });
