@@ -55,6 +55,8 @@ export interface WriterDeps {
   /** Checks a diagram the writer asked for (illustrate.ts, KataGo's final read last). Absent: such diagrams are dropped. */
   verifyDiagram?: (spec: DiagramSpec, id: string) => Promise<Verified>;
   signal?: AbortSignal;
+  /** The student's level (Settings › Profile), passed to the writer's prompt. */
+  level?: string;
 }
 
 const isAbort = (e: unknown) => (e as Error)?.name === 'AbortError';
@@ -101,7 +103,7 @@ function gate(ex: Explanation, text: string, by: 'gemini' | 'local', check: Writ
 
 export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDeps): Promise<Writing> {
   if (pick === 'hane' || pick === 'tesuji') return { by: 'engine' };
-  const prompt = buildLmPrompt(ex);
+  const prompt = buildLmPrompt(ex, deps.level);
   /** Check the writer's diagram (if any), then gate the text against the explanation with it. */
   const finish = async (raw: string, by: 'gemini' | 'local', model?: string): Promise<Writing> => {
     const d = await writerDiagram(ex, raw, deps);

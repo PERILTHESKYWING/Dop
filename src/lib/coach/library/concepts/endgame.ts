@@ -5,9 +5,10 @@ export const ENDGAME: ConceptText[] = [
   {
     id: 'endgame',
     name: 'Endgame',
-    aliases: ['endgame', 'end game', 'yose', 'boundary plays', 'double sente', 'reverse sente', 'one-sided sente', 'single sente', 'gote endgame', 'first line hane', 'dame', 'filling dame', 'ヨセ', '両先手', '逆ヨセ', '片先手', 'ダメ', '官子', '收官', '双先', '單先', '单先', '逆收', '逆收官子', '끝내기', '양선수', '역끝내기', '공배'],
+    aliases: ['endgame', 'end game', 'yose', 'boundary plays', 'one-sided sente', 'single sente', 'gote endgame', 'first line hane', 'dame', 'filling dame', 'ヨセ', '片先手', 'ダメ', '官子', '收官', '單先', '单先', '끝내기', '공배'],
     level: 'intermediate',
     short: 'The endgame is fixing the boundaries between territories; play double sente first, then sente moves, then reverse sente and gote moves, each in order of size.',
+    hover: 'The last stage of the game, when the borders between territories are settled, biggest moves first.',
     body: [
       {
         title: 'Kinds of endgame moves',
@@ -36,7 +37,7 @@ export const ENDGAME: ConceptText[] = [
       'Comparing sente and gote moves by their local count only.',
       'Filling dame while real moves are left.',
     ],
-    related: ['move-value', 'sente', 'gote', 'counting', 'miai'],
+    related: ['move-value', 'sente', 'gote', 'double-sente', 'reverse-sente', 'counting', 'miai'],
   },
   {
     id: 'move-value',

@@ -12,10 +12,12 @@ import { emptyBoard, explainPositionOf, goTo, hasPosition, toPlayAt, type BoardS
 import { useGameRating } from '../lib/rating';
 import { reviewMoves } from '../lib/review';
 import { setSetting, useSetting } from '../lib/settings';
+import { splitRich } from '../lib/terms';
 import { Icon } from './Icon';
 import { Performance } from './Performance';
 import { Popover } from './Popover';
 import type { SettingsPage } from './Settings';
+import { Term } from './Term';
 
 /** A variation, point or built position drawn over the position it starts from. */
 export interface Preview {
@@ -28,13 +30,56 @@ export interface Preview {
   note?: string;
   /** Tapped (stays until closed) rather than hovered. */
   pinned: boolean;
+  /** The part of the board that matters (x0, y0, x1, y1), e.g. a life-and-death problem: the board zooms there. */
+  view?: [number, number, number, number];
+}
+
+type Crop = { x0: number; y0: number; x1: number; y1: number };
+
+/** A view widened by one line on each side (so the problem's edge stones show their surroundings); none when it is most of the board. */
+function zoomCrop(view: [number, number, number, number], size: number): Crop | undefined {
+  const [x0, y0, x1, y1] = view;
+  const c = (v: number) => Math.max(0, Math.min(size - 1, v));
+  const crop = { x0: c(Math.min(x0, x1) - 1), y0: c(Math.min(y0, y1) - 1), x1: c(Math.max(x0, x1) + 1), y1: c(Math.max(y0, y1) + 1) };
+  return crop.x1 - crop.x0 >= size - 3 && crop.y1 - crop.y0 >= size - 3 ? undefined : crop;
+}
+
+/** Width over height of a cropped board as Board draws it (its margin: 1.24 lines with coordinates, 0.6 without). */
+const cropAspect = (c: Crop, coords: boolean) => {
+  const m = coords ? 1.24 : 0.6;
+  return (c.x1 - c.x0 + 2 * m) / (c.y1 - c.y0 + 2 * m);
+};
+
+/**
+ * The note under a previewed line: Go terms get their definition, and a board point named in it
+ * is marked on the board while hovered.
+ */
+function PreviewNote({ text, size, onPoint }: { text: string; size: number; onPoint: (loc: Loc | null) => void }) {
+  return (
+    <>
+      {splitRich(text, size, { seen: new Set() }).map((p, i) =>
+        p.type === 'term' ? (
+          <Term key={i} entry={p.entry}>
+            {p.text}
+          </Term>
+        ) : p.type === 'point' ? (
+          <span key={i} className="pt" onPointerEnter={() => onPoint(p.loc)} onPointerLeave={() => onPoint(null)} onClick={() => onPoint(p.loc)}>
+            {p.text}
+          </span>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 interface Props {
   board: BoardState;
   preview: Preview | null;
   onBoard: (b: BoardState) => void;
-  onPlay: (loc: Loc) => void;
+  /** `fromCandidate`: the move was KataGo's disc, not the student's own choice. */
+  onPlay: (loc: Loc, fromCandidate?: boolean) => void;
   onUndo: () => void;
   onClearPreview: () => void;
   onSgfText: (text: string) => boolean;
@@ -92,6 +137,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const [paste, setPaste] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId | null>(null);
   const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  // A point named in the preview's note, marked while hovered.
+  const [notePoint, setNotePoint] = useState<Loc | null>(null);
+  // The whole board instead of the zoomed problem (kept until the zoom button is pressed again).
+  const [wholeBoard, setWholeBoard] = useState(false);
   const bestOn = useSetting<boolean>('board.best');
   const bestCount = useSetting<number>('board.bestCount');
   const territoryOn = useSetting<boolean>('board.territory');
@@ -119,6 +168,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       const b = replay(preview.base.size, preview.base.setup, preview.base.moves);
       const lastLoc = preview.base.moves.length ? preview.base.moves[preview.base.moves.length - 1].loc : null;
       const marks: Mark[] = preview.highlight.filter((l) => l !== PASS).map((loc) => ({ loc, kind: 'evidence' }));
+      if (notePoint !== null && notePoint !== PASS) marks.push({ loc: notePoint, kind: 'next' });
       return {
         size: preview.base.size,
         stones: b.stones,
@@ -138,16 +188,21 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       marks: [] as Mark[],
       variation: null as Move[] | null,
     };
-  }, [board, preview]);
+  }, [board, preview, notePoint]);
+  useEffect(() => setNotePoint(null), [preview?.key]);
+
+  // A local problem's answer shows only the part of the board that matters.
+  const zoomable = preview?.view ? zoomCrop(preview.view, preview.base.size) : undefined;
+  const crop = zoomable && !wholeBoard ? zoomable : undefined;
 
   const hovered = !preview && hoverPv?.length ? lineOf(hoverPv, toPlay) : null;
   const variation = preview ? view.variation : hovered;
   const candidates = !preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null;
   const ownership = !preview && territoryOn && read ? read.ownership : null;
 
-  const play = (loc: Loc) => {
+  const play = (loc: Loc, fromCandidate = false) => {
     setHoverPv(null);
-    onPlay(loc);
+    onPlay(loc, fromCandidate);
   };
   const go = (pos: number) => {
     setHoverPv(null);
@@ -244,6 +299,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const caps = view.captures;
   // Only the note under a previewed line shares the stage with the board.
   const [boxRef, side] = useSquare(preview ? 42 : 0);
+  // A cropped board keeps its own shape inside the square.
+  const aspect = crop ? cropAspect(crop, coords) : 1;
+  const boxW = Math.round(aspect >= 1 ? side : side * aspect);
+  const boxH = Math.round(aspect >= 1 ? side / aspect : side);
   const namesTitle = board.black || board.white ? `${board.black ?? 'Black'} vs ${board.white ?? 'White'}` : '';
   const title = board.title && board.title !== namesTitle ? board.title : '';
   const engineLine = status.state === 'idle' ? null : `${status.text}${status.state === 'loading' && status.pct !== undefined ? ` ${status.pct}%` : ''}`;
@@ -288,6 +347,17 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             <span className="dot" />
             {status.state === 'failed' ? 'KataGo failed' : `KataGo${status.pct !== undefined ? ` ${status.pct}%` : ''}`}
           </span>
+        )}
+        {zoomable && (
+          <button
+            className={`icon-btn${crop ? ' on' : ''}`}
+            aria-pressed={!!crop}
+            aria-label={crop ? 'Show the whole board' : 'Zoom to the problem'}
+            title={crop ? 'Show the whole board' : 'Zoom to the problem'}
+            onClick={() => setWholeBoard((w) => !w)}
+          >
+            <Icon name={crop ? 'expand' : 'zoom'} />
+          </button>
         )}
         {preview?.pinned ? (
           <button className="icon-btn" aria-label="Back to the board" title="Back to the board" onClick={onClearPreview}>
@@ -419,24 +489,29 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
-          <div className="bp-square" style={{ width: side, height: side }}>
+          <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
             <Board
               size={view.size}
+              crop={crop}
               stones={view.stones}
               lastMove={view.last}
               toPlay={preview ? undefined : toPlay}
-              onPlay={play}
+              onPlay={(l) => play(l)}
               marks={view.marks}
               candidates={candidates}
               onCandidateHover={(l) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null))}
-              onCandidateClick={play}
+              onCandidateClick={(l) => play(l, true)}
               variation={variation}
               ownership={ownership}
               coords={coords}
               ariaLabel={preview ? `Variation: ${preview.title}` : 'Board: click to play'}
             />
           </div>
-          {preview && <p className="bp-note">{preview.note || (preview.pinned ? 'Tap the board or the × to go back.' : ' ')}</p>}
+          {preview && (
+            <p className="bp-note">
+              {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
+            </p>
+          )}
         </div>
 
         {panel && tabInfo && (

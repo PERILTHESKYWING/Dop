@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer } from '../src/lib/coach/answerCheck';
 import { buildLmPrompt, type EngineRead, type Explanation, type ExplainPosition, type Prober } from '../src/lib/coach/explain';
@@ -7,7 +6,6 @@ import { boardOf } from '../src/lib/coach/explain/geometry';
 import { illustrateDefaults } from '../src/lib/coach/explain/diagrams';
 import { diagramBlock, dropDiagramRefs, parseWriterDiagram, withoutDiagrams } from '../src/lib/coach/explain/writerDiagram';
 import { numbersIn } from '../src/lib/coach/explain/text';
-import { checkRule, rubricText, scoreRubric, type Rubric } from '../src/lib/coach/rubric';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Color, Move } from '../src/lib/go/types';
 import { splitChips, plainText } from '../kami/src/lib/chips';
@@ -194,47 +192,28 @@ describe("the writer's own DIAGRAM block", () => {
 
 describe('prompt, chips and checker know diagrams', () => {
   it('bumps the prompt version and keeps the server prompt identical', () => {
-    expect(PROMPT_VERSION).toBe(3);
+    expect(PROMPT_VERSION).toBe(4);
     expect(KAMI_WRITE_SYSTEM).toBe(LM_SYSTEM);
-    expect(LM_SYSTEM).toMatch(/DIAGRAM/);
+    // Version 4: the writer no longer builds positions of its own (XIAO: never invent stones).
+    expect(LM_SYSTEM).not.toMatch(/DIAGRAM/);
+    expect(LM_SYSTEM).toMatch(/never invent stones/);
   });
-  it('lists diagrams and the id for the writer’s own', async () => {
+  it('lists diagrams, the tone and the draft for the writer', async () => {
     const v = await verifyDiagram(CORNER, scripted([{ bLead: -40, candidates: [cand('C3', -40)] }, { bLead: 0, candidates: [cand('C3', 0)] }]), 'd1');
     const base: Explanation = {
       position: { size: N, komi: 7.5, setup: [], moves: [], toPlay: 1 }, model: 'tesuji', version: '1.0', thinking: 'medium', question: { kind: 'best', text: 'q' },
-      summary: '', sections: [], facts: [], concepts: [], variations: [], thoughts: [], reads: 0, totalVisits: 0, ms: 0, illustrations: [v.illustration!],
+      summary: 'Black lives with C3 [[d1]].', sections: [], facts: [], concepts: [], variations: [], thoughts: [], reads: 0, totalVisits: 0, ms: 0, illustrations: [v.illustration!],
+      situation: { phase: 'endgame', open: false, handicap: false, tsumego: true, gap: 'none', tone: 'tsumego' },
     };
     const p = buildLmPrompt(base);
     expect(p).toMatch(/Diagrams:\n- \[\[d1\]\] Eye shape \(writer\): B C3/);
-    expect(p).toMatch(/Your own diagram, if you ask for one: \[\[d2\]\]/);
+    expect(p).toMatch(/Tone: life and death: the answer, the vital point, no winrates \(endgame\)/);
+    expect(p).toMatch(/Draft:\nBlack lives with C3 \[\[d1\]\]\./);
+    expect(p).not.toMatch(/Your own diagram/);
   });
   it('turns [[dN]] into chips and labels', () => {
     expect(splitChips('see [[d1]] and [[v2]]').filter((x) => x.type === 'chip').map((x) => (x as { id: string }).id)).toEqual(['d1', 'v2']);
     expect(plainText('see [[d1]].', { variations: [], illustrations: [{ id: 'd1', label: 'eye shape' } as never] })).toBe('see eye shape.');
     expect(numbersIn('In diagram [[d1]], 3 points')).toEqual(['3']);
-  });
-});
-
-describe('rubric', () => {
-  const rubric = JSON.parse(readFileSync(new URL('../eval/coach/rubric.json', import.meta.url), 'utf8')) as Rubric;
-  const ex = {
-    position: { size: N, komi: 7.5, setup: [], moves: [], toPlay: 1 as Color },
-    question: { kind: 'why-not' as const, move: P('C10'), text: 'Why not C10?' },
-    variations: [{ id: 'v1', label: 'R16', kind: 'best' as const, moves: stones(1, 'R16') }],
-  } as unknown as Explanation;
-  it('scores the code-checked rules and lists broken ones', () => {
-    const good = 'C10 is too low here because it lets White build a wall facing your weak group [[v1]]. ' + 'Words '.repeat(40);
-    const s = scoreRubric(rubric, good, ex);
-    expect(s.broken).toEqual([]);
-    expect(s.rubric).toBe(1);
-    const bad = scoreRubric(rubric, 'Great question! KataGo with 400 visits says so.', ex);
-    expect(bad.broken).toEqual(expect.arrayContaining(['answer-first', 'show-on-board', 'no-filler', 'length', 'level']));
-    expect(bad.rubric!).toBeLessThan(0.3);
-  });
-  it('skips rules that do not apply and survives a bad pattern', () => {
-    expect(checkRule({ kind: 'refsDiagram' }, 'x', ex)).toBeNull();
-    const r: Rubric = { version: 9, updated: '', rules: [{ id: 'x', text: 't', weight: 1, check: { kind: 'require', pattern: '(' } }] };
-    expect(scoreRubric(r, 'x', ex)).toEqual({ rubric: null, broken: [] });
-    expect(rubricText(rubric).split('\n')).toHaveLength(rubric.rules.length);
   });
 });

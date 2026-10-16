@@ -83,7 +83,7 @@ copy /y "%REPO%\package-lock.json" "%KAMI%\package-lock.seen" >nul
 rem ---- 5. tokens: asked once, saved in %KAMI%\.env (never in the repository) ----
 if exist "%KAMI%\.env" goto tokens_ready
 echo.
-echo Three optional keys. Paste one and press Enter, or just press Enter to skip it.
+echo Four optional keys. Paste one and press Enter, or just press Enter to skip it.
 echo How to make them: docs\handoff\kami-training.md in the Dop repository.
 set "HF_IN="
 set /p "HF_IN=Hugging Face write token (shares the trained model): "
@@ -91,11 +91,28 @@ set "GH_IN="
 set /p "GH_IN=GitHub token (shares the answer pool with other machines): "
 set "GM_IN="
 set /p "GM_IN=Gemini API key (the writing judge): "
+set "OA_IN="
+set /p "OA_IN=OpenAI API key (optional ChatGPT tone reviewer; paid API, not part of ChatGPT Plus): "
 (echo # Kami training keys. Delete this file to be asked again.)>"%KAMI%\.env"
 if defined HF_IN (echo HF_TOKEN=%HF_IN%)>>"%KAMI%\.env"
 if defined GH_IN (echo GITHUB_TOKEN=%GH_IN%)>>"%KAMI%\.env"
 if defined GM_IN (echo GEMINI_API_KEY=%GM_IN%)>>"%KAMI%\.env"
+if defined OA_IN (echo OPENAI_API_KEY=%OA_IN%)>>"%KAMI%\.env"
+(echo asked)>"%KAMI%\openai.asked"
 :tokens_ready
+
+rem ---- 5b. the OpenAI key came later: ask once when an older .env has none ----
+if exist "%KAMI%\openai.asked" goto openai_ready
+findstr /b /c:"OPENAI_API_KEY=" "%KAMI%\.env" >nul 2>nul && goto openai_asked
+echo.
+echo New optional key: OpenAI, for the ChatGPT tone reviewer (scores Kami's tone during training).
+echo It is a paid API key from platform.openai.com, not part of ChatGPT Plus. Just press Enter to skip.
+set "OA_IN="
+set /p "OA_IN=OpenAI API key: "
+if defined OA_IN (echo OPENAI_API_KEY=%OA_IN%)>>"%KAMI%\.env"
+:openai_asked
+(echo asked)>"%KAMI%\openai.asked"
+:openai_ready
 
 rem ---- 6. check everything, offer nightly training once, then train for 8 hours ----
 cd /d "%REPO%"

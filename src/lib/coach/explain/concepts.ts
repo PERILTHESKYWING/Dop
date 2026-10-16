@@ -4,14 +4,17 @@
  * reads yet): ladder, thickness, overconcentration, aji. See docs/handoff/kami-engine.md.
  */
 import { chebyshev, lineOf } from '../../go/coords';
-import { other, PASS, type Color, type Loc } from '../../go/types';
-import { colorAdj, colorWord, coord, fmt1, groupAnchor, groupOwn, looseGroups, pct, stonesNear, type StoneGroup } from './geometry';
+import { other, PASS, type Color, type Loc, type Move } from '../../go/types';
+import { boardOf, colorAdj, colorWord, coord, fmt1, groupAnchor, groupOwn, looseGroups, pct, stonesNear, type StoneGroup } from './geometry';
+import { dyingGroups, GROUP_SHIFT, purposes, type Purpose } from './effects';
 import { EQUAL_PTS, type Findings } from './planner';
 import type { ConceptHit, EngineRead } from './types';
 
 /** A reply this close (Chebyshev) to a move answers it locally (19x19; smaller boards use less). */
 export const LOCAL_R = 3;
 export const localR = (size: number) => (size >= 15 ? LOCAL_R : 2);
+/** The mover's stones at or below this ownership are weak enough that giving them up is a real option. */
+export const SAC_OWN = 0.35;
 /** Playing elsewhere instead of answering must cost this much for sente. */
 export const SENTE_PTS = 1.5;
 /** Without a tenuki candidate to price, this share of visits on local replies makes sente (with at least SENTE_VISITS). */
@@ -279,6 +282,195 @@ export function keyPointHit(ctx: Ctx, variation?: string): ConceptHit | null {
   };
 }
 
+/**
+ * Whether the side that did not play `move` has to answer it locally, from the read right
+ * after it (`responder` to play): 'sente' when the best reply is nearby and playing elsewhere
+ * costs SENTE_PTS (or nearly all visits go to nearby replies), 'gote' when the best reply is
+ * elsewhere, null when unclear.
+ */
+export function answeredLocally(ctx: Ctx, move: Loc, after: EngineRead | null): { kind: 'sente' | 'gote'; reply: Loc; cost: number | null } | null {
+  const { size } = ctx;
+  if (!after || move === PASS) return null;
+  const cands = after.candidates.filter((c) => c.visits > 0);
+  if (!cands.length) return null;
+  const total = cands.reduce((t, c) => t + c.visits, 0);
+  const local = (l: Loc) => l !== PASS && chebyshev(l, move, size) <= localR(size);
+  // "Elsewhere" means really elsewhere: a move one step outside the local box still answers.
+  const away = (l: Loc) => l === PASS || chebyshev(l, move, size) > localR(size) + 1;
+  const top = cands[0];
+  if (local(top.loc)) {
+    const localShare = cands.filter((c) => !away(c.loc)).reduce((t, c) => t + c.visits, 0) / total;
+    const tenuki = cands.filter((c) => away(c.loc) && c.visits >= 3).sort((a, b) => b.scoreLead - a.scoreLead)[0];
+    if (tenuki) {
+      const cost = top.scoreLead - tenuki.scoreLead;
+      return cost >= SENTE_PTS && localShare >= 0.6 ? { kind: 'sente', reply: top.loc, cost } : null;
+    }
+    return localShare >= SENTE_SHARE && total >= SENTE_VISITS ? { kind: 'sente', reply: top.loc, cost: null } : null;
+  }
+  return top.visits / total >= 0.3 ? { kind: 'gote', reply: top.loc, cost: null } : null;
+}
+
+/**
+ * Double sente (ryou-sente) and reverse sente (gyaku-sente) at the best move: the opponent
+ * playing there first (after a pass, or after the asked move) must be answered too. Both
+ * sides' sente → double sente; only the opponent's → reverse sente (gote for the mover, but
+ * it takes away the opponent's sente move).
+ */
+export function doubleSente(ctx: Ctx, variation?: string): ConceptHit | null {
+  const { f, C, mover, opp } = ctx;
+  const best = f.best;
+  const at = f.oppAt;
+  if (!best || !at || best.loc === PASS || chebyshev(at.move, best.loc, ctx.size) > 1) return null;
+  const theirs = answeredLocally(ctx, at.move, at.read);
+  if (theirs?.kind !== 'sente') return null;
+  const mine = answeredLocally(ctx, best.loc, f.afterBest);
+  const v = variation ? { variation } : {};
+  const cost = (c: number | null, who: Color) => (c !== null ? `; playing elsewhere instead costs ${colorWord(who)} ${fmt1(c)} points` : '');
+  if (mine?.kind === 'sente') {
+    return {
+      id: 'double-sente',
+      at: [best.loc],
+      evidence: `${C(best.loc)} is sente for both sides: after ${colorWord(mover)} ${C(best.loc)}, ${colorWord(opp)} answers at ${C(mine.reply)}${cost(mine.cost, opp)}; after ${colorWord(opp)} ${C(at.move)}, ${colorWord(mover)} answers at ${C(theirs.reply)}${cost(theirs.cost, mover)}.`,
+      ...v,
+    };
+  }
+  if (mine?.kind === 'gote') {
+    return {
+      id: 'reverse-sente',
+      at: [best.loc],
+      evidence: `${C(best.loc)} is gote for ${colorWord(mover)}, but if ${colorWord(opp)} plays ${C(at.move)} first, ${colorWord(mover)} has to answer at ${C(theirs.reply)}${cost(theirs.cost, mover)}: it takes away ${colorWord(opp)}'s sente move.`,
+      ...v,
+    };
+  }
+  return null;
+}
+
+/** Share for one side: 0.6 ownership is 80%. */
+const ownShare = (v: number) => Math.round(50 + 50 * Math.max(-1, Math.min(1, v)));
+
+/** Stones the best move saves: the mover's groups that live after it and die if the opponent moves first. */
+export function saveStones(ctx: Ctx): ConceptHit | null {
+  const { f, C, mover, opp, size } = ctx;
+  const best = f.best;
+  const t = f.threat;
+  const ab = f.afterBest?.ownership;
+  if (!best || !t?.read.ownership || !ab || best.loc === PASS) return null;
+  const dying = dyingGroups(ctx.groups, t.read.ownership, ab, mover).filter(({ g }) => g.stones.some((q) => chebyshev(q, best.loc, size) <= 3));
+  if (!dying.length) return null;
+  const g = dying[0].g;
+  const n = g.stones.length;
+  return {
+    id: 'save-stones',
+    at: [groupAnchor(g, size), best.loc],
+    evidence: `Without ${C(best.loc)}, ${colorWord(opp)} plays ${C(t.move)} and the ${n > 1 ? `${n} ${colorAdj(mover)} stones` : `${colorAdj(mover)} stone`} at ${C(groupAnchor(g, size))} die: KataGo gives ${colorWord(opp)} ${ownShare(-groupOwn(g, t.read.ownership))}% ownership of them, against ${ownShare(groupOwn(g, ab))}% for ${colorWord(mover)} after ${C(best.loc)}.`,
+    ...(f.vars.threat ? { variation: f.vars.threat } : {}),
+  };
+}
+
+/** The first ko capture along a line (replayed from the asked position), if any. */
+export function koIn(ctx: Ctx, moves: readonly Move[]): { at: Loc; ply: number } | null {
+  const b = boardOf(ctx.f.pos);
+  for (let i = 0; i < moves.length; i++) {
+    const m = moves[i];
+    if (m.loc === PASS) {
+      b.play(PASS, m.color);
+      continue;
+    }
+    if (!b.isLegal(m.loc, m.color)) return null;
+    b.play(m.loc, m.color);
+    if (b.koPoint !== PASS) return { at: b.koPoint, ply: i + 1 };
+  }
+  return null;
+}
+
+/** A ko in the best line or the asked move's line. */
+export function koHit(ctx: Ctx): ConceptHit | null {
+  const { f, C } = ctx;
+  for (const id of [f.vars.best, f.vars.asked, f.vars.lineB, f.vars.threat]) {
+    const v = id ? f.variations.find((x) => x.id === id) : undefined;
+    if (!v) continue;
+    const k = koIn(ctx, v.moves);
+    if (!k) continue;
+    const by = v.moves[k.ply - 1];
+    return {
+      id: 'ko',
+      at: [by.loc],
+      evidence: `The line runs into a ko: at its move ${k.ply}, ${colorWord(by.color)} captures one stone at ${C(by.loc)} and the other side cannot take back at once.`,
+      variation: v.id,
+    };
+  }
+  return null;
+}
+
+/**
+ * A group too hard to save (XIAO, item 19): the asked move tends a weak or dying group of the
+ * mover's, KataGo plays elsewhere, and the asked move loses. Saving it would only make the
+ * opponent stronger around it; giving it up and playing elsewhere is the lesson.
+ */
+export function sacrifice(ctx: Ctx): ConceptHit | null {
+  const { f, C, mover, opp, size } = ctx;
+  const a = f.asked;
+  const best = f.best;
+  const own = f.root?.ownership;
+  if (!a || !best || !own || a.isBest || !a.legal || a.loss < EQUAL_PTS || best.loc === PASS || a.loc === PASS) return null;
+  // The mover's weak stones the asked move tends, while KataGo's move is somewhere else entirely.
+  const near = ctx.groups.filter((x) => x.color === mover && x.stones.some((q) => chebyshev(q, a.loc, size) <= 2) && groupOwn(x, own) <= SAC_OWN);
+  if (!near.length || near.some((x) => x.stones.some((q) => chebyshev(q, best.loc, size) <= localR(size) + 1))) return null;
+  const g = near.sort((x, y) => y.stones.length - x.stones.length)[0];
+  const anchor = groupAnchor(g, size);
+  const after = a.read?.ownership ?? null;
+  const still = after ? groupOwn(g, after) : null;
+  // The opponent's stones nearby that the asked move's line makes stronger.
+  const end = f.refutation?.endRead?.ownership ?? after;
+  const firmer = end
+    ? ctx.groups
+        .filter((x) => x.color === opp && x.stones.some((q) => chebyshev(q, a.loc, size) <= 3))
+        .map((x) => ({ x, d: groupOwn(x, end) - groupOwn(x, own) }))
+        .filter((o) => o.d >= GROUP_SHIFT)
+        .sort((p, q) => q.d - p.d)[0]
+    : undefined;
+  const n = g.stones.length;
+  return {
+    id: 'sacrifice',
+    at: [anchor, best.loc, ...(firmer ? [groupAnchor(firmer.x, size)] : [])],
+    evidence:
+      `${C(a.loc)} tends the ${n > 1 ? `${n} ${colorAdj(mover)} stones` : `${colorAdj(mover)} stone`} at ${C(anchor)}, which KataGo gives ${ownShare(groupOwn(g, own))}% to ${colorWord(mover)}` +
+      (still !== null && still <= 0.5 ? ` and still only ${ownShare(still)}% after it` : '') +
+      `; KataGo plays elsewhere, at ${C(best.loc)}` +
+      (firmer ? `; in the ${C(a.loc)} line ${colorWord(opp)}'s stones at ${C(groupAnchor(firmer.x, size))} get stronger.` : '.'),
+    ...(f.vars.asked ? { variation: f.vars.asked } : {}),
+  };
+}
+
+/** What a move does against the opponent moving first there (the threat read). */
+export function movePurposes(ctx: Ctx, move: Loc, after: EngineRead | null | undefined): Purpose[] {
+  const t = ctx.f.threat?.read.ownership;
+  if (!t || !after?.ownership || move === PASS) return [];
+  return purposes(ctx.f.board, move, ctx.mover, after.ownership, t, ctx.groups);
+}
+
+/** Reduction and attack (two purposes at once) from a move's purposes. */
+export function purposeHits(ctx: Ctx, move: Loc, ps: Purpose[], variation?: string): ConceptHit[] {
+  const { C, mover, opp } = ctx;
+  const v = variation ? { variation } : {};
+  const out: ConceptHit[] = [];
+  const red = ps.find((p) => p.kind === 'reduce');
+  if (red && red.kind === 'reduce') {
+    out.push({ id: 'reduction', at: [move], evidence: `${C(move)} trims ${colorWord(opp)}'s potential in the ${red.region}: about ${fmt1(red.amount)} points of it change hands compared with ${colorWord(opp)} playing there first.`, ...v });
+  }
+  const press = ps.find((p) => p.kind === 'press');
+  const build = ps.find((p) => p.kind === 'framework' || p.kind === 'territory' || p.kind === 'reduce');
+  if (press && press.kind === 'press' && build) {
+    out.push({
+      id: 'attack',
+      at: [move, press.at],
+      evidence: `${C(move)} presses the ${colorAdj(opp)} ${press.stones > 1 ? 'stones' : 'stone'} at ${C(press.at)} (${colorWord(opp)}'s ownership of ${press.stones > 1 ? 'them' : 'it'} drops by ${pct(press.amount / 2)}) while ${colorWord(mover)} gains in the ${'region' in build ? build.region : 'area'}.`,
+      ...v,
+    });
+  }
+  return out;
+}
+
 export function conceptContext(f: Findings): Ctx {
   const size = f.pos.size;
   return { f, size, mover: f.mover, opp: other(f.mover), C: (l) => coord(l, size), groups: looseGroups(f.board) };
@@ -336,6 +528,22 @@ export function detectConcepts(f: Findings): ConceptHit[] {
       const b = f.consequence.b.checkpoints.find((c) => c.ply === tp.ply)?.read.ownership;
       add(deadGroups(ctx, a, b, `in the ${ctx.C(best.loc)} line`, f.vars.lineA));
     }
+  }
+  // What the reads with a pass add: double or reverse sente, stones saved, a ko, a group to give up.
+  add(doubleSente(ctx, f.vars.best));
+  add(saveStones(ctx));
+  add(sacrifice(ctx));
+  const moved = asked && f.mode === 'equal' ? asked.loc : asked ? null : best.loc;
+  if (moved !== null) {
+    const read = moved === best.loc ? f.afterBest : asked?.read;
+    add(purposeHits(ctx, moved, movePurposes(ctx, moved, read), moved === best.loc ? bestVar : f.vars.asked));
+  } else if (asked && f.asked?.isBest === false) {
+    add(purposeHits(ctx, best.loc, movePurposes(ctx, best.loc, f.afterBest), bestVar));
+  }
+  add(koHit(ctx));
+  // The double-sente story already says sente or gote for the best move.
+  if (out.some((h) => h.id === 'double-sente' || h.id === 'reverse-sente')) {
+    for (let i = out.length - 1; i >= 0; i--) if ((out[i].id === 'sente' || out[i].id === 'gote') && out[i].at[0] === best.loc) out.splice(i, 1);
   }
   add(miai(ctx, f.vars.best));
   const weak = f.mode === 'overview' ? weakGroups(ctx, null, 2) : weakGroups(ctx, asked ? [best.loc, asked.loc] : [best.loc], 1);

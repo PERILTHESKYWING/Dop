@@ -15,28 +15,32 @@ import type { Explanation } from './types';
  * 2: the explainer was fixed (setup stones read correctly, ownership as percentages, key
  * points, deeper reads), so tasks and the test set made with version 1 are stale.
  * 3: diagrams (built positions checked by KataGo, [[dN]]) and the writer's own DIAGRAM block.
+ * 4: XIAO's critique of 28 answers (2026-10-16): the teacher's voice and tone rules, the
+ *    situation (tone, phase, gap) and Kami's own draft in the input, no writer-built diagrams.
  */
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
-export const LM_SYSTEM = `You are Kami, a Go (baduk) teacher. Turn the checked facts below into a clear, deep explanation for the student.
+export const LM_SYSTEM = `You are Kami, a warm, calm Go (baduk) teacher. Turn the checked facts below into a short answer the student enjoys reading.
 Rules:
-- Use only moves, coordinates and numbers that appear in the facts, concepts or variations. Never add your own.
-- Point to variations by writing their id in double brackets, like [[v1]]; the student can hover them to see the moves on the board.
-- Explain why: the ideas behind the numbers (shape, weak groups, sente and gote, territory against influence, what happens later).
-- Start with a direct answer in one or two sentences, then go deeper. Plain language, pitched at the student's level.
-- Diagrams are positions built to show one idea on its own, checked by KataGo; show one by writing its id, like [[d1]].
-- If a small local position of your own would explain the idea better, you may ask for one diagram: end your answer with
-DIAGRAM
-to play: Black or White
-black: the black stones, like C3 D3 E3
-white: the white stones
-best: the move that shows the idea
-worse: a tempting move that fails (optional)
-idea: a few words (optional)
-END
-and refer to it by the id given below. Keep it in one corner or on one side, 3 to 40 stones. KataGo checks it before it is shown; if a check fails, every sentence that mentions it is removed, so make the rest of the answer stand on its own.`;
+- Use only moves, coordinates and numbers that appear in the facts, concepts, variations or draft. Never add your own, and never invent stones, groups or walls.
+- Answer first, in one or two sentences, in Go words (territory, framework, sente, a weak group), not numbers. Then the reason, then the evidence: point to a variation by writing its id in double brackets, like [[v1]]; the student can hover it to see the moves on the board.
+- Explain why from this board: what each move gains or gives up, which stones get stronger or weaker, sente and gote, what happens if a move is ignored. KataGo choosing a move is not a reason.
+- Numbers only support the reason. Never split hairs over tenths of a point: when two moves are practically equal, say both are good and let the student choose. No winrates in life and death.
+- Follow the tone given: celebrate a good move, keep a blunder short and a little cheeky, stay relaxed in a wide-open opening ("play your style"), answer Yes, No or It depends first when asked whether a group can be killed or saved, give the whole-board picture first when asked about the position.
+- Pitch it at the student's level and style. Say each thing once; an emoji or two at most.
+- The draft is Kami's own checked answer: keep its facts and its [[v1]] links, and make it read like a friendly teacher.
+- Diagrams are textbook positions checked by KataGo; show one by writing its id, like [[d1]].`;
 
 const MAX_LINE = 30;
+
+const TONE_WORDS: Record<NonNullable<Explanation['situation']>['tone'], string> = {
+  celebrate: 'celebrate the move',
+  relaxed: 'relaxed, play your style',
+  teach: 'teach the reason',
+  blunder: 'short and a little cheeky',
+  tsumego: 'life and death: the answer, the vital point, no winrates',
+  overview: 'the whole-board picture first',
+};
 
 const name = (loc: number, size: number) => (loc === PASS || loc < 0 ? 'pass' : locToGtp(loc, size));
 
@@ -50,7 +54,11 @@ export function nextDiagramId(ex: Pick<Explanation, 'illustrations'>): string {
   return `d${(ex.illustrations?.length ?? 0) + 1}`;
 }
 
-/** The writer's input for one explanation. `level` is the student's level, e.g. "about 3k". */
+/**
+ * The writer's input for one explanation. `level` is the student's level, e.g. "about 3k".
+ * The writer no longer builds diagrams of its own (version 4); nextDiagramId stays for the
+ * site's parser of older answers.
+ */
 export function buildLmPrompt(ex: Explanation, level?: string): string {
   const size = ex.position.size;
   const out: string[] = [];
@@ -58,6 +66,8 @@ export function buildLmPrompt(ex: Explanation, level?: string): string {
   if (ex.question.move !== undefined) out.push(`Move asked about: ${name(ex.question.move, size)}`);
   out.push(`To play: ${ex.position.toPlay === 1 ? 'Black' : 'White'} (move ${ex.position.moves.length + 1}, ${size}x${size})`);
   if (level) out.push(`Student level: ${level}`);
+  const sit = ex.situation;
+  if (sit) out.push(`Tone: ${TONE_WORDS[sit.tone]} (${sit.phase}${sit.open ? ', wide open' : ''}${sit.handicap ? ', handicap game' : ''}${sit.gap !== 'none' ? `, gap between the moves: ${sit.gap}` : ''}${sit.transposes ? ', the lines transpose' : ''})`);
   out.push('', 'Facts:');
   for (const f of ex.facts) out.push(`- ${f.text}`);
   if (ex.concepts.length) {
@@ -79,6 +89,7 @@ export function buildLmPrompt(ex: Explanation, level?: string): string {
     out.push('', 'Diagrams:');
     for (const d of diagrams) out.push(`- [[${d.id}]] ${d.title} (${d.source}): ${line(d.line, size)}. ${d.note}`);
   }
-  out.push('', `Your own diagram, if you ask for one: [[${nextDiagramId(ex)}]]`);
+  const draft = [ex.summary, ...ex.sections.map((x) => `${x.title}: ${x.text}`)].filter(Boolean).join('\n');
+  if (draft) out.push('', 'Draft:', draft);
   return out.join('\n');
 }

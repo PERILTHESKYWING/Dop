@@ -2,7 +2,7 @@
 
 Rows (one JSON object per line in pool.jsonl.gz):
   {"kind": "good", "key", "taskId", "promptVersion", "text", "member", "generation", "run",
-   "scores": {"truth", "coverage", "depth", "judge"?, "quality"}, "ts"}
+   "scores": {"truth", "coverage", "depth", "judge"?, "tone"?, "quality"}, "ts"}
       a verified good answer (truth check passed, enough coverage)
   {"kind": "pair", "key", "taskId", "promptVersion", "chosen", "rejected", "member",
    "rejectedMember", "generation", "run", "scores": {"chosen": {...}, "rejected": {...}}, "ts"}
@@ -32,9 +32,12 @@ W_COVERAGE, W_DEPTH, W_JUDGE = 0.5, 0.3, 0.2
 # Share of quality that comes from XIAO's rubric (eval/coach/rubric.json, code-checked rules)
 # whenever verify.ts scored it: the rubric is the human teacher's voice, so it weighs most.
 W_RUBRIC = 0.5
+# Share of quality from the ChatGPT tone reviewer (tone.py, 0-1) when it read the answer. It comes
+# out of the non-rubric part (coverage, depth and judge shrink in proportion); the rubric keeps W_RUBRIC.
+W_TONE = 0.2
 
 
-def answer_quality(score: dict, judge: float | None = None) -> float:
+def answer_quality(score: dict, judge: float | None = None, tone: float | None = None) -> float:
     """0-1 quality of one checked answer. 0 unless it passed the truth check."""
     if not score or not score.get('pass') or score.get('truth', 0) < 1:
         return 0.0
@@ -44,8 +47,13 @@ def answer_quality(score: dict, judge: float | None = None) -> float:
     else:
         base = W_COVERAGE * cov + W_DEPTH * dep + W_JUDGE * float(judge)
     rubric = score.get('rubric')
-    if isinstance(rubric, (int, float)):
-        return (1 - W_RUBRIC) * base + W_RUBRIC * float(rubric)
+    rubric = float(rubric) if isinstance(rubric, (int, float)) else None
+    if tone is not None:
+        w_rubric = W_RUBRIC if rubric is not None else 0.0
+        tone = min(1.0, max(0.0, float(tone)))
+        return (1 - w_rubric - W_TONE) * base + W_TONE * tone + (w_rubric * rubric if rubric is not None else 0.0)
+    if rubric is not None:
+        return (1 - W_RUBRIC) * base + W_RUBRIC * rubric
     return base
 
 
@@ -138,11 +146,13 @@ class Pool:
         return {**kinds, 'members': len(members)}
 
 
-def _score_part(s: dict, judge: float | None) -> dict:
+def _score_part(s: dict, judge: float | None, tone: float | None = None) -> dict:
     out = {k: s.get(k) for k in ('truth', 'coverage', 'depth') if k in s}
     if judge is not None:
         out['judge'] = round(judge, 3)
-    out['quality'] = round(answer_quality(s, judge), 4)
+    if tone is not None:
+        out['tone'] = round(tone, 3)
+    out['quality'] = round(answer_quality(s, judge, tone), 4)
     return out
 
 
@@ -150,16 +160,17 @@ def rows_for_task(task: dict, answers: list[dict], generation: int, run: str,
                   good_min_coverage: float = 0.3, margin: float = 0.15, max_pairs: int = 3) -> list[dict]:
     """Pool rows from all members' checked answers to one task.
 
-    `answers`: [{"member", "text", "score": {truth, coverage, depth, pass, ...}, "judge": 0-1 | None}].
+    `answers`: [{"member", "text", "score": {truth, coverage, depth, pass, ...}, "judge": 0-1 | None,
+    "tone": 0-1 | None}] (tone: the ChatGPT tone reviewer's score; only numbers, never its note).
     Good rows: every passing answer with coverage >= good_min_coverage. Pairs: the best good
     answer against answers at least `margin` worse, invented-fact answers first (they teach
     the most), at most `max_pairs` per task. Members are mixed freely: that is the hivemind.
     """
     base = {'taskId': task['id'], 'promptVersion': task.get('promptVersion'), 'generation': generation, 'run': run}
-    scored = [(answer_quality(a['score'], a.get('judge')), a) for a in answers if a.get('score')]
+    scored = [(answer_quality(a['score'], a.get('judge'), a.get('tone')), a) for a in answers if a.get('score')]
     goods = [(q, a) for q, a in scored if a['score'].get('pass') and a['score'].get('coverage', 0) >= good_min_coverage]
     rows = [{**base, 'kind': 'good', 'text': a['text'], 'member': a['member'],
-             'scores': _score_part(a['score'], a.get('judge'))} for _q, a in goods]
+             'scores': _score_part(a['score'], a.get('judge'), a.get('tone'))} for _q, a in goods]
     if goods:
         best_q, best = max(goods, key=lambda x: x[0])
         worse = [(q, a) for q, a in scored if a is not best and best_q - q >= margin and a['text'].strip() != best['text'].strip()]
@@ -167,8 +178,8 @@ def rows_for_task(task: dict, answers: list[dict], generation: int, run: str,
         for _q, w in worse[:max_pairs]:
             rows.append({**base, 'kind': 'pair', 'chosen': best['text'], 'rejected': w['text'],
                          'member': best['member'], 'rejectedMember': w['member'],
-                         'scores': {'chosen': _score_part(best['score'], best.get('judge')),
-                                    'rejected': _score_part(w['score'], w.get('judge'))}})
+                         'scores': {'chosen': _score_part(best['score'], best.get('judge'), best.get('tone')),
+                                    'rejected': _score_part(w['score'], w.get('judge'), w.get('tone'))}})
     return rows
 
 

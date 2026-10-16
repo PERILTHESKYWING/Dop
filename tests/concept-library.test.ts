@@ -23,6 +23,7 @@ describe('concept library entries', () => {
     const all: Record<ConceptId, true> = {
       sente: true, gote: true, miai: true, 'weak-group': true, 'dead-group': true, thickness: true, territory: true,
       influence: true, overconcentration: true, aji: true, ladder: true, tenuki: true, 'big-point': true, urgent: true,
+      'double-sente': true, 'reverse-sente': true, 'save-stones': true, ko: true, sacrifice: true, reduction: true, attack: true,
     };
     for (const id of Object.keys(all)) expect(conceptById(id), id).toBeDefined();
   });
@@ -41,7 +42,19 @@ describe('concept library entries', () => {
       }
       expect(c.mistakes.length, c.id).toBeGreaterThanOrEqual(2);
       expect(c.related.length, c.id).toBeGreaterThanOrEqual(2);
+      if (c.hover !== undefined) {
+        expect(c.hover.length, c.id).toBeLessThanOrEqual(140);
+        expect(c.hover, c.id).toMatch(/\.$/);
+      }
     }
+  });
+
+  it('miai is XIAO\'s text, with its hover definition as the short answer', () => {
+    const m = conceptById('miai')!;
+    expect(m.short).toBe('Two points that achieve the same goal. If your opponent takes one, you can use the other.');
+    expect(m.hover).toBe(m.short);
+    expect(m.body.map((s) => s.title)).toEqual(['What is miai?', 'Why does it matter?', 'Can miai be broken?', 'How strong players use miai', 'Diagram example: Straight four', 'Remember']);
+    expect(m.mistakes.map((x) => x.split(':')[0])).toEqual(['Playing too early', 'Missing the follow-up', 'Assuming miai without reading']);
   });
 
   it('related ids exist and are not the entry itself', () => {
@@ -115,7 +128,13 @@ describe('findConcepts', () => {
   });
 
   it('prefers the longer term over a word inside it', () => {
-    expect(ids('what is double sente')).toEqual(['endgame']);
+    expect(ids('what is double sente')).toEqual(['double-sente']);
+    expect(first('is this ryou-sente?')).toBe('double-sente');
+    expect(first('what is gyaku sente')).toBe('reverse-sente');
+    expect(first('reverse sente or gote?')).toBe('reverse-sente');
+    expect(first('両先手とは')).toBe('double-sente');
+    expect(first('when is saving stones worth a move?')).toBe('save-stones');
+    expect(first('what is yose')).toBe('endgame');
     expect(ids('how many ko threats do I have')).toEqual(['ko-threats']);
     expect(ids('is this a false eye')).toEqual(['eyes']);
     expect(ids('the 3-3 invasion')).toEqual(['three-three-invasion']);

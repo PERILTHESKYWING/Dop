@@ -19,6 +19,7 @@ import { Settings, type SettingsPage } from './ui/Settings';
 import { Sidebar } from './ui/Sidebar';
 import { Splitter } from './ui/Splitter';
 import { getSetting, useSetting } from './lib/settings';
+import { observeMove, studentProfile } from './lib/style';
 
 function lsGet(k: string): string | null {
   try {
@@ -190,7 +191,17 @@ export function App() {
           board,
           pick,
           thinking,
-          { explain, getProber, findConcepts, callLlm: llmOn === false ? noLlm : callKamiWrite, checkAnswer, localWrite: withLocal ? localWrite : undefined, illustrate: positionSettings, writerDiagrams: () => getSetting<boolean>('positions.writerDiagrams') },
+          {
+            explain,
+            getProber,
+            findConcepts,
+            callLlm: llmOn === false ? noLlm : callKamiWrite,
+            checkAnswer,
+            localWrite: withLocal ? localWrite : undefined,
+            illustrate: positionSettings,
+            writerDiagrams: () => getSetting<boolean>('positions.writerDiagrams'),
+            student: studentProfile,
+          },
           { onThought, onStage },
           ctrl.signal,
         ),
@@ -365,10 +376,13 @@ export function App() {
               clearPreview();
               setBoard(b);
             }}
-            onPlay={(loc) => {
+            onPlay={(loc, fromCandidate) => {
               if (preview) return clearPreview();
               const b = playAt(current.board, loc);
-              if (b) setBoard(b);
+              if (!b) return;
+              // A move the student chose (not KataGo's disc): Kami learns their style from many of these.
+              if (!fromCandidate) observeMove(current.board, loc);
+              setBoard(b);
             }}
             onUndo={() => setBoard(undo(current.board))}
             onClearPreview={clearPreview}

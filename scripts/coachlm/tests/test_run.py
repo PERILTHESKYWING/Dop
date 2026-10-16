@@ -15,7 +15,7 @@ from util import read_json, read_jsonl
 def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(release, 'get_release', lambda *a, **k: None)
     monkeypatch.setenv('HF_HOME', str(tmp_path / 'hf'))
-    for k in ('HF_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'):
+    for k in ('HF_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'OPENAI_API_KEY'):
         monkeypatch.delenv(k, raising=False)
 
 

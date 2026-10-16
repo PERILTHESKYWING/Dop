@@ -220,3 +220,17 @@ def test_base_model_change_is_refused(cfg, tasks_on_disk):
     cfg.base_model = 'another/model'
     with pytest.raises(SystemExit, match='trained tiny/test-model'):
         Evolution(cfg, FakeBackend(), FakeJudge())
+
+
+def test_tone_reviewer_in_the_loop(cfg, tasks_on_disk):
+    """With a (faked) OpenAI key the tone reviewer reads a few passing answers per generation, within its caps."""
+    from test_tone import FakePost, reply
+    from tone import ToneJudge
+    cfg.tone_cap, cfg.tone_per_gen, cfg.tone_batch = 5, 4, 4
+    post = FakePost(text=lambda user: reply(9, 9, 9, 9) if 'more depth' in user else reply(3, 3, 3, 3))
+    evo = Evolution(cfg, FakeBackend(), FakeJudge(), name='pc', tone=ToneJudge(cfg, key='k', post=post, sleep=lambda s: None))
+    assert evo.run(max_generations=2) == 'finished 2 generation(s)'
+    assert 0 < len(post.calls) <= 5 and evo.tone.calls == len(post.calls)
+    assert [r['toneCalls'] for r in read_jsonl(cfg.path('log.jsonl'))][-1] == len(post.calls)
+    toned = [r for r in read_jsonl(cfg.path('pool.jsonl.gz')) if r['kind'] == 'good' and 'tone' in r['scores']]
+    assert toned and all(0 <= r['scores']['tone'] <= 1 for r in toned)

@@ -8,7 +8,7 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type SettingGroup = 'general' | 'board' | 'katago' | 'positions';
+export type SettingGroup = 'general' | 'profile' | 'board' | 'katago' | 'positions';
 
 interface Base {
   key: string;
@@ -90,6 +90,36 @@ export const SETTINGS: SettingDef[] = [
     label: 'Enter sends',
     help: 'Shift+Enter starts a new line. Off: Ctrl+Enter sends.',
     default: true,
+  },
+
+  // Profile: how answers are pitched (style memory itself lives in style.ts).
+  {
+    key: 'profile.level',
+    group: 'profile',
+    type: 'select',
+    label: 'Your Go level',
+    help: 'Kami matches its words, terms and depth to this.',
+    default: 'intermediate',
+    options: [
+      { value: 'beginner', label: 'Beginner (new to Go, or 20–10 kyu)' },
+      { value: 'intermediate', label: 'Intermediate (single-digit kyu)' },
+      { value: 'strong', label: 'Strong (dan level)' },
+    ],
+  },
+  {
+    key: 'profile.style',
+    group: 'profile',
+    type: 'select',
+    label: 'How you like to play',
+    help: 'When two moves are close, Kami points out the one that suits your game.',
+    default: 'auto',
+    options: [
+      { value: 'auto', label: 'Learn from my moves' },
+      { value: 'solid', label: 'Solid and safe' },
+      { value: 'territory', label: 'Territory' },
+      { value: 'influence', label: 'Influence and moyo' },
+      { value: 'fighting', label: 'Fighting' },
+    ],
   },
 
   // Board
@@ -251,6 +281,11 @@ export const SETTINGS: SettingDef[] = [
 
 export const GROUPS: { id: SettingGroup; label: string; blurb: string }[] = [
   { id: 'general', label: 'General', blurb: 'Your name, look and typing.' },
+  {
+    id: 'profile',
+    label: 'Profile',
+    blurb: 'What Kami knows about you, so answers fit your level and the way you play. Kept in this browser only.',
+  },
   { id: 'board', label: 'Board', blurb: 'What the board shows.' },
   {
     id: 'katago',

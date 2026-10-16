@@ -3,7 +3,7 @@
  * Plain pattern matching: coordinates (R16), "move 37", "why not X", "what should I play".
  */
 import type { ConceptEntry } from '../../../src/lib/coach/library';
-import type { ExplainPosition, Question, QuestionKind } from '../../../src/lib/coach/explain/types';
+import type { ExplainPosition, Question, QuestionIntent, QuestionKind } from '../../../src/lib/coach/explain/types';
 import { PASS, type Loc } from '../../../src/lib/go/types';
 import { explainPositionOf, hasPosition, type BoardState } from './position';
 
@@ -18,6 +18,8 @@ export interface ParsedQuestion {
   moveNumber?: number;
   /** "my move", "this move", "what should I have played": the last move on the board. */
   lastMove?: boolean;
+  /** What the student is after when the words say more than the kind ("can Black kill this group?"). */
+  intent?: QuestionIntent;
   text: string;
 }
 
@@ -42,21 +44,47 @@ const LAST_MOVE = /\b(?:my|this|that|the\s+last|my\s+last|the\s+previous|last)\s
 /** Asking what should have been played instead of the last move. */
 const SHOULD_HAVE = /\b(?:should|could|would)\s+(?:i|we|black|white)\s+have\s+(?:played|done)\b|\bwhat\s+was\s+(?:the\s+)?(?:best|right|correct)\s+(?:move|play)\b|\bbetter\s+(?:move|play)\s+(?:there|instead)\b/i;
 
+/**
+ * Questions whose words say what the student is after (QuestionIntent). Kill comes before live:
+ * "can Black kill this group or does it live?" is asked by the attacker.
+ */
+const INTENTS: [QuestionIntent, QuestionKind, RegExp][] = [
+  ['kill', 'best', /\bkill(?:s|ed|ing)?\b|\b(?:is|are)\s+(?:it|this|that|they|these|those|(?:the|this|that|my|black'?s|white'?s)\s+(?:\w+\s+)?(?:group|stones?|chain|corner))\s+(?:already\s+|really\s+)?dead\b/i],
+  ['live', 'best', /\b(?:live|lives|living|alive)\b|\bmake\s+(?:two\s+|an?\s+|(?:a\s+)?second\s+)?eyes?\b|\bsave\s+(?:this|the|that|my|these|those|black'?s|white'?s)\s+(?:\w+\s+)?(?:group|stones?|chain)\b/i],
+  ['tesuji', 'best', /\btesujis?\b/i],
+  ['ahead', 'overview', /\bwho(?:'s|\s+is)\s+(?:ahead|winning|leading|better|behind|losing)\b|\b(?:am\s+i|are\s+we|is\s+(?:black|white))\s+(?:ahead|winning|leading|behind|losing)\b/i],
+  ['biggest', 'best', /\b(?:biggest|largest)\s+(?:move|point|play)s?\b/i],
+];
+
+/** A point named as a group's place ("the group at R16"), not as a move. */
+const GROUP_AT = /\b(?:group|stones?|chain|corner)\s+(?:at|on|around|near)\s+[A-HJ-Za-hj-z]\d{1,2}\b/i;
+
+function intentOf(t: string): [QuestionIntent, QuestionKind] | null {
+  for (const [intent, kind, re] of INTENTS) if (re.test(t)) return [intent, kind];
+  return null;
+}
+
 export function parseQuestion(text: string, size: number): ParsedQuestion {
   const t = text.trim().replace(/[’‘]/g, "'");
   const coords = findCoords(t, size);
   const num = t.match(/\bmove\s*(?:#|no\.?|number)?\s*(\d{1,3})\b/i);
   const moveNumber = num ? parseInt(num[1], 10) : undefined;
+  // "What is a tesuji?" asks about the idea, not this board: no intent.
+  const found = isConceptQuestion(t) ? null : intentOf(t);
+  const intent = found ? { intent: found[0] } : {};
   const whyNot = WHY_NOT.exec(t);
   if (whyNot && coords.length) {
     // "Why not R16?" / "What about R16 instead?": the point after the phrase, else the first one.
     const after = coords.find((c) => c.at >= whyNot.index) ?? coords[0];
-    return { kind: 'why-not', move: after.loc, text: t };
+    return { kind: 'why-not', move: after.loc, ...intent, text: t };
   }
-  if (coords.length) return { kind: 'why-move', move: coords[0].loc, text: t };
-  if (moveNumber !== undefined && moveNumber > 0) return { kind: 'why-move', moveNumber, text: t };
+  // "Can Black kill the group at R16?": the point names the group; the question is the best move.
+  if (found && found[1] === 'best' && coords.length && GROUP_AT.test(t)) return { kind: 'best', ...intent, text: t };
+  if (coords.length) return { kind: 'why-move', move: coords[0].loc, ...intent, text: t };
+  if (moveNumber !== undefined && moveNumber > 0) return { kind: 'why-move', moveNumber, ...intent, text: t };
   // "What should I have played?" is the best move in the position before the last move.
-  if (SHOULD_HAVE.test(t)) return { kind: 'best', lastMove: true, text: t };
+  if (SHOULD_HAVE.test(t)) return { kind: 'best', lastMove: true, ...intent, text: t };
+  if (found) return { kind: found[1], ...intent, text: t };
   if (BEST.test(t)) return { kind: 'best', text: t };
   // "Why was my move bad?" is about the move on the board, not the opponent's next move.
   if (LAST_MOVE.test(t)) return { kind: 'why-move', lastMove: true, text: t };
@@ -80,7 +108,10 @@ export type Route =
  */
 export function routeQuestion(text: string, board: BoardState, findConcepts: (t: string) => ConceptEntry[]): Route {
   const parsed = parseQuestion(text, board.size);
-  if (parsed.move !== undefined || parsed.moveNumber !== undefined || parsed.lastMove || parsed.kind === 'best') return { type: 'position', parsed };
+  // "How does a group live?" on an empty board is about the idea; with stones, about this board.
+  const aboutBoard = !parsed.intent || hasPosition(board);
+  if (parsed.move !== undefined || parsed.moveNumber !== undefined || parsed.lastMove || (parsed.kind === 'best' && aboutBoard)) return { type: 'position', parsed };
+  if (parsed.intent === 'ahead' && aboutBoard) return { type: 'position', parsed };
   const entries = findConcepts(text);
   if (entries.length || !hasPosition(board) || isConceptQuestion(text)) return { type: 'concept', entries };
   return { type: 'position', parsed };
@@ -126,6 +157,11 @@ export function askFor(board: BoardState, parsed: ParsedQuestion): Asked {
     }
   }
   const kind: QuestionKind = parsed.kind === 'why-move' && move === undefined ? 'overview' : parsed.kind;
-  const question: Question = { kind, text: parsed.text, ...(move !== undefined && kind !== 'overview' && kind !== 'best' ? { move } : {}) };
+  const question: Question = {
+    kind,
+    text: parsed.text,
+    ...(move !== undefined && kind !== 'overview' && kind !== 'best' ? { move } : {}),
+    ...(parsed.intent ? { intent: parsed.intent } : {}),
+  };
   return { pos: explainPositionOf(board, upTo), question, upTo };
 }

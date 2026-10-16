@@ -44,6 +44,7 @@ export const OPENING: ConceptText[] = [
     aliases: ['3-3 invasion', '3-3', '33 invasion', 'three three', 'three-three', 'three-three invasion', 'san san', 'sansan', 'san-san', '3-3 point', 'early 3-3', '三々', '三三', '点三三', '點三三', '삼삼', '삼삼 침입'],
     level: 'intermediate',
     short: 'The 3-3 invasion is a move at the 3-3 point under a lone star-point stone; it takes the corner and lives, giving the outside to the opponent. AI made it a normal move from the very start of the game.',
+    hover: 'A move at the 3-3 point under a lone star-point stone; it takes the corner and lets the opponent build outside.',
     body: [
       {
         title: 'What it is',
@@ -75,6 +76,7 @@ export const OPENING: ConceptText[] = [
     aliases: ['joseki', 'josekis', 'jōseki', 'corner sequence', 'standard sequence', 'standard corner sequence', 'trick play', 'hamete', '定石', 'ハメ手', '定式', '定式选择', '정석', '정석 선택'],
     level: 'intermediate',
     short: 'A joseki is a standard corner sequence that is fair to both sides locally; choosing which joseki to play, given the rest of the board, matters more than knowing the moves.',
+    hover: 'A standard corner sequence that is fair to both sides locally; choosing the one that fits the whole board matters most.',
     body: [
       {
         title: 'What it is',

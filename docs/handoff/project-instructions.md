@@ -45,5 +45,6 @@ All PRs below are merged except #6. Detail per topic is in the other docs/handof
 | 11 | Stronger AI, less phone heat | Opening book, big-net anchors, cool mode, PC helper, DopNet student, AI training workflow | #18 |
 | 12-13 | Recent game dataset | OGS 2022+ data, then student evolution, training chain, home GPU trainer, faster search | #19, #20 |
 | 14 | Handoff | CLAUDE.md and these notes | #21 |
+| Kami | Smarter Kami AI (new project) | Round 1: KataGo-checked built positions, rubric v0, 2022+ training data, critique sheet. Round 2: XIAO's critique of 28 answers applied (teacher voice, life-and-death solver, glossary hovers, Profile and style memory, rubric v1, ChatGPT tone reviewer for training) | #42, #45 |
 
-Decisions to keep: the LLM is grounded, not retrained; betting and focus mode were removed on purpose; the PC engine bridge exists only as the optional PC helper; no free human game archive exists after May 2025. Open items are in `open-items.md`.
+Decisions to keep: the LLM is grounded, not retrained; ChatGPT only reviews tone during training, never on the sites; betting and focus mode were removed on purpose; the PC engine bridge exists only as the optional PC helper; no free human game archive exists after May 2025. Open items are in `open-items.md`.

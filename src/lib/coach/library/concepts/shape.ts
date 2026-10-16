@@ -44,6 +44,7 @@ export const SHAPE: ConceptText[] = [
     aliases: ['empty triangle', 'empty triangles', 'aki sankaku', 'aki-sankaku', '空き三角', '空三角', '빈삼각'],
     level: 'beginner',
     short: 'An empty triangle is three stones in an L with the fourth point of the square empty; it has fewer liberties and covers less ground than other three-stone shapes, so it is usually bad.',
+    hover: 'Three stones in an L with the fourth point of the square empty: an inefficient shape with few liberties.',
     body: [
       {
         title: 'What it is',
@@ -75,6 +76,7 @@ export const SHAPE: ConceptText[] = [
     aliases: ["tiger's mouth", 'tigers mouth', 'tiger mouth', 'hanging connection', 'kaketsugi', 'kake tsugi', 'tora no kuchi', 'カケツギ', '虎の口', '虎口', '호구'],
     level: 'beginner',
     short: 'A tiger\'s mouth is three stones around an empty point, open on one side; the opponent cannot play inside without being captured, so it connects lightly.',
+    hover: 'Three stones around an empty point, open on one side; the opponent cannot play inside without being captured.',
     body: [
       {
         title: 'What it is',

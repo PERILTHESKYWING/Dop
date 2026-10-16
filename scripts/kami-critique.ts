@@ -19,9 +19,9 @@ import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
 import { problemBoard } from '../src/lib/problems/play';
 import type { Problem } from '../src/lib/problems/types';
 import { nodeProber } from './explainNode';
-import type { Prober } from '../src/lib/coach/explain/types';
+import type { EngineRead, Prober } from '../src/lib/coach/explain/types';
 
-const { values: arg } = parseArgs({ options: { out: { type: 'string', default: 'critique.json' }, only: { type: 'string' }, thinking: { type: 'string', default: 'high' } } });
+const { values: arg } = parseArgs({ options: { out: { type: 'string', default: 'critique.json' }, only: { type: 'string' }, thinking: { type: 'string', default: 'high' }, cache: { type: 'string' } } });
 const root = new URL('../', import.meta.url);
 const readJson = <T>(p: string): T => JSON.parse(readFileSync(new URL(p, root), 'utf8')) as T;
 
@@ -88,9 +88,9 @@ const ITEMS: Item[] = [
   { id: 14, area: 'Endgame', title: 'The biggest endgame move', question: 'What is the biggest move now?', kind: 'position', pos: demoPos(1, 190) },
   { id: 15, area: 'Endgame', title: 'An endgame problem from a real game', question: 'What should I play here?', kind: 'position', pos: endgame.pos, evenKomi: true },
   // Life and death, tesuji
-  { id: 16, area: 'Life and death', title: 'Make this group live', question: 'How does this group live?', kind: 'position', pos: life.pos, q: { kind: 'best', text: 'How does this group live?' }, evenKomi: true },
-  { id: 17, area: 'Life and death', title: 'Kill the group', question: 'Can I kill this group?', kind: 'position', pos: kill.pos, q: { kind: 'best', text: 'Can I kill this group?' }, evenKomi: true },
-  { id: 18, area: 'Tesuji', title: 'A throw-in', question: 'What is the tesuji here?', kind: 'position', pos: tesuji.pos, q: { kind: 'best', text: 'What is the tesuji here?' }, evenKomi: true },
+  { id: 16, area: 'Life and death', title: 'Make this group live', question: 'How does this group live?', kind: 'position', pos: life.pos, q: { kind: 'best', text: 'How does this group live?', intent: 'live' }, evenKomi: true },
+  { id: 17, area: 'Life and death', title: 'Kill the group', question: 'Can I kill this group?', kind: 'position', pos: kill.pos, q: { kind: 'best', text: 'Can I kill this group?', intent: 'kill' }, evenKomi: true },
+  { id: 18, area: 'Tesuji', title: 'A throw-in', question: 'What is the tesuji here?', kind: 'position', pos: tesuji.pos, q: { kind: 'best', text: 'What is the tesuji here?', intent: 'tesuji' }, evenKomi: true },
   // Your own games
   { id: 19, area: 'Your games', title: 'Why was my move bad?', question: 'Why was my move bad?', kind: 'position', pos: demoPos(0, 60), q: { kind: 'why-move', move: demo[0].moves[60].loc, text: 'Why was my move bad?' } },
   { id: 20, area: 'Your games', title: 'Was my move good?', question: 'Was this a good move?', kind: 'position', pos: demoPos(2, 41), q: { kind: 'why-move', move: demo[2].moves[41].loc, text: 'Was this a good move?' } },
@@ -117,8 +117,35 @@ let engine: Prober | null = null;
 const proberFor = async (size: number) => {
   if (engine && size !== engineSize) throw new Error(`one board size per run: run item(s) on ${size}x${size} with --only on their own`);
   if (!engine) [engine, engineSize] = [await nodeProber(size), size];
-  return engine;
+  return arg.cache ? cachedProber(engine, arg.cache) : engine;
 };
+
+/**
+ * --cache file: reads are kept in a JSON file and reused, so a rerun after a wording change
+ * gives the same reads (KataGo's search is time-capped, so fresh reads differ a little).
+ */
+function cachedProber(inner: Prober, file: string): Prober {
+  type Stored = Omit<EngineRead, 'ownership'> & { ownership: number[] | null };
+  let store: Record<string, Stored> = {};
+  try {
+    store = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    store = {};
+  }
+  return {
+    async read(pos, budget) {
+      const key = JSON.stringify([pos.size, pos.komi, pos.toPlay, pos.setup.map((m) => [m.color, m.loc]), pos.moves.map((m) => [m.color, m.loc]), budget.visits]);
+      const hit = store[key];
+      if (hit) return { ...hit, ownership: hit.ownership ? Float32Array.from(hit.ownership) : null };
+      const r = await inner.read(pos, budget);
+      if (r) {
+        store[key] = { ...r, ownership: r.ownership ? Array.from(r.ownership, (v) => Math.round(v * 1000) / 1000) : null };
+        writeFileSync(file, JSON.stringify(store));
+      }
+      return r;
+    },
+  };
+}
 const name = (l: Loc, size: number) => (l === PASS || l < 0 ? 'pass' : locToGtp(l, size));
 
 function stonesOf(pos: ExplainPosition) {
@@ -190,7 +217,7 @@ for (const it of ITEMS) {
     const r = await prober.read(pos, { visits: 200, maxMs: 30_000 });
     if (r) pos.komi = Math.round((pos.komi + r.bLead) * 2) / 2;
   }
-  const q: Question = it.q ?? { kind: /explain|ahead/i.test(it.question) ? 'overview' : 'best', text: it.question };
+  const q: Question = it.q ?? { kind: /explain|ahead/i.test(it.question) ? 'overview' : 'best', text: it.question, ...(/ahead/i.test(it.question) ? { intent: 'ahead' as const } : /biggest/i.test(it.question) ? { intent: 'biggest' as const } : {}) };
   const t = Date.now();
   const ex = await explain(pos, q, prober, { model: 'tesuji', thinking, examplesFor: (id) => conceptById(id)?.examples ?? [] });
   const last = pos.moves[pos.moves.length - 1];
@@ -208,6 +235,9 @@ for (const it of ITEMS) {
     asked: q.move !== undefined ? name(q.move, pos.size) : null,
     view: it.evenKomi ? (problemFor(it)?.view ?? null) : null,
     answer: packExplanation(ex),
+    situation: ex.situation ?? null,
+    lifeDeath: ex.lifeDeath ? { ...ex.lifeDeath, target: ex.lifeDeath.target.map((l) => name(l, pos.size)), key: ex.lifeDeath.key !== undefined ? name(ex.lifeDeath.key, pos.size) : null, line: ex.lifeDeath.line.map((l) => name(l, pos.size)), missLine: ex.lifeDeath.missLine.map((l) => name(l, pos.size)) } : null,
+    zoom: ex.view ?? null,
   });
   console.log(`${it.id} ${it.title}: ${((Date.now() - t) / 1000).toFixed(1)} s, ${ex.variations.length} lines, ${ex.illustrations?.length ?? 0} diagrams, concepts ${ex.concepts.map((c) => c.id).join(' ') || '-'}`);
 }

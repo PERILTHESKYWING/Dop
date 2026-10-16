@@ -1,6 +1,6 @@
 import type { ConceptText } from '../types';
 
-/** Initiative and timing: sente, gote, tenuki, miai, forcing moves, probes, aji. */
+/** Initiative and timing: sente, gote, double and reverse sente, tenuki, miai, forcing moves, probes, aji. */
 export const TEMPO: ConceptText[] = [
   {
     id: 'sente',
@@ -8,6 +8,7 @@ export const TEMPO: ConceptText[] = [
     aliases: ['sente', 'initiative', 'forcing move', 'keep sente', 'in sente', '先手', '선수'],
     level: 'intermediate',
     short: 'A move is sente when it threatens something big enough that the opponent should answer, so you keep the initiative and choose the next big point.',
+    hover: 'A move the opponent has to answer, so you keep the initiative and choose the next big point.',
     body: [
       {
         title: 'What it is',
@@ -36,7 +37,7 @@ export const TEMPO: ConceptText[] = [
       'Calling a move sente without asking how big its follow-up is compared with the rest of the board.',
       'Choosing a gote result locally when a sente result was only slightly smaller.',
     ],
-    related: ['gote', 'tenuki', 'kikashi', 'endgame', 'move-value', 'big-point'],
+    related: ['gote', 'double-sente', 'tenuki', 'kikashi', 'endgame', 'move-value', 'big-point'],
   },
   {
     id: 'gote',
@@ -67,7 +68,71 @@ export const TEMPO: ConceptText[] = [
       'Fearing gote so much that a big necessary move is skipped.',
       'Comparing a sente and a gote move by local points only.',
     ],
-    related: ['sente', 'tenuki', 'endgame', 'move-value', 'thickness'],
+    related: ['sente', 'reverse-sente', 'tenuki', 'endgame', 'move-value', 'thickness'],
+  },
+  {
+    id: 'double-sente',
+    name: 'Double sente (ryou-sente)',
+    aliases: ['double sente', 'ryou-sente', 'ryousente', 'ryo sente', 'ryosente', 'mutual sente', 'double sente point', '両先手', '双先手', '雙先手', '双先', '雙先', '양선수'],
+    level: 'intermediate',
+    short: 'A double sente point is sente for whichever side plays it, so either player can take it first and keep the initiative; it should be played as early as possible.',
+    hover: 'A large point that either player can take first to gain sente.',
+    body: [
+      {
+        title: 'What it is',
+        text: 'A move is double sente (ryou-sente) when it is sente for both players: if Black plays there, White has to answer, and if White plays there, Black has to answer. Typical examples are boundary points where each side\'s hane threatens a follow-up bigger than the next move elsewhere. Whoever plays it first gains there and still keeps the turn.',
+      },
+      {
+        title: 'Why play it early',
+        text: 'A double sente move costs no tempo, so there is no reason to wait: every turn you delay is a chance for the opponent to take it first, in sente, and they gain the difference for free. That is why it comes first in the endgame order, ahead of one-sided sente moves and far ahead of gote moves of similar size. Strong players often take double sente points during the middle game, as soon as the boundary is settled enough.',
+      },
+      {
+        title: 'Spotting it',
+        text: 'Look at each boundary from both sides. Ask: if I play here, can the opponent ignore it? And if the opponent plays here, can I ignore that? When the answer is no both times, the point is double sente. Its local value may look small, but because neither side loses the turn by playing it, it is worth more than a larger gote move.',
+      },
+      {
+        title: 'When it is not really double sente',
+        text: 'Sente is relative. A point is double sente only while both follow-ups are bigger than the largest move elsewhere; when a big fight or a large gote point appears, one side may be able to ignore it, and it becomes one-sided sente or even gote. Also look at the answer you force: if it strengthens the opponent or removes your own aji, the move may be worth less than it seems.',
+      },
+    ],
+    mistakes: [
+      'Leaving a double sente point for later, so the opponent takes it first in sente.',
+      'Playing a big gote move while a double sente point is still open.',
+      'Calling a point double sente without checking that both follow-ups are bigger than the biggest move elsewhere.',
+    ],
+    related: ['sente', 'reverse-sente', 'gote', 'endgame', 'move-value'],
+  },
+  {
+    id: 'reverse-sente',
+    name: 'Reverse sente (gyaku-sente)',
+    aliases: ['reverse sente', 'gyaku-sente', 'gyakusente', 'gyaku yose', 'reverse sente move', '逆先手', '逆ヨセ', '逆收', '逆收官子', '역끝내기', '역선수'],
+    level: 'intermediate',
+    short: 'A reverse sente move is gote for you, but it takes away a point where the opponent\'s move would have been sente, so it is worth more than an ordinary gote move.',
+    hover: 'A gote move that takes away a point where the opponent\'s move would have been sente.',
+    body: [
+      {
+        title: 'What it is',
+        text: 'Many endgame points are sente for one side only. For that side the move is easy: play it when it is the right size and keep the turn. For the other side, playing there first is gote, because it threatens nothing big, but it stops the opponent\'s sente move. That defensive gote move is called reverse sente (gyaku-sente).',
+      },
+      {
+        title: 'Why it is worth more than it looks',
+        text: 'If you leave the point, the opponent can take it whenever they like and still keep the turn, so you lose its value without getting anything back. If you play it yourself, you spend a turn but save that loss. That is why a reverse sente move is usually valued at about twice a gote move of the same local size, and why it often comes before gote moves that look a little bigger.',
+      },
+      {
+        title: 'Where it comes in the order',
+        text: 'The usual endgame order is double sente first, then your own sente moves, then reverse sente and gote moves by size, with reverse sente ahead of gote moves of similar value. Keep an eye on the opponent\'s sente moves: when one of their follow-ups has grown big and nothing on the board is more urgent, taking it away is often the best use of a gote turn.',
+      },
+      {
+        title: 'How strong players think about it',
+        text: 'They look at each boundary from both sides and ask who is sente there. A point that is sente for the opponent is a liability that will be collected sooner or later, and removing it at the right moment is quiet but valuable. They also remember that reverse sente is still gote: it is right only when nothing bigger or more urgent is left.',
+      },
+    ],
+    mistakes: [
+      'Ignoring the opponent\'s sente moves, so they collect them all without losing a turn.',
+      'Treating a reverse sente move as an ordinary gote move of the same local size.',
+      'Playing reverse sente while a double sente point or an urgent move is still open.',
+    ],
+    related: ['sente', 'gote', 'double-sente', 'endgame', 'move-value'],
   },
   {
     id: 'tenuki',
@@ -109,29 +174,39 @@ export const TEMPO: ConceptText[] = [
     name: 'Miai',
     aliases: ['miai', 'mutual alternatives', 'miai points', 'two equal points', '見合い', '见合', '見合', '맞보기', '맞보기 자리'],
     level: 'intermediate',
-    short: 'Two points are miai when they do the same job, so if the opponent takes one you take the other; neither needs to be played until the opponent touches one.',
+    // Written by XIAO (2026-10-16), fitted to the entry's shape.
+    short: 'Two points that achieve the same goal. If your opponent takes one, you can use the other.',
+    hover: 'Two points that achieve the same goal. If your opponent takes one, you can use the other.',
     body: [
       {
-        title: 'What it is',
-        text: 'Miai means "seeing each other". A group with two ways to make its second eye, two ways to connect, or two points to extend to has miai: the opponent cannot stop both with one move. So you do not need to play either now; you keep the move for elsewhere and answer only when the opponent takes one of the two.',
+        title: 'What is miai?',
+        text: 'Imagine you have two ways to connect your stones, but your opponent can block only one. If they block the first, you connect using the second. Your opponent cannot stop both with a single move!\n\nThese two points are miai. They give you alternative ways to achieve the same result, whether that means making eyes, connecting stones, escaping, or securing a strategic advantage.',
       },
       {
-        title: 'Why it matters',
-        text: 'Miai saves tempo. Recognising that your group has two ways to live, or that your two stones have two ways to connect (the bamboo joint is miai in its simplest form), lets you play the biggest point elsewhere instead of a safety move. Many endgame calculations rely on it too: two moves of equal value are miai, so each side gets one.',
+        title: 'Why does it matter?',
+        text: 'Miai gives you flexibility. When two points can do the same job, you often don\'t need to play either one immediately. Instead, you can play elsewhere and let your opponent commit first.\n\nFor example, in a standard straight-four life-and-death shape, the two vital eye-making points are miai. If the attacker occupies one, the defender can play the other to make two eyes and live.\n\nMiai also appears across the whole board. Two important areas might be miai if taking one allows your opponent to take the other. Recognising this can help you avoid unnecessary defensive moves and spend your turn somewhere more valuable.',
       },
       {
-        title: 'Breaking miai',
-        text: 'The way to beat miai is a move that threatens both points at once, or a forcing move that removes one of them in sente. Examples: an atari that also threatens the second connecting point, a move that reduces eye space and makes the other eye point too small. When you rely on miai, check that no single move threatens both.',
+        title: 'Can miai be broken?',
+        text: 'Yes! Miai is not invincible.\n\nYour opponent might find a move that threatens both points simultaneously, leaving you unable to secure either one. They might also remove one of the alternatives through a forcing sequence.\n\nWhenever you rely on miai, ask yourself: **Can my opponent threaten both options at once, or will one still work after they play?**',
       },
       {
-        title: 'How strong players think about it',
-        text: 'They use miai to judge whole-board positions: "these two groups are miai to live", "these two big points are miai, so I can play the third". When the opponent takes one of a miai pair, they take the other at once unless something bigger appeared; letting them have both is a two-move loss.',
+        title: 'How strong players use miai',
+        text: 'Strong players look for miai before committing to a move. They ask whether a group already has two ways to live, whether their stones have two ways to connect, or whether two strategic points provide equivalent opportunities.\n\nRecognising miai helps you distinguish between a move that is genuinely necessary and one you can safely postpone. However, don\'t assume two points are miai just because they look similar. Check that the alternative really achieves the same goal against your opponent\'s best response.',
+      },
+      {
+        title: 'Diagram example: Straight four',
+        text: 'In the standard straight-four shape along the edge, the two middle points are miai for the defender. If the attacker takes one vital point, the defender plays the other to make two eyes and live.\n\nThe important lesson is that the defender does not need to occupy both points. Having access to either one is enough.',
+      },
+      {
+        title: 'Remember',
+        text: 'Miai is the power of having a second option. You don\'t always need to play the move yourself; sometimes, knowing that your alternative works is already enough.',
       },
     ],
     mistakes: [
-      'Playing one point of a miai pair when the opponent has not touched the other: a wasted move.',
-      'Not answering when the opponent takes one point, so they get both.',
-      'Missing the move that threatens both points at once.',
+      'Playing too early: defending one point when the other already guarantees the same result.',
+      'Missing the follow-up: letting your opponent take one point, then failing to secure the other.',
+      'Assuming miai without reading: overlooking a sequence that threatens both options or makes the remaining point ineffective.',
     ],
     related: ['bamboo-joint', 'eyes', 'tenuki', 'sente', 'endgame'],
   },
@@ -203,6 +278,7 @@ export const TEMPO: ConceptText[] = [
     aliases: ['aji', 'latent potential', 'bad aji', 'aftertaste', 'aji keshi', 'ajikeshi', '味', '味消し', '余味', '餘味', '消劫', '뒷맛'],
     level: 'advanced',
     short: 'Aji ("taste") is the potential left in a position: weaknesses and possibilities, like a cutting point or dead stones that may come back to life, that can be used later.',
+    hover: 'Weaknesses and possibilities left in a position, like a cutting point, that can be used later.',
     body: [
       {
         title: 'What it is',

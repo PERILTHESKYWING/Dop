@@ -8,6 +8,7 @@ export const TACTICS: ConceptText[] = [
     aliases: ['ladder', 'ladders', 'ladder breaker', 'ladder break', 'shicho', 'shichou', 'shichō', 'シチョウ', 'シチョウアタリ', '征子', '引征', '扭羊头', '축', '축머리'],
     level: 'beginner',
     short: 'A ladder is a chase in which the stones are kept in atari at every move, zig-zagging across the board until they hit the edge or a friendly stone; a stone on the path (a ladder breaker) decides it.',
+    hover: 'A chase that keeps stones in atari at every move, zig-zagging across the board until they hit the edge or a friendly stone.',
     body: [
       {
         title: 'What it is',
@@ -44,6 +45,7 @@ export const TACTICS: ConceptText[] = [
     aliases: ['net', 'geta', 'ゲタ', '枷', '枷吃', '장문'],
     level: 'beginner',
     short: 'A net captures stones with a loose move that blocks every escape route at once, without giving atari; it works whatever stones lie far away.',
+    hover: 'A loose move that blocks every escape at once, so the stones are captured without a chase of ataris.',
     body: [
       {
         title: 'What it is',
@@ -75,6 +77,7 @@ export const TACTICS: ConceptText[] = [
     aliases: ['snapback', 'snap back', 'snap-back', 'uttegaeshi', 'ウッテガエシ', '打って返し', '倒扑', '倒撲', '환격'],
     level: 'beginner',
     short: 'A snapback is a sacrifice: you let one stone be captured, and the capturing stones are left in atari, so you recapture more stones at the same point.',
+    hover: 'You let one stone be captured; the capturing stones are then in atari, and you take them back at the same point.',
     body: [
       {
         title: 'What it is',
@@ -167,11 +170,45 @@ export const TACTICS: ConceptText[] = [
     related: ['snapback', 'tesuji', 'light-and-heavy', 'kikashi', 'cutting-and-connecting', 'sabaki'],
   },
   {
+    id: 'save-stones',
+    name: 'Saving stones',
+    aliases: ['save stones', 'saving stones', 'rescue stones', 'rescuing stones', 'saving cutting stones', 'save the stones', 'stones to save', '救子', '石を助ける', '돌 살리기'],
+    level: 'beginner',
+    short: 'Saving stones means rescuing stones that are short of liberties or cut off and will die unless you play now; it is worth a move only when the stones matter.',
+    hover: 'Rescuing stones that are short of liberties or cut off and will die unless you play now.',
+    body: [
+      {
+        title: 'When stones need saving',
+        text: 'Stones need saving when the opponent\'s next move would capture them or shut them in for good: a chain in atari, a chain with two liberties that can be laddered or netted, or a few stones cut off from their friends with no room for two eyes. Saving them means adding liberties, connecting them to a strong group, or running toward open space before the opponent closes it.',
+      },
+      {
+        title: 'Are they worth saving?',
+        text: 'Not every stone deserves a move. Key stones cut the opponent apart, hold a base or a corner, or keep a weak group connected: losing them costs far more than their number. Unimportant stones have already done their job, sit in the opponent\'s area with nothing behind them, or would only grow heavier if you added to them. Save the first kind; think twice about the second, and consider giving them up as a sacrifice.',
+      },
+      {
+        title: 'Light and heavy',
+        text: 'A light group is easy to handle because parts of it can be given away; a heavy group can neither live comfortably nor be abandoned cheaply. When you rescue stones, try to keep them light: move out with loose, flexible moves rather than solid lumps, so the opponent cannot gain while attacking them.',
+      },
+      {
+        title: 'The best rescue does two things',
+        text: 'The strongest saving move also does something else: it keeps pressure on a weak opponent group, cuts the opponent apart, reduces their area or takes a big point on the way. A rescue that only adds liberties is often gote and passive, while a rescue that also attacks keeps the initiative. Strong players ask which of the opponent\'s weaknesses the running stones can use.',
+      },
+    ],
+    mistakes: [
+      'Saving every stone out of habit, so the group gets heavy and the opponent gains while attacking it.',
+      'Letting key cutting stones die to save a few unimportant ones.',
+      'Rescuing stones with a slow move when a move that also attacks was available.',
+      'Running before checking the capturing race: sometimes the stones are safer if you take away the opponent\'s liberties instead.',
+    ],
+    related: ['light-and-heavy', 'sacrifice', 'liberties', 'capturing-race', 'weak-group', 'cutting-and-connecting'],
+  },
+  {
     id: 'tesuji',
     name: 'Tesuji',
     aliases: ['tesuji', 'skilful move', 'clever move', 'tactic', 'tactics', 'shortage of liberties', 'damezumari', 'connect and die', 'oiotoshi', 'squeeze', 'shibori', 'under the stones', 'ishi no shita', "crane's nest", 'clamp', '手筋', 'ダメヅマリ', '追い落とし', 'シボリ', '石の下', '鶴の巣ごもり', '接不归', '接不歸', '倒脱靴', '乌龟不出头', '金鸡独立', '大头鬼', '맥', '수근', '촉촉수'],
     level: 'intermediate',
     short: 'A tesuji is the sharp local move that makes the most of a position: it captures, saves, connects or cuts in a way ordinary moves cannot.',
+    hover: 'A sharp local move that gets the most out of a position: it captures, saves, connects or cuts where ordinary moves cannot.',
     body: [
       {
         title: 'What it is',

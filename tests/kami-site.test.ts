@@ -85,6 +85,49 @@ describe('question parsing', () => {
     expect(best.upTo).toBe(3);
     expect(best.question.move).toBeUndefined();
   });
+
+  it('reads what the student is after (intent)', () => {
+    const q = (t: string) => parseQuestion(t, 19);
+    expect(q('Can Black kill this group?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('Can I kill the group?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('Is it dead?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('Is this group dead already?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('Can White kill this group or does it live?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('How does this group live?')).toMatchObject({ kind: 'best', intent: 'live' });
+    expect(q('Can Black make two eyes?')).toMatchObject({ kind: 'best', intent: 'live' });
+    expect(q('How do I save this group?')).toMatchObject({ kind: 'best', intent: 'live' });
+    expect(q('What should Black play to live?')).toMatchObject({ kind: 'best', intent: 'live' });
+    expect(q('Is there a tesuji here?')).toMatchObject({ kind: 'best', intent: 'tesuji' });
+    expect(q('Who is ahead?')).toMatchObject({ kind: 'overview', intent: 'ahead' });
+    expect(q("Who's winning?")).toMatchObject({ kind: 'overview', intent: 'ahead' });
+    expect(q('Who is leading here?')).toMatchObject({ kind: 'overview', intent: 'ahead' });
+    expect(q('What is the biggest move?')).toMatchObject({ kind: 'best', intent: 'biggest' });
+    expect(q('Where is the biggest point?')).toMatchObject({ kind: 'best', intent: 'biggest' });
+    // A point that names the group keeps the question about the best move; a move stays a move.
+    expect(q('Can Black kill the group at R16?')).toMatchObject({ kind: 'best', intent: 'kill' });
+    expect(q('Can Black kill the group at R16?').move).toBeUndefined();
+    expect(q('Does R16 kill?')).toMatchObject({ kind: 'why-move', move: at('R16'), intent: 'kill' });
+    // Concept questions and plain questions get no intent.
+    expect(q('What is a tesuji?').intent).toBeUndefined();
+    expect(q('What should I play here?').intent).toBeUndefined();
+    expect(q('Explain this position').intent).toBeUndefined();
+  });
+
+  it('carries the intent into the explainer question', () => {
+    const b = boardWith(['Q16', 'D4']);
+    expect(askFor(b, parseQuestion('Can White kill this group?', 19)).question).toEqual({ kind: 'best', text: 'Can White kill this group?', intent: 'kill' });
+    expect(askFor(b, parseQuestion('Who is ahead?', 19)).question).toMatchObject({ kind: 'overview', intent: 'ahead' });
+    expect(askFor(b, parseQuestion('What should I play?', 19)).question).not.toHaveProperty('intent');
+  });
+
+  it('routes intent questions to the board, or to the library on an empty board', () => {
+    const b = boardWith(['Q16', 'D4']);
+    const none = () => [];
+    expect(routeQuestion('Who is ahead?', b, none).type).toBe('position');
+    expect(routeQuestion('Can Black live here?', b, none).type).toBe('position');
+    expect(routeQuestion('How does a group live?', emptyBoard(), none).type).toBe('concept');
+    expect(routeQuestion('What is a tesuji?', b, (t) => (/tesuji/i.test(t) ? [entry] : [])).type).toBe('concept');
+  });
 });
 
 describe('[[vN]] chips', () => {
@@ -215,6 +258,22 @@ describe('concept routing', () => {
     expect(explain.mock.calls[0][3]).toMatchObject({ model: 'tesuji', thinking: 'low' });
     expect(a).toMatchObject({ type: 'explain', upTo: 2, writing: { by: 'engine', note: NOTES.localError } });
     expect(steps).toEqual(['engine', 'thinking', 'writing']);
+  });
+
+  it('passes the student profile to the explainer and the level to the writer', async () => {
+    const ex = explanation();
+    const explain = vi.fn<ExplainFn>(async () => ex);
+    const prompts: string[] = [];
+    const callLlm: CallLlm = async (req) => {
+      prompts.push(req.prompt);
+      return { text: 'Q16 [[v1]] takes the corner.', model: 'g' };
+    };
+    const deps = { explain, getProber: async () => ({}) as Prober, findConcepts: none, callLlm, checkAnswer: () => ({ truth: 1, coverage: 1, depth: 1, unsupported: [], pass: true }), student: () => ({ level: 'beginner' as const, style: 'fighting' as const }) };
+    await answerQuestion('What should White play?', game, 'myoshu', 'high', deps);
+    expect(explain.mock.calls[0][3]).toMatchObject({ student: { level: 'beginner', style: 'fighting' } });
+    expect(prompts[0]).toContain('Student level: beginner');
+    await answerQuestion('What should White play?', game, 'tesuji', 'medium', { ...deps, student: undefined });
+    expect(explain.mock.calls[1][3]).not.toHaveProperty('student');
   });
 
   it('rejects concept wording that names board points', async () => {

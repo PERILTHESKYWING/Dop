@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { KAMI_VERSION } from '../../../src/lib/coach/explain/types';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { GROUPS, resetSettings, setSetting, SETTINGS, useSetting, type SettingDef, type SettingGroup } from '../lib/settings';
 import type { Conversation } from '../lib/store';
+import { resetStyle, STYLE_LABELS, STYLE_MIN, useLearnedStyle } from '../lib/style';
 import { Icon } from './Icon';
 
 export type SettingsPage = SettingGroup | 'usage' | 'data' | 'about';
 
 const PAGES: { id: SettingsPage; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: 'user' },
+  { id: 'profile', label: 'Profile', icon: 'profile' },
   { id: 'board', label: 'Board', icon: 'board' },
   { id: 'katago', label: 'KataGo', icon: 'spark' },
   { id: 'positions', label: 'Positions', icon: 'stones' },
@@ -144,7 +146,7 @@ function Row({ def }: { def: SettingDef }) {
   );
 }
 
-function GroupPage({ group }: { group: SettingGroup }) {
+function GroupPage({ group, extra }: { group: SettingGroup; extra?: ReactNode }) {
   const g = GROUPS.find((x) => x.id === group)!;
   const defs = SETTINGS.filter((d) => d.group === group);
   return (
@@ -154,11 +156,45 @@ function GroupPage({ group }: { group: SettingGroup }) {
         {defs.map((d) => (
           <Row key={d.key} def={d} />
         ))}
+        {extra}
       </div>
       <button type="button" className="text-btn reset" onClick={() => resetSettings(group)}>
         Reset {g.label.toLowerCase()} to defaults
       </button>
     </>
+  );
+}
+
+/** Settings › Profile: level and style, and the style Kami has learned from the student's moves. */
+function ProfilePage() {
+  const learned = useLearnedStyle();
+  const chosen = useSetting<string>('profile.style');
+  const label = learned.style ? `Kami’s guess: ${STYLE_LABELS[learned.style]}` : 'Kami’s guess: not sure yet';
+  const help = learned.style
+    ? `From ${learned.total} of your moves (${learned.count} of them ${STYLE_LABELS[learned.style].toLowerCase()}).`
+    : learned.total < STYLE_MIN
+      ? `${learned.total ? `${learned.total} of your moves so far. ` : ''}Kami guesses after ${STYLE_MIN} moves you play on the board, never from one move or from games you load.`
+      : `From ${learned.total} of your moves, no style stands out yet.`;
+  return (
+    <GroupPage
+      group="profile"
+      extra={
+        <div className="set-row">
+          <div className="set-text">
+            <div className="set-label">{label}</div>
+            <div className="set-help">
+              {help}
+              {chosen !== 'auto' && ' Your choice above is used instead.'}
+            </div>
+          </div>
+          <div className="set-control">
+            <button type="button" className="btn" onClick={resetStyle} disabled={!learned.total}>
+              Reset
+            </button>
+          </div>
+        </div>
+      }
+    />
   );
 }
 
@@ -332,6 +368,8 @@ export function Settings({
               <DataPage convs={convs} onDeleteAll={onDeleteAll} />
             ) : current.id === 'about' ? (
               <AboutPage />
+            ) : current.id === 'profile' ? (
+              <ProfilePage />
             ) : (
               <GroupPage group={current.id} />
             )}

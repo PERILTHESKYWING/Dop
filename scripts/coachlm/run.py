@@ -158,7 +158,7 @@ def check(cfg) -> int:
         ok(f'{free:.0f} GB free disk')
     else:
         bad(f'only {free:.0f} GB free disk', 'Free at least 15 GB (the model is about 4 GB, training files up to the disk cap)')
-    hf, gh, gm = (os.environ.get(k, '').strip() for k in ('HF_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY'))
+    hf, gh, gm, oa = (os.environ.get(k, '').strip() for k in ('HF_TOKEN', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'OPENAI_API_KEY'))
     if hf:
         try:
             from upload import hf_user
@@ -185,6 +185,15 @@ def check(cfg) -> int:
             bad(msg, 'Make a key at aistudio.google.com/apikey', False)
     else:
         lines.append('  --    no GEMINI_API_KEY: no writing judge, KataGo checks only (optional)')
+    if oa:
+        from tone import check_key as check_openai
+        good, msg = check_openai(oa)
+        if good:
+            ok(msg)
+        else:
+            bad(msg, 'Make a key at platform.openai.com/api-keys (the API is billed separately from ChatGPT Plus)', False)
+    else:
+        lines.append('  --    no OPENAI_API_KEY: no ChatGPT tone reviewer (optional; paid API, not part of ChatGPT Plus)')
     print('Kami training check (data folder: %s)' % cfg.data_dir)
     print('\n'.join(lines))
     if must:

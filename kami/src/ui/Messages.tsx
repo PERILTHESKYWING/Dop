@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { CONCEPTS, conceptById, type ConceptEntry } from '../../../src/lib/coach/library';
-import { KAMI_VERSION, type ConceptHit, type Explanation, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
+import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
+import { CONCEPTS, conceptById, type ConceptEntry, type ConceptExample } from '../../../src/lib/coach/library';
+import { KAMI_VERSION, type ConceptHit, type Explanation, type ExplainPosition, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
 import { locToGtp } from '../../../src/lib/go/coords';
 import { colorName } from '../../../src/lib/go/types';
 import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/chips';
 import { boardFromPosition, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import type { Answer, ChatMessage } from '../lib/store';
-import { pointView, splitPoints } from '../lib/points';
+import { pointView } from '../lib/points';
 import { useSetting } from '../lib/settings';
+import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { pickById } from '../lib/writer';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
+import { AskContext, Term } from './Term';
 
 export interface Running {
   convId: string;
@@ -47,8 +50,31 @@ function variationPreview(key: string, ex: Explanation, v: Variation, pinned: bo
     title: `${v.label} · ${KIND[v.kind]}${v.moves.length > 1 ? `, ${v.moves.length} moves` : ''}`,
     note: notes.join(' '),
     pinned,
+    ...(ex.view ? { view: ex.view } : {}),
   };
 }
+
+/** Where the board points in a text show on the board: a position, its lines, and the part that matters. */
+interface PointSrc {
+  /** Preview keys start with this (the message id, or the message's example). */
+  key: string;
+  base: ExplainPosition;
+  variations: Variation[];
+  view?: [number, number, number, number];
+}
+
+const answerSrc = (ex: Explanation, msgId: string): PointSrc => ({ key: msgId, base: ex.position, variations: ex.variations, view: ex.view });
+
+/** A library example as a point source: its line is the one points are looked up in. */
+const exampleSrc = (x: ConceptExample, key: string): PointSrc => ({
+  key,
+  base: x.position,
+  variations: x.line.length ? [{ id: 'x', label: x.title, kind: 'best', moves: x.line }] : [],
+  view: x.view,
+});
+
+/** Which glossary terms a text may underline: those first seen there (a set), or none (null). */
+type Terms = ReadonlySet<GlossaryEntry> | null;
 
 /** A hover (mouse) or tap (touch, pinned) target that shows something on the board. */
 function BoardChip({ preview, link, className, children }: { preview: (pinned: boolean) => Preview; link: BoardLink; className?: string; children: ReactNode }) {
@@ -80,6 +106,7 @@ interface Illustration {
   highlight: Preview['highlight'];
   title: string;
   note?: string;
+  view?: [number, number, number, number];
 }
 const illustrationsOf = (ex: Explanation): Illustration[] => (ex as Explanation & { illustrations?: Illustration[] }).illustrations ?? [];
 
@@ -97,6 +124,7 @@ function VariationChip({ id, ex, msgId, link }: { id: string; ex: Explanation; m
           title: d.title,
           note: d.note,
           pinned,
+          ...(d.view ? { view: d.view } : {}),
         })}
         link={link}
         className="chip diagram"
@@ -116,38 +144,61 @@ function VariationChip({ id, ex, msgId, link }: { id: string; ex: Explanation; m
   );
 }
 
-/** Plain text with every board point in it ("R16") shown on the board when hovered. */
-function Points({ text, ex, msgId, link }: { text: string; ex: Explanation; msgId: string; link: BoardLink }) {
-  const size = ex.position.size;
+/** A board point in text ("R16"): hovering shows it on the board, as the line it starts or is part of. */
+function PointChip({ text, loc, src, link }: { text: string; loc: number; src: PointSrc; link: BoardLink }) {
+  const preview = (pinned: boolean): Preview => {
+    const pv = pointView(loc, src.base, src.variations);
+    const v = pv.variation;
+    return {
+      key: `${src.key}:p${loc}`,
+      base: src.base,
+      line: pv.line,
+      highlight: pv.highlight,
+      title: !v ? text : v.label === text ? `${text} · ${KIND[v.kind]}` : `${text} · in ${v.label} · ${KIND[v.kind]}`,
+      note: v?.note,
+      pinned,
+      ...(src.view ? { view: src.view } : {}),
+    };
+  };
+  return (
+    <BoardChip className="pt" preview={preview} link={link}>
+      {text}
+    </BoardChip>
+  );
+}
+
+/** Text pieces: plain text, board points (shown on the board) and Go terms (a definition on hover). */
+function Parts({ parts, src, link }: { parts: RichPart[]; src: PointSrc | null; link: BoardLink }) {
   return (
     <>
-      {splitPoints(text, size).map((p, i) => {
-        if (p.type === 'text') return <span key={i}>{p.text}</span>;
-        const preview = (pinned: boolean): Preview => {
-          const pv = pointView(p.loc, ex.position, ex.variations);
-          const v = pv.variation;
-          return {
-            key: `${msgId}:p${p.loc}`,
-            base: ex.position,
-            line: pv.line,
-            highlight: pv.highlight,
-            title: !v ? p.text : v.label === p.text ? `${p.text} · ${KIND[v.kind]}` : `${p.text} · in ${v.label} · ${KIND[v.kind]}`,
-            note: v?.note,
-            pinned,
-          };
-        };
-        return (
-          <BoardChip key={i} className="pt" preview={preview} link={link}>
+      {parts.map((p, i) =>
+        p.type === 'term' ? (
+          <Term key={i} entry={p.entry}>
             {p.text}
-          </BoardChip>
-        );
-      })}
+          </Term>
+        ) : p.type === 'point' && src ? (
+          <PointChip key={i} text={p.text} loc={p.loc} src={src} link={link} />
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
     </>
   );
 }
 
-/** Writer text: paragraphs, lists, headings, **bold**, [[vN]] / [[dN]] chips and board points. */
-function RichText({ text, ex, msgId, link }: { text: string; ex?: Explanation; msgId: string; link: BoardLink }) {
+/** One line of plain text (a fact, a thought, a note) with its points and terms. */
+function Line({ text, src, link, terms }: { text: string; src: PointSrc | null; link: BoardLink; terms: Terms }) {
+  return <Parts parts={splitRich(text, src?.base.size ?? null, terms ? { allow: terms, seen: new Set() } : null)} src={src} link={link} />;
+}
+
+/**
+ * Writer text: paragraphs, lists, headings, **bold**, [[vN]] / [[dN]] chips, board points (when
+ * `src` gives a position) and Go terms (`terms`: the ones that first appear in this text).
+ */
+function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : null, terms }: { text: string; ex?: Explanation; msgId: string; link: BoardLink; src?: PointSrc | null; terms: Terms }) {
+  // One set for the whole text, filled in reading order: each term gets one hover.
+  const seen = new Set<GlossaryEntry>();
+  const split = (t: string) => splitRich(t, src?.base.size ?? null, terms ? { allow: terms, seen } : null);
   // "play P5 [[v1]]": the point already shows the line, so a chip that repeats it is left out.
   const repeats = (prev: Inline | undefined, id: string) => {
     const label = ex?.variations.find((v) => v.id === id)?.label;
@@ -175,11 +226,11 @@ function RichText({ text, ex, msgId, link }: { text: string; ex?: Explanation; m
           <VariationChip key={i} id={part.id} ex={ex} msgId={msgId} link={link} />
         ) : null
       ) : part.type === 'bold' ? (
-        <strong key={i}>{ex ? <Points text={part.text} ex={ex} msgId={msgId} link={link} /> : part.text}</strong>
-      ) : ex ? (
-        <Points key={i} text={part.text} ex={ex} msgId={msgId} link={link} />
+        <strong key={i}>
+          <Parts parts={split(part.text)} src={src} link={link} />
+        </strong>
       ) : (
-        <span key={i}>{part.text}</span>
+        <Parts key={i} parts={split(part.text)} src={src} link={link} />
       ),
     );
   return (
@@ -204,6 +255,8 @@ function RichText({ text, ex, msgId, link }: { text: string; ex?: Explanation; m
 const secs = (ms: number) => (ms < 1000 ? '<1s' : `${Math.round(ms / 1000)}s`);
 
 function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage'] }) {
+  const src = ex ? answerSrc(ex, msgId) : null;
+  const plan = live ? null : firstTerms(steps.map((s) => s.text));
   const label = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Thinking…') : `Thought for ${secs(ms)}`;
   return (
     <details className={`thoughts${live ? ' live' : ''}`} open={live || undefined}>
@@ -215,7 +268,9 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtS
       <ol>
         {steps.map((s, i) => (
           <li key={i}>
-            <span>{ex ? <Points text={s.text} ex={ex} msgId={msgId} link={link} /> : s.text}</span>
+            <span>
+              <Line text={s.text} src={src} link={link} terms={plan?.[i] ?? null} />
+            </span>
             <span className="meta">
               {s.visits ? `${s.visits} visits · ` : ''}
               {(s.ms / 1000).toFixed(1)} s
@@ -257,6 +312,7 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
                 title: `${h.id}${at ? ` at ${at}` : ''}`,
                 note: h.evidence,
                 pinned,
+                ...(ex.view ? { view: ex.view } : {}),
               };
         return (
           <BoardChip key={i} className="tag" preview={preview} link={link}>
@@ -272,18 +328,22 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
 function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' }>; msg: ChatMessage; link: BoardLink }) {
   const ex = a.explanation;
   const w = a.writing;
+  const src = answerSrc(ex, msg.id);
+  // Each Go term is underlined once: where it first appears in the answer, then in the facts.
+  const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...ex.sections.map((s) => s.text)]);
+  const factPlan = firstTerms(ex.facts.map((f) => f.text));
   return (
     <>
       <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} />
       {w.text ? (
-        <RichText text={w.text} ex={ex} msgId={msg.id} link={link} />
+        <RichText text={w.text} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
       ) : (
         <>
-          <RichText text={ex.summary} ex={ex} msgId={msg.id} link={link} />
+          <RichText text={ex.summary} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
           {ex.sections.map((s, i) => (
             <section key={i} className="ans-section">
               <h4>{s.title}</h4>
-              <RichText text={s.text} ex={ex} msgId={msg.id} link={link} />
+              <RichText text={s.text} ex={ex} msgId={msg.id} link={link} terms={plan[i + 1]} />
             </section>
           ))}
         </>
@@ -297,9 +357,9 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
             Facts from KataGo ({ex.facts.length}) <Icon name="down" size={14} />
           </summary>
           <ul>
-            {ex.facts.map((f) => (
+            {ex.facts.map((f, i) => (
               <li key={f.id}>
-                <Points text={f.text} ex={ex} msgId={msg.id} link={link} />
+                <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
               </li>
             ))}
           </ul>
@@ -336,16 +396,22 @@ function ConceptAnswer({
     );
   }
   const [e, ...others] = entries;
+  // Terms are underlined once each, in reading order; the entry's own term is not.
+  const texts = [e.short, a.expansion?.text ?? '', ...e.body.map((s) => s.text), ...e.mistakes, ...e.examples.map((x) => x.note)];
+  const plan = firstTerms(texts, (g) => g.concept === e.id);
+  const at = { body: 2, mistakes: 2 + e.body.length, examples: 2 + e.body.length + e.mistakes.length };
   return (
     <div className="concept">
       <h3>
         {e.name} <span className="level">{e.level}</span>
       </h3>
-      <p className="lead">{e.short}</p>
+      <p className="lead">
+        <Line text={e.short} src={null} link={link} terms={plan[0]} />
+      </p>
       {a.expansion?.text && (
         <section className="ans-section">
           <h4>In more depth</h4>
-          <RichText text={a.expansion.text} msgId={msg.id} link={link} />
+          <RichText text={a.expansion.text} msgId={msg.id} link={link} terms={plan[1]} />
           <p className="note">Worded by Gemini from the library entry.</p>
         </section>
       )}
@@ -353,16 +419,23 @@ function ConceptAnswer({
       {e.body.map((s, i) => (
         <section key={i} className="ans-section">
           <h4>{s.title}</h4>
-          <RichText text={s.text} msgId={msg.id} link={link} />
+          <RichText text={s.text} msgId={msg.id} link={link} terms={plan[at.body + i]} />
         </section>
       ))}
       {e.mistakes.length > 0 && (
         <section className="ans-section">
           <h4>Common mistakes</h4>
           <ul>
-            {e.mistakes.map((m, i) => (
-              <li key={i}>{m}</li>
-            ))}
+            {e.mistakes.map((m, i) => {
+              // "Playing too early: defending one point..." shows its label in bold.
+              const label = m.match(/^([^:.]{3,40}):\s+(.*)$/);
+              return (
+                <li key={i}>
+                  {label && <strong>{label[1]}: </strong>}
+                  <Line text={label ? label[2] : m} src={null} link={link} terms={plan[at.mistakes + i]} />
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -375,7 +448,9 @@ function ConceptAnswer({
               return (
                 <div key={i} className="example">
                   <div className="ex-title">{x.title}</div>
-                  <p>{x.note}</p>
+                  <p>
+                    <Line text={x.note} src={exampleSrc(x, key)} link={link} terms={plan[at.examples + i]} />
+                  </p>
                   <div className="ex-foot">
                     <span className="meta">{x.source}</span>
                     <button
@@ -391,6 +466,7 @@ function ConceptAnswer({
                           title: x.title,
                           note: x.note,
                           pinned: true,
+                          ...(x.view ? { view: x.view } : {}),
                         });
                       }}
                     >
@@ -585,15 +661,17 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
   let lastUser = -1;
   messages.forEach((m, i) => m.role === 'user' && (lastUser = i));
   return (
-    <div className="messages" aria-live="polite">
-      {messages.map((m, i) =>
-        m.role === 'user' ? (
-          <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />
-        ) : (
-          <KamiMessage key={m.id} m={m} running={running} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={busy} />
-        ),
-      )}
-      <div ref={end} />
-    </div>
+    <AskContext.Provider value={busy ? null : onAsk}>
+      <div className="messages" aria-live="polite">
+        {messages.map((m, i) =>
+          m.role === 'user' ? (
+            <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />
+          ) : (
+            <KamiMessage key={m.id} m={m} running={running} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={busy} />
+          ),
+        )}
+        <div ref={end} />
+      </div>
+    </AskContext.Provider>
   );
 }

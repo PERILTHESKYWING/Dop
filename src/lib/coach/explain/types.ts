@@ -87,12 +87,51 @@ export type QuestionKind =
   /** "Explain this position." */
   | 'overview';
 
+/**
+ * What the student is really after, when the words say more than the kind: "Can I kill this
+ * group?" is a 'best' question with intent 'kill' (answered Yes/No first, no winrates).
+ */
+export type QuestionIntent = 'live' | 'kill' | 'tesuji' | 'ahead' | 'biggest';
+
 export interface Question {
   kind: QuestionKind;
   /** The move asked about (for why-move / why-not). */
   move?: Loc;
   /** The student's words, kept for the text. */
   text: string;
+  intent?: QuestionIntent;
+}
+
+/** How much the student knows (Kami's Settings › Profile; XIAO's global rules §6). */
+export type StudentLevel = 'beginner' | 'intermediate' | 'strong';
+/** The kind of game a player likes (learned from repeated choices, never from one move). */
+export type PlayStyle = 'solid' | 'territory' | 'influence' | 'fighting';
+
+export interface StudentProfile {
+  level: StudentLevel;
+  /** null or absent: not known yet. */
+  style?: PlayStyle | null;
+}
+
+/**
+ * What kind of position and answer this is. The teacher text picks its voice from it, and
+ * the rubric's conditional rules (eval/coach/rubric.json, `when`) read it.
+ */
+export interface Situation {
+  phase: 'opening' | 'middle' | 'endgame';
+  /** Few stones and several near-equal moves: no single right answer. */
+  open: boolean;
+  handicap: boolean;
+  /** A life-and-death or tesuji problem: answered without winrates or points. */
+  tsumego: boolean;
+  /** How far apart the compared moves are in practice ('none' when nothing was compared). */
+  gap: 'none' | 'negligible' | 'small' | 'clear' | 'big' | 'blunder';
+  /** The voice: celebrate a (nearly) best move, relax in open positions, teach a real difference, keep a blunder short, solve a problem, picture the board. */
+  tone: 'celebrate' | 'relaxed' | 'teach' | 'blunder' | 'tsumego' | 'overview';
+  /** Two good moves that lead to different kinds of game (peaceful or fighting). */
+  styleChoice?: boolean;
+  /** The two compared lines meet again (same position or the same moves in another order). */
+  transposes?: boolean;
 }
 
 export type VariationKind = 'best' | 'refutation' | 'consequence' | 'what-if' | 'alternative';
@@ -127,7 +166,21 @@ export type ConceptId =
   | 'ladder'
   | 'tenuki'
   | 'big-point'
-  | 'urgent';
+  | 'urgent'
+  /** Sente for both sides at the same point (ryou-sente). */
+  | 'double-sente'
+  /** Gote for the mover, but it stops the opponent's sente move there (gyaku-sente). */
+  | 'reverse-sente'
+  /** The move saves stones that die without it. */
+  | 'save-stones'
+  /** A line runs into a ko. */
+  | 'ko'
+  /** A group too hard to save: giving it up and playing elsewhere beats helping the opponent get strong. */
+  | 'sacrifice'
+  /** The move reduces the opponent's framework (moyo). */
+  | 'reduction'
+  /** The move presses an opponent group while building (two purposes). */
+  | 'attack';
 
 export interface ConceptHit {
   id: ConceptId;
@@ -208,6 +261,33 @@ export interface Explanation {
   reads: number;
   totalVisits: number;
   ms: number;
+  /** What kind of position and answer this was (absent in answers made before it existed). */
+  situation?: Situation;
+  /** The part of the board that matters (x0, y0, x1, y1) for a local problem: the board zooms there. */
+  view?: [number, number, number, number];
+  /** A life-and-death verdict from the local reader (lifeDeath.ts), when it ran. */
+  lifeDeath?: LifeDeathVerdict;
+}
+
+/** The local life-and-death reader's verdict for one group. */
+export interface LifeDeathVerdict {
+  /** The group's stones (its anchor first). */
+  target: Loc[];
+  /** Whose group it is. */
+  owner: Color;
+  /** With the side to move playing first: the group's fate under best play. */
+  result: 'alive' | 'dead' | 'ko' | 'seki' | 'unresolved';
+  /** The same, when the other side plays first (the vital point's value). */
+  ifOtherFirst: 'alive' | 'dead' | 'ko' | 'seki' | 'unresolved';
+  /** The first move that achieves `result` (absent when no move is needed or unresolved). */
+  key?: Loc;
+  /** The proving line from `key`, both sides' best replies. */
+  line: Loc[];
+  /** The other side's line when it plays first (what happens if the key move is missed). */
+  missLine: Loc[];
+  /** Whether the search finished (true: proven within the local area; false: limits hit). */
+  proven: boolean;
+  nodes: number;
 }
 
 export type ExplainFn = (
@@ -223,6 +303,8 @@ export type ExplainFn = (
     illustrate?: Partial<IllustrateOptions> | false;
     /** Textbook positions for a concept id (Kami passes the library's examples). */
     examplesFor?: (concept: string) => import('../library/types').ConceptExample[];
+    /** Who is asking: level and remembered style shape the wording (default intermediate, style unknown). */
+    student?: StudentProfile;
   },
 ) => Promise<Explanation>;
 
