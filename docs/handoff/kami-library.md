@@ -8,7 +8,8 @@ Summary: hand-written answers to concept questions ("what is miai?") in `src/lib
 - Contract change (backwards compatible): `ConceptExample.view?: [x0, y0, x1, y1]`, the part of the board to show. Framed examples fill the rest of the board with settled stones, so a viewer should zoom to `view`.
 
 ## Counts (this PR)
-- 45 concepts; all 14 `ConceptId`s from `explain/types.ts` have an entry with the same meaning.
+- 48 concepts (2026-10-16 round 2 added double-sente, reverse-sente and save-stones; miai uses XIAO's text); every `ConceptId` from `explain/types.ts` has an entry with the same meaning (`tests/concept-library.test.ts` checks). Entries may have a `hover` (140 characters or fewer) for the glossary card.
+- Answers only show an example inside a position answer when it has 10+ stones and no frame (`textbookOk` in explain/diagrams.ts); most current examples are framed or small, so few show. More real-game examples would help.
 - 17 examples on 14 concepts (b10 net, 800 visits), all checks passed. Dropped, with reasons printed by the script: net (the net beat the failed ladder by only 0.8 pts), sente (the endgame move tested was gote; that position now shows `gote`), endgame and move-value (swings of 83 and 53 pts: a group's life, not a typical endgame lesson; `maxSwing: 30` keeps such cases out). Concepts without examples are text-only for now.
 - Bundle: 127 KB minified, 40 KB gzipped for the whole library (esbuild, measured). Kami can lazy-load it.
 

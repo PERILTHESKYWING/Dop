@@ -40,6 +40,9 @@ DEFAULT_BASE = 'qwen3-1.7b'
 # Gemini models the judge tries, best first (same chain as shared/llm.ts GEMINI_CHAIN).
 GEMINI_CHAIN = ['gemini-flash-latest', 'gemini-3-flash-preview', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite']
 
+# OpenAI models the tone reviewer (tone.py) tries, cheapest good one first; OPENAI_MODEL goes in front.
+OPENAI_CHAIN = ['gpt-5-mini', 'gpt-4.1-mini', 'gpt-4o-mini']
+
 # Evolvable training settings: name -> (low, high, how it mutates, default).
 #   'log'  multiply by exp(N(0, 0.5))      'lin'  add N(0, 0.15 * range)
 #   'choice' step to a neighbouring value in the list given as `low`
@@ -103,6 +106,12 @@ class Config:
     judge_share: float = 0.1             # share of train answers sampled for judging
     judge_batch: int = 8                 # answers per judge call (same task)
     judge_min_interval: float = 7.0      # seconds between calls (free tier is about 10 a minute)
+    # Tone reviewer (OpenAI API, "ChatGPT"; scores only, optional, billed separately from ChatGPT Plus)
+    tone_cap: int = 30                   # hard cap on tone calls per run (one call = one answer)
+    tone_daily_cap: int = 30             # and per calendar day on this machine (tone_review.py counts too)
+    tone_per_gen: int = 6                # most answers it reads per generation, so later generations get some
+    tone_batch: int = 4                  # it reads every passing answer of a task or none; bigger tasks are skipped
+    tone_min_interval: float = 2.0       # seconds between calls
     # Self-play
     hard_tasks: int = 8                  # hardest tasks to ask new questions about each generation
     factory_minutes: int = 10
@@ -144,6 +153,8 @@ ENV_MAP = {
     'KAMI_POPULATION': 'population',
     'KAMI_DISK_CAP_GB': 'disk_cap_gb',
     'KAMI_JUDGE_CAP': 'judge_cap',
+    'KAMI_TONE_CAP': 'tone_cap',
+    'KAMI_TONE_DAILY_CAP': 'tone_daily_cap',
     'KAMI_HF_REPO': 'hf_repo',
     'KAMI_HF_WEB_REPO': 'hf_web_repo',
 }

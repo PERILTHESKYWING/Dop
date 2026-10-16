@@ -8,6 +8,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['thickness', 'thick', 'thick shape', 'wall', 'strong wall', 'honte', 'atsumi', 'kabe', '厚み', '厚味', '厚势', '厚勢', '本手', '壁', '두터움', '두텁다'],
     level: 'intermediate',
     short: 'Thickness is a strong group without weaknesses, usually facing outward; it is not territory itself but makes every fight near it go your way.',
+    hover: 'Strong stones without weaknesses, usually facing outward; not territory itself, but they help every fight nearby.',
     body: [
       {
         title: 'What it is',
@@ -79,6 +80,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['influence', 'outside influence', 'outward facing', 'seiryoku', '勢力', '势力', '外势', '外勢', '세력'],
     level: 'intermediate',
     short: 'Influence is the power stones project into open areas around them, especially toward the center; it becomes territory or attacking strength later, if it is used.',
+    hover: 'The power stones project into the open area around them; it can turn into territory or attacking strength later.',
     body: [
       {
         title: 'What it is',
@@ -110,6 +112,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['overconcentration', 'over-concentration', 'overconcentrated', 'over concentrated', 'inefficient', 'inefficiency', 'duplication', 'korigatachi', '凝り形', '重复', '重複', '效率低', '중복'],
     level: 'advanced',
     short: 'Overconcentration is having too many stones doing the same job in one area, so some of them are wasted while the opponent spends their moves elsewhere.',
+    hover: 'Too many stones doing the same job in one area, so some of them are wasted.',
     body: [
       {
         title: 'What it is',
@@ -172,6 +175,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['big point', 'big points', 'biggest point', 'biggest move', 'large point', 'oba', 'ōba', 'ooba', '大場', '大场', '큰 곳', '큰자리', '큰 자리'],
     level: 'intermediate',
     short: 'A big point is a move that claims a large open area (an empty corner, a wide extension on a side) without being needed to save anything; it is valuable but can wait if something is urgent.',
+    hover: 'A move that claims a large open area, like an empty corner or a wide extension, when nothing is urgent.',
     body: [
       {
         title: 'What it is',
@@ -234,6 +238,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['weak group', 'weak groups', 'weak stones', 'unsettled group', 'floating group', 'running group', 'base', 'no base', 'yowai ishi', '弱い石', '根拠', '弱棋', '孤棋', '浮棋', '根据地', '약한 돌', '미생', '근거'],
     level: 'intermediate',
     short: 'A weak group has no secure eyes, no base and no safe connection; it is a burden that the opponent can attack for profit, and two at once are often fatal.',
+    hover: 'A group with no secure eyes, no base and no safe connection, so the opponent can attack it for profit.',
     body: [
       {
         title: 'What it is',
@@ -306,6 +311,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['moyo', 'moyō', 'framework', 'frameworks', 'big framework', 'sphere of influence', 'potential territory', '模様', '模样', '模樣', '大模样', '消长点', '모양', '대모양'],
     level: 'intermediate',
     short: 'A moyo is a large framework of potential territory, outlined loosely by stones on the fourth line and above; it is fast but not yet secure.',
+    hover: 'A large area loosely outlined by your stones that may become territory, but is not secure yet.',
     body: [
       {
         title: 'What it is',
@@ -374,6 +380,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['reduction', 'reduce', 'reducing', 'reduce from outside', 'shoulder hit', 'keshi', '消し', 'カタツキ', '浅消', '浅削', '侵消', '肩冲', '削减', '삭감', '어깨짚기'],
     level: 'intermediate',
     short: 'A reduction limits the opponent\'s framework from the outside, usually with a shoulder hit or a cap on the fourth or fifth line, without trying to live inside.',
+    hover: 'A move that limits the opponent\'s framework from the outside, without trying to live inside it.',
     body: [
       {
         title: 'What it is',
@@ -405,6 +412,7 @@ export const STRATEGY: ConceptText[] = [
     aliases: ['sabaki', 'settle lightly', 'settle quickly', 'settling', 'サバキ', '腾挪', '騰挪', '타개'],
     level: 'advanced',
     short: 'Sabaki is settling a group quickly and flexibly in the opponent\'s sphere, usually with contact plays and sacrifices, so that it no longer needs defending.',
+    hover: 'Settling a group quickly and lightly inside the opponent\'s area, often with contact plays and sacrifices.',
     body: [
       {
         title: 'What it is',

@@ -250,7 +250,8 @@ describe('Kami explain: what to read', () => {
     expect(tp.ply).toBeGreaterThan(1);
     const v = f.variations.find((x) => x.id === f.vars.lineA)!;
     expect(v.kind).toBe('consequence');
-    expect(v.moves.length).toBe(tp.ply);
+    // Cut where the lines turn, or shown whole up to where they meet again (move order).
+    expect(v.moves.length).toBe(f.moveOrder ? f.moveOrder.ply : tp.ply);
     expect(v.highlight!.every((p) => zoneOf(p, S) === 8)).toBe(true);
     // Ownership as shares (0.7 is 85%), with "leaning" under 0.6; no raw decimals.
     expect(v.note).toMatch(/^By move \d+ the lower right is White's \(\d{2}%\) instead of leaning Black's \(\d{2}%\)\.$/);
@@ -280,7 +281,9 @@ describe('Kami explain: what to read', () => {
   it('an asked move that reads better than the first look is called good, not "worse"', async () => {
     const rec = recordingScript(scenario(3.9));
     const ex = await explainWithBudget(BASE, why('B5'), fake(rec.script).prober, budget, { model: 'tesuji', thinking: 'medium' });
-    expect(ex.summary).toMatch(/^B5 is a good move/);
+    // Celebrated (XIAO: "Look at you! 🎯"), never called worse.
+    expect(ex.summary).toMatch(/^(Look at you|Nice move|Good eye|Lovely move)!/);
+    expect(ex.summary).not.toMatch(/worse/);
     expect(numbersSupported(ex)).toEqual([]);
     expect(inventedDecimals(ex, rec.reads)).toEqual([]);
   });
@@ -535,7 +538,9 @@ describe('Kami explain: the key point', () => {
 
   it('leads with the opponent taking the point KataGo wanted', async () => {
     const ex = await explain(BASE, why('B5'), fake(keyScript).prober, { model: 'tesuji', thinking: 'medium' });
-    expect(ex.summary).toContain('After B5, White takes E5 itself, the point Black should have played');
+    // E5 is the point both sides want: the answer leads with it, never with "the point Black should have played".
+    expect(ex.summary).toMatch(/^B5 is (playable|a big point), but E5 is even bigger here!/);
+    expect(ex.summary).not.toContain('should have played');
     const urgentHit = ex.concepts.find((c) => c.id === 'urgent');
     expect(urgentHit?.evidence).toContain('urgent for both sides');
     // Not also called "gote" or "sente": the key point is the story.

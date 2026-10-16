@@ -21,8 +21,28 @@ python scripts/coachlm/export.py                        # champion -> ONNX q4f16
 | `generate.py`, `train.py` | transformers + peft answering; trl SFT then DPO (reference = the member's own start) |
 | `truth.py` | calls `verify.ts` / `factory.ts` (thread coach/lm-factory) |
 | `judge.py` | Gemini writing judge, scores only, capped |
+| `tone.py` | optional ChatGPT (OpenAI API) tone reviewer, scores + one note, capped |
+| `tone_review.py` | tone report (.md + .json) for an answers JSONL or a critique JSON; `--dry-run` shows the prompts |
 | `selfplay.py` | hard-task mining and the question-maker (requests.jsonl) |
 | `upload.py`, `release.py` | Hugging Face and GitHub release uploads |
+
+## ChatGPT tone reviewer (optional, paid)
+With `OPENAI_API_KEY` set (PC: the .bat asks once and saves it in `%LOCALAPPDATA%\kami-train\.env`; Kaggle: a secret
+named `OPENAI_API_KEY`), `tone.py` asks OpenAI's API to score the tone of a few passing answers per generation against
+XIAO's tone rules (`eval/coach/rubric.json` rules with `"topic": "tone"`, built-in notes otherwise): `tone`, `warmth`,
+`clarity`, `fit` (0-10) and one short note. The 0-1 mean is 20 % of answer quality (`W_TONE`, from the non-rubric part;
+the rubric keeps its share). Notes never become training text; eval fitness ignores tone; the website never uses it.
+No key: nothing changes.
+
+The API is billed separately from ChatGPT Plus (Plus does not include API use): make a key at
+platform.openai.com/api-keys after adding billing, and keep it in the .env or secrets only, never in chat or the repo.
+Cost control: `tone_cap` / `tone_daily_cap` (30 / 30; `KAMI_TONE_CAP`, `KAMI_TONE_DAILY_CAP` or `config.json`),
+`tone_per_gen` 6, and `OPENAI_MODEL` (default `gpt-5-mini`, falls back to `gpt-4.1-mini`, `gpt-4o-mini`).
+```
+python scripts/coachlm/tone_review.py critique.json --dry-run      # prompts and token estimate, no key, no call
+python scripts/coachlm/tone_review.py gen-answers.jsonl --tasks tasks.jsonl --limit 10
+```
+Full steps: `docs/handoff/kami-training.md`, "ChatGPT tone reviewer".
 
 Tests (CPU, no network, model faked): `python -m pytest scripts/coachlm/tests`.
 `tests/test_tiny_model.py` also runs the real libraries on a tiny local model when they are installed.

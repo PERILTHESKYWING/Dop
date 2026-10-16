@@ -5,7 +5,8 @@
             and get a short train on the pool (SFT on winners + early references, DPO on pairs)
   answer    every member answers its train tasks (k samples at its temperature)
   verify    KataGo truth check of every answer (required; verify.ts)
-  judge     Gemini scores a small sample of passing answers (optional, capped)
+  judge     Gemini scores a small sample of passing answers (optional, capped); the ChatGPT
+            tone reviewer scores a few more for tone (optional, capped, tone.py)
   pool      good answers and (better, worse) pairs from ANY member go into the shared pool;
             task pass rates feed hard-task mining
   eval      new members answer the fixed held-out eval subset (greedy); fitness = truth gate
@@ -30,6 +31,7 @@ import selfplay
 from config import GENES, default_genes
 from merge import fold, hive_weights
 from pool import Pool, answer_quality, rows_for_task
+from tone import ToneJudge
 from truth import VerifyError, make_tasks, node_status, untag_member, verify
 from util import (append_jsonl, copy_dir, dir_size, log, read_json, read_jsonl, remove, text_key, write_json,
                   write_jsonl)
@@ -142,8 +144,9 @@ class HFBackend:
 # ------------------------------------------------------------ evolution ----
 
 class Evolution:
-    def __init__(self, cfg, backend, judge, name: str = 'pc', clock=time.time, on_generation=None):
+    def __init__(self, cfg, backend, judge, name: str = 'pc', clock=time.time, on_generation=None, tone=None):
         self.cfg, self.backend, self.judge, self.name = cfg, backend, judge, name
+        self.tone = tone if tone is not None else ToneJudge(cfg)    # off (does nothing) without OPENAI_API_KEY
         self.clock = clock
         self.on_generation = on_generation
         self.deadline: float | None = None
@@ -387,19 +390,50 @@ class Evolution:
                         if s is not None:
                             out[f'{a["id"]}|{a["member"]}'] = s
             write_json(path, out)
+        self._tone_train(g)
         self._advance('judge')
+
+    def _tone_train(self, g: int) -> None:
+        """The ChatGPT tone reviewer reads every passing answer of a few tasks (one call each, at
+        most tone_per_gen). Saves {"<id>|<member>": {tone, warmth, clarity, fit, note, score}}; only
+        the 0-1 score reaches the pool, the notes stay in this file and never become training text."""
+        path = self.gen_dir(g) / 'tone-train.json'
+        if path.exists():
+            return
+        out = {}
+        if self.tone.enabled and self.tone.budget_left() > 0:
+            groups: dict[str, list[dict]] = {}
+            for a in self._scored(g):
+                if a['score'] and a['score'].get('pass') and a['id'] in self.tasks:
+                    groups.setdefault(a['id'], []).append(a)
+            cand = [(self.tasks[t], rows) for t, rows in sorted(groups.items())]
+            for task, rows in self.tone.sample(cand, self.cfg.tone_per_gen, self.rng('tone')):
+                for a in rows:
+                    r = self.tone.score(task, a['text'])
+                    if r is not None:
+                        out[f'{a["id"]}|{a["member"]}'] = r
+        else:
+            self.tone.say_off()
+        write_json(path, out)
 
     def phase_pool(self, g: int) -> None:
         judged = read_json(self.gen_dir(g) / 'judge-train.json', {}) or {}
+        toned = read_json(self.gen_dir(g) / 'tone-train.json', {}) or {}
         by_task: dict[str, list[dict]] = {}
         results = []
         for a in self._scored(g):
             if not a['score'] or a['id'] not in self.tasks:
                 continue
             member, _s = untag_member(a['member'])
+            tone = (toned.get(f'{a["id"]}|{a["member"]}') or {}).get('score')
             by_task.setdefault(a['id'], []).append({'member': member, 'text': a['text'], 'score': a['score'],
-                                                    'judge': judged.get(f'{a["id"]}|{a["member"]}')})
+                                                    'judge': judged.get(f'{a["id"]}|{a["member"]}'), 'tone': tone})
             results.append((a['id'], bool(a['score'].get('pass'))))
+        for answers in by_task.values():
+            # Tone counts only where it read every passing answer of the task (like with like).
+            if any(x['tone'] is None for x in answers if x['score'].get('pass')):
+                for x in answers:
+                    x['tone'] = None
         rows = []
         for tid, answers in sorted(by_task.items()):
             rows += rows_for_task(self.tasks[tid], answers, g, self.name, self.cfg.good_min_coverage, self.cfg.pair_margin)
@@ -583,7 +617,8 @@ class Evolution:
             'championChanged': last.get('championChanged', False),
             'hive': {'mass': round(st['hive']['mass'], 4), 'folded': len(st['hive']['folded'])} if st['hive'] else None,
             'pool': self.pool.stats(), 'poolAdded': last.get('poolAdded', 0), 'trainPass': last.get('trainPass'),
-            'judgeCalls': self.judge.calls, 'hardTasks': last.get('hardTasks', []), 'newTasks': last.get('newTasks', 0),
+            'judgeCalls': self.judge.calls, 'toneCalls': self.tone.calls,
+            'hardTasks': last.get('hardTasks', []), 'newTasks': last.get('newTasks', 0),
         }
         logs = [r for r in read_jsonl(cfg.path('log.jsonl')) if r.get('generation') != g]
         write_jsonl(cfg.path('log.jsonl'), logs + [row])

@@ -36,11 +36,18 @@ def make_task(i, split='train', version=1, size=19):
     }
 
 
+@pytest.fixture(autouse=True)
+def no_openai_key(monkeypatch):
+    """No test may reach the real OpenAI API: the tone reviewer is off unless a test gives it a key."""
+    for k in ('OPENAI_API_KEY', 'OPENAI_MODEL', 'KAMI_TONE_CAP', 'KAMI_TONE_DAILY_CAP'):
+        monkeypatch.delenv(k, raising=False)
+
+
 @pytest.fixture
 def cfg(tmp_path):
     c = load_config(tmp_path / 'data', base_model='tiny/test-model', population=4, train_tasks=4, samples=2,
                     eval_tasks=4, judged_eval_tasks=2, sft_steps=2, dpo_steps=2, first_sft_steps=2, grad_accum=2,
-                    judge_min_interval=0.0, hard_tasks=2, keep_gen_dirs=1)
+                    judge_min_interval=0.0, tone_min_interval=0.0, hard_tasks=2, keep_gen_dirs=1)
     c.verify_cmd = STUB_VERIFY
     c.factory_cmd = STUB_FACTORY
     c.repo_root = tmp_path

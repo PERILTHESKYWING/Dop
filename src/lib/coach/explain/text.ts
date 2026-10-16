@@ -20,7 +20,11 @@ export interface TextOut {
 
 /** Numbers in a text, leaving out [[vN]] refs and board coordinates (Q16). */
 export function numbersIn(text: string): string[] {
-  const t = text.replace(/\[\[[vd]\d+\]\]/g, ' ').replace(/\b[A-HJ-Z](?:2[0-5]|1\d|[1-9])\b/g, ' ');
+  // Point names like "the 3-3 point" are Go terms, not numbers.
+  const t = text
+    .replace(/\[\[[vd]\d+\]\]/g, ' ')
+    .replace(/\b[A-HJ-Z](?:2[0-5]|1\d|[1-9])\b/g, ' ')
+    .replace(/\b[3-6]-[3-6](?= point| invasion|\b)/g, ' ');
   return (t.match(/\d+(?:\.\d+)?/g) ?? []).map((n) => String(Number(n)));
 }
 
@@ -287,20 +291,27 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
   }
   if (ideas.length) sections.push({ title: 'Ideas', text: ideas.join(' ') });
 
-  // Guard: a number that is not in a fact, a concept or a variation note never reaches the student.
-  const pool = new Set<string>();
-  for (const t of [...facts.map((x) => x.text), ...concepts.map((h) => h.evidence), ...f.variations.flatMap((v) => [v.note ?? '', v.label, v.scoreLoss !== undefined ? fmt1(v.scoreLoss) : ''])]) {
-    for (const n of numbersIn(t)) pool.add(n);
-  }
-  const clean = (text: string) =>
-    text
-      .split(/(?<=[.!?])\s+/)
-      .filter((s) => numbersIn(s).every((n) => pool.has(n)))
-      .join(' ')
-      .trim();
+  const clean = numberGuard(f, concepts, facts);
   return {
     summary: clean(summary.filter(Boolean).join(' ')) || `KataGo's best move is ${C(best.loc)}${ref(f.vars.best)}.`,
     sections: sections.map((s) => ({ title: s.title, text: clean(s.text) })).filter((s) => s.text),
     facts,
   };
+}
+
+/**
+ * The guard: a sentence with a number that is not in a fact, a concept's evidence or a
+ * variation note never reaches the student. Returns the cleaning function for a text.
+ */
+export function numberGuard(f: Findings, concepts: ConceptHit[], facts: Fact[]): (text: string) => string {
+  const pool = new Set<string>();
+  for (const t of [...facts.map((x) => x.text), ...concepts.map((h) => h.evidence), ...f.variations.flatMap((v) => [v.note ?? '', v.label, v.scoreLoss !== undefined ? fmt1(v.scoreLoss) : ''])]) {
+    for (const n of numbersIn(t)) pool.add(n);
+  }
+  return (text: string) =>
+    text
+      .split(/(?<=[.!?])\s+/)
+      .filter((s) => numbersIn(s).every((n) => pool.has(n)))
+      .join(' ')
+      .trim();
 }

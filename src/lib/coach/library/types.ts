@@ -47,6 +47,11 @@ export interface ConceptEntry {
   level: ConceptLevel;
   /** One-sentence answer. */
   short: string;
+  /**
+   * Optional: the definition shown when the term is hovered in an answer (src/lib/coach/glossary.ts),
+   * at most about 140 characters of plain words. Absent: `short` is used.
+   */
+  hover?: string;
   /** The deep explanation, in sections. */
   body: { title: string; text: string }[];
   /** Common misunderstandings. */

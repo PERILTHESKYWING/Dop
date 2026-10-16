@@ -6,7 +6,8 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 
 ## Hard rules
 - LLM is Gemini **Flash on the free tier**; minimise calls per turn. Key stays server-side (`LLM_API_KEY`, `LLM_MODEL`, `LLM_PROVIDER`), never `VITE_`, never committed. The app must work with no LLM.
-- The LLM explains KataGo's numbers; it never invents analysis. A position built to explain an idea is shown only after code checks and a final KataGo read (docs/handoff/kami-diagrams.md).
+- The LLM explains KataGo's numbers; it never invents analysis or board features (no made-up walls or stones). A position built to explain an idea is shown only after code checks and a final KataGo read (docs/handoff/kami-diagrams.md).
+- ChatGPT (OpenAI API, `OPENAI_API_KEY`) is a training-only tone reviewer (`scripts/coachlm/tone.py`); the sites never call it.
 - Never commit network weights except the bundled `public/models/g170e-b10c128-*.bin.gz`. Keep `THIRD_PARTY_NOTICES.md` current.
 - Hosting is Vercel Hobby (free) and XIAO finds Vercel setup hard: avoid new config, spell out any step.
 - Bump `ENGINE_FILES` whenever `public/engine` changes (Vercel caches /engine for a week).

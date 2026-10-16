@@ -8,6 +8,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['liberty', 'liberties', 'atari', 'in atari', 'double atari', 'counting liberties', 'qi', '气', '氣', '气数', '紧气', '长气', '叫吃', '打吃', '双打吃', 'アタリ', '呼吸点', '両アタリ', '단수', '활로', '양단수'],
     level: 'beginner',
     short: 'A liberty is an empty point next to a chain of stones; a chain with no liberties left is captured, and a chain with one liberty left is in atari.',
+    hover: 'An empty point next to a chain; a chain with one liberty left is in atari, and with none it is captured.',
     body: [
       {
         title: 'What it is',
@@ -40,6 +41,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['eye', 'eyes', 'two eyes', 'real eye', 'false eye', 'eye shape', 'eye space', 'make eyes', '眼', '眼位', '做眼', '真眼', '假眼', '眼形', '欠け眼', '옥집', '궁도', '두 집'],
     level: 'beginner',
     short: 'An eye is an empty point (or space) surrounded by one side\'s stones that the opponent cannot fill; a group with two separate real eyes can never be captured.',
+    hover: 'An empty point surrounded by one side\'s stones that the opponent cannot fill; two real eyes mean the group lives.',
     body: [
       {
         title: 'What it is',
@@ -72,6 +74,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['life and death', 'tsumego', 'living', 'alive', 'kill', 'killing', 'vital point', 'nakade', 'placement', 'shikatsu', '死活', '詰碁', '活棋', '净活', '点眼', '要点', '中手', '急所', '사활', '치중', '급소', '묘수풀이'],
     level: 'beginner',
     short: 'Life and death is reading whether a group can make two eyes; the vital point of the eye space usually decides, and it is the same point for both sides.',
+    hover: 'Reading whether a group can make two eyes; the vital point of its eye space usually decides.',
     body: [
       {
         title: 'What it is',
@@ -140,6 +143,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['capturing race', 'semeai', 'liberty race', 'race to capture', 'liberty count', 'one eye beats no eye', 'big eye', 'big eye small eye', '攻め合い', '对杀', '對殺', '大眼杀小眼', '有眼杀瞎', '수상전'],
     level: 'beginner',
     short: 'A capturing race is two adjacent groups that cannot both live, each trying to capture the other first; it is decided by counting liberties.',
+    hover: 'Two neighbouring groups that cannot both live, each trying to capture the other first; counting liberties decides it.',
     body: [
       {
         title: 'What it is',
@@ -172,6 +176,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['seki', 'mutual life', 'coexistence', 'セキ', '双活', '雙活', '빅'],
     level: 'intermediate',
     short: 'Seki is mutual life: neighbouring groups that share liberties so that neither side can approach without putting itself in atari, so both stay on the board.',
+    hover: 'Mutual life: groups that share liberties so neither side can attack without being captured, so both stay alive.',
     body: [
       {
         title: 'What it is',
@@ -203,6 +208,7 @@ export const BASICS: ConceptText[] = [
     aliases: ['ko', 'ko fight', 'ko rule', 'superko', 'approach ko', 'double ko', 'ten thousand year ko', 'picnic ko', 'kou', 'コウ', '劫', '打劫', '劫争', '劫爭', '缓气劫', '万年劫', '连环劫', '循环劫', '패', '패싸움', '만년패'],
     level: 'beginner',
     short: 'A ko is a shape where one stone can be captured and immediately recaptured forever; the ko rule forbids retaking at once, so the other side must play elsewhere first.',
+    hover: 'A shape where one stone can be captured and retaken at once; the ko rule makes the other side play elsewhere first.',
     body: [
       {
         title: 'What it is',

@@ -30,9 +30,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { checkAnswer } from '../../src/lib/coach/answerCheck';
-import { explain, verifyDiagram, type ExplainPosition, type Explanation, type Question, type QuestionKind } from '../../src/lib/coach/explain';
-import { illustrateDefaults } from '../../src/lib/coach/explain/diagrams';
-import { diagramBlock, parseWriterDiagram, withoutDiagrams } from '../../src/lib/coach/explain/writerDiagram';
+import { explain, type ExplainPosition, type Explanation, type Question, type QuestionKind } from '../../src/lib/coach/explain';
 import { CONCEPTS, conceptById } from '../../src/lib/coach/library';
 import { parseSgfFile } from '../../src/lib/go/sgf';
 import { engineKomi } from '../../src/lib/go/rules';
@@ -260,7 +258,7 @@ const existingCount = seen.size;
 const plain = !OUT.endsWith('.gz');
 if (plain) writeFileSync(OUT, '');
 const rows: Task[] = [];
-const stats = { position: 0, concept: 0, request: 0, diagram: 0, diagramFailed: 0, dup: 0, refFailed: 0, noRead: 0, explains: 0, explainMs: 0, reqDropped: 0, bySource: {} as Record<string, number> };
+const stats = { position: 0, concept: 0, request: 0, dup: 0, refFailed: 0, noRead: 0, explains: 0, explainMs: 0, reqDropped: 0, bySource: {} as Record<string, number> };
 const refFailures: string[] = [];
 const timeUp = () => Date.now() > DEADLINE;
 const done = () => rows.length >= N || timeUp();
@@ -335,44 +333,10 @@ async function make(pos: ExplainPosition, q: Question, split: Split, c: Canonica
     return false;
   }
   emit(t, source);
-  if (ex.illustrations?.length) await diagramTask(id, split, ex, source);
   return true;
 }
 
 const examplesFor = (id: string) => conceptById(id)?.examples ?? [];
-
-/**
- * The writer asking for a diagram itself: the explanation without its checked diagram, and a
- * reference that ends with that diagram as a DIAGRAM block. Kept only when the block, parsed
- * back as the site parses it, passes every check again (KataGo's final read last) and the
- * whole reference passes checkAnswer against the explanation with it.
- */
-async function diagramTask(baseId: string, split: Split, ex: Explanation, source: string) {
-  const d = ex.illustrations![0];
-  const id = `${baseId}-own-diagram`;
-  if (seen.has(id) || done()) return;
-  const bare = withoutDiagrams(ex);
-  const block = diagramBlock(d);
-  if (!block) return;
-  const t = positionTask(id, split, bare);
-  const parsed = parseWriterDiagram(`${t.reference}\n\n${block}`, ex.position.size);
-  if (!parsed.spec) return;
-  const io = illustrateDefaults('tesuji', THINKING) ?? undefined;
-  const v = await verifyDiagram(parsed.spec, prober, d.id, io, undefined);
-  if (!v.illustration) {
-    stats.diagramFailed++;
-    return;
-  }
-  const lead = `A diagram shows the idea on its own [[${d.id}]]: ${v.facts.map((f) => f.text.replace(/^In diagram \[\[d\d+\]\], /, '')).join(' ')}`;
-  const reference = `${t.reference}\n\n${lead}\n\n${block}`;
-  const withD: Explanation = { ...bare, illustrations: [v.illustration], facts: [...bare.facts, ...v.facts] };
-  if (checkAnswer(withD, `${t.reference}\n\n${lead}`).truth < 1) {
-    stats.diagramFailed++;
-    return;
-  }
-  stats.diagram++;
-  emit({ ...t, reference }, source);
-}
 
 // Requests: new questions on positions the trainer already has.
 if (arg.requests) {
@@ -441,7 +405,7 @@ while (!done() && misses < 20_000) {
 if (!plain) writeJsonl(OUT, rows);
 const min = (Date.now() - t0) / 60_000;
 console.log(
-  `factory: ${rows.length} tasks (${stats.position} position, ${stats.request} from requests, ${stats.concept} concept, ${stats.diagram} own-diagram, ${stats.diagramFailed} own-diagram failed) in ${min.toFixed(1)} min = ${(rows.length / Math.max(min, 1e-9)).toFixed(1)} tasks/min; ` +
+  `factory: ${rows.length} tasks (${stats.position} position, ${stats.request} from requests, ${stats.concept} concept) in ${min.toFixed(1)} min = ${(rows.length / Math.max(min, 1e-9)).toFixed(1)} tasks/min; ` +
     `${stats.explains} explains at ${stats.explains ? (stats.explainMs / stats.explains / 1000).toFixed(1) : '-'} s each`,
 );
 console.log(`  by source ${JSON.stringify(stats.bySource)}; skipped: ${stats.dup} duplicates, ${stats.refFailed} references that failed the check, ${stats.noRead} empty reads, ${stats.reqDropped} requests dropped`);

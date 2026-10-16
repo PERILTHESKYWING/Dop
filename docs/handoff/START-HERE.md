@@ -7,7 +7,7 @@
         KataGo thinks.  Code checks.  Words come last.
 ```
 
-**As of 2026-10-16.** Built positions (diagrams) and the rubric: `kami-diagrams.md`. Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
+**As of 2026-10-16.** Kami's teacher voice from XIAO's critique (round 2): `kami-engine.md` › Round 2. Built positions (diagrams) and the rubric: `kami-diagrams.md`. Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
 
 ---
 
@@ -24,7 +24,8 @@ General LLMs can't read a Go board, so they invent lines with confidence. **Kami
                               │  planner.ts  (what to read)          │
                               │  consequence.ts (where it goes wrong)│
                               │  concepts.ts (key point, sente, ...) ▼
-                 KataGo ◀─────┘  b18 on GPU / b10 on CPU      text.ts ─▶ writer (Gemini / own model)
+                 KataGo ◀─────┘  b18 on GPU / b10 on CPU  text.ts (facts) + teach.ts (voice) ─▶ writer
+                                                          situation.ts picks the tone            (Gemini / own model)
                                                                           └▶ checkAnswer ✔/✘
 ```
 
@@ -36,11 +37,19 @@ General LLMs can't read a Go board, so they invent lines with confidence. **Kami
 | Kami site | `kami/` | ✅ merged (#34), fixed in #38 |
 | Answer checker, task factory, daily workflow | `src/lib/coach/answerCheck.ts`, `scripts/coachlm/*.ts`, `.github/workflows/coach-lm.yml` | ✅ merged (#35) |
 | Trainer, population + hivemind | `scripts/coachlm/*.py`, `public/pc-helper/start-kami-training-windows.bat` | ✅ merged (#36), never run on the real GPU |
-| Concept library, 45 ideas + 17 checked boards | `src/lib/coach/library/` | ✅ merged (#37) |
+| Concept library, 48 ideas + 17 checked boards | `src/lib/coach/library/` | ✅ merged (#37) |
 | Board panel = Dop's study board in Kami | `kami/src/ui/BoardPanel.tsx`, `kami/src/lib/analysis.ts` | ✅ merged (#39), **not yet checked in a browser** |
 | Kami on Vercel, keys | Vercel `kami` project | ✅ set up by XIAO (2026-10-15) |
 
 No PRs are open at the time of writing.
+
+### Round 2 of "Smarter Kami AI" (2026-10-16): XIAO's critique applied
+- **Teacher voice** (`teach.ts`, `situation.ts`): answer first in Go words, the reason from the board, numbers only as support. Relaxed "play your style" in open openings, a celebration for an equal move, a short cheeky blunder line, Yes/No first for "can I kill it?", the whole-board picture first for overviews, "Plot twist" when lines transpose, "peaceful game or a fight?" for two different good moves.
+- **New reads**: what the opponent does if you pass (purposes, saved stones), double sente / reverse sente, sente follow-ups, a calm keima option, move order.
+- **Life and death**: a local solver (`lifeDeath.ts`) proves or fails to prove problems; no winrates in problem answers.
+- **No invented stones**: game cut-outs with made-up walls and writer-built positions are gone; textbook diagrams need 10+ real stones.
+- **Site**: hover definitions for Go terms, Settings › Profile (level, style; Kami learns your style), question intents, zoom on problems.
+- **Rubric v1** (34 rules from the critique) and an optional **ChatGPT tone reviewer** for training only (`kami-training.md`).
 
 ### What #39 did (2026-10-15)
 
@@ -138,7 +147,9 @@ One task per thread, one PR each. File ownership is listed so the threads don't 
 - [ ] **Look at the board panel** on your phone and PC. Tell me what looks wrong, with a screenshot if you can.
 - [ ] **Answer decisions 1 and 2** in section 3.
 - [ ] **Actions → "Kami coach tasks" → Run workflow**, if it hasn't run since #38. It builds version-2 tasks and the test set.
-- [ ] **RTX 5070:** double-click `start-kami-training-windows.bat`. The installs and the 3 keys are in `kami-training.md`.
+- [ ] **RTX 5070:** double-click `start-kami-training-windows.bat`. The installs and the keys are in `kami-training.md`.
+- [ ] Optional, paid: an **OpenAI API key** for the ChatGPT tone reviewer (training only; `kami-training.md` › ChatGPT tone reviewer). Put it in the .bat prompt or Kaggle Secrets, never in a chat.
+- [ ] Rate the round-2 answers on the critique page, like round 1.
 
 ## 8 · Hard-won gotchas
 
@@ -147,7 +158,8 @@ One task per thread, one PR each. File ownership is listed so the threads don't 
 - **Ownership is not points.** Region sums swing with every trade; only searched leads are scores.
 - **A difference from the first move is usually just where the stone went.** Name it as "where X belongs", not as a discovery.
 - **The opponent's reply is the best explanation.** If it lands on KataGo's move, say so first.
-- `LM_SYSTEM` is copied in `shared/kami.ts` (a test keeps them equal), and changing what the writer sees means bumping `PROMPT_VERSION`.
+- `LM_SYSTEM` is copied in `shared/kami.ts` (a test keeps them equal), and changing what the writer sees means bumping `PROMPT_VERSION` (4 since round 2: tone, situation and Kami's draft in the input).
+- **Never invent board features.** No framed cut-outs of the game, no writer-built positions (XIAO, item 19). Textbook diagrams need 10+ real stones and no frame.
 - Vercel caches `/engine` for a week: bump `ENGINE_FILES` when `public/engine` changes. Both sites share it.
 - **Board reads start KataGo on the first stone**, not the first question. On a PC with WebGPU that downloads the b18 network (about 97 MB) at that moment.
 - **Trend reads are the slow part.** On one thread, about 3 s per position at 60 visits. They run in the background and never block the board.

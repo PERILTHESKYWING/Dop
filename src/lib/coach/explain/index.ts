@@ -9,10 +9,14 @@
  * makes no further reads.
  */
 import { budgetFor } from './budgets';
-import { detectConcepts } from './concepts';
+import { conceptContext, detectConcepts } from './concepts';
 import { buildDiagrams, illustrateDefaults } from './diagrams';
+import { viewAround } from './effects';
+import { readLifeDeath } from './lifeDeathRead';
 import { runPlan } from './planner';
-import { buildText } from './text';
+import { situationOf } from './situation';
+import { teach } from './teach';
+import { buildText, numberGuard } from './text';
 import { KAMI_VERSION, type Budget, type ExplainFn, type ExplainPosition, type Explanation, type Prober, type Question } from './types';
 
 export * from './types';
@@ -29,14 +33,39 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
   const f = await runPlan(pos, question, prober, budget, { signal: opts.signal, onThought: opts.onThought });
   const concepts = detectConcepts(f);
   const text = buildText(f, concepts);
+  // Life and death is read move by move by the local reader, not judged by winrates.
+  const ld = f.root ? readLifeDeath(f, concepts) : null;
+  const situation = f.root && f.best ? situationOf(f, concepts, ld) : undefined;
+  let view: Explanation['view'];
+  let topics: string[] = [];
+  if (situation && f.best) {
+    // The teacher's voice over the same reads (teach.ts); text.ts's facts stay the evidence.
+    const t = teach({ f, ctx: conceptContext(f), concepts, situation, facts: text.facts, student: opts.student, ld });
+    text.facts.push(...t.facts);
+    topics = t.topics;
+    const clean = numberGuard(f, concepts, text.facts);
+    const summary = clean(t.summary);
+    if (summary) {
+      text.summary = summary;
+      text.sections = t.sections.map((s) => ({ title: s.title, text: clean(s.text) })).filter((s) => s.text);
+    }
+    if (situation.tsumego) {
+      const pts = ld ? [...ld.target, ...ld.line, ...ld.missLine] : [];
+      const best = f.variations.find((v) => v.id === f.vars.best);
+      view = viewAround([...pts, ...(best?.moves.map((m) => m.loc) ?? [])], pos.size, 2);
+    }
+  }
   // A diagram of the idea on its own, after the answer's own reads (it has its own time cap).
   const defaults = illustrateDefaults(opts.model, opts.thinking);
   // The tier decides whether there is a diagram (none for Hane or thinking off/low); settings tune it.
   const io = opts.illustrate === false || !defaults ? null : { ...defaults, ...(opts.illustrate ?? {}) };
   let illustrations: Explanation['illustrations'];
   const extra = { reads: 0, visits: 0, ms: 0 };
-  if (io && f.root) {
-    const d = await buildDiagrams(f, prober, io, { signal: opts.signal, onThought: opts.onThought, examplesFor: opts.examplesFor, concepts: concepts.map((c) => c.id) });
+  // A textbook diagram only for an idea the answer teaches (never for "explain this position"
+  // or a problem, where the board itself is the diagram); the game is never cut out and framed.
+  const central = topics.filter((id) => ['double-sente', 'reverse-sente', 'miai', 'sacrifice', 'ko', 'tenuki', 'reduction'].includes(id) && concepts.some((c) => c.id === id || id === 'tenuki'));
+  if (io && f.root && situation && situation.tone !== 'overview' && !situation.tsumego && central.length) {
+    const d = await buildDiagrams(f, prober, io, { signal: opts.signal, onThought: opts.onThought, examplesFor: opts.examplesFor, concepts: central });
     Object.assign(extra, { reads: d.reads, visits: d.visits, ms: d.ms });
     if (d.illustrations.length) {
       illustrations = d.illustrations;
@@ -56,6 +85,9 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
     concepts,
     variations: f.variations,
     ...(illustrations ? { illustrations } : {}),
+    ...(situation ? { situation } : {}),
+    ...(view ? { view } : {}),
+    ...(ld ? { lifeDeath: ld } : {}),
     thoughts: f.thoughts,
     reads: f.reads + extra.reads,
     totalVisits: f.visits + extra.visits,
