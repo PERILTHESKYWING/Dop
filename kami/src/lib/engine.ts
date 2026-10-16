@@ -13,12 +13,9 @@ import { engineEvaluator } from '../../../src/lib/engine/mcts';
 import { bundledModel, MODELS, type ModelSpec } from '../../../src/lib/engine/models';
 import { searchProber } from '../../../src/lib/coach/explain/searchProber';
 import type { Prober } from '../../../src/lib/coach/explain/types';
+import { getSetting } from './settings';
 
-export type EngineStatus =
-  | { state: 'idle' }
-  | { state: 'loading'; text: string; pct?: number }
-  | { state: 'ready'; text: string }
-  | { state: 'failed'; text: string };
+export type EngineStatus = { state: 'idle' } | { state: 'loading'; text: string; pct?: number } | { state: 'ready'; text: string } | { state: 'failed'; text: string };
 
 let status: EngineStatus = { state: 'idle' };
 const listeners = new Set<() => void>();
@@ -82,7 +79,9 @@ async function boot(): Promise<BrowserEngine> {
   set({ state: 'loading', text: 'Starting KataGo' });
   const caps = await detectCapabilities();
   const onProgress = (p: LoadProgress) => set(progressText(p));
-  const attempts = engineAttempts(caps.webgpu, isPhoneLike(), !!lsGet(GPU_BROKEN));
+  // Settings › KataGo › Network: 'b10' never tries the GPU; 'b18' tries it on phones too.
+  const pref = getSetting<string>('katago.network');
+  const attempts = engineAttempts(caps.webgpu && pref !== 'b10', pref !== 'b18' && isPhoneLike(), !!lsGet(GPU_BROKEN));
   let eng: BrowserEngine | null = null;
   let lastError: unknown = null;
   for (const a of attempts) {

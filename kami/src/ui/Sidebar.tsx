@@ -1,18 +1,123 @@
 import { useState } from 'react';
 import type { Conversation } from '../lib/store';
+import { useSetting } from '../lib/settings';
 import { Icon } from './Icon';
+import { Popover } from './Popover';
+import type { SettingsPage } from './Settings';
+
+const REPO = 'https://github.com/PERILTHESKYWING/Dop';
 
 interface Props {
   convs: Conversation[];
   currentId: string;
+  /** Wide screens: folded to a thin rail of icons. */
+  collapsed: boolean;
+  onToggle: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
+  onSettings: (page?: SettingsPage) => void;
 }
 
-export function Sidebar({ convs, currentId, onSelect, onNew, onRename, onDelete, onClose }: Props) {
+/** The account button at the foot of the sidebar and the menu that opens above it. */
+function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?: SettingsPage) => void }) {
+  const name = useSetting<string>('profile.name').trim();
+  const shown = name || 'Guest';
+  const initial = (shown.match(/\p{L}|\p{N}/u)?.[0] ?? 'K').toUpperCase();
+  return (
+    <Popover
+      className="account"
+      place="up-stretch"
+      label="Account"
+      trigger={({ open, toggle }) => (
+        <button type="button" className={`account-btn${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={compact ? shown : undefined}>
+          <span className="avatar" aria-hidden="true">
+            {initial}
+          </span>
+          {!compact && (
+            <>
+              <span className="account-text">
+                <span className="account-name">{shown}</span>
+                <span className="account-plan">Free · on this device</span>
+              </span>
+              <Icon name="updown" size={16} />
+            </>
+          )}
+        </button>
+      )}
+    >
+      {(close) => {
+        const go = (page?: SettingsPage) => () => {
+          close();
+          onSettings(page);
+        };
+        return (
+          <>
+            <div className="pop-head">{name ? `${shown} · this browser` : 'Guest · saved in this browser'}</div>
+            <button type="button" role="menuitem" className="pop-item" onClick={go('general')}>
+              <Icon name="gear" />
+              <span className="grow">Settings</span>
+              <kbd>Ctrl+,</kbd>
+            </button>
+            <button type="button" role="menuitem" className="pop-item" onClick={go('usage')}>
+              <Icon name="usage" />
+              <span className="grow">Usage</span>
+            </button>
+            <a role="menuitem" className="pop-item" href={`${REPO}/issues`} target="_blank" rel="noreferrer" onClick={close}>
+              <Icon name="help" />
+              <span className="grow">Get help</span>
+            </a>
+            <hr />
+            <Popover
+              className="sub"
+              place="up"
+              label="Learn more"
+              trigger={({ open, toggle }) => (
+                <button type="button" role="menuitem" className={`pop-item${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open}>
+                  <Icon name="info" />
+                  <span className="grow">Learn more</span>
+                  <Icon name="right" size={16} />
+                </button>
+              )}
+            >
+              {(closeSub) => (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="pop-item"
+                    onClick={() => {
+                      closeSub();
+                      go('about')();
+                    }}
+                  >
+                    About Kami
+                  </button>
+                  <a role="menuitem" className="pop-item" href="https://github.com/lightvector/KataGo" target="_blank" rel="noreferrer">
+                    <span className="grow">KataGo</span>
+                    <Icon name="external" size={15} />
+                  </a>
+                  <a role="menuitem" className="pop-item" href={`${REPO}/blob/main/THIRD_PARTY_NOTICES.md`} target="_blank" rel="noreferrer">
+                    <span className="grow">Third-party notices</span>
+                    <Icon name="external" size={15} />
+                  </a>
+                  <a role="menuitem" className="pop-item" href={REPO} target="_blank" rel="noreferrer">
+                    <span className="grow">Source code</span>
+                    <Icon name="external" size={15} />
+                  </a>
+                </>
+              )}
+            </Popover>
+          </>
+        );
+      }}
+    </Popover>
+  );
+}
+
+export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew, onRename, onDelete, onClose, onSettings }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -27,21 +132,45 @@ export function Sidebar({ convs, currentId, onSelect, onNew, onRename, onDelete,
     setEditing(null);
   };
 
+  if (collapsed) {
+    return (
+      <nav className="sidebar rail" aria-label="Conversations">
+        <button className="icon-btn" aria-label="Open sidebar" title="Open sidebar" onClick={onToggle}>
+          <Icon name="sidebar" size={20} />
+        </button>
+        <button className="icon-btn new-dot" aria-label="New chat" title="New chat" onClick={onNew}>
+          <Icon name="plus" size={16} />
+        </button>
+        <button className="icon-btn" aria-label="Chats" title="Chats" onClick={onToggle}>
+          <Icon name="chat" size={19} />
+        </button>
+        <span className="grow" />
+        <Account compact onSettings={onSettings} />
+      </nav>
+    );
+  }
+
   return (
     <nav className="sidebar" aria-label="Conversations">
       <div className="side-head">
         <span className="brand">
-          <img src="/favicon.svg" alt="" width={22} height={22} />
+          <img src="/favicon.svg" alt="" width={20} height={20} />
           Kami
         </span>
+        <button className="icon-btn side-fold" aria-label="Close sidebar" title="Close sidebar" onClick={onToggle}>
+          <Icon name="sidebar" size={20} />
+        </button>
         <button className="icon-btn side-close" aria-label="Close" onClick={onClose}>
           <Icon name="x" />
         </button>
       </div>
       <button className="new-chat" onClick={onNew}>
-        <Icon name="plus" size={16} /> New chat
+        <span className="new-dot" aria-hidden="true">
+          <Icon name="plus" size={14} />
+        </span>
+        New chat
       </button>
-      <div className="side-label">Chats</div>
+      <div className="side-label">Recents</div>
       <ul className="conv-list">
         {!convs.length && <li className="conv-empty">Your chats show here. They stay in this browser.</li>}
         {convs.map((c) => (
@@ -58,7 +187,7 @@ export function Sidebar({ convs, currentId, onSelect, onNew, onRename, onDelete,
               </form>
             ) : confirm === c.id ? (
               <div className="conv-confirm">
-                <span>Delete this chat?</span>
+                <span className="grow">Delete this chat?</span>
                 <button className="link danger" onClick={() => onDelete(c.id)}>
                   Delete
                 </button>
@@ -72,12 +201,13 @@ export function Sidebar({ convs, currentId, onSelect, onNew, onRename, onDelete,
                   {c.title}
                 </button>
                 <span className="conv-tools">
-                  <button className="icon-btn sm" aria-label="Rename" onClick={() => startRename(c)}>
+                  <button className="icon-btn sm" aria-label="Rename" title="Rename" onClick={() => startRename(c)}>
                     <Icon name="edit" size={15} />
                   </button>
                   <button
                     className="icon-btn sm"
                     aria-label="Delete"
+                    title="Delete"
                     onClick={() => {
                       setConfirm(c.id);
                       setEditing(null);
@@ -92,7 +222,7 @@ export function Sidebar({ convs, currentId, onSelect, onNew, onRename, onDelete,
         ))}
       </ul>
       <div className="side-foot">
-        KataGo reads every position on your device. <a href="https://github.com/PERILTHESKYWING/Dop">Built on Dop</a>
+        <Account compact={false} onSettings={onSettings} />
       </div>
     </nav>
   );

@@ -3,9 +3,11 @@ import { CONCEPTS, conceptById, type ConceptEntry } from '../../../src/lib/coach
 import { KAMI_VERSION, type ConceptHit, type Explanation, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
 import { locToGtp } from '../../../src/lib/go/coords';
 import { colorName } from '../../../src/lib/go/types';
-import { blocks, engineText, plainText, splitChips } from '../lib/chips';
+import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/chips';
 import { boardFromPosition, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import type { Answer, ChatMessage } from '../lib/store';
+import { pointView, splitPoints } from '../lib/points';
+import { useSetting } from '../lib/settings';
 import { pickById } from '../lib/writer';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
@@ -50,15 +52,16 @@ function variationPreview(key: string, ex: Explanation, v: Variation, pinned: bo
 
 /** A hover (mouse) or tap (touch, pinned) target that shows something on the board. */
 function BoardChip({ preview, link, className, children }: { preview: (pinned: boolean) => Preview; link: BoardLink; className?: string; children: ReactNode }) {
+  const hoverOn = useSetting<boolean>('board.hoverPreview');
   const p = preview(false);
   const on = link.pinnedKey === p.key;
   return (
     <button
       type="button"
       className={`${className ?? 'chip'}${on ? ' on' : ''}`}
-      onPointerEnter={(e) => e.pointerType === 'mouse' && link.onHover(p)}
+      onPointerEnter={(e) => hoverOn && e.pointerType === 'mouse' && link.onHover(p)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && link.onHover(null)}
-      onFocus={(e) => e.currentTarget.matches(':focus-visible') && link.onHover(p)}
+      onFocus={(e) => hoverOn && e.currentTarget.matches(':focus-visible') && link.onHover(p)}
       onBlur={() => link.onHover(null)}
       onClick={() => link.onPin(on ? null : preview(true))}
       title={p.note || p.title}
@@ -68,7 +71,41 @@ function BoardChip({ preview, link, className, children }: { preview: (pinned: b
   );
 }
 
+/** A position Kami built to show an idea; it reaches the chat only after passing KataGo's checks. */
+interface Illustration {
+  id: string;
+  label?: string;
+  base: Preview['base'];
+  line: Preview['line'];
+  highlight: Preview['highlight'];
+  title: string;
+  note?: string;
+}
+const illustrationsOf = (ex: Explanation): Illustration[] => (ex as Explanation & { illustrations?: Illustration[] }).illustrations ?? [];
+
 function VariationChip({ id, ex, msgId, link }: { id: string; ex: Explanation; msgId: string; link: BoardLink }) {
+  if (id.startsWith('d')) {
+    const d = illustrationsOf(ex).find((x) => x.id === id);
+    if (!d) return null;
+    return (
+      <BoardChip
+        preview={(pinned) => ({
+          key: `${msgId}:${d.id}`,
+          base: d.base,
+          line: d.line,
+          highlight: d.highlight,
+          title: d.title,
+          note: d.note,
+          pinned,
+        })}
+        link={link}
+        className="chip diagram"
+      >
+        <Icon name="stones" size={13} />
+        {d.label || 'Diagram'}
+      </BoardChip>
+    );
+  }
   const v = ex.variations.find((x) => x.id === id);
   if (!v) return null;
   return (
@@ -79,14 +116,68 @@ function VariationChip({ id, ex, msgId, link }: { id: string; ex: Explanation; m
   );
 }
 
-/** Writer text: paragraphs, lists, headings, **bold** and [[vN]] chips. */
+/** Plain text with every board point in it ("R16") shown on the board when hovered. */
+function Points({ text, ex, msgId, link }: { text: string; ex: Explanation; msgId: string; link: BoardLink }) {
+  const size = ex.position.size;
+  return (
+    <>
+      {splitPoints(text, size).map((p, i) => {
+        if (p.type === 'text') return <span key={i}>{p.text}</span>;
+        const preview = (pinned: boolean): Preview => {
+          const pv = pointView(p.loc, ex.position, ex.variations);
+          const v = pv.variation;
+          return {
+            key: `${msgId}:p${p.loc}`,
+            base: ex.position,
+            line: pv.line,
+            highlight: pv.highlight,
+            title: !v ? p.text : v.label === p.text ? `${p.text} · ${KIND[v.kind]}` : `${p.text} · in ${v.label} · ${KIND[v.kind]}`,
+            note: v?.note,
+            pinned,
+          };
+        };
+        return (
+          <BoardChip key={i} className="pt" preview={preview} link={link}>
+            {p.text}
+          </BoardChip>
+        );
+      })}
+    </>
+  );
+}
+
+/** Writer text: paragraphs, lists, headings, **bold**, [[vN]] / [[dN]] chips and board points. */
 function RichText({ text, ex, msgId, link }: { text: string; ex?: Explanation; msgId: string; link: BoardLink }) {
+  // "play P5 [[v1]]": the point already shows the line, so a chip that repeats it is left out.
+  const repeats = (prev: Inline | undefined, id: string) => {
+    const label = ex?.variations.find((v) => v.id === id)?.label;
+    return !!label && !!prev && prev.type !== 'chip' && prev.text.trimEnd().endsWith(label);
+  };
+  /** The pieces of `s`, with repeated chips dropped and the space before them closed up. */
+  const pieces = (s: string): Inline[] => {
+    const all = splitChips(s);
+    const out: Inline[] = [];
+    all.forEach((part, i) => {
+      if (part.type === 'chip' && ex && repeats(all[i - 1], part.id)) {
+        const prev = out[out.length - 1];
+        const next = all[i + 1];
+        if (prev && prev.type !== 'chip' && next && next.type !== 'chip' && /^[.,;:!?)]/.test(next.text)) out[out.length - 1] = { ...prev, text: prev.text.trimEnd() };
+        return;
+      }
+      out.push(part);
+    });
+    return out;
+  };
   const inline = (s: string) =>
-    splitChips(s).map((part, i) =>
+    pieces(s).map((part, i) =>
       part.type === 'chip' ? (
-        ex ? <VariationChip key={i} id={part.id} ex={ex} msgId={msgId} link={link} /> : null
+        ex ? (
+          <VariationChip key={i} id={part.id} ex={ex} msgId={msgId} link={link} />
+        ) : null
       ) : part.type === 'bold' ? (
-        <strong key={i}>{part.text}</strong>
+        <strong key={i}>{ex ? <Points text={part.text} ex={ex} msgId={msgId} link={link} /> : part.text}</strong>
+      ) : ex ? (
+        <Points key={i} text={part.text} ex={ex} msgId={msgId} link={link} />
       ) : (
         <span key={i}>{part.text}</span>
       ),
@@ -124,7 +215,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtS
       <ol>
         {steps.map((s, i) => (
           <li key={i}>
-            <span>{s.text}</span>
+            <span>{ex ? <Points text={s.text} ex={ex} msgId={msgId} link={link} /> : s.text}</span>
             <span className="meta">
               {s.visits ? `${s.visits} visits · ` : ''}
               {(s.ms / 1000).toFixed(1)} s
@@ -154,8 +245,19 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
         const key = `${msgId}:c${i}`;
         const preview = (pinned: boolean): Preview =>
           v
-            ? variationPreview(key, ex, v, pinned, { highlight: h.at, note: h.evidence })
-            : { key, base: ex.position, line: [], highlight: h.at, title: `${h.id}${at ? ` at ${at}` : ''}`, note: h.evidence, pinned };
+            ? variationPreview(key, ex, v, pinned, {
+                highlight: h.at,
+                note: h.evidence,
+              })
+            : {
+                key,
+                base: ex.position,
+                line: [],
+                highlight: h.at,
+                title: `${h.id}${at ? ` at ${at}` : ''}`,
+                note: h.evidence,
+                pinned,
+              };
         return (
           <BoardChip key={i} className="tag" preview={preview} link={link}>
             {h.id.replace(/-/g, ' ')}
@@ -196,7 +298,9 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
           </summary>
           <ul>
             {ex.facts.map((f) => (
-              <li key={f.id}>{f.text}</li>
+              <li key={f.id}>
+                <Points text={f.text} ex={ex} msgId={msg.id} link={link} />
+              </li>
             ))}
           </ul>
         </details>
@@ -205,7 +309,19 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
   );
 }
 
-function ConceptAnswer({ a, msg, link, onAsk, onShowBoard }: { a: Extract<Answer, { type: 'concept' }>; msg: ChatMessage; link: BoardLink; onAsk: (t: string) => void; onShowBoard: (b: BoardState) => void }) {
+function ConceptAnswer({
+  a,
+  msg,
+  link,
+  onAsk,
+  onShowBoard,
+}: {
+  a: Extract<Answer, { type: 'concept' }>;
+  msg: ChatMessage;
+  link: BoardLink;
+  onAsk: (t: string) => void;
+  onShowBoard: (b: BoardState) => void;
+}) {
   const entries = a.ids.map((id) => conceptById(id)).filter((e): e is ConceptEntry => !!e);
   if (!entries.length) {
     return (
@@ -267,7 +383,15 @@ function ConceptAnswer({ a, msg, link, onAsk, onShowBoard }: { a: Extract<Answer
                       className={`chip${link.pinnedKey === key ? ' on' : ''}`}
                       onClick={() => {
                         onShowBoard(boardFromPosition(x.position, x.title));
-                        link.onPin({ key, base: x.position, line: x.line, highlight: [], title: x.title, note: x.note, pinned: true });
+                        link.onPin({
+                          key,
+                          base: x.position,
+                          line: x.line,
+                          highlight: [],
+                          title: x.title,
+                          note: x.note,
+                          pinned: true,
+                        });
                       }}
                     >
                       <Icon name="board" size={13} />
@@ -370,7 +494,25 @@ function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean;
   );
 }
 
-function KamiMessage({ m, running, isLast, link, onRegenerate, onAsk, onShowBoard, busy }: { m: ChatMessage; running: Running | null; isLast: boolean; link: BoardLink; onRegenerate: () => void; onAsk: (t: string) => void; onShowBoard: (b: BoardState) => void; busy: boolean }) {
+function KamiMessage({
+  m,
+  running,
+  isLast,
+  link,
+  onRegenerate,
+  onAsk,
+  onShowBoard,
+  busy,
+}: {
+  m: ChatMessage;
+  running: Running | null;
+  isLast: boolean;
+  link: BoardLink;
+  onRegenerate: () => void;
+  onAsk: (t: string) => void;
+  onShowBoard: (b: BoardState) => void;
+  busy: boolean;
+}) {
   const tier = m.pick ? pickById(m.pick) : null;
   const live = running?.msgId === m.id;
   const a = m.answer;
