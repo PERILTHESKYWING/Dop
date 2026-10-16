@@ -21,7 +21,8 @@
  */
 import { locToGtp } from '../go/coords';
 import { PASS, type Loc } from '../go/types';
-import type { Explanation, Variation } from './explain/types';
+import { xy } from '../go/coords';
+import type { Explanation, Illustration, Variation } from './explain/types';
 import type { ConceptEntry } from './library';
 
 export interface AnswerScore {
@@ -107,7 +108,7 @@ const name = (loc: Loc, size: number) => (loc === PASS || loc < 0 ? '' : locToGt
 
 interface Allowed {
   coords: Set<string>;
-  refs: Map<string, Variation>;
+  refs: Map<string, Variation | Illustration>;
   /** Winrates (either view) and gaps between two of them. */
   pct: number[];
   /** Point figures: leads, losses, gaps between two, komi. */
@@ -143,8 +144,25 @@ function allowedFor(ex: Explanation): Allowed {
     c.at.forEach(add);
     texts.push(c.evidence);
   }
-  const refs = new Map<string, Variation>();
+  const refs = new Map<string, Variation | Illustration>();
   let maxLine = 0;
+  for (const d of ex.illustrations ?? []) {
+    // A diagram: its line, its highlighted points and the stones inside its window.
+    refs.set(d.id, d);
+    d.line.forEach((m) => add(m.loc));
+    d.highlight.forEach(add);
+    if (d.view) {
+      const [x0, y0, x1, y1] = d.view;
+      for (const m of d.base.setup) {
+        const [x, y] = xy(m.loc, size);
+        if (x >= x0 && x <= x1 && y >= y0 && y <= y1) add(m.loc);
+      }
+    }
+    texts.push(d.label, d.title, d.note);
+    pts.push(Math.abs(d.base.komi));
+    maxLine = Math.max(maxLine, d.line.length);
+    structural.push(d.line.length);
+  }
   for (const v of ex.variations) {
     refs.set(v.id, v);
     v.moves.forEach((m) => add(m.loc));
@@ -285,6 +303,8 @@ function coverageOf(ex: Explanation, text: string, hits: readonly Hit[]): number
     groups.push(share(used, ex.facts.length, 6));
   }
   if (ex.variations.length) groups.push(share(ex.variations.filter((v) => refIds.has(v.id)).length, ex.variations.length, 4));
+  // A diagram the answer was given should be shown to the student.
+  if (ex.illustrations?.length) groups.push(ex.illustrations.some((d) => refIds.has(d.id)) ? 1 : 0);
   if (ex.concepts.length) {
     const used = ex.concepts.filter((c) => (c.variation && refIds.has(c.variation)) || termIn(text, c.id)).length;
     groups.push(share(used, ex.concepts.length, 3));
@@ -310,7 +330,13 @@ export function checkAnswer(ex: Explanation, text: string): AnswerScore {
   const hits = scan(text, ex.position.size);
   const { truth, unsupported } = truthOf(hits, (h) => supported(h, allowed));
   const coverage = text.trim() ? coverageOf(ex, text, hits) : 0;
-  const deepRefs = new Set(hits.filter((h) => h.kind === 'ref' && ['refutation', 'consequence', 'what-if'].includes(allowed.refs.get(h.key)?.kind ?? '')).map((h) => h.key)).size;
+  const deepRefs = new Set(
+    hits.filter((h) => {
+      const r = h.kind === 'ref' ? allowed.refs.get(h.key) : undefined;
+      // A diagram counts as a worked example.
+      return !!r && ('source' in r || ['refutation', 'consequence', 'what-if'].includes(r.kind));
+    }).map((h) => h.key),
+  ).size;
   const figures = hits.filter((h) => h.kind !== 'ref').length;
   const depth = depthScore(text, deepRefs, ex.concepts.map((c) => c.id), figures);
   return { truth, coverage, depth, unsupported, pass: truth === 1 && coverage >= COVERAGE_FLOOR && !!text.trim() };

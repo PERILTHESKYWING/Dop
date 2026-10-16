@@ -7,7 +7,7 @@
         KataGo thinks.  Code checks.  Words come last.
 ```
 
-**As of 2026-10-15 (evening).** Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
+**As of 2026-10-16.** Built positions (diagrams) and the rubric: `kami-diagrams.md`. Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
 
 ---
 
@@ -87,7 +87,7 @@ No PRs are open at the time of writing.
    - **c.** On phones, move the tools and tabs below the chat, so the board gets the whole 50%.
    - **Recommended: a + c.** Tell me which.
 
-2. **"The AI sets up any position" vs the hard rule** in `CLAUDE.md`: "the LLM never invents positions or analysis." Proposed compromise, which needs your OK to change that line:
+2. **"The AI sets up any position"**: decided 2026-10-16, XIAO asked for built positions that pass several checks with KataGo last (see `kami-diagrams.md`). The original proposal:
    - The writer may ask for a set-up diagram (stones with colour and point). Code places them.
    - Code checks the set-up is legal (`replay`), then KataGo reads it.
    - The explanation may only state what that read shows. A claim that doesn't match the read is dropped.

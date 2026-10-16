@@ -1,0 +1,48 @@
+{
+  "version": 0,
+  "updated": "2026-10-16",
+  "about": "How Kami's answers are scored after the truth check. Version 0 is a seed written by Claude from the project's rules; XIAO's critique of the analysis batch replaces it (version 1+). Rules with a `check` are scored by code (scripts/coachlm/verify.ts, src/lib/coach/rubric.ts); every rule's text goes to the judge (scripts/coachlm/judge.py). Weights are relative.",
+  "rules": [
+    {
+      "id": "answer-first",
+      "text": "The first one or two sentences answer the question directly (the move, the verdict, or who is ahead), before any background.",
+      "weight": 2,
+      "check": { "kind": "leadsWithAnswer" }
+    },
+    {
+      "id": "why",
+      "text": "It explains why with a Go reason the student can reuse (shape, a weak group, sente and gote, territory against influence, what happens later), not just KataGo's numbers.",
+      "weight": 3
+    },
+    {
+      "id": "show-on-board",
+      "text": "Claims about lines are shown, not only told: it points to at least one variation or diagram the student can hover.",
+      "weight": 2,
+      "check": { "kind": "require", "pattern": "\\[\\[[vd]\\d+\\]\\]" }
+    },
+    {
+      "id": "use-diagram",
+      "text": "When a diagram was built for the answer, the answer uses it to show the idea on its own.",
+      "weight": 1,
+      "check": { "kind": "refsDiagram" }
+    },
+    {
+      "id": "no-filler",
+      "text": "No filler, flattery or talk about being an AI.",
+      "weight": 1,
+      "check": { "kind": "forbid", "pattern": "\\b(great question|as an ai|i hope this helps|let me know if)\\b", "flags": "i" }
+    },
+    {
+      "id": "length",
+      "text": "Long enough to teach, short enough to read: about 40 to 350 words.",
+      "weight": 1,
+      "check": { "kind": "words", "min": 40, "max": 350 }
+    },
+    {
+      "id": "level",
+      "text": "Plain language pitched at the student's level; Go terms are fine, engine jargon (visits, policy, PV) is not.",
+      "weight": 1,
+      "check": { "kind": "forbid", "pattern": "\\b(visits|policy|principal variation|PV)\\b", "flags": "i" }
+    }
+  ]
+}

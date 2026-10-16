@@ -106,9 +106,22 @@ jobs:
             if echo "$ASSETS" | grep -qx "$f"; then gh release download coach-lm -p "$f" -D rel || true; fi
           done
           echo "OLD=$( [ -f rel/tasks.jsonl.gz ] && zcat rel/tasks.jsonl.gz | wc -l || echo 0)" >> "$GITHUB_ENV"
+      - name: Human games from 2022 on (OGS archive release, Japanese title games; best effort)
+        run: |
+          if gh release download game-data -p ogs-recent.jsonl.gz -D data 2> /dev/null; then echo "OGS games: $(zcat data/ogs-recent.jsonl.gz | wc -l)"; fi
+          mkdir -p cwi titles
+          for t in kisei meijin honinbo tengen oza judan gosei ryusei; do
+            curl -sfL -m 300 "https://homepages.cwi.nl/~aeb/go/games/$t.tgz" | tar xzf - -C cwi || true
+          done
+          find cwi -iname '*.sgf' -print0 | xargs -0 grep -l -E 'DT\[(202[2-9])' 2> /dev/null | while read -r f; do cp "$f" titles/; done || true
+          rm -rf cwi
+          echo "title games from 2022 on: $(ls titles | wc -l)"
       - name: Make tasks (Tesuji/medium), one factory per core
         run: |
           N=$(nproc)
+          GAMES=""
+          [ -f data/ogs-recent.jsonl.gz ] && GAMES="--games data/ogs-recent.jsonl.gz"
+          [ -n "$(ls titles 2> /dev/null)" ] && GAMES="$GAMES --sgf-dir titles"
           EXISTING=""
           [ -f rel/tasks.jsonl.gz ] && EXISTING="--existing rel/tasks.jsonl.gz"
           REQ=$(ls rel/requests.jsonl* 2> /dev/null | head -n 1 || true)
@@ -116,7 +129,7 @@ jobs:
             R=""
             [ "$i" = 1 ] && [ -n "$REQ" ] && R="--requests $REQ"
             npx tsx scripts/coachlm/factory.ts --split train --out "new-$i.jsonl" --n 2000 --minutes "$MINUTES" \
-              --seed "${{ github.run_id }}-$i" $EXISTING $R > "new-$i.log" 2>&1 &
+              --seed "${{ github.run_id }}-$i" $GAMES $EXISTING $R > "new-$i.log" 2>&1 &
           done
           wait
           cat new-*.log

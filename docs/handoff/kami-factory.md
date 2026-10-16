@@ -9,8 +9,8 @@ Summary: how training tasks for Kami's own writer model are made, checked and st
 ## Contract (the Python trainer reads exactly this)
 - Release `coach-lm`: `tasks.jsonl.gz` (train), `eval.jsonl.gz` (held-out test set, never trained on), `pool.jsonl.gz` (trainer's). Optional: if the trainer uploads `requests.jsonl(.gz)`, the next run answers it.
 - Task line: `{id, promptVersion, kind: position|concept, split: train|eval, system: LM_SYSTEM, prompt, reference, explanation (no ownership) | null, concept: id | null}`. Position prompt = `buildLmPrompt(explanation)`; concept prompt = `buildConceptPrompt` in `scripts/coachlm/tasks.ts` (question, name, level, the library's text as facts, "no coordinates"). Reference = summary + sections (concept: short + body).
-- `factory.ts --out f [--n 200] [--split train|eval] [--requests r.jsonl] [--minutes 30] [--existing tasks.jsonl.gz] [--seed s] [--sources demo,broadcast,pro]`. Request: `{taskId, question: {kind, move: "R16"|null, text}}`; a move must appear in that task's variations, else the request is dropped.
-- `verify.ts --tasks f[.gz] (--answers a.jsonl | --self) --out scores.jsonl`; score `{id, member, truth, coverage, depth, unsupported, pass}`.
+- `factory.ts --out f [--n 200] [--split train|eval] [--requests r.jsonl] [--minutes 30] [--existing tasks.jsonl.gz] [--seed s] [--sources ogs,titles,broadcast,demo,pro] [--games ogs-recent.jsonl.gz] [--sgf-dir titles]`. Request: `{taskId, question: {kind, move: "R16"|null, text}}`; a move must appear in that task's variations, else the request is dropped.
+- `verify.ts --tasks f[.gz] (--answers a.jsonl | --self) --out scores.jsonl [--rubric eval/coach/rubric.json]`; score `{id, member, truth, coverage, depth, unsupported, pass, rubric, broken}` (rubric: kami-diagrams.md).
 
 ## Checker rules
 - truth: every coordinate, number and `[[vN]]` must come from facts, concept hits, variations (moves, labels, notes, scoreLoss) or the question. Winrates within 1 (hedged round numbers like "about 60%" within 3), either player's view and gaps between two; points within 0.6 (hedged: 15%), gaps but not sums. "3-3", "3rd line", "3k", "19x19" are not figures. "move N" must fit the game plus the longest line; "N moves" must fit a line. Bare integers 0-2 and point figures up to 1 are free. I5 and Q20 always fail.
@@ -19,7 +19,7 @@ Summary: how training tasks for Kami's own writer model are made, checked and st
 - pass: truth 1 and coverage >= 0.4. Concept answers: truth 0 if any coordinate; coverage = share of key terms (name or alias, up to 6 words of `short`, up to 3 related).
 
 ## How the factory works
-- Positions from the repo, no downloads: demo games (KataGo-policy 3k-ish play, 40%), broadcast games (30%), pro opening walks weighted by pro counts (30%). Per position: best, overview, why-not on candidates 2-5 (root read, 200 visits), why-move on the move actually played. Train = Tesuji/medium, eval = Tesuji/high.
+- Positions from 2022 on only (since 2026-10-16): OGS games from the `game-data` release (`--games`), Japanese title games with DT 2022+ (`--sgf-dir`, the workflow fetches them from cwi.nl), and the repo's 2026 demo and broadcast games. The 1940-2017 pro walks only with `--sources pro`. A verified diagram also becomes an `<id>-own-diagram` task whose reference carries a DIAGRAM block. Per position: best, overview, why-not on candidates 2-5 (root read, 200 visits), why-move on the move actually played. Train = Tesuji/medium, eval = Tesuji/high.
 - Split = hash of the canonical position (all 8 symmetries) or of the concept id; about 10% eval. Ids hash prompt version + position + kind + move (template wording ignored), so duplicates never reach the engine; a position whose "best" task exists is skipped before reading.
 - A task whose own reference fails `checkAnswer` truth is dropped and counted (training on it would teach invention).
 - Concept tasks (no engine) take at most a fifth of a run; none while `CONCEPTS` is empty.

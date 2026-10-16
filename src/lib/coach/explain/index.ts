@@ -10,6 +10,7 @@
  */
 import { budgetFor } from './budgets';
 import { detectConcepts } from './concepts';
+import { buildDiagrams, illustrateDefaults } from './diagrams';
 import { runPlan } from './planner';
 import { buildText } from './text';
 import { KAMI_VERSION, type Budget, type ExplainFn, type ExplainPosition, type Explanation, type Prober, type Question } from './types';
@@ -18,6 +19,8 @@ export * from './types';
 export { searchProber } from './searchProber';
 export { buildLmPrompt, LM_SYSTEM } from './prompt';
 export { budgetFor } from './budgets';
+export { ILLUSTRATE_DEFAULTS, verifyDiagram, staticChecks, type DiagramSpec } from './illustrate';
+export { illustrateDefaults } from './diagrams';
 
 export const explain: ExplainFn = (pos, question, prober, opts) => explainWithBudget(pos, question, prober, budgetFor(opts.model, opts.thinking), opts);
 
@@ -26,6 +29,21 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
   const f = await runPlan(pos, question, prober, budget, { signal: opts.signal, onThought: opts.onThought });
   const concepts = detectConcepts(f);
   const text = buildText(f, concepts);
+  // A diagram of the idea on its own, after the answer's own reads (it has its own time cap).
+  const defaults = illustrateDefaults(opts.model, opts.thinking);
+  // The tier decides whether there is a diagram (none for Hane or thinking off/low); settings tune it.
+  const io = opts.illustrate === false || !defaults ? null : { ...defaults, ...(opts.illustrate ?? {}) };
+  let illustrations: Explanation['illustrations'];
+  const extra = { reads: 0, visits: 0, ms: 0 };
+  if (io && f.root) {
+    const d = await buildDiagrams(f, prober, io, { signal: opts.signal, onThought: opts.onThought, examplesFor: opts.examplesFor, concepts: concepts.map((c) => c.id) });
+    Object.assign(extra, { reads: d.reads, visits: d.visits, ms: d.ms });
+    if (d.illustrations.length) {
+      illustrations = d.illustrations;
+      text.facts.push(...d.facts);
+      if (d.section) text.sections.push(d.section);
+    }
+  }
   return {
     position: pos,
     model: opts.model,
@@ -37,9 +55,10 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
     facts: text.facts,
     concepts,
     variations: f.variations,
+    ...(illustrations ? { illustrations } : {}),
     thoughts: f.thoughts,
-    reads: f.reads,
-    totalVisits: f.visits,
-    ms: f.ms,
+    reads: f.reads + extra.reads,
+    totalVisits: f.visits + extra.visits,
+    ms: f.ms + extra.ms,
   };
 }

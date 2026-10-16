@@ -5,12 +5,16 @@
  *   npx tsx scripts/coachlm/verify.ts --tasks eval.jsonl.gz --self --out scores.jsonl   (score the references)
  *
  * answers: {"id", "member", "text"} per line. scores: {"id", "member", "truth", "coverage",
- * "depth", "unsupported", "pass"} per line. Position tasks use checkAnswer on the task's
+ * "depth", "unsupported", "pass", "rubric", "broken"} per line. rubric is the code-checked
+ * share of eval/coach/rubric.json (XIAO's rules; --rubric to use another file), 0 when the
+ * truth check fails, null when no rule applies; broken lists the rules the answer broke. Position tasks use checkAnswer on the task's
  * explanation; concept tasks score truth 0 for any board coordinate and coverage as the share
  * of the concept's key terms used (checkConceptAnswer). Answers for unknown ids are skipped.
  */
+import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { checkAnswer, checkConceptAnswer, type AnswerScore, type ConceptLike } from '../../src/lib/coach/answerCheck';
+import { scoreRubric, type Rubric, type RubricScore } from '../../src/lib/coach/rubric';
 import { conceptById } from '../../src/lib/coach/library';
 import { readJsonl, writeJsonl, type Task } from './tasks';
 
@@ -20,9 +24,24 @@ export interface Answer {
   text: string;
 }
 
-export interface Score extends AnswerScore {
+export interface Score extends AnswerScore, RubricScore {
   id: string;
   member: string;
+}
+
+const RUBRIC_FILE = new URL('../../eval/coach/rubric.json', import.meta.url);
+
+export function loadRubric(file?: string): Rubric | null {
+  const f = file ?? RUBRIC_FILE;
+  if (!existsSync(f)) return null;
+  return JSON.parse(readFileSync(f, 'utf8')) as Rubric;
+}
+
+/** The rubric part of a score: 0 when the truth check failed (invented figures are never "good"). */
+export function rubricPart(rubric: Rubric | null, t: Task, text: string, s: AnswerScore): RubricScore {
+  if (!rubric) return { rubric: null, broken: [] };
+  const r = scoreRubric(rubric, text, t.kind === 'concept' ? null : t.explanation);
+  return s.truth < 1 && r.rubric !== null ? { rubric: 0, broken: r.broken } : r;
 }
 
 /** The concept a task is about: the library entry, or (when the library no longer has it) one read back from the task's prompt. */
@@ -42,7 +61,8 @@ export function scoreAnswer(t: Task, text: string): AnswerScore {
 
 const isMain = process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/coachlm/verify.ts');
 if (isMain) {
-  const { values: arg } = parseArgs({ options: { tasks: { type: 'string' }, answers: { type: 'string' }, out: { type: 'string' }, self: { type: 'boolean', default: false } } });
+  const { values: arg } = parseArgs({ options: { tasks: { type: 'string' }, answers: { type: 'string' }, out: { type: 'string' }, self: { type: 'boolean', default: false }, rubric: { type: 'string' } } });
+  const rubric = loadRubric(arg.rubric);
   if (!arg.tasks || !arg.out || (!arg.answers && !arg.self)) throw new Error('usage: verify.ts --tasks tasks.jsonl[.gz] (--answers answers.jsonl | --self) --out scores.jsonl');
   const t0 = Date.now();
   const tasks = new Map(readJsonl<Task>(arg.tasks).map((t) => [t.id, t]));
@@ -56,7 +76,8 @@ if (isMain) {
       unknown++;
       continue;
     }
-    scores.push({ id: a.id, member: String(a.member ?? ''), ...scoreAnswer(t, a.text) });
+    const sc = scoreAnswer(t, a.text);
+    scores.push({ id: a.id, member: String(a.member ?? ''), ...sc, ...rubricPart(rubric, t, a.text, sc) });
   }
   writeJsonl(arg.out, scores);
   const ms = Date.now() - t1;
@@ -66,6 +87,12 @@ if (isMain) {
     `verify: ${scores.length} answers on ${tasks.size} tasks (load ${Date.now() - t0 - ms} ms, check ${ms} ms = ${scores.length ? ((ms * 1000) / scores.length).toFixed(0) : '-'} µs each); ` +
       `pass ${passed}/${scores.length}, truth ${mean('truth')}, coverage ${mean('coverage')}, depth ${mean('depth')}; ${unknown} unknown ids skipped`,
   );
+  const rubricScores = scores.map((s) => s.rubric).filter((x): x is number => x !== null);
+  if (rubric) {
+    const brokenBy = new Map<string, number>();
+    for (const s of scores) for (const b of s.broken) brokenBy.set(b, (brokenBy.get(b) ?? 0) + 1);
+    console.log(`  rubric v${rubric.version}: mean ${(rubricScores.reduce((a, b) => a + b, 0) / Math.max(1, rubricScores.length)).toFixed(3)}; broken ${[...brokenBy].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} x${n}`).join(', ') || 'none'}`);
+  }
   const bad = new Map<string, number>();
   for (const s of scores) for (const u of s.unsupported) bad.set(u, (bad.get(u) ?? 0) + 1);
   if (bad.size) console.log(`  most common unsupported: ${[...bad].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([u, n]) => `${u} x${n}`).join(', ')}`);

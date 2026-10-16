@@ -18,7 +18,7 @@ import { Messages, type Running } from './ui/Messages';
 import { Settings, type SettingsPage } from './ui/Settings';
 import { Sidebar } from './ui/Sidebar';
 import { Splitter } from './ui/Splitter';
-import { useSetting } from './lib/settings';
+import { getSetting, useSetting } from './lib/settings';
 
 function lsGet(k: string): string | null {
   try {
@@ -164,6 +164,17 @@ export function App() {
     loadSgfText(decodeSgfBytes(bytes));
   };
 
+  /** Settings › Positions, read at ask time; the thinking tier still decides whether diagrams run. */
+  const positionSettings = () =>
+    getSetting<boolean>('positions.enabled')
+      ? {
+          minWinrate: getSetting<number>('positions.minWinrate'),
+          visits: getSetting<number>('positions.visits'),
+          maxKomi: getSetting<number>('positions.maxKomi'),
+          maxMs: getSetting<number>('positions.maxSeconds') * 1000,
+        }
+      : (false as const);
+
   /** Ask in conversation `convId` and fill message `kamiId` with the answer. */
   const run = async (convId: string, kamiId: string, text: string, board: BoardState) => {
     const ctrl = new AbortController();
@@ -179,7 +190,7 @@ export function App() {
           board,
           pick,
           thinking,
-          { explain, getProber, findConcepts, callLlm: llmOn === false ? noLlm : callKamiWrite, checkAnswer, localWrite: withLocal ? localWrite : undefined },
+          { explain, getProber, findConcepts, callLlm: llmOn === false ? noLlm : callKamiWrite, checkAnswer, localWrite: withLocal ? localWrite : undefined, illustrate: positionSettings, writerDiagrams: () => getSetting<boolean>('positions.writerDiagrams') },
           { onThought, onStage },
           ctrl.signal,
         ),

@@ -21,6 +21,7 @@ import { budgetFor, explainWithBudget, searchProber, type Explanation, type Expl
 import { engineEvaluator } from '../src/lib/engine/mcts';
 import { NNCache } from '../src/lib/engine/nncache';
 import { loadNodeEngine } from './nodeEngine';
+import { conceptById } from '../src/lib/coach/library';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -85,6 +86,10 @@ function printExample(c: Case, ex: Explanation) {
   for (const s of ex.sections) out.push(`\n## ${s.title}\n${s.text}`);
   out.push('\nVariations:');
   for (const v of ex.variations) out.push(`  [[${v.id}]] ${v.kind} "${v.label}" ${v.moves.length} moves${v.highlight ? `, highlight ${v.highlight.length} pts` : ''}${v.scoreLoss !== undefined ? `, loss ${v.scoreLoss}` : ''}${v.note ? ` — ${v.note}` : ''}`);
+  for (const d of ex.illustrations ?? []) {
+    out.push(`  [[${d.id}]] diagram "${d.label}" (${d.source}), komi ${d.base.komi}, ${d.line.length} moves — ${d.note}`);
+    out.push(`    checks: ${d.checks.map((c) => `${c.name}${c.ok ? '✔' : '✘'} ${c.detail}`).join('; ')}`);
+  }
   out.push('Concepts:');
   for (const h of ex.concepts) out.push(`  ${h.id}: ${h.evidence}`);
   out.push('Facts:');
@@ -117,11 +122,11 @@ async function main() {
     const budget = budgetFor(model, thinking);
     budget.maxMs = Math.round(budget.maxMs * scale);
     console.log(`\n## ${model}/${thinking}: budget reads ${budget.reads}, visits ${budget.visits}, line ${budget.lineVisits}x${budget.lineDepth}, maxMs ${budget.maxMs}`);
-    console.log('case | variations | reads | visits | ms | cpu ms | loss | turning point | concepts');
+    console.log('case | variations | reads | visits | ms | cpu ms | loss | turning point | concepts | diagram');
     const rows: { reads: number; visits: number; ms: number; cpu: number; tp: boolean | null }[] = [];
     for (const c of chosen) {
       const cpu0 = process.cpuUsage();
-      const ex = await explainWithBudget(c.pos, c.q, freshProber(), budget, { model, thinking });
+      const ex = await explainWithBudget(c.pos, c.q, freshProber(), budget, { model, thinking, examplesFor: (id) => conceptById(id)?.examples ?? [] });
       const du = process.cpuUsage(cpu0);
       const cpu = Math.round((du.user + du.system) / 1000);
       const v = ex.variations.find((x) => x.kind === 'consequence');
@@ -130,7 +135,7 @@ async function main() {
       const mode = ex.variations.map((x) => x.kind[0]).join('');
       const loss = ex.variations.find((x) => x.kind === 'refutation' || x.kind === 'consequence' || x.kind === 'what-if')?.scoreLoss;
       rows.push({ reads: ex.reads, visits: ex.totalVisits, ms: ex.ms, cpu, tp });
-      console.log(`${c.name} | ${mode} | ${ex.reads} | ${ex.totalVisits} | ${ex.ms} | ${cpu} | ${loss ?? '-'} | ${tp === null ? '-' : tp ? 'yes' : 'no'} | ${ex.concepts.map((h) => h.id).join(' ') || '-'}`);
+      console.log(`${c.name} | ${mode} | ${ex.reads} | ${ex.totalVisits} | ${ex.ms} | ${cpu} | ${loss ?? '-'} | ${tp === null ? '-' : tp ? 'yes' : 'no'} | ${ex.concepts.map((h) => h.id).join(' ') || '-'} | ${ex.illustrations?.length ? 'yes' : ex.thoughts.find((t) => t.text.startsWith('Tried a diagram'))?.text.replace(/^.*not shown /, '') ?? '-'}`);
       if (all) examples.push({ c, ex });
       else if (!examples.length && chosen.indexOf(c) === exampleIdx && ((model === 'tesuji' && thinking === 'medium') || combos.length === 1)) examples.push({ c, ex });
     }

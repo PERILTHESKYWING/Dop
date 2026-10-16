@@ -29,6 +29,9 @@ POOL_ASSET = 'pool.jsonl.gz'
 
 # Answer quality weights (truth is a gate, not a weight: a failing answer is worth 0).
 W_COVERAGE, W_DEPTH, W_JUDGE = 0.5, 0.3, 0.2
+# Share of quality that comes from XIAO's rubric (eval/coach/rubric.json, code-checked rules)
+# whenever verify.ts scored it: the rubric is the human teacher's voice, so it weighs most.
+W_RUBRIC = 0.5
 
 
 def answer_quality(score: dict, judge: float | None = None) -> float:
@@ -37,8 +40,13 @@ def answer_quality(score: dict, judge: float | None = None) -> float:
         return 0.0
     cov, dep = float(score.get('coverage', 0)), float(score.get('depth', 0))
     if judge is None:
-        return (W_COVERAGE * cov + W_DEPTH * dep) / (W_COVERAGE + W_DEPTH)
-    return W_COVERAGE * cov + W_DEPTH * dep + W_JUDGE * float(judge)
+        base = (W_COVERAGE * cov + W_DEPTH * dep) / (W_COVERAGE + W_DEPTH)
+    else:
+        base = W_COVERAGE * cov + W_DEPTH * dep + W_JUDGE * float(judge)
+    rubric = score.get('rubric')
+    if isinstance(rubric, (int, float)):
+        return (1 - W_RUBRIC) * base + W_RUBRIC * float(rubric)
+    return base
 
 
 def row_key(row: dict) -> str:

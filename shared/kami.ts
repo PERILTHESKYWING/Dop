@@ -17,7 +17,18 @@ Rules:
 - Use only moves, coordinates and numbers that appear in the facts, concepts or variations. Never add your own.
 - Point to variations by writing their id in double brackets, like [[v1]]; the student can hover them to see the moves on the board.
 - Explain why: the ideas behind the numbers (shape, weak groups, sente and gote, territory against influence, what happens later).
-- Start with a direct answer in one or two sentences, then go deeper. Plain language, pitched at the student's level.`;
+- Start with a direct answer in one or two sentences, then go deeper. Plain language, pitched at the student's level.
+- Diagrams are positions built to show one idea on its own, checked by KataGo; show one by writing its id, like [[d1]].
+- If a small local position of your own would explain the idea better, you may ask for one diagram: end your answer with
+DIAGRAM
+to play: Black or White
+black: the black stones, like C3 D3 E3
+white: the white stones
+best: the move that shows the idea
+worse: a tempting move that fails (optional)
+idea: a few words (optional)
+END
+and refer to it by the id given below. Keep it in one corner or on one side, 3 to 40 stones. KataGo checks it before it is shown; if a check fails, every sentence that mentions it is removed, so make the rest of the answer stand on its own.`;
 
 export const KAMI_CONCEPT_SYSTEM = `You are Kami, a Go (baduk) teacher. Below is a checked library entry about one Go concept and the student's question.
 Explain the idea more deeply for the student, in plain language, in two to four short paragraphs.
@@ -40,7 +51,7 @@ export interface KamiWriteResponse {
   model?: string;
 }
 
-const MAX_PROMPT = 12_000;
+const MAX_PROMPT = 14_000;
 
 export function validKamiWrite(x: unknown): x is KamiWriteRequest {
   const r = x as KamiWriteRequest | null;
