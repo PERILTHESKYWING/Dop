@@ -20,7 +20,7 @@ export interface TextOut {
 
 /** Numbers in a text, leaving out [[vN]] refs and board coordinates (Q16). */
 export function numbersIn(text: string): string[] {
-  const t = text.replace(/\[\[v\d+\]\]/g, ' ').replace(/\b[A-HJ-Z](?:2[0-5]|1\d|[1-9])\b/g, ' ');
+  const t = text.replace(/\[\[[vd]\d+\]\]/g, ' ').replace(/\b[A-HJ-Z](?:2[0-5]|1\d|[1-9])\b/g, ' ');
   return (t.match(/\d+(?:\.\d+)?/g) ?? []).map((n) => String(Number(n)));
 }
 

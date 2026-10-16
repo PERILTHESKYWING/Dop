@@ -3,7 +3,7 @@ import type { Explanation } from '../../../src/lib/coach/explain/types';
 
 export type Inline = { type: 'text'; text: string } | { type: 'bold'; text: string } | { type: 'chip'; id: string };
 
-const CHIP = /\[\[\s*(v\d+)\s*\]\]/g;
+const CHIP = /\[\[\s*([vd]\d+)\s*\]\]/g;
 
 /** Text and [[vN]] chips (and **bold**), in order. Empty text pieces are dropped. */
 export function splitChips(text: string): Inline[] {
@@ -63,10 +63,10 @@ export function blocks(text: string): Block[] {
   return out;
 }
 
-/** The text with each [[vN]] replaced by its label, for the clipboard. */
-export function plainText(text: string, ex?: Pick<Explanation, 'variations'>): string {
+/** The text with each [[vN]] / [[dN]] replaced by its label, for the clipboard. */
+export function plainText(text: string, ex?: Pick<Explanation, 'variations' | 'illustrations'>): string {
   return text.replace(CHIP, (_, id: string) => {
-    const v = ex?.variations.find((x) => x.id === id);
+    const v = ex?.variations.find((x) => x.id === id) ?? ex?.illustrations?.find((x) => x.id === id);
     return v ? v.label : '';
   }).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/[ \t]+([.,;:])/g, '$1');
 }

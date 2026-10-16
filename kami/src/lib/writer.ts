@@ -6,8 +6,10 @@
  */
 import type { AnswerScore } from '../../../src/lib/coach/answerCheck';
 import type { ConceptEntry } from '../../../src/lib/coach/library';
-import { buildLmPrompt } from '../../../src/lib/coach/explain/prompt';
-import { MODELS, type Explanation, type ModelId, type ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import type { DiagramSpec, Verified } from '../../../src/lib/coach/explain/illustrate';
+import { buildLmPrompt, nextDiagramId } from '../../../src/lib/coach/explain/prompt';
+import { MODELS, type Explanation, type Fact, type Illustration, type ModelId, type ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import { dropDiagramRefs, parseWriterDiagram } from '../../../src/lib/coach/explain/writerDiagram';
 import { hasCoordinates } from '../../../shared/kami';
 import { LlmUnavailable, type CallLlm } from './llm';
 
@@ -40,12 +42,18 @@ export interface Writing {
   note?: string;
   model?: string;
   score?: Pick<AnswerScore, 'truth' | 'coverage' | 'depth'>;
+  /** The writer's own diagram, when it asked for one and every check passed (add it to the explanation). */
+  diagram?: { illustration: Illustration; facts: Fact[] };
+  /** Why the writer's diagram was left out. */
+  diagramNote?: string;
 }
 
 export interface WriterDeps {
   callLlm: CallLlm;
   checkAnswer: (ex: Explanation, text: string) => AnswerScore;
   localWrite?: (prompt: string, signal?: AbortSignal) => Promise<string>;
+  /** Checks a diagram the writer asked for (illustrate.ts, KataGo's final read last). Absent: such diagrams are dropped. */
+  verifyDiagram?: (spec: DiagramSpec, id: string) => Promise<Verified>;
   signal?: AbortSignal;
 }
 
@@ -58,6 +66,26 @@ export const NOTES = {
   llmError: 'The language model did not answer, showing engine text.',
   localError: 'Kami Local could not run here, showing engine text.',
 } as const;
+
+/**
+ * The writer's own DIAGRAM block: parsed, checked (KataGo last) and kept, or removed together
+ * with every sentence that refers to it. Returns the explanation the text is checked against.
+ */
+export async function writerDiagram(ex: Explanation, text: string, deps: Pick<WriterDeps, 'verifyDiagram'>): Promise<{ ex: Explanation; text: string; diagram?: Writing['diagram']; note?: string }> {
+  const id = nextDiagramId(ex);
+  const parsed = parseWriterDiagram(text, ex.position.size);
+  if (!parsed.found) return { ex, text: dropDiagramRefs(text, id) };
+  const drop = (note: string) => ({ ex, text: dropDiagramRefs(parsed.text, id), note });
+  if (!parsed.spec) return drop(`The diagram the writer asked for was left out: ${parsed.error}.`);
+  if (!deps.verifyDiagram) return drop('The diagram the writer asked for was left out: no engine to check it.');
+  const v = await deps.verifyDiagram(parsed.spec, id);
+  if (!v.illustration) {
+    const failed = v.checks.find((c) => !c.ok);
+    return drop(`The diagram the writer asked for failed a check (${failed?.detail ?? 'unknown'}), so it was left out.`);
+  }
+  const diagram = { illustration: v.illustration, facts: v.facts };
+  return { ex: { ...ex, illustrations: [...(ex.illustrations ?? []), v.illustration], facts: [...ex.facts, ...v.facts] }, text: parsed.text, diagram };
+}
 
 /** Gate a model's text: it passes checkAnswer, or the engine's text is shown. */
 function gate(ex: Explanation, text: string, by: 'gemini' | 'local', check: WriterDeps['checkAnswer'], model?: string): Writing {
@@ -74,10 +102,18 @@ function gate(ex: Explanation, text: string, by: 'gemini' | 'local', check: Writ
 export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDeps): Promise<Writing> {
   if (pick === 'hane' || pick === 'tesuji') return { by: 'engine' };
   const prompt = buildLmPrompt(ex);
+  /** Check the writer's diagram (if any), then gate the text against the explanation with it. */
+  const finish = async (raw: string, by: 'gemini' | 'local', model?: string): Promise<Writing> => {
+    const d = await writerDiagram(ex, raw, deps);
+    const w = gate(d.ex, d.text, by, deps.checkAnswer, model);
+    if (w.by !== 'engine' && d.diagram) w.diagram = d.diagram;
+    if (d.note) w.diagramNote = d.note;
+    return w;
+  };
   if (pick === 'local') {
     if (!deps.localWrite) return { by: 'engine', note: NOTES.localError };
     try {
-      return gate(ex, await deps.localWrite(prompt, deps.signal), 'local', deps.checkAnswer, 'kami-local');
+      return await finish(await deps.localWrite(prompt, deps.signal), 'local', 'kami-local');
     } catch (e) {
       if (isAbort(e)) throw e;
       return { by: 'engine', note: NOTES.localError };
@@ -85,7 +121,7 @@ export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDep
   }
   try {
     const r = await deps.callLlm({ kind: 'explain', prompt }, deps.signal);
-    return gate(ex, r.text, 'gemini', deps.checkAnswer, r.model);
+    return await finish(r.text, 'gemini', r.model);
   } catch (e) {
     if (isAbort(e)) throw e;
     return { by: 'engine', note: e instanceof LlmUnavailable ? NOTES.noLlm : NOTES.llmError };

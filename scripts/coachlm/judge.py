@@ -1,4 +1,5 @@
-"""The second teacher: Gemini judges writing quality (clarity, depth, usefulness).
+"""The second teacher: Gemini judges writing quality (clarity, depth, usefulness, and how
+well the answer follows XIAO's rubric, eval/coach/rubric.json).
 
 It only ever returns numbers. Its words are thrown away and never become training text;
 KataGo's truth check stays the first gate, the judge only orders answers that already passed.
@@ -20,6 +21,21 @@ from pathlib import Path
 
 from util import log, read_json, write_json
 
+RUBRIC_FILE = Path(__file__).resolve().parents[2] / 'eval' / 'coach' / 'rubric.json'
+
+
+def rubric_text(path: Path = RUBRIC_FILE) -> str:
+    """The rubric's rules as numbered lines (same as rubricText in src/lib/coach/rubric.ts), or ''."""
+    try:
+        rules = json.loads(path.read_text(encoding='utf-8')).get('rules', [])
+    except (OSError, ValueError):
+        return ''
+    out = []
+    for i, r in enumerate(rules):
+        if isinstance(r, dict) and r.get('text'):
+            out.append(f"{i + 1}. {r['text']}{' (most important)' if r.get('weight', 1) >= 3 else ''}")
+    return '\n'.join(out)
+
 ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/'
 
 SYSTEM = """You grade answers written by a Go (baduk) teacher for a student.
@@ -29,6 +45,17 @@ For each answer give three whole numbers from 1 (poor) to 5 (excellent):
 - depth: explains why (shape, weak groups, sente and gote, territory and influence, what happens later), not just numbers
 - usefulness: a student would learn something they can use in their own games
 Reply with JSON only: {"scores": [{"i": 0, "clarity": n, "depth": n, "usefulness": n}, ...]} with one entry per answer."""
+
+
+def system_prompt(rubric: str | None = None) -> str:
+    """SYSTEM, plus the teacher's rubric (and a fourth number for it) when there is one."""
+    rubric = rubric_text() if rubric is None else rubric
+    if not rubric:
+        return SYSTEM
+    return (SYSTEM.replace('give three whole numbers', 'give four whole numbers')
+            .replace('Reply with JSON only', '- rubric: how well it follows the teacher\'s rubric below\nReply with JSON only')
+            .replace('"usefulness": n}', '"usefulness": n, "rubric": n}')
+            + '\n\nThe teacher\'s rubric:\n' + rubric)
 
 MAX_PROMPT_CHARS = 6000
 MAX_ANSWER_CHARS = 2500
@@ -67,7 +94,12 @@ def parse_scores(text: str, n: int) -> list[float | None]:
             if isinstance(v, (int, float)):
                 nums.append(min(5.0, max(1.0, float(v))))
         if len(nums) == 3:
-            out[i] = round((sum(nums) / 3 - 1) / 4, 4)
+            score = (sum(nums) / 3 - 1) / 4
+            rv = r.get('rubric')
+            if isinstance(rv, (int, float)):
+                # The rubric counts as much as the other three together.
+                score = 0.5 * score + 0.5 * (min(5.0, max(1.0, float(rv))) - 1) / 4
+            out[i] = round(score, 4)
     return out
 
 
@@ -115,7 +147,7 @@ class Judge:
         if wait > 0:
             self.sleep(wait)
         body = {
-            'systemInstruction': {'parts': [{'text': SYSTEM}]},
+            'systemInstruction': {'parts': [{'text': system_prompt()}]},
             'contents': [{'role': 'user', 'parts': [{'text': build_prompt(task, texts)}]}],
             'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0, 'maxOutputTokens': 1024,
                                  'thinkingConfig': {'thinkingLevel': 'low'}},

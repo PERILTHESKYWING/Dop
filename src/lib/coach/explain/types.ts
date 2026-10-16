@@ -153,6 +153,41 @@ export interface Fact {
   text: string;
 }
 
+/** One check a built position passed or failed, for the "checked by" list under a diagram. */
+export interface IllustrationCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/**
+ * A position built to show an idea on its own (a diagram), referenced from text as [[d1]].
+ * Built by code (the real fight cut out and framed, a library or bank position, or a set-up
+ * the writer asked for) and shown only after every check passed, KataGo's final read last.
+ * Same shape as the board's preview minus key/pinned: base, line, highlight, title, note.
+ */
+export interface Illustration {
+  /** 'd1', 'd2', ... referenced from text as [[d1]]. */
+  id: string;
+  /** Short chip text. */
+  label: string;
+  /** The diagram itself (setup stones, no moves), with the komi KataGo read it at. */
+  base: ExplainPosition;
+  /** KataGo's line from the diagram (its best move first). */
+  line: Move[];
+  highlight: Loc[];
+  title: string;
+  /** One or two lines, from KataGo's reads of the diagram only. */
+  note: string;
+  concept?: ConceptId | string;
+  source: 'isolated' | 'library' | 'bank' | 'writer';
+  /** The part of the board that matters (x0, y0, x1, y1), for zooming. */
+  view?: [number, number, number, number];
+  checks: IllustrationCheck[];
+  /** KataGo's final read of the diagram. */
+  read: { bWin: number; bLead: number; visits: number };
+}
+
 export interface Explanation {
   /** The position explained (variations start here). */
   position: ExplainPosition;
@@ -167,6 +202,8 @@ export interface Explanation {
   facts: Fact[];
   concepts: ConceptHit[];
   variations: Variation[];
+  /** Built positions that passed every check (absent or empty: none). */
+  illustrations?: Illustration[];
   thoughts: ThoughtStep[];
   reads: number;
   totalVisits: number;
@@ -177,5 +214,29 @@ export type ExplainFn = (
   pos: ExplainPosition,
   question: Question,
   prober: Prober,
-  opts: { model: ModelId; thinking: ThinkingLevel; signal?: AbortSignal; onThought?: (t: ThoughtStep) => void },
+  opts: {
+    model: ModelId;
+    thinking: ThinkingLevel;
+    signal?: AbortSignal;
+    onThought?: (t: ThoughtStep) => void;
+    /** Build a diagram of the idea on its own (false: never). Defaults by model and thinking. */
+    illustrate?: Partial<IllustrateOptions> | false;
+    /** Textbook positions for a concept id (Kami passes the library's examples). */
+    examplesFor?: (concept: string) => import('../library/types').ConceptExample[];
+  },
 ) => Promise<Explanation>;
+
+/** How built positions are checked (Kami's settings feed these). */
+export interface IllustrateOptions {
+  /** Neither side may have less than this winrate in the shown diagram (0.3 = 30%). */
+  minWinrate: number;
+  /** Visits for KataGo's first read and its final read of a diagram. */
+  firstVisits: number;
+  visits: number;
+  /** Largest komi (either way) a framed diagram may need to start even. */
+  maxKomi: number;
+  /** Wall-clock cap for building and checking one diagram. */
+  maxMs: number;
+  /** Most diagrams per answer. */
+  max: number;
+}
