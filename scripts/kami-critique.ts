@@ -110,11 +110,14 @@ ITEMS[1].q = { kind: 'why-not', move: g('C10'), text: 'Why not C10?' };
 
 const only = arg.only?.split(',').map(Number);
 const thinking = arg.thinking as ThinkingLevel;
-// The WASM engine is built for one board size, so keep one per size.
-const probers = new Map<number, Prober>();
+// The WASM engine loads for one board size per process: run 13x13 and 9x9 items on their own
+// (--only 22, --only 23) and join the files.
+let engineSize = 0;
+let engine: Prober | null = null;
 const proberFor = async (size: number) => {
-  if (!probers.has(size)) probers.set(size, await nodeProber(size));
-  return probers.get(size)!;
+  if (engine && size !== engineSize) throw new Error(`one board size per run: run item(s) on ${size}x${size} with --only on their own`);
+  if (!engine) [engine, engineSize] = [await nodeProber(size), size];
+  return engine;
 };
 const name = (l: Loc, size: number) => (l === PASS || l < 0 ? 'pass' : locToGtp(l, size));
 

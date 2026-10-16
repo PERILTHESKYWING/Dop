@@ -128,7 +128,8 @@ export async function buildDiagrams(
   // 2. A textbook position for the main idea, re-checked now (minimum winrate included).
   for (const concept of opts.concepts ?? []) {
     if (!opts.examplesFor || timeLeft() < 1500) break;
-    const ex = opts.examplesFor(concept)[0];
+    // Same board size only: the engine reading this game is loaded for its size.
+    const ex = opts.examplesFor(concept).find((e) => e.position.size === f.pos.size);
     const s2 = ex ? exampleSpec(ex, concept) : null;
     if (!s2) continue;
     const v = await tryOne(s2, `textbook ${concept.replace(/-/g, ' ')}`);
@@ -138,7 +139,7 @@ export async function buildDiagrams(
     out.facts.push(...v.facts);
     out.section = {
       title: `The idea in a textbook diagram: ${concept.replace(/-/g, ' ')}`,
-      text: `${ex.title} [[d1]]: ${v.facts.map((x) => x.text.replace(/^In diagram \[\[d1\]\], /, '')).join(' ')}`,
+      text: `${ex!.title} [[d1]]: ${v.facts.map((x) => x.text.replace(/^In diagram \[\[d1\]\], /, '')).join(' ')}`,
     };
     return out;
   }
