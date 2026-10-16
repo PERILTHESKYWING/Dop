@@ -12,17 +12,22 @@ import type { PosValue } from '../../../src/lib/analysis/lineStats';
 import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
 import type { Move } from '../../../src/lib/go/types';
 import { getProber } from './engine';
+import { getSetting } from './settings';
 
 /**
- * Visits for the eval bar and best moves. Under about 50 visits the lead moves by a point or
+ * Default visits for the best moves. Under about 50 visits the lead moves by a point or
  * two, so the board waits for a deeper read.
  */
 export const BOARD_VISITS = 120;
-/** Visits per position for the trend: quicker, so a whole game fills in while you look at it. */
+/** Default visits per position for the trend: quicker, so a whole game fills in while you look at it. */
 export const TREND_VISITS = 60;
 /** Time caps, so a slow device returns what it has instead of stalling. */
-const BOARD_MS = 20000;
 const TREND_MS = 15000;
+/** The depths and cap from Settings › KataGo (the constants above are their defaults). */
+const boardVisits = () => getSetting<number>('katago.boardVisits');
+const trendVisits = () => getSetting<number>('katago.trendVisits');
+const boardMs = () => getSetting<number>('katago.maxSeconds') * 1000;
+const trendMs = () => Math.min(TREND_MS, boardMs());
 const BOARD_DELAY_MS = 250;
 const MAX_CACHE = 1500;
 
@@ -101,7 +106,7 @@ export function useBoardRead(p: ExplainPosition | null): BoardRead {
   useEffect(() => {
     if (!p || !key) return;
     const hit = cache.get(key);
-    if (hit && hit.visits >= BOARD_VISITS) {
+    if (hit && hit.visits >= boardVisits()) {
       wantedBoard = key;
       setState({ key, read: hit, pending: false });
       return;
@@ -110,7 +115,7 @@ export function useBoardRead(p: ExplainPosition | null): BoardRead {
     let alive = true;
     const timer = setTimeout(() => {
       wantedBoard = key;
-      readPosition(p, BOARD_VISITS, BOARD_MS, () => wantedBoard === key).then(
+      readPosition(p, boardVisits(), boardMs(), () => wantedBoard === key).then(
         (r) => alive && setState({ key, read: r, pending: false }),
         () => alive && setState({ key, read: null, pending: false }),
       );
@@ -162,7 +167,7 @@ export function useLineReads(positions: ExplainPosition[] | null): LineReads {
       for (const p of todo) {
         if (!alive) return;
         try {
-          await readPosition(p, TREND_VISITS, TREND_MS);
+          await readPosition(p, trendVisits(), trendMs());
         } catch {
           return;
         }

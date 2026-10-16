@@ -15,7 +15,10 @@ import { BoardPanel, type Preview } from './ui/BoardPanel';
 import { Composer } from './ui/Composer';
 import { Icon } from './ui/Icon';
 import { Messages, type Running } from './ui/Messages';
+import { Settings, type SettingsPage } from './ui/Settings';
 import { Sidebar } from './ui/Sidebar';
+import { Splitter } from './ui/Splitter';
+import { useSetting } from './lib/settings';
 
 function lsGet(k: string): string | null {
   try {
@@ -62,6 +65,15 @@ export function App() {
   };
   const [drawer, setDrawer] = useState(false);
   const [boardHidden, setBoardHidden] = useState(false);
+  const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') === '1');
+  const fold = () =>
+    setFolded((f) => {
+      lsSet('kami.sideFolded', f ? '0' : '1');
+      return !f;
+    });
+  const [settings, setSettings] = useState<SettingsPage | null>(null);
+  const theme = useSetting<string>('theme');
+  const answerFont = useSetting<string>('answerFont');
   const [llmOn, setLlmOn] = useState<boolean | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -85,6 +97,23 @@ export function App() {
     }
     dirty.current.clear();
   }, [convs]);
+
+  // Settings › Appearance, and Ctrl+, (Cmd+, on a Mac) for Settings as in Claude.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') delete root.dataset.theme;
+    else root.dataset.theme = theme;
+  }, [theme]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        setSettings((p) => (p ? null : 'general'));
+      }
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -237,79 +266,110 @@ export function App() {
     setCurrentId(fresh.id);
   };
 
+  const removeAll = () => {
+    if (running) stop();
+    for (const c of convs) if (c.messages.length) void deleteConversation(c.id);
+    const fresh = newConversation();
+    clearPreview();
+    setConvs([fresh]);
+    setCurrentId(fresh.id);
+    setToast('All chats deleted');
+  };
+
   const listed = convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated);
   const tier = pickById(pick);
 
   return (
-    <div className={`kami-app${drawer ? ' drawer-open' : ''}${boardHidden ? ' board-hidden' : ''}`}>
+    <div className={`kami-app${drawer ? ' drawer-open' : ''}${boardHidden ? ' board-hidden' : ''}${folded ? ' side-folded' : ''} font-${answerFont}`}>
       <Sidebar
         convs={listed}
         currentId={current.id}
+        collapsed={folded}
+        onToggle={fold}
         onSelect={select}
         onNew={newChat}
         onRename={rename}
         onDelete={remove}
         onClose={() => setDrawer(false)}
+        onSettings={(page) => {
+          setDrawer(false);
+          setSettings(page ?? 'general');
+        }}
       />
       <div className="scrim" onClick={() => setDrawer(false)} />
-      <header className="topbar">
-        <button className="icon-btn" aria-label="Conversations" onClick={() => setDrawer(true)}>
-          <Icon name="menu" />
-        </button>
-        <span className="topbar-title">{current.messages.length ? current.title : 'Kami'}</span>
-        <button className="icon-btn" aria-label={boardHidden ? 'Show board' : 'Hide board'} aria-pressed={!boardHidden} onClick={() => setBoardHidden((h) => !h)}>
-          <Icon name="board" />
-        </button>
-        <button className="icon-btn" aria-label="New chat" onClick={newChat}>
-          <Icon name="plus" />
-        </button>
-      </header>
-      <BoardPanel
-        board={current.board}
-        preview={preview}
-        onBoard={(b) => {
-          clearPreview();
-          setBoard(b);
-        }}
-        onPlay={(loc) => {
-          if (preview) return clearPreview();
-          const b = playAt(current.board, loc);
-          if (b) setBoard(b);
-        }}
-        onUndo={() => setBoard(undo(current.board))}
-        onClearPreview={clearPreview}
-        onSgfText={loadSgfText}
-        onSgfFile={loadSgfFile}
-      />
-      <main className="chat">
-        <Messages
-          messages={current.messages}
-          running={running?.convId === current.id ? running : null}
-          board={current.board}
-          link={{ onHover: setHover, onPin: setPinned, pinnedKey: pinned?.key ?? null }}
-          onAsk={send}
-          onRegenerate={() => rerun()}
-          onEdit={(text) => rerun(text)}
-          onShowBoard={(b) => {
-            setBoard(b);
-            setBoardHidden(false);
-          }}
-          busy={!!running}
-        />
-        <Composer
-          value={draft}
-          onChange={setDraft}
-          tiers={tiers}
-          tier={tier}
-          onPick={setPick}
-          thinking={thinking}
-          onThinking={setThinking}
-          running={!!running}
-          onSend={send}
-          onStop={stop}
-          llmOn={llmOn}
-        />
-      </main>
+      <div className="work">
+        <header className="topbar">
+          <button className="icon-btn only-phone" aria-label="Open chats" onClick={() => setDrawer(true)}>
+            <Icon name="sidebar" size={20} />
+          </button>
+          <span className="topbar-title">{current.messages.length ? current.title : 'Kami'}</span>
+          <button
+            className="icon-btn"
+            aria-label={boardHidden ? 'Show board' : 'Hide board'}
+            title={boardHidden ? 'Show board' : 'Hide board'}
+            aria-pressed={!boardHidden}
+            onClick={() => setBoardHidden((h) => !h)}
+          >
+            <Icon name="board" />
+          </button>
+          <button className="icon-btn only-phone" aria-label="New chat" onClick={newChat}>
+            <Icon name="plus" />
+          </button>
+        </header>
+        <div className="split">
+          <main className="chat">
+            <Messages
+              messages={current.messages}
+              running={running?.convId === current.id ? running : null}
+              board={current.board}
+              link={{ onHover: setHover, onPin: setPinned, pinnedKey: pinned?.key ?? null }}
+              onAsk={send}
+              onRegenerate={() => rerun()}
+              onEdit={(text) => rerun(text)}
+              onShowBoard={(b) => {
+                setBoard(b);
+                setBoardHidden(false);
+              }}
+              busy={!!running}
+            />
+            <Composer
+              value={draft}
+              onChange={setDraft}
+              tiers={tiers}
+              tier={tier}
+              onPick={setPick}
+              thinking={thinking}
+              onThinking={setThinking}
+              running={!!running}
+              onSend={send}
+              onStop={stop}
+              llmOn={llmOn}
+            />
+          </main>
+          {!boardHidden && <Splitter />}
+          {!boardHidden && (
+            <BoardPanel
+              board={current.board}
+              preview={preview}
+              onBoard={(b) => {
+                clearPreview();
+                setBoard(b);
+              }}
+              onPlay={(loc) => {
+                if (preview) return clearPreview();
+                const b = playAt(current.board, loc);
+                if (b) setBoard(b);
+              }}
+              onUndo={() => setBoard(undo(current.board))}
+              onClearPreview={clearPreview}
+              onSgfText={loadSgfText}
+              onSgfFile={loadSgfFile}
+              onSettings={(page) => setSettings(page ?? 'board')}
+            />
+          )}
+        </div>
+      </div>
+      {settings && <Settings page={settings} onPage={setSettings} onClose={() => setSettings(null)} convs={convs} llmOn={llmOn} onDeleteAll={removeAll} />}
       {toast && (
         <div className="toast" role="status">
           {toast}
