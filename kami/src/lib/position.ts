@@ -64,7 +64,7 @@ export function boardFromSgf(text: string): BoardState {
   const trees = parseSgfCollection(text);
   if (!trees.length) throw new Error('No game found in that SGF.');
   const g = extractGame(trees[0]);
-  if (![9, 13, 19].includes(g.size)) throw new Error(`Kami reads 9x9, 13x13 and 19x19 boards, not ${g.size}x${g.size}.`);
+  if (![9, 13, 19].includes(g.size)) throw new Error(`Kiai reads 9x9, 13x13 and 19x19 boards, not ${g.size}x${g.size}.`);
   const pl = (trees[0].props.PL?.[0] ?? '').toUpperCase();
   const handicapWhite = g.setup.length > 1 && g.setup.every((m) => m.color === 1);
   const first: Color = g.moves[0]?.color ?? (pl === 'W' ? 2 : pl === 'B' ? 1 : handicapWhite ? 2 : 1);

@@ -42,6 +42,11 @@ The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) a
 (`public/art/kaya.webp`) were generated procedurally for this project by the scripts in `tools/art/`. They
 contain no photographs or other third-party images, so no third-party licence applies.
 
+Kiai's pictures and intro video (`kami/public/kiai/`) and the Ikki logo (`kami/src/ui/Logo.tsx`,
+`kami/public/favicon.svg`) are original too. The pictures were path-traced in Blender from the procedural
+scenes in `tools/kiai-art/` (no downloaded models, textures or photographs); Blender's GPL covers Blender
+itself, not the images it renders. The logo was drawn by hand in SVG, using a reference photo only as a guide.
+
 ### Rank calibration statistics
 `public/level/calibration.json` holds statistics (averages, spreads and counts per rank) computed by
 `scripts/rank-corpus.ts` and `scripts/rank-fit.ts` from a random sample of games in the Fox Go dataset

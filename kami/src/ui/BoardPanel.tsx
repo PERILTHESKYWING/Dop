@@ -16,6 +16,7 @@ import { splitRich } from '../lib/terms';
 import { Icon } from './Icon';
 import { Performance } from './Performance';
 import { Popover } from './Popover';
+import { KIAI_SKIN } from './skin';
 import type { SettingsPage } from './Settings';
 import { Term } from './Term';
 
@@ -504,6 +505,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               variation={variation}
               ownership={ownership}
               coords={coords}
+              skin={KIAI_SKIN}
               ariaLabel={preview ? `Variation: ${preview.title}` : 'Board: click to play'}
             />
           </div>
@@ -542,11 +544,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               onChange={(e) => go(Number(e.target.value))}
               aria-label="Move"
               aria-valuetext={moveLine}
-              style={{ '--pct': `${n ? (100 * board.cursor) / n : 0}%` } as React.CSSProperties}
+              style={{ '--pct': `${n ? (100 * board.cursor) / n : 0}%`, '--tick': `${n > 10 ? (1000 / n).toFixed(3) : 100}%` } as React.CSSProperties}
             />
             <span className="bp-count">
+              <span className="mv">Move</span>
               {board.cursor}
-              <span className="of"> / {n}</span>
+              {n > 0 && <span className="of"> / {n}</span>}
             </span>
           </div>
           {n > 0 && (

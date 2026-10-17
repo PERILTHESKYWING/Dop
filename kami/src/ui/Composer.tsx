@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KAMI_VERSION, type ThinkingLevel } from '../../../src/lib/coach/explain/types';
 import { useSetting } from '../lib/settings';
 import type { PickId, Tier } from '../lib/writer';
+import { Depth } from './Depth';
 import { Icon } from './Icon';
 
 const LEVELS: { id: ThinkingLevel; name: string; blurb: string }[] = [
@@ -98,6 +99,7 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
           className="pick-menu"
           label={
             <>
+              <Depth id={tier.id} />
               {tier.name} <span className="ver">{KAMI_VERSION}</span>
             </>
           }
@@ -115,6 +117,7 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
                   close();
                 }}
               >
+                <Depth id={t.id} />
                 <span className="mi-main">
                   <span className="mi-name">
                     {t.name} <span className="ver">{KAMI_VERSION}</span>

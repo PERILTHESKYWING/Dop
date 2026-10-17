@@ -60,7 +60,24 @@ export interface BoardProps {
   variation?: Move[] | null;
   /** A move classification badge on a stone (usually the last move). */
   badge?: { loc: Loc; cls: MoveClass } | null;
+  /** Rendered art instead of the drawn wood and stones (Kiai's board). */
+  skin?: BoardSkin;
 }
+
+/**
+ * Rendered board art: a top-down wood image and stone sprites. Stone sprites are square, the
+ * stone filling 1/1.25 of the width (black's diameter); the shadow sprite is twice as wide and
+ * already offset by the light. Several sprites per colour are spread over the board by point.
+ */
+export interface BoardSkin {
+  wood: string;
+  black: string[];
+  white: string[];
+  shadow: string;
+}
+/** Sprite widths in board units: the stone sprite and its shadow. */
+const SKIN_STONE = 2 * 0.483 * 1.25;
+const SKIN_SHADOW = SKIN_STONE * 2;
 
 const CAND_BEST = '#2fc4e4';
 const CAND_STOPS: [number, [number, number, number]][] = [
@@ -359,7 +376,9 @@ function SoftShadow({ id, L, T, R, B, F, color, alpha }: { id: string; L: number
 }
 
 /** The physical board: shadow, kaya surface, sheen, bevel and front edge. */
-function Wood({ id, size, g, full }: { id: string; size: number; g: Geometry; full: boolean }) {
+function Wood({ id, size, g, full, skin }: { id: string; size: number; g: Geometry; full: boolean; skin?: BoardSkin }) {
+  const art = skin?.wood ?? KAYA;
+  const drawn = full && !skin;
   const { m, mv, W, t } = g;
   const top = -mv;
   const surface = W - t; // height of the playing surface
@@ -409,13 +428,13 @@ function Wood({ id, size, g, full }: { id: string; size: number; g: Geometry; fu
         <rect className="bd-wood-base" x={-m} y={top} width={W} height={W} />
         {t > 0 && (
           <>
-            <image href={KAYA} x={-m} y={base} width={W} height={t} preserveAspectRatio="none" />
+            <image href={art} x={-m} y={base} width={W} height={t} preserveAspectRatio="none" />
             <rect x={-m} y={base} width={W} height={t} fill={`url(#${id}-edge)`} />
           </>
         )}
-        <image href={KAYA} x={-m} y={top} width={W} height={surface} preserveAspectRatio="none" />
-        {full && <rect x={-m} y={top} width={W} height={surface} fill={`url(#${id}-vig)`} />}
-        {full && <rect x={-m} y={top} width={W} height={surface} fill={`url(#${id}-sheen)`} />}
+        <image href={art} x={-m} y={top} width={W} height={surface} preserveAspectRatio={skin ? 'xMidYMid slice' : 'none'} />
+        {drawn && <rect x={-m} y={top} width={W} height={surface} fill={`url(#${id}-vig)`} />}
+        {drawn && <rect x={-m} y={top} width={W} height={surface} fill={`url(#${id}-sheen)`} />}
         {t > 0 && <rect className="bd-lip" x={-m} y={base - 0.02} width={W} height={0.045} />}
         <rect className="bd-bevel" x={-m + 0.04} y={top + 0.04} width={W - 0.08} height={surface - 0.08} rx={Math.max(0, rx - 0.04)} stroke={`url(#${id}-bevel)`} />
         <rect className="bd-rim" x={-m} y={top} width={W} height={W} rx={rx} />
@@ -480,6 +499,19 @@ function Lines({ size, g, crop, cropped, coords }: { size: number; g: Geometry; 
   );
 }
 
+// ------------------------------------------------------------------ rendered stones (skin)
+
+function SkinStone({ skin, c, i, x, y, className }: { skin: BoardSkin; c: number; i: number; x: number; y: number; className?: string }) {
+  const set = c === 1 ? skin.black : skin.white;
+  const h = SKIN_STONE / 2;
+  return <image className={className} href={set[hash(i) % set.length]} x={x - h} y={y - h} width={SKIN_STONE} height={SKIN_STONE} />;
+}
+
+function SkinShadow({ skin, x, y, className }: { skin: BoardSkin; x: number; y: number; className?: string }) {
+  const h = SKIN_SHADOW / 2;
+  return <image className={className} href={skin.shadow} x={x - h} y={y - h} width={SKIN_SHADOW} height={SKIN_SHADOW} />;
+}
+
 // ------------------------------------------------------------------ the board
 
 function BoardImpl(p: BoardProps) {
@@ -529,7 +561,8 @@ function BoardImpl(p: BoardProps) {
   const hasHeat = !!p.heat;
   const hasPending = interactive || p.pending != null;
   const defs = useMemo(() => <Defs id={id} full={full} heat={hasHeat} interactive={hasPending} />, [id, full, hasHeat, hasPending]);
-  const wood = useMemo(() => <Wood id={id} size={size} g={g} full={full} />, [id, size, g, full]);
+  const skin = p.skin;
+  const wood = useMemo(() => <Wood id={id} size={size} g={g} full={full} skin={skin} />, [id, size, g, full, skin]);
   const lines = useMemo(
     () => <Lines size={size} g={g} crop={crop} cropped={cropped} coords={coords} />,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -590,6 +623,11 @@ function BoardImpl(p: BoardProps) {
         const c = board[i];
         if (!c) continue;
         const drop = motion.added?.has(i) ? ' drop' : '';
+        if (skin) {
+          shadows.push(<SkinShadow key={i} skin={skin} x={x} y={y} className={`bd-sh${drop}`} />);
+          bodies.push(<SkinStone key={i} skin={skin} c={c} i={i} x={x} y={y} className={`bd-st${drop}`} />);
+          continue;
+        }
         shadows.push(<circle key={i} className={`bd-sh${drop}`} cx={x + SH_DX} cy={y + SH_DY} r={SH_R} fill={`url(#${id}-sh)`} />);
         if (c === 1) {
           bodies.push(<circle key={i} className={`bd-st${drop}`} cx={x} cy={y} r={R_B} fill={`url(#${id}-sb)`} />);
@@ -603,7 +641,12 @@ function BoardImpl(p: BoardProps) {
       .filter(({ loc }) => inWin(loc % size, Math.floor(loc / size)))
       .map(({ loc, color }) => {
         const x = loc % size, y = Math.floor(loc / size);
-        return (
+        return skin ? (
+          <g key={`x${loc}`} className="bd-captured">
+            <SkinShadow skin={skin} x={x} y={y} />
+            <SkinStone skin={skin} c={color} i={loc} x={x} y={y} />
+          </g>
+        ) : (
           <g key={`x${loc}`} className="bd-captured">
             <circle cx={x + SH_DX} cy={y + SH_DY} r={SH_R} fill={`url(#${id}-sh)`} />
             <circle cx={x} cy={y} r={color === 1 ? R_B : R_W} fill={`url(#${id}-${color === 1 ? 'sb' : 'sw0'})`} />
@@ -618,7 +661,7 @@ function BoardImpl(p: BoardProps) {
       </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, motion, size, id, full, x0, y0, x1, y1]);
+  }, [board, motion, size, id, full, skin, x0, y0, x1, y1]);
 
   const markEls = (p.marks ?? []).map((m, k) => {
     if (m.loc === PASS || m.loc == null) return null;
@@ -771,12 +814,26 @@ function BoardImpl(p: BoardProps) {
           <BadgeShape cls={p.badge.cls} />
         </g>
       )}
-      {showGhost && <circle className={`bd-ghost ${p.toPlay === 1 ? 'bd-ghost-b' : 'bd-ghost-w'}`} cx={hover! % size} cy={Math.floor(hover! / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay!, hover!)} />}
+      {showGhost &&
+        (skin ? (
+          <SkinStone skin={skin} c={p.toPlay!} i={hover!} x={hover! % size} y={Math.floor(hover! / size)} className={`bd-ghost ${p.toPlay === 1 ? 'bd-ghost-b' : 'bd-ghost-w'}`} />
+        ) : (
+          <circle className={`bd-ghost ${p.toPlay === 1 ? 'bd-ghost-b' : 'bd-ghost-w'}`} cx={hover! % size} cy={Math.floor(hover! / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay!, hover!)} />
+        ))}
       {pending !== null && p.toPlay && (
         <g key={`p${pending}`} className="bd-pending">
           <circle className="bd-pending-glow" cx={pending % size} cy={Math.floor(pending / size)} r={0.78} fill={`url(#${id}-pg)`} />
-          <circle cx={pending % size + SH_DX} cy={Math.floor(pending / size) + SH_DY} r={SH_R} fill={`url(#${id}-sh)`} />
-          <circle className="bd-pending-stone" cx={pending % size} cy={Math.floor(pending / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay, pending)} />
+          {skin ? (
+            <>
+              <SkinShadow skin={skin} x={pending % size} y={Math.floor(pending / size)} />
+              <SkinStone skin={skin} c={p.toPlay} i={pending} x={pending % size} y={Math.floor(pending / size)} className="bd-pending-stone" />
+            </>
+          ) : (
+            <>
+              <circle cx={pending % size + SH_DX} cy={Math.floor(pending / size) + SH_DY} r={SH_R} fill={`url(#${id}-sh)`} />
+              <circle className="bd-pending-stone" cx={pending % size} cy={Math.floor(pending / size)} r={p.toPlay === 1 ? R_B : R_W} fill={stoneFill(p.toPlay, pending)} />
+            </>
+          )}
           <circle className="bd-pending-case" cx={pending % size} cy={Math.floor(pending / size)} r={0.6} />
           <circle className="bd-pending-ring" cx={pending % size} cy={Math.floor(pending / size)} r={0.6} />
         </g>

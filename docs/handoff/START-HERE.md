@@ -7,7 +7,7 @@
         KataGo thinks.  Code checks.  Words come last.
 ```
 
-**As of 2026-10-16.** Kami's teacher voice from XIAO's critique (round 2): `kami-engine.md` › Round 2. Built positions (diagrams) and the rubric: `kami-diagrams.md`. Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
+**As of 2026-10-17.** Kami is now **Kiai** (landing page, Ikki logo, kaya board, Skim/Dive/Abyss): `kami.md` › Kiai, renders in `kiai-art.md`. Kami's teacher voice from XIAO's critique (round 2): `kami-engine.md` › Round 2. Built positions (diagrams) and the rubric: `kami-diagrams.md`. Read this first in a new session, then `CLAUDE.md` (hard rules). Open the other notes in `docs/handoff/` only when a task needs them.
 
 ---
 
