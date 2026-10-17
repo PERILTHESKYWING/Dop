@@ -54,7 +54,7 @@ export const SETTINGS: SettingDef[] = [
     key: 'profile.name',
     group: 'general',
     type: 'text',
-    label: 'What should Kami call you?',
+    label: 'What should Kiai call you?',
     default: '',
     maxLength: 40,
     placeholder: 'Your name',
@@ -76,8 +76,8 @@ export const SETTINGS: SettingDef[] = [
     group: 'general',
     type: 'select',
     label: 'Answer font',
-    help: 'How Kami’s answers are set.',
-    default: 'serif',
+    help: 'How Kiai’s answers are set.',
+    default: 'sans',
     options: [
       { value: 'serif', label: 'Serif' },
       { value: 'sans', label: 'Sans' },
@@ -98,7 +98,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'profile',
     type: 'select',
     label: 'Your Go level',
-    help: 'Kami matches its words, terms and depth to this.',
+    help: 'Kiai matches its words, terms and depth to this.',
     default: 'intermediate',
     options: [
       { value: 'beginner', label: 'Beginner (new to Go, or 20–10 kyu)' },
@@ -111,7 +111,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'profile',
     type: 'select',
     label: 'How you like to play',
-    help: 'When two moves are close, Kami points out the one that suits your game.',
+    help: 'When two moves are close, Kiai points out the one that suits your game.',
     default: 'auto',
     options: [
       { value: 'auto', label: 'Learn from my moves' },
@@ -162,7 +162,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'board',
     type: 'toggle',
     label: 'Preview moves on hover',
-    help: 'Moves and lines in Kami’s answers show on the board while the pointer is over them.',
+    help: 'Moves and lines in Kiai’s answers show on the board while the pointer is over them.',
     default: true,
   },
 
@@ -220,7 +220,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'positions',
     type: 'percent',
     label: 'Lowest win rate in a built position',
-    help: 'A position Kami sets up to explain an idea is only shown when KataGo gives each side at least this chance.',
+    help: 'A position Kiai sets up to explain an idea is only shown when KataGo gives each side at least this chance.',
     default: 0.3,
     min: 0.05,
     max: 0.5,
@@ -231,7 +231,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'positions',
     type: 'toggle',
     label: 'Build positions to explain ideas',
-    help: 'With Tesuji or Myoshu thinking medium or high, Kami may cut the fight out of the game or set up a textbook position, then show it only if every check passes with KataGo reading last.',
+    help: 'With Dive or Abyss thinking medium or high, Kiai may cut the fight out of the game or set up a textbook position, then show it only if every check passes with KataGo reading last.',
     default: true,
   },
   {
@@ -284,7 +284,7 @@ export const GROUPS: { id: SettingGroup; label: string; blurb: string }[] = [
   {
     id: 'profile',
     label: 'Profile',
-    blurb: 'What Kami knows about you, so answers fit your level and the way you play. Kept in this browser only.',
+    blurb: 'What Kiai knows about you, so answers fit your level and the way you play. Kept in this browser only.',
   },
   { id: 'board', label: 'Board', blurb: 'What the board shows.' },
   {
@@ -295,7 +295,7 @@ export const GROUPS: { id: SettingGroup; label: string; blurb: string }[] = [
   {
     id: 'positions',
     label: 'Positions',
-    blurb: 'Positions Kami sets up to explain an idea. Each one is checked by KataGo before it is shown.',
+    blurb: 'Positions Kiai sets up to explain an idea. Each one is checked by KataGo before it is shown.',
   },
 ];
 

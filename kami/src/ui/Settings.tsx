@@ -169,11 +169,11 @@ function GroupPage({ group, extra }: { group: SettingGroup; extra?: ReactNode })
 function ProfilePage() {
   const learned = useLearnedStyle();
   const chosen = useSetting<string>('profile.style');
-  const label = learned.style ? `Kami’s guess: ${STYLE_LABELS[learned.style]}` : 'Kami’s guess: not sure yet';
+  const label = learned.style ? `Kiai’s guess: ${STYLE_LABELS[learned.style]}` : 'Kiai’s guess: not sure yet';
   const help = learned.style
     ? `From ${learned.total} of your moves (${learned.count} of them ${STYLE_LABELS[learned.style].toLowerCase()}).`
     : learned.total < STYLE_MIN
-      ? `${learned.total ? `${learned.total} of your moves so far. ` : ''}Kami guesses after ${STYLE_MIN} moves you play on the board, never from one move or from games you load.`
+      ? `${learned.total ? `${learned.total} of your moves so far. ` : ''}Kiai guesses after ${STYLE_MIN} moves you play on the board, never from one move or from games you load.`
       : `From ${learned.total} of your moves, no style stands out yet.`;
   return (
     <GroupPage
@@ -214,12 +214,12 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
     ['Chats', String(chats.length)],
     ['Questions asked', String(asked)],
     ['KataGo', status.state === 'idle' ? 'Starts with your first position' : status.text],
-    ['Gemini wording (Myoshu)', llmOn === null ? 'Checking…' : llmOn ? 'On, free tier' : 'Off on this site: answers use engine text'],
+    ['Gemini wording (Abyss)', llmOn === null ? 'Checking…' : llmOn ? 'On, free tier' : 'Off on this site: answers use engine text'],
   ];
   if (bytes) stats.push(['Stored in this browser', `${mb(bytes.used)} of ${mb(bytes.quota)}`]);
   return (
     <>
-      <p className="set-blurb">Kami runs KataGo on your device, so reading positions has no limit. Only Myoshu’s wording calls Gemini, once per answer.</p>
+      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only Abyss’s wording calls Gemini, once per answer.</p>
       <dl className="stats">
         {stats.map(([k, v]) => (
           <div key={k}>
@@ -308,10 +308,10 @@ function AboutPage() {
   return (
     <div className="about">
       <p>
-        <strong>Kami {KAMI_VERSION}</strong> is a Go coach. KataGo reads every position in your browser, and Kami explains what the reading shows. When Kami sets up a position to explain an idea,
+        <strong>Kiai {KAMI_VERSION}</strong> is a Go analyst you can talk to. KataGo reads every position in your browser, and Kiai explains what the reading shows. When Kiai sets up a position to explain an idea,
         KataGo checks it before you see it.
       </p>
-      <p>Hane and Tesuji answer from KataGo alone. Myoshu asks Gemini to word the answer, then checks every number and move against KataGo’s facts.</p>
+      <p>Skim and Dive answer from KataGo alone. Abyss asks Gemini to word the answer, then checks every number and move against KataGo’s facts.</p>
       <p className="set-help">Built on Dop. KataGo by David Wu (MIT). See the third-party notices for networks and libraries.</p>
     </div>
   );

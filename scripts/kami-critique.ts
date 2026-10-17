@@ -250,6 +250,6 @@ function problemFor(it: Item): Problem | null {
   return null;
 }
 
-writeFileSync(arg.out!, JSON.stringify({ made: new Date().toISOString(), engine: 'KataGo g170e-b10c128 (WASM, Node)', model: `Kami Tesuji, thinking ${thinking}`, items: out }, null, 1));
+writeFileSync(arg.out!, JSON.stringify({ made: new Date().toISOString(), engine: 'KataGo g170e-b10c128 (WASM, Node)', model: `Kiai Dive (tesuji), thinking ${thinking}`, items: out }, null, 1));
 console.log(`wrote ${out.length} items to ${arg.out} in ${((Date.now() - t0) / 60_000).toFixed(1)} min`);
 process.exit(0);

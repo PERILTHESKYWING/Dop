@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Conversation } from '../lib/store';
 import { useSetting } from '../lib/settings';
 import { Icon } from './Icon';
+import { Logo } from './Logo';
 import { Popover } from './Popover';
 import type { SettingsPage } from './Settings';
 
@@ -93,7 +94,7 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
                       go('about')();
                     }}
                   >
-                    About Kami
+                    About Kiai
                   </button>
                   <a role="menuitem" className="pop-item" href="https://github.com/lightvector/KataGo" target="_blank" rel="noreferrer">
                     <span className="grow">KataGo</span>
@@ -154,8 +155,8 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
     <nav className="sidebar" aria-label="Conversations">
       <div className="side-head">
         <span className="brand">
-          <img src="/favicon.svg" alt="" width={20} height={20} />
-          Kami
+          <Logo size={24} tile />
+          <span className="wordmark">Kiai</span>
         </span>
         <button className="icon-btn side-fold" aria-label="Close sidebar" title="Close sidebar" onClick={onToggle}>
           <Icon name="sidebar" size={20} />
