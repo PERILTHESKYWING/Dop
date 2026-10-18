@@ -112,11 +112,18 @@ function count(r: Read, sub: string): Label {
   return { key: 'n', loc: loc(r.cands[0].at), lift: lift(1) + 0.045, cls: 'k3-count', text: fmt(r.visits), sub };
 }
 /** White's lead (counting up to it), standing in the open middle of the board between the two sides' territory. */
-const lead = (k = 1): Label => ({ key: 'lead', loc: loc('K10'), lift: 0.03, cls: 'k3-count', text: `W+${(-FINAL.bLead * k).toFixed(1)}`, sub: `White’s lead in points · Black’s win rate ${pct(FINAL.bWin)}` });
+const lead = (k = 1): Label => ({ key: 'lead', loc: loc('K10'), lift: 0.03, cls: 'k3-count', text: `W+${(-FINAL.bLead * k).toFixed(1)}`, sub: `White’s lead in points after ${fmt(FINAL.visits)} visits · Black’s win rate ${pct(FINAL.bWin)}` });
 /** The territory answer, standing beside the upper right it talks about (clear of its blocks). */
 const SAY_OWN: Label = { key: 'qown', loc: loc('N17'), lift: 0.03, cls: 'k3-say', text: `“${words(WHO.summary, 2)}”`, sub: `Kiai, ${WHO.depth}` };
 
-/** Plays one step on the board once, then holds its last frame (the board keeps breathing) until the step is left. */
+/** The hold at the end of a step: the board breathes for a few seconds, then comes to rest. */
+async function rest(v: KayaView, sig: AbortSignal): Promise<void> {
+  await sleep(5000, sig);
+  v.setAmbient(false);
+  return rest(v, sig);
+}
+
+/** Plays one step on the board once, then holds its last frame (breathing, then still) until the step is left. */
 function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabels: (l: Label[]) => void, still: boolean) {
   return async (sig: AbortSignal) => {
     switch (id) {
@@ -128,7 +135,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           set({ read: r, fav: r.cands[0].at });
           if (!still) await sleep(1300, sig);
         }
-        return sleep(1e9, sig);
+        return rest(v, sig);
       }
       case 'skim':
       case 'dive':
@@ -140,7 +147,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           v.setCandidates(p.cands, false);
           if (k === 0) v.setVariation(pv, 0);
           setLabels(k === 0 ? [p.labels[p.labels.length - 1], ...lineLabels(pv).slice(1), say(id)] : [...p.labels, say(id, true)]);
-          return sleep(1e9, sig);
+          return rest(v, sig);
         }
         // the shallower depth's pick stands first; then this depth reads on and changes its mind
         if (k > 0) {
@@ -159,12 +166,12 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         v.setVariation(pv, 420);
         // while the line is drawn, only this depth's pick keeps its tag (the line's numbers need the room)
         setLabels([now.labels[now.labels.length - 1], ...lineLabels(pv).slice(1), say(id)]);
-        if (k === 0) return sleep(1e9, sig);
+        if (k === 0) return rest(v, sig);
         // then the line clears and the depths stand side by side: the shallower picks pale, this one lit
         await sleep(420 * pv.length + 2200, sig);
         v.setVariation(null, 0);
         setLabels([...now.labels, say(id, true)]);
-        return sleep(1e9, sig);
+        return rest(v, sig);
       }
       case 'own': {
         set({ done: false });
@@ -179,14 +186,14 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         setLabels([lead()]);
         if (!still) await sleep(400, sig);
         setLabels([lead(), SAY_OWN]);
-        return sleep(1e9, sig);
+        return rest(v, sig);
       }
       case 'review': {
         if (still) {
           v.setStones(GAME.boards[GAME.boards.length - 1], false);
           set({ move: GAME.moves.length, swings: SWINGS.length, done: true });
           setLabels(swingLabels(SWINGS.length));
-          return sleep(1e9, sig);
+          return rest(v, sig);
         }
         set({ move: 0, swings: 0, done: false });
         setLabels([]);
@@ -211,7 +218,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           } else await sleep(i < 60 ? 70 : 34, sig);
         }
         set({ done: true });
-        return sleep(1e9, sig);
+        return rest(v, sig);
       }
       case 'device': {
         // the engine arrives: its network downloads onto the board (a spark runs round the edge),
@@ -220,7 +227,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           v.setCandidates(glows(FINAL, 4), false);
           setLabels([...candLabels(FINAL, 1), download(1), count(FINAL, 'visits, in your browser')]);
           set({ load: 1, read: FINAL, fav: FINAL.cands[0].at });
-          return sleep(1e9, sig);
+          return rest(v, sig);
         }
         set({ load: 0, read: null, fav: '' });
         setLabels([download(0)]);
@@ -238,7 +245,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           set({ read: r, fav: r.cands[0].at });
           await sleep(520, sig);
         }
-        return sleep(1e9, sig);
+        return rest(v, sig);
       }
     }
   };
@@ -270,7 +277,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Watch KataGo’s search grow.',
     body: (
       <>
-        <p>Each column is a move KataGo is weighing; the taller it is, the more KataGo looked at that move. A visit is one simulated line of play from the position.</p>
+        <p>Each column is a move KataGo is considering; the taller it is, the more KataGo checked that move. A visit is one simulated line of play from the position.</p>
         <p className="l-step-note">At 128 visits its favourite is the hane at Q10; by 512, Q9 has taken over. This is the real read of this position, replayed.</p>
       </>
     ),
@@ -312,7 +319,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Each depth picked a different move. Abyss read longest, so the most visits stand behind its pick, and it is the most reliable of the three.</p>
+        <p className="l-step-note">Each depth picked a different move. Abyss read longest, so the most visits stand behind its pick. More visits usually mean a steadier pick, not a certain one.</p>
       </>
     ),
   },
@@ -322,7 +329,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Who is ahead, and where.',
     body: (
       <>
-        <p>Black’s points are blue blocks, White’s are white. The taller the block, the more certain KataGo is that the point is theirs.</p>
+        <p>Black’s points are blue tiles, White’s are white. The taller the tile, the surer KataGo is that the point is theirs.</p>
         <Quote a={WHO} n={2} phone />
       </>
     ),
@@ -426,7 +433,7 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
         </span>
       ))}
       <p className="l-graph-key">
-        <b>{marks[0]?.n ?? SWINGS[0]?.n ?? 1}</b> turning points: the move numbers here, and on the board the win rate each move cost
+        <b>{marks[0]?.n ?? SWINGS[0]?.n ?? 1}</b> turning points (orange): the graph marks their move numbers; on the board, each tag shows the win rate that move cost
       </p>
     </div>
   );
@@ -444,6 +451,8 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
             <li key={d} className={d === step ? 'on' : DEPTHS.indexOf(step) > i ? 'past' : ''}>
               <span>{ANS[d].depth}</span>
               <b>{PICK[d][0]}</b>
+              {/* the visits behind each pick, to scale: Abyss's bar is full */}
+              <em style={{ ['--v' as string]: Math.max(0.04, ANS[d].visits / ANS.abyss.visits) }} />
               <i>{fmt(ANS[d].visits)} visits</i>
             </li>
           ))}
@@ -496,9 +505,10 @@ export function Dive() {
     if (step !== 'review') view.setStones(STONES, false);
     view.setView(VIEWS[step](size.current.w, size.current.h), still ? 0 : 1500);
   }, [view, step, still, setLive]);
+  // each step starts breathing again (its hold brings it to rest)
   useEffect(() => {
     view?.setAmbient(visible && !still);
-  }, [view, visible, still]);
+  }, [view, visible, still, step]);
   // the glow under the board only shows once the page has gone dark; the bar on top follows
   useEffect(() => {
     view?.setUnderglow(DEPTH[step] >= 2 ? 1 : 0, still ? 0 : 1200);

@@ -1,13 +1,17 @@
 /**
  * The last call to open Kiai, shown rather than told: stones are clicked onto an empty board, the
- * question is typed, and KataGo's read rises from it (the same real read as above).
+ * question is typed, KataGo's read rises from it (the same real read as above) and Kiai's answer
+ * comes in under the question.
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { KayaView, ViewMode } from '../../three/kaya';
-import { DEMO, FINAL, glows, loc, pct, PLAY_ORDER, STONES } from './data';
+import { Logo } from '../Logo';
+import { answer, DEMO, FINAL, glows, loc, pct, PLAY_ORDER, STONES, words } from './data';
 import { LiveBoard, reducedMotion, sleep, useScene, type Label } from './live';
 
 const Q = 'What should Black play here?';
+/** Kiai's real (recorded) answer to it, word by word. */
+const A = words(answer(Q, 'Abyss').summary, 1).split(' ');
 const PILLAR = 0.09;
 const view = (w: number, h: number): ViewMode => {
   const aspect = w / Math.max(1, h);
@@ -21,6 +25,7 @@ export function CtaDemo() {
   const [labels, setLabels] = useState<Label[]>([]);
   const [typed, setTyped] = useState(still ? Q.length : 0);
   const [asked, setAsked] = useState(still);
+  const [said, setSaid] = useState(still ? A.length : 0);
 
   const tags = (): Label[] =>
     FINAL.cands.slice(0, 3).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / FINAL.cands[0].visits) + 0.01, cls: `k3-cand tag${i === 0 ? ' best' : ''}`, text: pct(c.win, 0), sub: c.at }));
@@ -39,6 +44,7 @@ export function CtaDemo() {
       setLabels([]);
       setTyped(0);
       setAsked(false);
+      setSaid(0);
       b.setStones(new Array(361).fill(0), false);
       await sleep(500, sig);
       // the position is clicked in, stone by stone
@@ -66,9 +72,17 @@ export function CtaDemo() {
         await sleep(380, sig);
       }
       setLabels(tags());
-      await sleep(4200, sig);
+      await sleep(400, sig);
+      // and the answer, with its reason
+      for (let k = 1; k <= A.length; k++) {
+        setSaid(k);
+        await sleep(55, sig);
+      }
+      await sleep(4600, sig);
       b.fadeOut(600);
       setLabels([]);
+      setAsked(false);
+      setSaid(0);
       await sleep(900, sig);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +96,16 @@ export function CtaDemo() {
       <p className={`l-cta-q${asked ? ' on' : ''}`} aria-hidden="true">
         {Q.slice(0, typed)}
         {asked && typed < Q.length && <span className="l-caret" />}
+      </p>
+      <p className={`l-cta-a${said ? ' on' : ''}`} aria-hidden="true">
+        <span className="l-cta-who">
+          <Logo size={18} tile /> Kiai
+        </span>
+        {A.map((w, i) => (
+          <span key={i} className={`l-w${i < said ? ' on' : ''}`}>
+            {w}{' '}
+          </span>
+        ))}
       </p>
     </div>
   );

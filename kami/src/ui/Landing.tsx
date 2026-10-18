@@ -44,14 +44,20 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     const req = () => {
       if (!raf) raf = requestAnimationFrame(on);
     };
+    // a tone change re-reads at once: it comes after React has drawn the new tone, and a busy
+    // board can hold off the next animation frame
+    const now = () => {
+      if (raf) cancelAnimationFrame(raf);
+      on();
+    };
     on();
     window.addEventListener('scroll', req, { passive: true });
     window.addEventListener('resize', req);
-    window.addEventListener('kiai-tone', req);
+    window.addEventListener('kiai-tone', now);
     return () => {
       window.removeEventListener('scroll', req);
       window.removeEventListener('resize', req);
-      window.removeEventListener('kiai-tone', req);
+      window.removeEventListener('kiai-tone', now);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
@@ -84,12 +90,12 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
       <section ref={cta} className={`l-cta${ctaSeen ? ' seen' : ''}`} data-tone="dark" aria-labelledby="l-cta">
         <div className="l-cta-copy">
-          <h2 id="l-cta">Find the best move, and why.</h2>
+          <h2 id="l-cta">Find KataGo’s pick, and why.</h2>
           <p>Click points to place stones, paste an SGF (a saved game) or open a file, then ask your question.</p>
           <a className="l-btn light" href="/" onClick={go}>
             Ask about a position
           </a>
-          <p className="l-cta-note">Free. No sign-up. KataGo runs in your browser.</p>
+          <p className="l-cta-note">Free, no sign‑up.</p>
         </div>
         <CtaDemo />
       </section>

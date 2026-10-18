@@ -653,16 +653,18 @@ html.kiai-landing body {
   position: absolute;
   inset: 0;
 }
-/* on a wide screen the board dissolves into the page under the text (on whichever side the text is) */
+/* on a wide screen the board dissolves into the page beside the text (on whichever side the text is):
+   a short fade, so no long band of half-faded wood and grid lies under the words */
 @media (min-width: 901px) {
-  .lb.l-stage-board {
-    -webkit-mask-image: linear-gradient(90deg, transparent 24%, rgba(0, 0, 0, 0.25) 33%, rgba(0, 0, 0, 0.75) 44%, #000 54%);
-    mask-image: linear-gradient(90deg, transparent 24%, rgba(0, 0, 0, 0.25) 33%, rgba(0, 0, 0, 0.75) 44%, #000 54%);
+  /* the canvas only: the words standing on the board (bubbles, tags) never fade with it */
+  .lb.l-stage-board .lb-canvas {
+    -webkit-mask-image: linear-gradient(90deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
+    mask-image: linear-gradient(90deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
   }
-  .l-dive.s-own .lb.l-stage-board,
-  .l-dive.s-device .lb.l-stage-board {
-    -webkit-mask-image: linear-gradient(270deg, transparent 24%, rgba(0, 0, 0, 0.25) 33%, rgba(0, 0, 0, 0.75) 44%, #000 54%);
-    mask-image: linear-gradient(270deg, transparent 24%, rgba(0, 0, 0, 0.25) 33%, rgba(0, 0, 0, 0.75) 44%, #000 54%);
+  .l-dive.s-own .lb.l-stage-board .lb-canvas,
+  .l-dive.s-device .lb.l-stage-board .lb-canvas {
+    -webkit-mask-image: linear-gradient(270deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
+    mask-image: linear-gradient(270deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
   }
   .l-step.right {
     justify-content: flex-end;
@@ -1009,6 +1011,41 @@ html.kiai-landing body {
   font-size: 12px;
   color: var(--d-ink-2);
 }
+/* each depth's visits as a bar, to scale (Abyss's is full); it fills when its depth is reached */
+.l-path em {
+  position: relative;
+  display: block;
+  width: clamp(64px, 6.4vw, 104px);
+  height: 5px;
+  border-radius: 3px;
+  background: var(--d-line);
+  overflow: hidden;
+}
+.l-path em::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0.7;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  transition: transform 1.4s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.l-path li.on em::after,
+.l-path li.past em::after {
+  transform: scaleX(var(--v));
+}
+.l-path li.on em::after {
+  opacity: 1;
+  background: var(--l-glow);
+  box-shadow: 0 0 10px rgba(47, 211, 255, 0.7);
+}
+.l-dive.d0 .l-path li.on em::after,
+.l-dive.d1 .l-path li.on em::after {
+  background: #0a6f9e;
+  box-shadow: none;
+}
 /* on the light step, the glow colour is too pale to read: a deep cyan instead */
 .l-dive.d0 .l-path li.on b,
 .l-dive.d1 .l-path li.on b {
@@ -1057,14 +1094,19 @@ html.kiai-landing body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  margin-right: 4px;
+  margin: 0 7px 0 3px;
+  vertical-align: -1px;
+}
+/* each side's key is its stone sitting on a ring of wood, so Black's reads as solid on the dark page */
+.st.b,
+.st.w {
+  box-shadow: 0 0 0 3px #d9a46a;
 }
 .st.b {
   background: #0b0f14;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 .st.w {
-  background: #f4f4f0;
+  background: #f6f4ee;
 }
 /* the review's win-rate graph, drawn across the foot of the stage */
 .l-graph-wrap {
@@ -1300,6 +1342,44 @@ html.kiai-landing body {
   opacity: 1;
   transform: none;
 }
+/* Kiai's answer, under the question and on the other side, as in a chat (the columns of light
+   stand on the right, so it leaves them clear) */
+.l-cta-a {
+  position: absolute;
+  z-index: 2;
+  top: calc(4% + 58px);
+  left: 2%;
+  max-width: min(380px, 70%);
+  margin: 0;
+  padding: 12px 16px 14px;
+  border-radius: 18px 18px 18px 5px;
+  background: rgba(6, 22, 36, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(143, 220, 255, 0.3),
+    0 18px 40px -16px rgba(47, 211, 255, 0.5);
+  color: #e8f4fc !important;
+  font-size: 15px !important;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(12px) scale(0.94);
+  transform-origin: 10% 0;
+  transition:
+    opacity 0.35s ease,
+    transform 0.5s cubic-bezier(0.2, 1.35, 0.35, 1);
+}
+.l-cta-a.on {
+  opacity: 1;
+  transform: none;
+}
+.l-cta-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  font-weight: 650;
+  font-size: 13px;
+  color: #8fdcff;
+}
 .l-cta-copy > * {
   opacity: 0;
   transform: translateY(20px);
@@ -1458,8 +1538,9 @@ html.kiai-landing body {
 }
 @media (max-width: 720px) {
   /* the copy and the card stack at the top; the board stands clear below them */
+  /* it fills the first screen, so the plate's foot never shows as an edge above the fold */
   .l-hero {
-    min-height: 0;
+    min-height: 100svh;
     padding-bottom: calc(64vw + 20px);
     background: #c0d1e2;
   }

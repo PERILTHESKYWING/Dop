@@ -33,7 +33,7 @@ const SCORE = answer('Who is ahead, and why?', 'Abyss');
 function scoreFoot(): string {
   const m = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections[0]?.text ?? '');
   const lead = m ? m[1] : (-FINAL.bLead).toFixed(1), win = m ? `${m[2]}%` : pct(FINAL.bWin);
-  return `KataGo: White leads by ${lead} points\nBlack’s win rate: ${win} · ${fmt(SCORE.visits)} visits`;
+  return `KataGo’s Abyss read: White leads by ${lead} points\nBlack’s win rate: ${win} · ${fmt(SCORE.visits)} visits`;
 }
 // The board shows KataGo's 2,048-visit read of the position, so the numbers under each answer
 // are that read's; the words are Kiai's Abyss answers to the same position (no depth badge here,
@@ -182,12 +182,38 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
   const cand = (r: Read, named = false): Label[] =>
     r.cands.slice(0, CANDS).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / r.cands[0].visits) + 0.012, cls: `k3-cand tag${i === 0 ? ' best' : ''}${i === 0 && named ? ' hit' : ''}`, text: `${(c.win * 100).toFixed(0)}%`, sub: i === 0 && named ? c.at : undefined }));
 
+  // the first time round the page opens on a finished answer (the question, the answer and the
+  // columns of light all up at once); the loop after that shows each read growing from its question
+  const opened = useRef(false);
   const run = useCallback(
     async (signal: AbortSignal) => {
       const v = view!;
       let id = 0;
       for (const s of SCENES) {
         id++;
+        if (!opened.current && s.kind === 'play' && s.point) {
+          opened.current = true;
+          const ws = s.text.split(' ');
+          const c: Card = { id, scene: s, phase: 'answer', typed: s.q.length, visits: FINAL.visits, shown: 0 };
+          setCard({ ...c });
+          v.setCandidates(glows(FINAL, CANDS));
+          setLabels(cand(FINAL));
+          await sleep(450, signal);
+          for (let k = 1; k <= ws.length; k++) {
+            c.shown = k;
+            setCard({ ...c });
+            await sleep(16, signal);
+          }
+          v.ripple(loc(s.point), undefined, 3.2, 1100, 0.8);
+          setLabels(cand(FINAL, true));
+          await sleep(5600, signal);
+          c.phase = 'leave';
+          setCard({ ...c });
+          v.fadeOut(600);
+          setLabels([]);
+          await sleep(900, signal);
+          continue;
+        }
         // the question pops up and types itself
         const c: Card = { id, scene: s, phase: 'ask', typed: 0, visits: 0, shown: 0 };
         setCard({ ...c });
@@ -271,8 +297,8 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
             <span>in any Go position.</span>
           </span>
         </h1>
-        <p className="l-lead">You can also ask who is ahead. KataGo, the open-source Go AI, reads the position in your browser, and Kiai explains what it found. Free, no sign-up.</p>
-        <p className="l-lead short">KataGo, the open-source Go AI, reads it in your browser; Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead">KataGo, the open-source Go AI, reads the position in your browser. Kiai puts what it found into plain words, whether you ask what to play or who is ahead. Free, no sign‑up.</p>
+        <p className="l-lead short">KataGo, the open-source Go AI, reads it in your browser. Kiai puts what it found into plain words. Free, no sign‑up.</p>
         <div className="l-actions">
           <a className="l-btn" href="/" onClick={onEnter}>
             Ask about a position
@@ -314,7 +340,7 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       <div className="l-hero-foot">
       {gl && (
         <p className="l-legend" aria-hidden="true">
-          <i className="col" /> a move KataGo is weighing: the taller, the more it looked at it <i className="tag">20%</i> Black’s win rate if played
+          <i className="col" /> a move KataGo is considering: the taller the column, the more KataGo checked it <i className="tag">20%</i> Black’s win rate if played
         </p>
       )}
       {gl && !still && (

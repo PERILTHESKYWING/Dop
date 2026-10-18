@@ -1601,6 +1601,17 @@ kbd {
 .bp-eval.stale {
   opacity: 0.55;
 }
+/* before any read the bar is an empty dashed track, not a half-filled one that looks like a result */
+.bp-eval.empty .ev-track {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed rgba(11, 15, 20, 0.35);
+  outline-offset: -1px;
+}
+.bp-eval.empty .ev-fill,
+.bp-eval.empty .ev-mid {
+  display: none;
+}
 .ev-n {
   flex: none;
   min-width: 42px;

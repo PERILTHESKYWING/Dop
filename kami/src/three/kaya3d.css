@@ -50,16 +50,23 @@
   font-style: normal;
 }
 
-/* on a pale glass disc: dark figures, win rate over visits */
+/* on a pale glass disc: dark figures, win rate (with a small %) over visits */
 .k3-cand b {
-  font-size: max(13px, calc(var(--cell) * 0.46));
+  font-size: max(13px, calc(var(--cell) * 0.44));
   font-weight: 750;
   color: #062236;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
+}
+.k3-cand:not(.tag) b::after {
+  content: '%';
+  margin-left: 0.5px;
+  font-size: 0.6em;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 .k3-cand i {
   margin-top: 1px;
-  font-size: max(11px, calc(var(--cell) * 0.32));
+  font-size: max(10px, calc(var(--cell) * 0.28));
   font-weight: 700;
   color: #0d3550;
 }
@@ -95,17 +102,19 @@
     0 0 0 1px rgba(255, 255, 255, 0.7),
     0 0 18px rgba(47, 211, 255, 0.9);
 }
-/* the coordinate (or the depth) sits on the tag's top edge */
+/* the coordinate (or the depth) sits on the tag's top edge, on a dark chip of its own so it reads
+   over pale wood, sky and the column's glow alike */
 .k3-cand.tag i {
   order: 0;
   margin: 0 0 3px;
-  font-size: max(11px, calc(var(--cell) * 0.3));
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(4, 16, 26, 0.82);
+  box-shadow: 0 0 0 1px rgba(143, 220, 255, 0.25);
+  font-size: max(12px, calc(var(--cell) * 0.32));
   font-weight: 650;
   letter-spacing: 0.04em;
-  color: #fff;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.75),
-    0 0 8px rgba(0, 0, 0, 0.5);
+  color: #e6f6ff;
 }
 .k3-cand.tag.pick:not(.best) b {
   background: rgba(4, 16, 26, 0.55);
@@ -260,8 +269,9 @@
   color: var(--ink-3, #5a6878);
 }
 
+/* on a phone the app's discs drop their visits; a tag's coordinate stays */
 @media (max-width: 600px) {
-  .k3-cand i {
+  .k3-cand:not(.tag) i {
     display: none;
   }
 }
@@ -285,11 +295,11 @@
 }
 .k3-count i {
   margin-top: 5px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 7px;
-  background: rgba(4, 16, 26, 0.7);
+  background: rgba(4, 16, 26, 0.84);
   color: rgba(226, 244, 255, 0.95);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }

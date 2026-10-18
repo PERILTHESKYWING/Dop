@@ -12,7 +12,6 @@ import {
   ACESFilmicToneMapping,
   AdditiveBlending,
   AgXToneMapping,
-  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CatmullRomCurve3,
@@ -285,7 +284,7 @@ function beamTexture(): Texture {
   return beamTex;
 }
 
-/** A column of light: a bright band at the top (the level), a soft glow below it, a brighter foot. */
+/** A column of light: a bright band at the top (the level), a soft glow below it (a bright foot, added to the orange wood, turned a warm smear). */
 let pillarTex: Texture | null = null;
 function pillarTexture(): Texture {
   if (pillarTex) return pillarTex;
@@ -293,7 +292,7 @@ function pillarTexture(): Texture {
   const d = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) {
     const v = y / (h - 1); // 0 = bottom
-    const a = Math.min(1, 0.16 + 0.5 * Math.pow(1 - v, 6) + 0.25 * Math.pow(v, 4) + (v > 0.955 ? 0.85 : 0));
+    const a = Math.min(1, 0.16 + 0.12 * Math.pow(1 - v, 6) + 0.25 * Math.pow(v, 4) + (v > 0.955 ? 0.85 : 0));
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       d[i] = d[i + 1] = d[i + 2] = 255;
@@ -315,7 +314,7 @@ function coreTexture(): Texture {
   const d = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) {
     const v = y / (h - 1); // 0 = bottom
-    const a = Math.min(1, 0.3 + 0.55 * v * v + 0.5 * Math.pow(1 - v, 10) + (v > 0.965 ? 0.6 : 0));
+    const a = Math.min(1, 0.3 + 0.55 * v * v + 0.25 * Math.pow(1 - v, 10) + (v > 0.965 ? 0.6 : 0));
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       d[i] = d[i + 1] = d[i + 2] = 255;
@@ -457,7 +456,7 @@ interface CandFx {
 const DIAL_SEGS = 72;
 const C_BEST = 0x2fd3ff, C_GOOD = 0x8fdcff, C_MID = 0xe4f1ff, C_BAD = 0xffb057, C_GHOST = 0x4f87a3;
 // smoked blue glass, a clear step lighter than a black stone so a candidate never reads as one
-const LENS_BEST = new Color(0x2eb4ee), LENS = new Color(0xc4e6f6);
+const LENS_BEST = new Color(0x2eb4ee), LENS = new Color(0xb4def3);
 const WHITE = new Color(0xffffff);
 
 // ------------------------------------------------------------------ the view
@@ -661,9 +660,10 @@ export class KayaView {
     this.lines.receiveShadow = true;
     this.set.add(this.lines);
 
-    // a soft dark spot under each stone where it touches the wood
-    const aoMat = new MeshBasicMaterial({ color: 0x000000, map: glowTexture(), transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-    const aoGeo = new PlaneGeometry(SX * 1.08, SX * 1.08).rotateX(-Math.PI / 2);
+    // a soft dark spot under each stone where it touches the wood, a little down and right of it (the
+    // light comes from the upper left), so a stone seen straight down still stands on the board
+    const aoMat = new MeshBasicMaterial({ color: 0x000000, map: glowTexture(), transparent: true, opacity: 0.46, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const aoGeo = new PlaneGeometry(SX * 1.3, SX * 1.3).rotateX(-Math.PI / 2);
     this.ao = new InstancedMesh(aoGeo, aoMat, 800);
     this.ao.count = 0;
     this.ao.frustumCulled = false;
@@ -748,7 +748,7 @@ export class KayaView {
       this.slot[l] = k;
       this.stoneMesh[c].setMatrixAt(k, this.stoneMatrix(l, c));
       const p = this.pointAt(l, 0, this.tmpV);
-      this.ao.setMatrixAt(a++, this.tmpM.makeTranslation(p.x + 0.0012, 0, p.z + 0.0012));
+      this.ao.setMatrixAt(a++, this.tmpM.makeTranslation(p.x + 0.0019, 0, p.z + 0.0024));
     }
     for (const c of [1, 2] as StoneColor[]) {
       this.stoneMesh[c].count = count[c];
@@ -961,7 +961,7 @@ export class KayaView {
     let pillar: CandFx['pillar'] = null, cap: CandFx['cap'] = null, core: CandFx['core'] = null, bloom: CandFx['bloom'] = null, flare: CandFx['flare'] = null;
     if (this.pillarH) {
       pillar = new Mesh(new CylinderGeometry(SX * 0.46, SX * 0.46, 1, 32, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ map: pillarTexture(), transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }));
-      core = new Mesh(new CylinderGeometry(SX * 0.15, SX * 0.15, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ map: coreTexture(), transparent: true, opacity: 0, depthWrite: false, side: DoubleSide }));
+      core = new Mesh(new CylinderGeometry(SX * 0.21, SX * 0.21, 1, 24, 1, true).translate(0, 0.5, 0), new MeshBasicMaterial({ map: coreTexture(), transparent: true, opacity: 0, depthWrite: false, side: DoubleSide }));
       cap = new Mesh(new RingGeometry(SX * 0.2, SX * 0.4, 40).rotateX(-Math.PI / 2), new MeshBasicMaterial({ transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }));
       const spr = () => new Sprite(new SpriteMaterial({ map: glowTexture(), transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false }));
       bloom = spr();
@@ -1006,7 +1006,7 @@ export class KayaView {
       const lit = Math.min(1, k.strength + 0.35) * on;
       fx.pillar.scale.set(1, h / s, 1);
       fx.pillar.material.color.copy(k.col);
-      fx.pillar.material.opacity = (0.26 + 0.34 * k.best) * lit;
+      fx.pillar.material.opacity = (0.3 + 0.34 * k.best) * lit;
       fx.core.scale.set(1, h / s, 1);
       fx.core.material.color.copy(k.col).lerp(WHITE, 0.3);
       fx.core.material.opacity = (0.62 + 0.33 * k.best) * lit;
@@ -1019,10 +1019,11 @@ export class KayaView {
       fx.bloom.material.color.copy(k.col);
       fx.bloom.material.opacity = (0.18 + 0.16 * k.best) * lit;
       fx.flare.position.y = h / s;
-      const fs = SX * (1.1 + 1.1 * k.best) * this.fx;
+      // kept small: a big flare washes out the tag that stands on the column's top
+      const fs = SX * (0.9 + 0.7 * k.best) * this.fx;
       fx.flare.scale.set(fs, fs, 1);
       fx.flare.material.color.copy(k.col);
-      fx.flare.material.opacity = (0.45 + 0.45 * k.best) * lit;
+      fx.flare.material.opacity = (0.35 + 0.3 * k.best) * lit;
     }
   }
 
@@ -1321,7 +1322,8 @@ export class KayaView {
     // point and nearly touching, so each side's area reads as one terraced region: the surer the
     // point, the taller its block, in three clear steps (likely, sure, settled)
     const relief = this.pillarH > 0;
-    const geo = relief ? new BoxGeometry(SX, 1, SY).translate(0, 0.5, 0) : new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2);
+    // rounded corners, so the relief reads as glass tiles rather than toy bricks
+    const geo = relief ? new RoundedBoxGeometry(SX, 1, SY, 2, SX * 0.2).translate(0, 0.5, 0) : new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2);
     const meshes = ([1, 2] as StoneColor[]).map((side) => {
       const mat = relief
         ? new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0f5f98 : 0xdcecff, emissive: side === 1 ? 0x18aaf2 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.35 : 1.3, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false })
@@ -1346,7 +1348,8 @@ export class KayaView {
       const o = own[l] ?? 0;
       const a = Math.abs(o);
       const side: StoneColor = o > 0 ? 1 : 2;
-      if (a < 0.2 || this.stoneAt[l] === side) continue;
+      // a block standing on a stone (even a dead one) hides it, so the relief leaves every stone clear
+      if (a < 0.2 || (relief ? this.stoneAt[l] : this.stoneAt[l] === side)) continue;
       const s = Math.min(1, (a - 0.2) / 0.7);
       const mesh = meshes[side - 1];
       const k = mesh.count++;
