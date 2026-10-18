@@ -265,6 +265,34 @@
   }
 }
 
+/* a figure standing on the board over what it counts: the visits, the lead */
+.k3-count {
+  align-items: center;
+}
+.k3-count b {
+  padding: 6px 12px 7px;
+  border-radius: 12px;
+  background: rgba(4, 16, 26, 0.84);
+  box-shadow:
+    0 0 0 1px rgba(143, 220, 255, 0.35),
+    0 0 24px rgba(47, 211, 255, 0.35);
+  color: #fff;
+  font: 760 26px/1 var(--font, system-ui, sans-serif);
+  font-stretch: 118%;
+  letter-spacing: -0.03em;
+  animation: k3-tag 0.45s cubic-bezier(0.2, 1.5, 0.35, 1) both;
+}
+.k3-count i {
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: rgba(4, 16, 26, 0.7);
+  color: rgba(226, 244, 255, 0.95);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* a pointer clicking a stone onto the board (the landing's set-up demo) */
 .k3-cursor::before {
   content: '';

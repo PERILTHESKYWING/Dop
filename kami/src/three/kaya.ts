@@ -34,6 +34,7 @@ import {
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
+  NormalBlending,
   Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -560,7 +561,7 @@ export class KayaView {
     this.stoneGeo = { 1: stoneGeometry(STONE_B.d, STONE_B.t, 48), 2: stoneGeometry(STONE_W.d, STONE_W.t, 48) };
     this.stoneMat = {
       1: new MeshPhysicalMaterial({ color: 0x0c0d0f, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.07, specularIntensity: 0.9 }),
-      2: new MeshPhysicalMaterial({ color: 0xf8f0e2, map: tex('shell.webp'), roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 0.25, sheenColor: new Color(0xfff6ea), sheenRoughness: 0.5 }),
+      2: new MeshPhysicalMaterial({ color: 0xf4eadb, map: tex('shell.webp'), roughness: 0.24, clearcoat: 1, clearcoatRoughness: 0.08, sheen: 0.25, sheenColor: new Color(0xfff6ea), sheenRoughness: 0.5 }),
     };
     this.ghost = {
       1: new MeshPhysicalMaterial({ color: 0x10161d, roughness: 0.2, clearcoat: 0.6, transparent: true, opacity: 0.82, emissive: new Color(0x0a5a7c), emissiveIntensity: 0.5 }),
@@ -862,8 +863,9 @@ export class KayaView {
 
   // ---------------------------------------------------------------- KataGo's reading, as light
 
-  private glowMat(color: number, opacity = 1): MeshBasicMaterial {
-    return new MeshBasicMaterial({ color, map: glowTexture(), transparent: true, opacity, blending: AdditiveBlending, depthWrite: false });
+  /** A soft round glow; laid over the wood unblended (`add` false) it tints it instead of bleaching it. */
+  private glowMat(color: number, opacity = 1, add = true): MeshBasicMaterial {
+    return new MeshBasicMaterial({ color, map: glowTexture(), transparent: true, opacity, blending: add ? AdditiveBlending : NormalBlending, depthWrite: false });
   }
 
   private clearGroup(g: Group, keep: Material[] = []) {
@@ -941,11 +943,12 @@ export class KayaView {
   private makeCand(loc: Loc): CandFx {
     const g = new Group();
     const lens = new Mesh(new CircleGeometry(SX * 0.45, 48).rotateX(-Math.PI / 2), new MeshBasicMaterial({ transparent: true, depthWrite: false }));
-    const ringGeo = () => new RingGeometry(SX * 0.38, SX * (0.38 + 0.085 * Math.min(1.4, this.fx)), DIAL_SEGS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2).scale(-1, 1, 1);
+    const ringGeo = () => new RingGeometry(SX * 0.36, SX * (0.36 + 0.12 * Math.min(1.4, this.fx)), DIAL_SEGS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2).scale(-1, 1, 1);
     const track = new Mesh(ringGeo(), new MeshBasicMaterial({ transparent: true, depthWrite: false, side: DoubleSide }));
     const arc = new Mesh(ringGeo(), new MeshBasicMaterial({ transparent: true, depthWrite: false, side: DoubleSide }));
     const hs = SX * 2.1 * this.fx;
-    const halo = new Mesh(new PlaneGeometry(hs, hs).rotateX(-Math.PI / 2), this.glowMat(C_BEST, 0));
+    // the pool of light on the wood: cyan laid over it, not added (added to orange wood, cyan turns a warm white)
+    const halo = new Mesh(new PlaneGeometry(hs, hs).rotateX(-Math.PI / 2), this.glowMat(C_BEST, 0, false));
     halo.renderOrder = 1;
     lens.renderOrder = 2;
     track.renderOrder = 3;
@@ -987,9 +990,9 @@ export class KayaView {
     const s = Math.max(0.0001, k.on);
     fx.g.scale.setScalar(s * (1 + 0.12 * Math.sin(Math.min(1, k.on) * Math.PI)));
     fx.lens.material.color.copy(LENS).lerp(LENS_BEST, k.best);
-    fx.lens.material.opacity = ((0.78 + 0.12 * k.strength) * (1 - k.best) + 0.92 * k.best) * Math.min(1, k.on);
+    fx.lens.material.opacity = ((0.88 + 0.08 * k.strength) * (1 - k.best) + 0.95 * k.best) * Math.min(1, k.on);
     fx.track.material.color.copy(k.col);
-    fx.track.material.opacity = 0.22 * k.strength * Math.min(1, k.on);
+    fx.track.material.opacity = (0.18 + 0.14 * k.strength) * Math.min(1, k.on);
     fx.arc.material.color.copy(k.col);
     fx.arc.material.opacity = Math.min(1, k.strength + 0.45) * Math.min(1, k.on);
     fx.arc.geometry.setDrawRange(0, Math.round(DIAL_SEGS * MathUtils.clamp(k.share, 0, 1)) * 6);

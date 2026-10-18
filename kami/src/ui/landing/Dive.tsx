@@ -27,9 +27,10 @@ const DEPTH: Record<StepId, number> = { read: 0, skim: 1, dive: 2, abyss: 3, own
  * and the board sits right of centre, beside the text; on a phone it is centred above the text.
  */
 const BOARD_X = 0.21;
-function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: number; at?: [number, number]; spin?: number } = {}): ViewMode {
+function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: number; at?: [number, number]; spin?: number; side?: 1 | -1 } = {}): ViewMode {
   const wide = w > 900;
-  const shift = wide ? 0.21 : 0;
+  // side -1: the board sits left of centre, for the steps whose copy stands on the right
+  const shift = wide ? 0.21 * (o.side ?? 1) : 0;
   const aspect = (w / Math.max(1, h)) * (wide ? 0.56 : 1);
   const fov = 26;
   const fit = (BOARD_X * 1.25) / Math.tan((fov * Math.PI) / 360) / Math.min(1, aspect);
@@ -38,16 +39,19 @@ function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: num
   const zoom = (o.zoom ?? 1) * (wide || (o.zoom ?? 1) >= 1 ? 1 : 1.22);
   return { kind: 'orbit', elev, azim, fov, dist: fit * zoom, target: [x, 0.06, z], spin: o.spin, shift };
 }
-// the reading happens on the right side (Q9 to R12), so the close views look there
+// the reading happens on the right side (Q9 to R12), so the close views look there; each depth
+// dives a little closer and lower than the last
 const VIEWS: Record<StepId, (w: number, h: number) => ViewMode> = {
   read: (w, h) => orbit(40, -26, w, h, { zoom: 0.6, at: [0.1, -0.05], spin: 0.5 }),
-  skim: (w, h) => orbit(44, -20, w, h, { zoom: 0.58, at: [0.1, -0.05] }),
-  dive: (w, h) => orbit(42, -30, w, h, { zoom: 0.58, at: [0.1, -0.06] }),
-  abyss: (w, h) => orbit(40, -38, w, h, { zoom: 0.58, at: [0.1, -0.05] }),
-  own: (w, h) => orbit(58, -6, w, h, { zoom: 1.08, at: [0, -0.07] }),
+  skim: (w, h) => orbit(46, -12, w, h, { zoom: 0.64, at: [0.1, -0.05] }),
+  dive: (w, h) => orbit(40, -30, w, h, { zoom: 0.56, at: [0.1, -0.06] }),
+  abyss: (w, h) => orbit(33, -46, w, h, { zoom: 0.5, at: [0.1, -0.05] }),
+  own: (w, h) => orbit(58, 6, w, h, { zoom: 1.08, at: [0, -0.07], side: -1 }),
   review: (w, h) => orbit(64, -8, w, h, { zoom: 1.2, at: [0, -0.02] }),
-  device: (w, h) => orbit(30, -30, w, h, { zoom: 1.22, at: [0, -0.03], spin: 6 }),
+  device: (w, h) => orbit(30, 30, w, h, { zoom: 1.22, at: [0, -0.03], spin: 6, side: -1 }),
 };
+/** Steps whose copy stands on the right of a wide screen (the board moves left for them). */
+const RIGHT: Partial<Record<StepId, true>> = { own: true, device: true };
 
 interface Live {
   read: Read | null;
@@ -93,6 +97,12 @@ function depthPicks(upto: DepthId, current: boolean): { cands: CandGlow[]; label
 function say(id: DepthId, aside = false): Label {
   return { key: `q${id}`, loc: loc(aside ? 'O13' : PICK[id][0]), lift: lift(1), cls: 'k3-say', text: `“${words(ANS[id].summary, id === 'skim' ? 2 : 1)}”`, sub: `Kiai, ${ANS[id].depth}` };
 }
+/** A figure standing on the board over what it counts (the visits over KataGo's favourite). */
+function count(r: Read, sub: string): Label {
+  return { key: 'n', loc: loc(r.cands[0].at), lift: lift(1) + 0.045, cls: 'k3-count', text: fmt(r.visits), sub };
+}
+/** White's lead, standing in the open middle of the board between the two sides' territory. */
+const LEAD: Label = { key: 'lead', loc: loc('K10'), lift: 0.03, cls: 'k3-count', text: `W+${(-FINAL.bLead).toFixed(1)}`, sub: `White’s lead in points · Black’s win rate ${pct(FINAL.bWin)}` };
 /** The territory answer, standing beside the upper right it talks about (clear of its blocks). */
 const SAY_OWN: Label = { key: 'qown', loc: loc('N17'), lift: 0.03, cls: 'k3-say', text: `“${words(WHO.summary, 2)}”`, sub: `Kiai, ${WHO.depth}` };
 
@@ -104,7 +114,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         v.ping(null, 1700);
         for (const r of still ? [FINAL] : DEMO.reads) {
           v.setCandidates(glows(r, 4), !still);
-          setLabels(candLabels(r));
+          setLabels([...candLabels(r), count(r, 'visits so far')]);
           set({ read: r, fav: r.cands[0].at });
           if (!still) await sleep(1300, sig);
         }
@@ -149,8 +159,9 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         if (!still) await sleep(300, sig);
         v.setOwnership(FINAL.own, !still);
         set({ done: true });
+        setLabels([LEAD]);
         if (!still) await sleep(900, sig);
-        setLabels([SAY_OWN]);
+        setLabels([LEAD, SAY_OWN]);
         return sleep(1e9, sig);
       }
       case 'review': {
@@ -190,7 +201,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         // then it reads, with the badge saying it now works offline
         if (still) {
           v.setCandidates(glows(FINAL, 4), false);
-          setLabels([...candLabels(FINAL, 1), download(1)]);
+          setLabels([...candLabels(FINAL, 1), download(1), count(FINAL, 'visits, in your browser')]);
           set({ load: 1, read: FINAL, fav: FINAL.cands[0].at });
           return sleep(1e9, sig);
         }
@@ -206,7 +217,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         v.ping(null, 1500);
         for (const r of DEMO.reads) {
           v.setCandidates(glows(r, 4));
-          setLabels([...candLabels(r, 1), download(1)]);
+          setLabels([...candLabels(r, 1), download(1), count(r, 'visits, in your browser')]);
           set({ read: r, fav: r.cands[0].at });
           await sleep(520, sig);
         }
@@ -224,8 +235,8 @@ function download(p: number): Label {
     loc: 18 * 19 + 9,
     lift: 0.004,
     cls: `k3-dl${done ? ' done' : ''}`,
-    text: done ? 'Ready, even offline' : `${(p * 11).toFixed(1)} of 11 MB`,
-    sub: done ? '11 MB, now on this device' : 'KataGo’s network, downloading',
+    text: done ? 'Ready for offline analysis' : `${(p * 11).toFixed(1)} of 11 MB`,
+    sub: done ? '11 MB, loaded in your browser' : 'KataGo’s network, downloading',
     style: { '--p': p.toFixed(3) } as React.CSSProperties,
   };
 }
@@ -242,7 +253,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Watch KataGo’s search grow.',
     body: (
       <>
-        <p>Each column is a move KataGo is weighing, as tall as its share of the search. A visit is one simulated line of play from the position.</p>
+        <p>Each column is a move KataGo is weighing; the taller it is, the more KataGo looked at that move. A visit is one simulated line of play from the position.</p>
         <p className="l-step-note">At 128 visits its favourite is the hane at Q10; by 512, Q9 has taken over. This is the real read of this position, replayed.</p>
       </>
     ),
@@ -258,7 +269,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Skim picks Q10.',
     body: (
       <>
-        <p>You pick how deep KataGo reads: Skim is quick, Dive reads deeper, Abyss reads deepest. The same question at each:</p>
+        <p>You pick the depth: Skim is quickest, Dive takes longer, Abyss takes longest. The same question at each:</p>
         <Quote a={ANS.skim} n={2} phone />
       </>
     ),
@@ -284,7 +295,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Three depths, three answers. The deeper the read, the slower it is and the more you can trust it.</p>
+        <p className="l-step-note">Three depths, three answers. The deeper the read, the longer it takes and the more visits stand behind its pick.</p>
       </>
     ),
   },
@@ -306,15 +317,15 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'A whole game, graded.',
     body: (
       <p>
-        KataGo reads every move. Kiai graphs Black’s win rate, marks each turning point on its stone and scores each side’s accuracy: how little win rate its moves gave away.
-        This game: {GAME.moves.length} moves, {DEMO.review.visits} visits per move.
+        KataGo reads every move. Kiai graphs Black’s win rate, marks the turning points on the board and scores each side’s accuracy: the less win rate a side gave away, the
+        higher its score. This game: {GAME.moves.length} moves, {DEMO.review.visits} visits per move. Paste your own SGF to review yours.
       </p>
     ),
   },
   {
     id: 'device',
     anchor: 'device',
-    kicker: 'On your device',
+    kicker: 'In your browser',
     title: 'KataGo runs in your browser.',
     body: (
       <p>Its 11 MB neural network downloads once; after that it analyses even offline. Kiai’s written answers come from a server, so they need a connection.</p>
@@ -387,14 +398,18 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
           {i === 0 ? 'move 1' : n}
         </span>
       ))}
-      {move > 0 && move < w.length - 1 && <span className="l-graph-dot" style={{ left: `${(move / (w.length - 1)) * 100}%`, top: `${(1 - w[move]) * 100}%` }} />}
+      {move > 0 && (
+        <span className="l-graph-dot" style={{ left: `${(move / (w.length - 1)) * 100}%`, top: `${(1 - w[Math.min(move, w.length - 1)]) * 100}%` }}>
+          <i>move {move}</i>
+        </span>
+      )}
       {marks.map((m) => (
         <span key={m.first} className="l-graph-mark" style={{ left: `${m.x}%`, top: `${m.y}%` }}>
           <b>{m.n}</b>
         </span>
       ))}
       <p className="l-graph-key">
-        <b>{SWINGS[0]?.n ?? 1}</b> a turning point: its move number; on the board, the win rate it cost
+        <b>{SWINGS[0]?.n ?? 1}</b> a turning point: its move number, and on the board the win rate that move cost
       </p>
     </div>
   );
@@ -402,26 +417,8 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
 
 /** The step's numbers, set in the open stage: big figures, no panel. */
 function Stats({ step, live }: { step: StepId; live: Live }) {
-  const r = live.read;
-  const visits = useTween(r?.visits ?? 0, 700);
-  const lead = useTween(step === 'own' && live.done ? -FINAL.bLead : 0, 1100);
   const accB = useTween(live.done ? DEMO.review.accuracy.black : 0, 1400);
   const accW = useTween(live.done ? DEMO.review.accuracy.white : 0, 1400);
-  if (step === 'read' || (step === 'device' && live.load >= 1))
-    return (
-      <div className="l-stats">
-        <div className="l-stat">
-          <b>{fmt(Math.round(visits))}</b>
-          <span>{step === 'device' ? 'visits, read on this device' : 'visits'}</span>
-        </div>
-        {live.fav && (
-          <div className="l-stat small" key={live.fav}>
-            <b className="glow">{live.fav}</b>
-            <span>KataGo’s favourite</span>
-          </div>
-        )}
-      </div>
-    );
   if (step === 'skim' || step === 'dive' || step === 'abyss')
     return (
       <div className="l-stats l-stats-path">
@@ -436,27 +433,7 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
         </ol>
       </div>
     );
-  if (step === 'own')
-    return (
-      <div className="l-stats">
-        <div className="l-stat">
-          <b>W+{lead.toFixed(1)}</b>
-          <span>White’s lead in points · Black’s win rate {pct(FINAL.bWin)}</span>
-        </div>
-      </div>
-    );
-  if (step === 'review')
-    return (
-      <>
-        <div className="l-stats l-stats-moves">
-          <div className="l-stat small">
-            <b>{live.move}</b>
-            <span>moves replayed, of {GAME.moves.length}</span>
-          </div>
-        </div>
-        <Graph move={live.move} swings={live.swings} acc={live.done ? [accB, accW] : null} />
-      </>
-    );
+  if (step === 'review') return <Graph move={live.move} swings={live.swings} acc={live.done ? [accB, accW] : null} />;
   return null;
 }
 
@@ -541,7 +518,7 @@ export function Dive() {
       </div>
       <ol className="l-steps" ref={stepsRef}>
         {STEPS.map((s) => (
-          <li key={s.id} id={s.anchor} data-step={s.id} className={`l-step${s.id === step ? ' on' : ''}`}>
+          <li key={s.id} id={s.anchor} data-step={s.id} className={`l-step${s.id === step ? ' on' : ''}${RIGHT[s.id] ? ' right' : ''}`}>
             <div className="l-step-in">
               <p className="l-kicker">{s.kicker}</p>
               <h3>{s.title}</h3>

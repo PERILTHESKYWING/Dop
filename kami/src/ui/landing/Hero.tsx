@@ -40,7 +40,7 @@ function scoreFoot(): string {
 // since Abyss's own read is longer than the one on the board).
 const best = FINAL.cands[0];
 const SCENES: Scene[] = [
-  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate after it: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read on this device` },
+  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate after it: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read in your browser` },
   { q: SCORE.question, kind: 'score', point: null, text: words(SCORE.summary, 3), foot: scoreFoot() },
 ];
 
@@ -262,17 +262,17 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       </picture>
       {gl && <LiveBoard className={`l-hero-board${view ? ' on' : ''}`} options={{ bowls: true, shadowCatcher: true, sun: HERO_CAM.sun, toneMapping: 'aces', exposure: 0.9, fx: 2.1, pillars: PILLAR, lite: typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches }} fit={heroFit} labels={labels} onView={onView} onVisible={setVisible} onFrame={follow} />}
       <div className="l-hero-copy">
-        <p className="l-hero-kicker">KataGo’s analysis, in plain words</p>
-        <h1 id="l-title" aria-label="Any Go position, explained.">
+        <p className="l-hero-kicker">For Go players · KataGo’s analysis in plain words</p>
+        <h1 id="l-title" aria-label="Ask what to play in any Go position.">
           <span className="l-line">
-            <span>Any Go position,</span>
+            <span>Ask what to play</span>
           </span>{' '}
           <span className="l-line">
-            <span>explained.</span>
+            <span>in any Go position.</span>
           </span>
         </h1>
-        <p className="l-lead">Ask what to play, or who is ahead, in your own words. KataGo, the open-source Go AI, reads the position on your device, and Kiai explains what it found. Free, no sign-up.</p>
-        <p className="l-lead short">Ask in your own words. KataGo reads the position on your device; Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead">Ask who is ahead, too. KataGo, the open-source Go AI, reads the position in your browser, and Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead short">KataGo reads the position in your browser; Kiai explains what it found. Free, no sign-up.</p>
         <div className="l-actions">
           <a className="l-btn" href="/" onClick={onEnter}>
             Ask about a position
@@ -305,15 +305,16 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
               <Answer text={s.text} shown={card.phase === 'read' ? 0 : card.shown} point={s.point} wait={card.phase === 'read'} />
               {/* both lines hold their place, so the card keeps its size as one gives way to the other */}
               <p className="l-ask-foot">
-                <span className={card.phase === 'read' ? 'on' : ''}>KataGo is reading this position on this device…</span>
+                <span className={card.phase === 'read' ? 'on' : ''}>KataGo is reading this position in your browser…</span>
                 <span className={card.phase !== 'read' && card.shown >= s.text.split(' ').length ? 'on' : ''}>{s.foot}</span>
               </p>
           </div>
         </figure>
       )}
+      <div className="l-hero-foot">
       {gl && (
         <p className="l-legend" aria-hidden="true">
-          <i className="col" /> a move KataGo is weighing, as tall as its share of the search <i className="tag">20%</i> Black’s win rate after it
+          <i className="col" /> a move KataGo is weighing: the taller, the more it looked <i className="tag">20%</i> Black’s win rate if it is played
         </p>
       )}
       {gl && !still && (
@@ -329,6 +330,7 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
           )}
         </button>
       )}
+      </div>
     </section>
   );
 }

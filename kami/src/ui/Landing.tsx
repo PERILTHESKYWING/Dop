@@ -72,7 +72,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           <a href="#dive">Watch KataGo read</a>
           <a href="#depths">Reading depths</a>
           <a href="#review">Game review</a>
-          <a href="#device">On your device</a>
+          <a href="#device">In your browser</a>
         </nav>
         <a className="l-btn small" href="/" onClick={go}>
           Open Kiai
