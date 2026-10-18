@@ -121,7 +121,7 @@ export default function Kaya3D(p: Kaya3DProps) {
     const shown = p.variation?.length ? null : (p.candidates ?? null);
     v.setCandidates(shown, fresh);
     // a new read lights up the grid; on a computer the best move keeps pulsing while it shows
-    if (fresh && shown?.length) v.ping(shown.find((c) => c.rank === 0)?.loc ?? null, 1300);
+    if (fresh && shown?.length) v.ping(shown.find((c) => c.rank === 0)?.loc ?? null, 1300, true);
     v.setAmbient(!!shown?.length && !lite.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, p.candidates, p.variation]);

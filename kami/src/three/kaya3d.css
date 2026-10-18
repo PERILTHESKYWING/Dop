@@ -59,9 +59,9 @@
 }
 .k3-cand i {
   margin-top: 1px;
-  font-size: max(10.5px, calc(var(--cell) * 0.3));
-  font-weight: 650;
-  color: #1d4a66;
+  font-size: max(11px, calc(var(--cell) * 0.32));
+  font-weight: 700;
+  color: #0d3550;
 }
 .k3-cand.best b {
   color: #021826;
@@ -108,11 +108,12 @@
     0 0 8px rgba(0, 0, 0, 0.5);
 }
 .k3-cand.tag.pick:not(.best) b {
-  background: rgba(4, 16, 26, 0.6);
-  color: rgba(232, 247, 255, 0.85);
+  background: rgba(4, 16, 26, 0.55);
+  box-shadow: 0 0 0 1px rgba(143, 220, 255, 0.2);
+  color: rgba(214, 236, 248, 0.75);
 }
 .k3-cand.tag.pick:not(.best) {
-  opacity: 0.8;
+  opacity: 0.7;
 }
 @keyframes k3-tag {
   from {

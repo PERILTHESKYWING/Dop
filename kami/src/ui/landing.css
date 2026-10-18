@@ -431,28 +431,18 @@ html.kiai-landing body {
   visibility: visible;
   animation: l-word 0.4s ease both;
 }
-/* while Kiai reads: shimmering lines where the answer will be */
+/* while Kiai reads: one shimmering line where the answer will start */
 .l-skel {
   position: absolute;
-  inset: 4px 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  inset: 7px 0 auto;
 }
 .l-skel i {
   display: block;
-  height: 10px;
-  border-radius: 5px;
-  background: linear-gradient(90deg, rgba(11, 15, 20, 0.06) 30%, rgba(47, 211, 255, 0.28) 50%, rgba(11, 15, 20, 0.06) 70%) 0 0 / 300% 100%;
+  width: 72%;
+  height: 8px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(11, 15, 20, 0.06) 30%, rgba(47, 211, 255, 0.3) 50%, rgba(11, 15, 20, 0.06) 70%) 0 0 / 300% 100%;
   animation: l-shimmer 1.4s linear infinite;
-}
-.l-skel i:nth-child(2) {
-  width: 86%;
-  animation-delay: 0.12s;
-}
-.l-skel i:nth-child(3) {
-  width: 58%;
-  animation-delay: 0.24s;
 }
 @keyframes l-shimmer {
   from {
@@ -485,8 +475,9 @@ html.kiai-landing body {
   margin: 10px 0 0;
   padding-top: 9px;
   border-top: 1px solid rgba(11, 15, 20, 0.08);
-  font: 500 12px/1.4 var(--mono);
-  color: var(--l-muted);
+  font: 500 13px/1.45 var(--font);
+  font-variant-numeric: tabular-nums;
+  color: #5b6573;
 }
 .l-ask-foot span {
   grid-area: 1 / 1;
@@ -604,8 +595,10 @@ html.kiai-landing body {
   font-style: normal;
 }
 .l-legend .col {
+  flex: none;
   width: 6px;
   height: 22px;
+  margin: 0 4px 0 6px;
   border-radius: 3px;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(47, 211, 255, 0.9), 0 0 12px 2px rgba(47, 211, 255, 0.8);
@@ -838,11 +831,11 @@ html.kiai-landing body {
     align-items: flex-start;
   }
   .l-dive .l-graph-wrap {
-    left: calc(var(--l-pad) + 64px);
+    left: calc(var(--l-pad) + 28px);
     right: auto;
     width: min(40%, 580px);
-    height: clamp(120px, 21vh, 200px);
-    bottom: clamp(48px, 7.5vh, 76px);
+    height: clamp(104px, 16vh, 160px);
+    bottom: clamp(52px, 8vh, 80px);
   }
 }
 /* the step's numbers, set in the open stage over the board: big figures, no panels */
@@ -931,11 +924,24 @@ html.kiai-landing body {
   transition: transform 0.12s linear;
 }
 .k3-dl.done b {
-  background: #0a8fc7;
+  background: rgba(4, 16, 26, 0.9);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 0 26px rgba(47, 211, 255, 0.8);
+    0 0 0 1px rgba(127, 233, 255, 0.55),
+    0 0 22px rgba(47, 211, 255, 0.35);
+  color: #fff;
   animation: k3-hit 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+/* a lit dot before "Ready": the one accent */
+.k3-dl.done b::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 9px 2px 0;
+  border-radius: 50%;
+  background: var(--l-glow);
+  box-shadow: 0 0 10px var(--l-glow);
+  vertical-align: middle;
 }
 .k3-dl.done b::after {
   opacity: 0;
@@ -1112,12 +1118,17 @@ html.kiai-landing body {
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
+/* the scale sits inside the plot, over its own line, so the graph lines up with the copy */
 .l-graph-y {
   position: absolute;
-  right: calc(100% + 10px);
-  translate: 0 -50%;
-  font: 500 11px/1 var(--mono);
-  color: var(--d-ink-2);
+  left: 0;
+  translate: 0 calc(-100% - 3px);
+  font: 500 12px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  color: #8e98a6;
+}
+.l-graph-y.top {
+  translate: 0 4px;
 }
 .l-graph-mark {
   position: absolute;
@@ -1142,21 +1153,29 @@ html.kiai-landing body {
   left: 50%;
   bottom: calc(100% + 8px);
   translate: -50% 0;
+  font-variant-numeric: tabular-nums;
   padding: 2px 7px;
   border-radius: 7px;
   background: rgba(4, 16, 26, 0.86);
   box-shadow: 0 0 0 1px rgba(143, 220, 255, 0.4);
   color: #fff;
-  font: 650 11.5px/1.3 var(--font);
+  font: 650 12px/1.3 var(--font);
   font-style: normal;
   white-space: nowrap;
 }
+/* near the end of the game the label hangs left of the dot, inside the graph */
+.l-graph-dot.end i {
+  left: auto;
+  right: -3px;
+  translate: 0 0;
+}
 .l-graph-x {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 7px);
   translate: -50% 0;
-  font: 500 11px/1 var(--mono);
-  color: var(--d-ink-2);
+  font: 500 12px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  color: #8e98a6;
   white-space: nowrap;
 }
 .l-graph-x.start {
@@ -1168,19 +1187,21 @@ html.kiai-landing body {
 .l-graph-key {
   position: absolute;
   left: 0;
-  top: calc(100% + 24px);
+  top: calc(100% + 28px);
   margin: 0;
   white-space: nowrap;
-  font-size: 12.5px;
-  color: var(--d-ink-2);
+  font-size: 13px;
+  color: #a3adba;
 }
 .l-graph-key b {
   display: inline-block;
-  padding: 1px 6px;
+  margin-right: 4px;
+  padding: 1px 7px;
   border-radius: 7px;
   background: #ff9a4d;
   color: #1a0d03;
-  font: 700 11px/1.4 var(--mono);
+  font: 700 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
 }
 .l-graph-mark b {
   position: absolute;
@@ -1195,7 +1216,8 @@ html.kiai-landing body {
   border-radius: 14px;
   background: #ff9a4d;
   color: #1a0d03;
-  font: 700 13px/1 var(--mono);
+  font: 700 13px/1 var(--font);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   box-shadow:
     0 0 0 2px #fff,
@@ -1234,9 +1256,10 @@ html.kiai-landing body {
   margin-top: 8px;
 }
 .l-cta .l-cta-note {
-  margin: 16px 0 0;
-  font-size: 14px;
-  color: #8fa7bc;
+  margin: 14px 0 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #e3eef7;
 }
 .l-cta-demo {
   position: relative;
@@ -1342,8 +1365,18 @@ html.kiai-landing body {
   }
   /* the close views run off the stage's sides: fade them out rather than cut them */
   .lb.l-stage-board {
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(#000 80%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(#000 80%, transparent);
+    mask-composite: intersect;
+  }
+  /* the visit count stands higher over the favourite, clear of its tag, and drops its caption */
+  .k3-count b {
+    translate: 0 -22px;
+    font-size: 22px;
+  }
+  .k3-count i {
+    display: none;
   }
   /* the review's graph and accuracy need a taller strip */
   .l-dive.s-review .lb.l-stage-board {
@@ -1391,7 +1424,7 @@ html.kiai-landing body {
   .l-stat span,
   .l-path span,
   .l-path i {
-    font-size: 11px;
+    font-size: 12px;
   }
   .l-path b {
     font-size: 20px;
@@ -1467,7 +1500,7 @@ html.kiai-landing body {
     padding-top: 84px;
   }
   .l-hero h1 {
-    font-size: 40px;
+    font-size: 35px;
   }
   .l-hero-kicker {
     margin-bottom: 12px;
@@ -1484,7 +1517,9 @@ html.kiai-landing body {
     margin-top: 18px;
   }
   .l-ask-foot,
-  .l-legend {
+  .l-legend,
+  .l-hero-kicker .l-wide,
+  .l-actions .l-btn.ghost {
     display: none;
   }
   .l-btn {

@@ -93,6 +93,8 @@ export interface CandGlow {
   share: number;
   /** 0 = as good as the best, 1 = clearly worse. */
   badness: number;
+  /** An earlier pick kept for comparison: dim and grey-blue, so the live one stands out. */
+  ghost?: boolean;
 }
 
 export interface PlateCamera {
@@ -453,7 +455,7 @@ interface CandFx {
 }
 
 const DIAL_SEGS = 72;
-const C_BEST = 0x2fd3ff, C_GOOD = 0x8fdcff, C_MID = 0xe4f1ff, C_BAD = 0xffb057;
+const C_BEST = 0x2fd3ff, C_GOOD = 0x8fdcff, C_MID = 0xe4f1ff, C_BAD = 0xffb057, C_GHOST = 0x4f87a3;
 // smoked blue glass, a clear step lighter than a black stone so a candidate never reads as one
 const LENS_BEST = new Color(0x2eb4ee), LENS = new Color(0xc4e6f6);
 const WHITE = new Color(0xffffff);
@@ -610,7 +612,7 @@ export class KayaView {
     bump.repeat.copy(top.repeat);
     bump.offset.copy(top.offset);
     // a satin finish: enough gloss for a soft glint, little enough that a bright sky doesn't veil the grain
-    const topMat = new MeshPhysicalMaterial({ map: top, color: 0xfff1de, bumpMap: bump, bumpScale: 0.45, roughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.42, specularIntensity: 0.38 });
+    const topMat = new MeshPhysicalMaterial({ map: top, color: 0xf8d0a8, bumpMap: bump, bumpScale: 0.45, roughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.42, specularIntensity: 0.38 });
     const front = new MeshPhysicalMaterial({ map: tex('kaya-front.webp'), roughness: 0.66, specularIntensity: 0.3 });
     const side = new MeshPhysicalMaterial({ map: tex('kaya-side.webp'), roughness: 0.66, specularIntensity: 0.3 });
     const under = new MeshPhysicalMaterial({ color: 0x6b4120, roughness: 0.9 });
@@ -677,7 +679,7 @@ export class KayaView {
   }
 
   private buildBowls() {
-    const wood = new MeshPhysicalMaterial({ map: tex('bowl.webp'), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.38, specularIntensity: 0.45 });
+    const wood = new MeshPhysicalMaterial({ map: tex('bowl.webp'), roughness: 0.5, clearcoat: 0.85, clearcoatRoughness: 0.14, specularIntensity: 0.45 });
     const prof = BOWL.map(([r, z]) => new Vector2(r, z));
     const lathe = new LatheGeometry(prof, 96);
     // two bowls behind the board, near Blender's (tools/kiai-art/hero.py; the black one pulled in so a wide crop keeps it whole), not turned with it
@@ -898,10 +900,10 @@ export class KayaView {
       const best = c.rank === 0 ? 1 : 0;
       const look: CandLook = {
         on: 1,
-        strength: best ? 1 : 0.45 + 0.55 * Math.sqrt(MathUtils.clamp(c.share, 0, 1)),
+        strength: best ? 1 : c.ghost ? 0.05 : 0.45 + 0.55 * Math.sqrt(MathUtils.clamp(c.share, 0, 1)),
         share: best ? 1 : MathUtils.clamp(c.share, 0.04, 1),
         best,
-        col: new Color(best ? C_BEST : c.badness > 0.6 ? C_BAD : c.badness > 0.3 ? C_MID : C_GOOD),
+        col: new Color(best ? C_BEST : c.ghost ? C_GHOST : c.badness > 0.6 ? C_BAD : c.badness > 0.3 ? C_MID : C_GOOD),
       };
       let fx = this.cands.get(c.loc);
       if (!fx) {
@@ -1141,9 +1143,10 @@ export class KayaView {
 
   /**
    * A ping: a ring of light runs out from a point (or the centre) across the board, lighting
-   * the grid lines as it passes. Marks the start of a read.
+   * the grid lines as it passes. Marks the start of a read. `soft` lights only the lines, more
+   * faintly (the app's flat board, where a band of light over the wood reads as a smear).
    */
-  ping(loc: Loc | null = null, dur = 1500) {
+  ping(loc: Loc | null = null, dur = 1500, soft = false) {
     if (!this.wave) {
       const lines = new Mesh(this.lines.geometry, waveMaterial(0.006, 1.6));
       lines.position.y = this.BT + 0.0001;
@@ -1169,10 +1172,9 @@ export class KayaView {
         const t = Math.min(1, (now - w.t0) / w.dur);
         const r = w.max * easeOut(t);
         const a = Math.min(1, t * 6) * Math.pow(1 - t, 0.8);
-        for (const m of [w.lines, w.wood]) {
-          m.material.uniforms.uR.value = r;
-          m.material.uniforms.uA.value = a;
-        }
+        w.lines.material.uniforms.uA.value = a * (soft ? 0.55 : 1);
+        w.wood.material.uniforms.uA.value = soft ? 0 : a;
+        for (const m of [w.lines, w.wood]) m.material.uniforms.uR.value = r;
         return t < 1;
       },
     });

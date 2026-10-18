@@ -84,7 +84,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
       <section ref={cta} className={`l-cta${ctaSeen ? ' seen' : ''}`} data-tone="dark" aria-labelledby="l-cta">
         <div className="l-cta-copy">
-          <h2 id="l-cta">Set up a position. Ask.</h2>
+          <h2 id="l-cta">Find the best move, and why.</h2>
           <p>Click points to place stones, paste an SGF (a saved game) or open a file, then ask your question.</p>
           <a className="l-btn light" href="/" onClick={go}>
             Ask about a position

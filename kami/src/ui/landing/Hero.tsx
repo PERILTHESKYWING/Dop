@@ -40,7 +40,7 @@ function scoreFoot(): string {
 // since Abyss's own read is longer than the one on the board).
 const best = FINAL.cands[0];
 const SCENES: Scene[] = [
-  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate after it: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read in your browser` },
+  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate if played: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read in your browser` },
   { q: SCORE.question, kind: 'score', point: null, text: words(SCORE.summary, 3), foot: scoreFoot() },
 ];
 
@@ -62,7 +62,7 @@ function heroFit(w: number, h: number): ViewMode {
 /**
  * The answer so far: words up to `shown`, coordinates as chips; the pointed one is marked. Words
  * not yet shown keep their place, so the card is its final size from the start and nothing above
- * it moves; while Kiai reads, shimmering lines stand in for them.
+ * it moves; while Kiai reads, a shimmering line stands in for them.
  */
 function Answer({ text, shown, point, wait }: { text: string; shown: number; point: string | null; wait?: boolean }) {
   const ws = text.split(' ');
@@ -70,8 +70,6 @@ function Answer({ text, shown, point, wait }: { text: string; shown: number; poi
     <p className={`l-ask-text${wait ? ' wait' : ''}`}>
       {wait && (
         <span className="l-skel" aria-hidden="true">
-          <i />
-          <i />
           <i />
         </span>
       )}
@@ -262,7 +260,9 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       </picture>
       {gl && <LiveBoard className={`l-hero-board${view ? ' on' : ''}`} options={{ bowls: true, shadowCatcher: true, sun: HERO_CAM.sun, toneMapping: 'aces', exposure: 0.9, fx: 2.1, pillars: PILLAR, lite: typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches }} fit={heroFit} labels={labels} onView={onView} onVisible={setVisible} onFrame={follow} />}
       <div className="l-hero-copy">
-        <p className="l-hero-kicker">For Go players · KataGo’s analysis in plain words</p>
+        <p className="l-hero-kicker">
+          For Go players<span className="l-wide"> · KataGo’s analysis in plain words</span>
+        </p>
         <h1 id="l-title" aria-label="Ask what to play in any Go position.">
           <span className="l-line">
             <span>Ask what to play</span>
@@ -271,8 +271,8 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
             <span>in any Go position.</span>
           </span>
         </h1>
-        <p className="l-lead">Ask who is ahead, too. KataGo, the open-source Go AI, reads the position in your browser, and Kiai explains what it found. Free, no sign-up.</p>
-        <p className="l-lead short">KataGo reads the position in your browser; Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead">You can also ask who is ahead. KataGo, the open-source Go AI, reads the position in your browser, and Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead short">KataGo, the open-source Go AI, reads it in your browser; Kiai explains what it found. Free, no sign-up.</p>
         <div className="l-actions">
           <a className="l-btn" href="/" onClick={onEnter}>
             Ask about a position
@@ -314,7 +314,7 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       <div className="l-hero-foot">
       {gl && (
         <p className="l-legend" aria-hidden="true">
-          <i className="col" /> a move KataGo is weighing: the taller, the more it looked <i className="tag">20%</i> Black’s win rate if it is played
+          <i className="col" /> a move KataGo is weighing: the taller, the more it looked at it <i className="tag">20%</i> Black’s win rate if played
         </p>
       )}
       {gl && !still && (

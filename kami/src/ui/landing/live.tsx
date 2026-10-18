@@ -62,6 +62,9 @@ export interface Label {
   style?: React.CSSProperties;
 }
 
+/** The highest a bubble's top may stand in the board's layer: clear of the 72 px bar, with room. */
+const SAY_TOP = 96;
+
 interface Props {
   options: Omit<KayaOptions, 'canvas' | 'size'>;
   /** The camera for a canvas of this size. */
@@ -138,7 +141,13 @@ export function LiveBoard({ options, fit, labels = [], onView, onVisible, onFram
       const L = ls[i];
       const p = v.project(L.loc, L.lift ?? 0);
       const k = kids[i] as HTMLElement;
-      k.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      // a bubble standing over its point never runs up under the page's bar
+      let y = p.y;
+      if (L.cls.includes('k3-say')) {
+        const h = (k.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+        y = Math.max(y, SAY_TOP + h - 10);
+      }
+      k.style.transform = `translate(${p.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       if (/\b(tag|k3-swing)\b/.test(L.cls)) {
         const hit = kept.some((q) => Math.abs(q.x - p.x) < gapX && Math.abs(q.y - p.y) < gapY);
         k.classList.toggle('k3-hide', hit);

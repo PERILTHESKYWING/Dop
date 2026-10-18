@@ -30,7 +30,7 @@ const BOARD_X = 0.21;
 function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: number; at?: [number, number]; spin?: number; side?: 1 | -1 } = {}): ViewMode {
   const wide = w > 900;
   // side -1: the board sits left of centre, for the steps whose copy stands on the right
-  const shift = wide ? 0.21 * (o.side ?? 1) : 0;
+  const shift = wide ? ((o.side ?? 1) > 0 ? 0.21 : -0.17) : 0;
   const aspect = (w / Math.max(1, h)) * (wide ? 0.56 : 1);
   const fov = 26;
   const fit = (BOARD_X * 1.25) / Math.tan((fov * Math.PI) / 360) / Math.min(1, aspect);
@@ -40,15 +40,15 @@ function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: num
   return { kind: 'orbit', elev, azim, fov, dist: fit * zoom, target: [x, 0.06, z], spin: o.spin, shift };
 }
 // the reading happens on the right side (Q9 to R12), so the close views look there; each depth
-// dives a little closer and lower than the last
+// dives closer and lower than the last (Skim from high up, Abyss down among the stones)
 const VIEWS: Record<StepId, (w: number, h: number) => ViewMode> = {
   read: (w, h) => orbit(40, -26, w, h, { zoom: 0.6, at: [0.1, -0.05], spin: 0.5 }),
-  skim: (w, h) => orbit(46, -12, w, h, { zoom: 0.64, at: [0.1, -0.05] }),
-  dive: (w, h) => orbit(40, -30, w, h, { zoom: 0.56, at: [0.1, -0.06] }),
-  abyss: (w, h) => orbit(33, -46, w, h, { zoom: 0.5, at: [0.1, -0.05] }),
+  skim: (w, h) => orbit(52, -10, w, h, { zoom: 0.82, at: [0.08, -0.04] }),
+  dive: (w, h) => orbit(40, -28, w, h, { zoom: 0.6, at: [0.1, -0.05] }),
+  abyss: (w, h) => orbit(29, -44, w, h, { zoom: 0.44, at: [0.11, -0.05] }),
   own: (w, h) => orbit(58, 6, w, h, { zoom: 1.08, at: [0, -0.07], side: -1 }),
   review: (w, h) => orbit(64, -8, w, h, { zoom: 1.2, at: [0, -0.02] }),
-  device: (w, h) => orbit(30, 30, w, h, { zoom: 1.22, at: [0, -0.03], spin: 6, side: -1 }),
+  device: (w, h) => orbit(30, 30, w, h, { zoom: 1.26, at: [0, -0.03], spin: 6, side: -1 }),
 };
 /** Steps whose copy stands on the right of a wide screen (the board moves left for them). */
 const RIGHT: Partial<Record<StepId, true>> = { own: true, device: true };
@@ -75,7 +75,7 @@ function lineLabels(moves: { loc: number; color: number }[]): Label[] {
   return moves.flatMap((m, i) => (seen.has(m.loc) ? [] : (seen.add(m.loc), [{ key: `v${m.loc}`, loc: m.loc, lift: 0.0098, cls: `k3-var ${m.color === 1 ? 'b' : 'w'} rise`, text: String(i + 1) }])));
 }
 
-/** Each depth's pick as a column: this depth's tall and lit, the shallower ones short and pale. */
+/** Each depth's pick as a column: this depth's tall and lit, the shallower ones short, dim and grey-blue. */
 function depthPicks(upto: DepthId, current: boolean): { cands: CandGlow[]; labels: Label[] } {
   const k = DEPTHS.indexOf(upto);
   const cands: CandGlow[] = [];
@@ -84,7 +84,7 @@ function depthPicks(upto: DepthId, current: boolean): { cands: CandGlow[]; label
     const at = PICK[d][0];
     const lead = current && i === k;
     const share = lead ? 1 : 0.32;
-    cands.push({ loc: loc(at), rank: lead ? 0 : i + 1, share, badness: lead ? 0 : 0.45 });
+    cands.push({ loc: loc(at), rank: lead ? 0 : i + 1, share, badness: 0, ghost: !lead });
     labels.push({ key: `p${d}`, loc: loc(at), lift: lift(share), cls: `k3-cand tag pick${lead ? ' best' : ''}`, text: at, sub: ANS[d].depth });
   });
   return { cands, labels };
@@ -94,15 +94,25 @@ function depthPicks(upto: DepthId, current: boolean): { cands: CandGlow[]; label
  * On a wide screen a depth's answer stands on the board, beside the top of its pick's column; once
  * the depths stand side by side it moves left of them, so it covers none of their tags.
  */
-function say(id: DepthId, aside = false): Label {
-  return { key: `q${id}`, loc: loc(aside ? 'O13' : PICK[id][0]), lift: lift(1), cls: 'k3-say', text: `“${words(ANS[id].summary, id === 'skim' ? 2 : 1)}”`, sub: `Kiai, ${ANS[id].depth}` };
+function say(id: DepthId, aside = false, shown = Infinity): Label {
+  const all = words(ANS[id].summary, id === 'skim' ? 2 : 1).split(' ');
+  const text = all.slice(0, shown).join(' ');
+  return { key: `q${id}`, loc: loc(aside ? 'O13' : PICK[id][0]), lift: lift(1), cls: 'k3-say', text: `“${text}${shown >= all.length ? '”' : ''}`, sub: `Kiai, ${ANS[id].depth}` };
+}
+/** Kiai's answer arriving word by word in its bubble, as it does in the app. */
+async function typeSay(id: DepthId, rest: Label[], setLabels: (l: Label[]) => void, sig: AbortSignal) {
+  const n = words(ANS[id].summary, id === 'skim' ? 2 : 1).split(' ').length;
+  for (let i = 1; i <= n; i++) {
+    setLabels([...rest, say(id, false, i)]);
+    await sleep(42, sig);
+  }
 }
 /** A figure standing on the board over what it counts (the visits over KataGo's favourite). */
 function count(r: Read, sub: string): Label {
   return { key: 'n', loc: loc(r.cands[0].at), lift: lift(1) + 0.045, cls: 'k3-count', text: fmt(r.visits), sub };
 }
-/** White's lead, standing in the open middle of the board between the two sides' territory. */
-const LEAD: Label = { key: 'lead', loc: loc('K10'), lift: 0.03, cls: 'k3-count', text: `W+${(-FINAL.bLead).toFixed(1)}`, sub: `White’s lead in points · Black’s win rate ${pct(FINAL.bWin)}` };
+/** White's lead (counting up to it), standing in the open middle of the board between the two sides' territory. */
+const lead = (k = 1): Label => ({ key: 'lead', loc: loc('K10'), lift: 0.03, cls: 'k3-count', text: `W+${(-FINAL.bLead * k).toFixed(1)}`, sub: `White’s lead in points · Black’s win rate ${pct(FINAL.bWin)}` });
 /** The territory answer, standing beside the upper right it talks about (clear of its blocks). */
 const SAY_OWN: Label = { key: 'qown', loc: loc('N17'), lift: 0.03, cls: 'k3-say', text: `“${words(WHO.summary, 2)}”`, sub: `Kiai, ${WHO.depth}` };
 
@@ -142,8 +152,10 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         v.ping(loc(PICK[id][0]), 1300);
         const now = depthPicks(id, true);
         v.setCandidates(now.cands);
-        setLabels([...now.labels, say(id)]);
-        await sleep(1300, sig);
+        setLabels(now.labels);
+        await sleep(500, sig);
+        await typeSay(id, now.labels, setLabels, sig);
+        await sleep(700, sig);
         v.setVariation(pv, 420);
         // while the line is drawn, only this depth's pick keeps its tag (the line's numbers need the room)
         setLabels([now.labels[now.labels.length - 1], ...lineLabels(pv).slice(1), say(id)]);
@@ -159,9 +171,14 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         if (!still) await sleep(300, sig);
         v.setOwnership(FINAL.own, !still);
         set({ done: true });
-        setLabels([LEAD]);
-        if (!still) await sleep(900, sig);
-        setLabels([LEAD, SAY_OWN]);
+        if (!still)
+          for (let i = 1; i <= 18; i++) {
+            setLabels([lead(1 - Math.pow(1 - i / 18, 3))]);
+            await sleep(50, sig);
+          }
+        setLabels([lead()]);
+        if (!still) await sleep(400, sig);
+        setLabels([lead(), SAY_OWN]);
         return sleep(1e9, sig);
       }
       case 'review': {
@@ -269,7 +286,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Skim picks Q10.',
     body: (
       <>
-        <p>You pick the depth: Skim is quickest, Dive takes longer, Abyss takes longest. The same question at each:</p>
+        <p>You pick how deep KataGo reads: Skim is quickest, Abyss reads deepest. The same question at each:</p>
         <Quote a={ANS.skim} n={2} phone />
       </>
     ),
@@ -295,7 +312,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Three depths, three answers. The deeper the read, the longer it takes and the more visits stand behind its pick.</p>
+        <p className="l-step-note">Each depth picked a different move. Abyss read longest, so the most visits stand behind its pick, and it is the most reliable of the three.</p>
       </>
     ),
   },
@@ -317,8 +334,8 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'A whole game, graded.',
     body: (
       <p>
-        KataGo reads every move. Kiai graphs Black’s win rate, marks the turning points on the board and scores each side’s accuracy: the less win rate a side gave away, the
-        higher its score. This game: {GAME.moves.length} moves, {DEMO.review.visits} visits per move. Paste your own SGF to review yours.
+        KataGo reads every move. Kiai graphs Black’s win rate, pins the turning points to their stones and scores each side’s accuracy (100% means no move gave away win
+        rate). In this {GAME.moves.length}-move game, Black took the lead twice and gave it back twice.
       </p>
     ),
   },
@@ -389,7 +406,7 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
         <line className="l-graph-head" x1={x(move)} x2={x(move)} y1="0" y2={H} />
       </svg>
       {['100%', '50%', '0%'].map((t, i) => (
-        <span key={t} className="l-graph-y" style={{ top: `${i * 50}%` }}>
+        <span key={t} className={`l-graph-y${i === 0 ? ' top' : ''}`} style={{ top: `${i * 50}%` }}>
           {t}
         </span>
       ))}
@@ -399,7 +416,7 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
         </span>
       ))}
       {move > 0 && (
-        <span className="l-graph-dot" style={{ left: `${(move / (w.length - 1)) * 100}%`, top: `${(1 - w[Math.min(move, w.length - 1)]) * 100}%` }}>
+        <span className={`l-graph-dot${move / (w.length - 1) > 0.85 ? ' end' : ''}`} style={{ left: `${(move / (w.length - 1)) * 100}%`, top: `${(1 - w[Math.min(move, w.length - 1)]) * 100}%` }}>
           <i>move {move}</i>
         </span>
       )}
@@ -409,7 +426,7 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
         </span>
       ))}
       <p className="l-graph-key">
-        <b>{SWINGS[0]?.n ?? 1}</b> a turning point: its move number, and on the board the win rate that move cost
+        <b>{marks[0]?.n ?? SWINGS[0]?.n ?? 1}</b> turning points: the move numbers here, and on the board the win rate each move cost
       </p>
     </div>
   );

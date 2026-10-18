@@ -667,7 +667,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
         <div className="hello">
           <Logo size={72} tile className="hello-logo" />
           <h1>What shall we read?</h1>
-          <p>Ask about any Go position. KataGo reads it on your device, and Kiai tells you why.</p>
+          <p>Ask about any Go position. KataGo reads it in your browser, and Kiai tells you why.</p>
           <div className="ideas">
             {ideas.map((t) => (
               <button key={t} type="button" className="idea" onClick={() => onAsk(t)}>
