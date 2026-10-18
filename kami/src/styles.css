@@ -1,31 +1,32 @@
-/* Kami. The look follows Claude's: warm paper, quiet borders, one clay accent, serif answers.
+/* Kiai. A high-altitude look: cloud-white paper, razorbill-black ink, one clear sky blue.
  * Light and dark come from the tokens below; nothing else names a colour except the board. */
 :root {
-  --bg: #faf9f5;
-  --side: #f4f3ee;
-  --panel: #f5f4ef;
+  --bg: #f6f8fb;
+  --side: #eef2f7;
+  --panel: #edf1f6;
+  --board-sky: url('/kiai/sky.webp');
   --card: #ffffff;
   --raised: #ffffff;
-  --ink: #141413;
-  --ink-2: #3d3d3a;
-  --muted: #73726c;
-  --faint: #a3a198;
-  --line: #e5e3da;
-  --line-strong: #d6d3c8;
-  --hover: rgba(20, 20, 19, 0.05);
-  --press: rgba(20, 20, 19, 0.08);
-  --bubble: #f0eee6;
-  --accent: #c96442;
-  --accent-hover: #b5583a;
-  --accent-soft: rgba(201, 100, 66, 0.1);
-  --accent-line: rgba(201, 100, 66, 0.32);
+  --ink: #0b0f14;
+  --ink-2: #2a323c;
+  --muted: #5d6875;
+  --faint: #95a0ad;
+  --line: #dde4ec;
+  --line-strong: #c8d2de;
+  --hover: rgba(11, 15, 20, 0.05);
+  --press: rgba(11, 15, 20, 0.085);
+  --bubble: #e7eef6;
+  --accent: #1d63d8;
+  --accent-hover: #1754ba;
+  --accent-soft: rgba(29, 99, 216, 0.09);
+  --accent-line: rgba(29, 99, 216, 0.3);
   --on-accent: #ffffff;
-  --danger: #b3402f;
-  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.05);
-  --shadow: 0 4px 20px rgba(20, 20, 19, 0.06), 0 1px 3px rgba(20, 20, 19, 0.05);
-  --shadow-pop: 0 10px 38px rgba(20, 20, 19, 0.12), 0 2px 6px rgba(20, 20, 19, 0.06);
-  --scroll: rgba(20, 20, 19, 0.16);
-  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
+  --danger: #c0392b;
+  --shadow-sm: 0 1px 2px rgba(16, 32, 56, 0.06);
+  --shadow: 0 6px 24px rgba(16, 32, 56, 0.07), 0 1px 3px rgba(16, 32, 56, 0.06);
+  --shadow-pop: 0 14px 44px rgba(16, 32, 56, 0.16), 0 2px 6px rgba(16, 32, 56, 0.07);
+  --scroll: rgba(11, 15, 20, 0.16);
+  --font: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
   --read: ui-serif, 'Iowan Old Style', Charter, 'Sitka Text', Cambria, Georgia, 'Songti SC', 'SimSun', serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   /* Hooks used by Dop's board, graphs and badges. */
@@ -45,50 +46,54 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #262624;
-    --side: #1f1e1d;
-    --panel: #22211f;
-    --card: #30302e;
-    --raised: #34342f;
-    --ink: #faf9f5;
-    --ink-2: #c9c7bd;
-    --muted: #9c9a91;
-    --faint: #6f6d66;
-    --line: #3b3a36;
-    --line-strong: #4a4943;
-    --hover: rgba(250, 249, 245, 0.06);
-    --press: rgba(250, 249, 245, 0.1);
-    --bubble: #141413;
-    --accent: #d97757;
-    --accent-hover: #e08667;
-    --accent-soft: rgba(217, 119, 87, 0.14);
-    --accent-line: rgba(217, 119, 87, 0.4);
-    --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-    --scroll: rgba(250, 249, 245, 0.16);
+    --bg: #0a0e14;
+    --side: #070a0f;
+    --panel: #0c1118;
+    --board-sky: none;
+    --card: #121923;
+    --raised: #17202b;
+    --ink: #eef3f8;
+    --ink-2: #c4cdd8;
+    --muted: #8793a1;
+    --faint: #5a6674;
+    --line: #1d2733;
+    --line-strong: #2a3644;
+    --hover: rgba(238, 243, 248, 0.06);
+    --press: rgba(238, 243, 248, 0.1);
+    --bubble: #17212c;
+    --accent: #5b9dff;
+    --accent-hover: #7db1ff;
+    --accent-soft: rgba(91, 157, 255, 0.13);
+    --accent-line: rgba(91, 157, 255, 0.4);
+    --on-accent: #06101e;
+    --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+    --scroll: rgba(238, 243, 248, 0.16);
     color-scheme: dark;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #262624;
-  --side: #1f1e1d;
-  --panel: #22211f;
-  --card: #30302e;
-  --raised: #34342f;
-  --ink: #faf9f5;
-  --ink-2: #c9c7bd;
-  --muted: #9c9a91;
-  --faint: #6f6d66;
-  --line: #3b3a36;
-  --line-strong: #4a4943;
-  --hover: rgba(250, 249, 245, 0.06);
-  --press: rgba(250, 249, 245, 0.1);
-  --bubble: #141413;
-  --accent: #d97757;
-  --accent-hover: #e08667;
-  --accent-soft: rgba(217, 119, 87, 0.14);
-  --accent-line: rgba(217, 119, 87, 0.4);
-  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --scroll: rgba(250, 249, 245, 0.16);
+  --bg: #0a0e14;
+  --side: #070a0f;
+  --panel: #0c1118;
+  --board-sky: none;
+  --card: #121923;
+  --raised: #17202b;
+  --ink: #eef3f8;
+  --ink-2: #c4cdd8;
+  --muted: #8793a1;
+  --faint: #5a6674;
+  --line: #1d2733;
+  --line-strong: #2a3644;
+  --hover: rgba(238, 243, 248, 0.06);
+  --press: rgba(238, 243, 248, 0.1);
+  --bubble: #17212c;
+  --accent: #5b9dff;
+  --accent-hover: #7db1ff;
+  --accent-soft: rgba(91, 157, 255, 0.13);
+  --accent-line: rgba(91, 157, 255, 0.4);
+  --on-accent: #06101e;
+  --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --scroll: rgba(238, 243, 248, 0.16);
   color-scheme: dark;
 }
 
@@ -544,11 +549,20 @@ kbd {
 .brand {
   flex: 1;
   display: flex;
-  gap: 8px;
+  gap: 9px;
   align-items: center;
-  font-weight: 650;
-  font-size: 17px;
-  letter-spacing: -0.01em;
+}
+.wordmark {
+  font-stretch: 118%;
+  font-weight: 760;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+/* the white Ikki tile needs an edge on light paper; on dark it stands on its own */
+.logo.tile {
+  border-radius: 23%;
+  box-shadow: 0 0 0 1px var(--line);
+  flex: none;
 }
 .new-chat {
   margin: 6px 8px 14px;
@@ -570,8 +584,8 @@ kbd {
   border-radius: 50%;
   display: inline-grid;
   place-items: center;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--bg);
   flex: none;
   transition: transform 0.15s;
 }
@@ -794,17 +808,6 @@ kbd {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.who::before {
-  content: '';
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #5a5953, #141413 70%);
-  box-shadow:
-    9px 0 0 -1px var(--card),
-    9px 0 0 0 var(--line-strong);
-  margin-right: 10px;
 }
 .who .meta {
   font-weight: 400;
@@ -1121,16 +1124,22 @@ kbd {
   padding: 16px;
   margin-top: -6vh;
 }
+.hello-logo {
+  display: block;
+  margin: 0 auto 22px;
+}
 .hello h1 {
-  font-family: var(--read);
-  font-weight: 400;
-  font-size: 38px;
-  margin: 0 0 8px;
-  letter-spacing: -0.015em;
+  font-stretch: 118%;
+  font-weight: 760;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.05;
+  margin: 0 0 12px;
+  letter-spacing: -0.035em;
 }
 .hello p {
   margin: 0 0 22px;
   color: var(--ink-2);
+  text-wrap: pretty;
 }
 .hello .meta {
   margin-top: 18px;
@@ -1142,10 +1151,13 @@ kbd {
   justify-content: center;
 }
 .idea {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   border: 1px solid var(--line);
   background: var(--card);
-  border-radius: 10px;
-  padding: 7px 12px;
+  border-radius: 999px;
+  padding: 7px 14px 7px 9px;
   font-size: 14px;
   color: var(--ink-2);
   box-shadow: var(--shadow-sm);
@@ -1156,6 +1168,76 @@ kbd {
 .idea:hover {
   border-color: var(--line-strong);
   color: var(--ink);
+}
+/* each idea is set down like a stone: black, white, black */
+.idea-stone {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+  background: #16181c;
+  box-shadow: inset -2px -2px 3px rgba(255, 255, 255, 0.12), 0 1px 1.5px rgba(0, 0, 0, 0.3);
+}
+.idea:nth-child(2) .idea-stone {
+  background: #f3f0e8;
+  box-shadow: inset -2px -2px 3px rgba(0, 0, 0, 0.1), 0 1px 1.5px rgba(0, 0, 0, 0.3);
+}
+/* thinking: a small sounding line, a mark sinking down it */
+.dive {
+  position: relative;
+  width: 10px;
+  height: 15px;
+  flex: none;
+}
+.dive::before {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: currentColor;
+  opacity: 0.3;
+}
+.dive::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: kiai-sink 1.5s cubic-bezier(0.5, 0, 0.6, 1) infinite;
+}
+@keyframes kiai-sink {
+  0% {
+    transform: translateY(-1px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dive::after {
+    animation: none;
+    top: 4px;
+  }
+}
+.depth {
+  flex: none;
+  color: var(--accent);
+}
+.menu-btn .depth {
+  margin-right: 2px;
 }
 
 /* ---------------------------------------------------------------- composer */
@@ -1270,9 +1352,9 @@ kbd {
 .send {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
   display: grid;
   place-items: center;
   flex: none;
@@ -1281,10 +1363,10 @@ kbd {
     opacity 0.12s;
 }
 .send:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--ink-2);
 }
 .send:disabled {
-  opacity: 0.35;
+  color: color-mix(in srgb, var(--bg) 45%, var(--ink));
 }
 .send.stop {
   background: var(--ink);
@@ -1298,6 +1380,10 @@ kbd {
 .board-panel {
   position: relative;
   background: var(--panel);
+  /* the board above the clouds, as on the landing: a washed-out photo of the same sky (light theme) */
+  background-image: var(--board-sky);
+  background-size: cover;
+  background-position: 50% 30%;
   display: flex;
   flex-direction: column;
   padding: 6px 12px 8px;
@@ -1448,11 +1534,11 @@ kbd {
 .ev-track {
   position: relative;
   flex: 1;
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
   overflow: hidden;
-  background: #f4f2ec;
-  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.45);
+  background: #fbfaf6;
+  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.28);
 }
 .ev-fill {
   position: absolute;
@@ -1465,9 +1551,10 @@ kbd {
   left: 50%;
   top: -2px;
   bottom: -2px;
-  width: 1px;
-  background: var(--accent);
-  opacity: 0.7;
+  width: 1.5px;
+  margin-left: -0.75px;
+  background: #8a929c;
+  mix-blend-mode: difference;
 }
 .ev-lead {
   flex: none;
@@ -1528,6 +1615,9 @@ kbd {
 }
 .bp-foot {
   flex: none;
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  border-radius: 12px;
+  padding: 0 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1561,38 +1651,41 @@ kbd {
   opacity: 0.5;
 }
 .scrub::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--accent) var(--pct), var(--line-strong) var(--pct));
+  height: 8px;
+  border-radius: 2px;
+  background:
+    repeating-linear-gradient(to right, var(--faint) 0 1px, transparent 1px var(--tick)) 0 100% / 100% 4px no-repeat,
+    linear-gradient(to right, var(--ink) var(--pct), transparent var(--pct)) 0 0 / 100% 2px no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) 0 0 / 100% 2px no-repeat;
 }
 .scrub::-moz-range-track {
-  height: 4px;
-  border-radius: 999px;
+  height: 2px;
+  border-radius: 0;
   background: var(--line-strong);
 }
 .scrub::-moz-range-progress {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--accent);
+  height: 2px;
+  border-radius: 0;
+  background: var(--ink);
 }
 .scrub::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 16px;
   height: 16px;
-  margin-top: -6px;
+  margin-top: -7px;
   border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--accent);
-  box-shadow: var(--shadow-sm);
+  background: var(--ink);
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1px var(--ink), 0 2px 4px rgba(11, 15, 20, 0.25);
   transition: transform 0.12s;
 }
 .scrub::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--accent);
-  box-shadow: var(--shadow-sm);
+  background: var(--ink);
+  border: 2px solid var(--card);
+  box-shadow: 0 0 0 1px var(--ink);
 }
 .scrub:not(:disabled):hover::-webkit-slider-thumb,
 .scrub:active::-webkit-slider-thumb {
@@ -1606,11 +1699,26 @@ kbd {
 }
 .bp-count {
   flex: none;
-  min-width: 64px;
+  min-width: 96px;
   text-align: right;
   font-size: 13.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+.bp-count .mv {
+  color: var(--muted);
+  font-weight: 400;
+  margin-right: 4px;
+}
+/* Kiai's kaya: quieter, smaller coordinates than Dop's, and the base colour of the new wood */
+.board-panel svg.board .bd-coords text {
+  font-size: 0.36px;
+  font-weight: 600;
+  fill: #4a2a0f;
+  fill-opacity: 0.62;
+}
+.board-panel svg.board .bd-wood-base {
+  fill: #b9773d;
 }
 .bp-count .of {
   color: var(--muted);
@@ -2205,6 +2313,21 @@ kbd {
   .hello p {
     margin-bottom: 14px;
     font-size: 14.5px;
+  }
+  /* one row of ideas that scrolls sideways, not a ragged wrap */
+  .ideas {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -16px;
+    padding: 2px 16px 4px;
+  }
+  .ideas::-webkit-scrollbar {
+    display: none;
+  }
+  .idea {
+    flex: none;
   }
   .composer {
     width: auto;

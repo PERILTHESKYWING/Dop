@@ -13,6 +13,7 @@ import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { pickById } from '../lib/writer';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
+import { Logo } from './Logo';
 import { AskContext, Term } from './Term';
 
 export interface Running {
@@ -261,7 +262,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtS
   return (
     <details className={`thoughts${live ? ' live' : ''}`} open={live || undefined}>
       <summary>
-        <Icon name="spark" size={15} />
+        {live ? <span className="dive" aria-hidden="true" /> : <Icon name="spark" size={15} />}
         {label}
         <Icon name="down" size={14} />
       </summary>
@@ -349,7 +350,7 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Kami Local' : 'Gemini'}, checked against KataGo’s facts.</p>}
+      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Night Dive' : 'Gemini'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {ex.facts.length > 0 && (
         <details className="facts">
@@ -389,7 +390,7 @@ function ConceptAnswer({
         <p>
           {CONCEPTS.length
             ? 'I didn’t find a Go idea I know in that. Ask about one, like “What is miai?”, or set up a position on the board and ask about it.'
-            : 'Kami’s concept library is still being written, so I can’t answer concept questions yet.'}
+            : 'Kiai’s concept library is still being written, so I can’t answer concept questions yet.'}
         </p>
         <p>To ask about a position, set it up on the board (click to play, paste an SGF or open a file), then ask “What should Black play?” or about a move like R16.</p>
       </div>
@@ -595,7 +596,8 @@ function KamiMessage({
   return (
     <div className="msg kami">
       <div className="who">
-        {tier ? `${tier.name} ${KAMI_VERSION}` : 'Kami'}
+        <Logo size={20} tile />
+        {tier ? `${tier.name} ${KAMI_VERSION}` : 'Kiai'}
         {m.thinking && m.thinking !== 'off' && !(a && a.type === 'concept') ? <span className="meta"> · thinking {m.thinking}</span> : null}
       </div>
       {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} />}
@@ -644,11 +646,13 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     return (
       <div className="messages empty">
         <div className="hello">
-          <h1>Kami</h1>
-          <p>Ask about a Go position. KataGo reads it on your device, and Kami shows you why.</p>
+          <Logo size={72} tile className="hello-logo" />
+          <h1>What shall we read?</h1>
+          <p>Ask about any Go position. KataGo reads it on your device, and Kiai tells you why.</p>
           <div className="ideas">
             {ideas.map((t) => (
               <button key={t} type="button" className="idea" onClick={() => onAsk(t)}>
+                <span className="idea-stone" aria-hidden="true" />
                 {t}
               </button>
             ))}

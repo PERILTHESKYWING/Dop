@@ -1,5 +1,5 @@
-# Kami site
-Summary: Kami is a separate ChatGPT-style Go coach site in `kami/`, built on Dop's engine. KataGo reads the position in the browser, `explain` (src/lib/coach/explain) turns reads into facts and variations, and a writer words them. Dop's own site and build are unchanged.
+# Kami site (now Kiai)
+Summary: Kami, renamed **Kiai** on 2026-10-17, is a separate Go analyst chat site in `kami/`, built on Dop's engine. KataGo reads the position in the browser, `explain` (src/lib/coach/explain) turns reads into facts and variations, and a writer words them. Dop's own site and build are unchanged.
 
 ## What it does
 - Tiers (picker in the composer, version from `KAMI_VERSION`): Hane (engine text, thinking off), Tesuji (engine text, medium), Myoshu (one Gemini call, high). Kami Local (beta) shows only when `kami/src/config.ts` has a model repo and the browser has WebGPU.
@@ -18,6 +18,13 @@ Summary: Kami is a separate ChatGPT-style Go coach site in `kami/`, built on Dop
   - Settings › Profile: level (beginner, intermediate, strong) and style (solid, territory, influence, fighting, or Kami's guess). `kami/src/lib/style.ts` learns the style from the last 60 board clicks (not clicks on KataGo's candidates): a guess needs 8+ moves and a 45% share; a chosen style overrides it. `answer.ts` passes it to `explain` as `student`.
   - A problem answer (`Explanation.view`) and library examples open zoomed on their corner; a header button switches to the whole board.
 - Conversations (new, rename, delete) and each chat's board live in IndexedDB (`kami` db), localStorage if blocked. Board: click to play, undo, pass, step through a game, paste or open an SGF (also: paste SGF text into the composer), new 19/13/9 board.
+
+## Kiai (2026-10-17, XIAO's rebrand)
+- Name Kiai, mascot Ikki the razorbill, models Skim / Dive / Abyss (ids still hane / tesuji / myoshu; `src/lib/coach/explain/types.ts`), local beta "Night Dive". Code identifiers, CSS classes and `kami.*` storage keys keep the old name so saved chats and settings carry over.
+- Logo (`kami/src/ui/Logo.tsx`, `kami/public/favicon.svg`): Ikki's head, front view, tilted 9°, black and white, from XIAO's photo. Under 40 px it drops the bill grooves and thickens the white lines.
+- Look: sky palette (tokens at the top of `kami/src/styles.css`), Archivo with the width axis (wide display type), the kaya board skin (`ui/skin.ts` → `Board`'s `skin` prop), Ikki on answers, stone-shaped idea chips, a sinking-mark "Thinking" indicator and depth marks (`ui/Depth.tsx`) for the models.
+- Landing page (`ui/Landing.tsx`, `ui/landing.css`, lazy-loaded by `main.tsx`): shown on a first visit (no `kiai.entered` in localStorage) or at `#welcome`; "Open Kiai" sets the flag. A 3 s intro video (`/kiai/flight.mp4`, skipped on reduced motion, autoplay refusal, or after one play per tab), then the hero (board above the clouds), a real answer beside the real board (`ui/landingDemo.ts`, from `scripts/kami-critique.ts --only 10`), depths, on-device, Ikki, CTA. A dive gauge on the left reads 0–120 m as you scroll. Always light; no CSS gradients.
+- Art: every image and the video are path-traced in Blender from code, no downloaded textures; see `docs/handoff/kiai-art.md`.
 
 ## Structure
 - `kami/index.html`, `kami/src/main.tsx`, `App.tsx`, `ui/*` (Sidebar, Composer, Messages, BoardPanel), `lib/*` (logic, tested in `tests/kami-site.test.ts`).

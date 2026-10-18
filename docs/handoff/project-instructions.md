@@ -46,5 +46,6 @@ All PRs below are merged except #6. Detail per topic is in the other docs/handof
 | 12-13 | Recent game dataset | OGS 2022+ data, then student evolution, training chain, home GPU trainer, faster search | #19, #20 |
 | 14 | Handoff | CLAUDE.md and these notes | #21 |
 | Kami | Smarter Kami AI (new project) | Round 1: KataGo-checked built positions, rubric v0, 2022+ training data, critique sheet. Round 2: XIAO's critique of 28 answers applied (teacher voice, life-and-death solver, glossary hovers, Profile and style memory, rubric v1, ChatGPT tone reviewer for training) | #42, #45 |
+| Kiai | Kami rebrand (2026-10-17) | Kami renamed Kiai: Ikki the razorbill logo, Skim/Dive/Abyss, landing page with a path-traced intro flight and hero (board above the clouds), kaya board skin in the app; 5 Haiku critics per round (`kiai-art.md`) | this thread's PR |
 
 Decisions to keep: the LLM is grounded, not retrained; ChatGPT only reviews tone during training, never on the sites; betting and focus mode were removed on purpose; the PC engine bridge exists only as the optional PC helper; no free human game archive exists after May 2025. Open items are in `open-items.md`.

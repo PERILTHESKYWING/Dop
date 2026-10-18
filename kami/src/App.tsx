@@ -324,7 +324,7 @@ export function App() {
           <button className="icon-btn only-phone" aria-label="Open chats" onClick={() => setDrawer(true)}>
             <Icon name="sidebar" size={20} />
           </button>
-          <span className="topbar-title">{current.messages.length ? current.title : 'Kami'}</span>
+          <span className="topbar-title">{current.messages.length ? current.title : 'Kiai'}</span>
           <button
             className="icon-btn"
             aria-label={boardHidden ? 'Show board' : 'Hide board'}
