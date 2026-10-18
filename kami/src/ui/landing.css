@@ -224,7 +224,7 @@ html.kiai-landing body {
   max-width: 800px;
 }
 .l-hero h1 {
-  font-size: clamp(46px, 6vw, 96px);
+  font-size: clamp(46px, 5.3vw, 88px);
 }
 /* each line of the headline rises through its own mask */
 .l-line {
@@ -279,36 +279,6 @@ html.kiai-landing body {
   }
 }
 
-/* the line of light from the move named in the answer down to its point */
-.l-leader {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2;
-  pointer-events: none;
-  overflow: visible;
-}
-.l-leader path {
-  fill: none;
-  stroke: var(--l-glow);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
-  filter: drop-shadow(0 0 6px rgba(47, 211, 255, 0.95)) drop-shadow(0 0 14px rgba(47, 211, 255, 0.6));
-  transition: stroke-dashoffset 0.9s cubic-bezier(0.3, 0.7, 0.2, 1);
-}
-.l-leader path.on {
-  stroke-dashoffset: 0;
-}
-.l-leader circle {
-  fill: #fff;
-  stroke: var(--l-glow);
-  stroke-width: 2;
-  filter: drop-shadow(0 0 6px rgba(47, 211, 255, 1));
-}
-
 /* the question and Kiai's answer, popping up above the board */
 .l-ask {
   position: absolute;
@@ -329,7 +299,15 @@ html.kiai-landing body {
 @keyframes l-pop {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.92);
+    transform: translateY(22px) scale(0.86);
+  }
+}
+@keyframes l-settle {
+  40% {
+    box-shadow:
+      0 0 0 2px rgba(47, 211, 255, 0.55),
+      0 0 34px rgba(47, 211, 255, 0.45),
+      0 24px 48px -20px rgba(16, 40, 72, 0.5);
   }
 }
 @keyframes l-sink {
@@ -376,7 +354,9 @@ html.kiai-landing body {
     0 2px 6px -2px rgba(16, 40, 72, 0.18),
     0 24px 48px -20px rgba(16, 40, 72, 0.5);
   transform-origin: 20% 0;
-  animation: l-pop 0.5s cubic-bezier(0.2, 1.35, 0.35, 1) both;
+  animation:
+    l-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    l-settle 0.9s 0.4s ease-out;
 }
 /* laid out (so the card never changes size) but not shown until Kiai starts reading */
 .l-ask-a.hold {
@@ -435,8 +415,10 @@ html.kiai-landing body {
   transition: transform 0.7s cubic-bezier(0.3, 0.7, 0.2, 1);
   box-shadow: 0 0 10px var(--l-glow);
 }
+/* three lines held for every answer, so the card is one size for both questions */
 .l-ask-text {
   position: relative;
+  min-height: 4.65em;
   margin: 10px 0 0;
   font-size: 15.5px;
   line-height: 1.55;
@@ -509,6 +491,7 @@ html.kiai-landing body {
 .l-ask-foot span {
   grid-area: 1 / 1;
   visibility: hidden;
+  white-space: pre-line;
 }
 .l-ask-foot span.on {
   visibility: visible;
@@ -602,8 +585,17 @@ html.kiai-landing body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: var(--l-ink-2);
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow:
+    0 0 0 1px rgba(11, 15, 20, 0.06),
+    0 10px 26px -16px rgba(16, 40, 72, 0.55);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--l-ink);
   animation: l-up 0.8s 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .l-legend i {
@@ -788,6 +780,7 @@ html.kiai-landing body {
   left: -3px;
   width: 7px;
   height: 1px;
+  transition: background 0.6s, opacity 0.6s;
   background: var(--d-ink-2);
   opacity: 0.6;
 }
@@ -836,10 +829,11 @@ html.kiai-landing body {
     align-items: flex-start;
   }
   .l-dive .l-graph-wrap {
-    left: calc(var(--l-pad) + 28px);
+    left: calc(var(--l-pad) + 64px);
     right: auto;
-    width: min(42%, 600px);
-    height: clamp(90px, 15vh, 150px);
+    width: min(40%, 580px);
+    height: clamp(120px, 21vh, 200px);
+    bottom: clamp(48px, 7.5vh, 76px);
   }
 }
 /* the step's numbers, set in the open stage over the board: big figures, no panels */
@@ -863,7 +857,8 @@ html.kiai-landing body {
   animation: l-up 0.6s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .l-stat b {
-  font: 700 clamp(40px, 4.6vw, 72px) / 0.9 var(--mono);
+  font: 760 clamp(40px, 4.6vw, 72px) / 0.9 var(--font);
+  font-stretch: 118%;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
 }
@@ -889,20 +884,60 @@ html.kiai-landing body {
 .l-dive.d3 .l-stat b.glow {
   color: var(--l-glow);
 }
-.l-load {
-  width: min(260px, 40vw);
+/* the network downloading onto the board: a badge on its near edge with a filling bar */
+.k3-dl {
+  gap: 7px;
+}
+.k3-dl b,
+.k3-dl i {
+  translate: 0 -46px;
+}
+.k3-dl b {
+  position: relative;
+  min-width: 210px;
+  padding: 11px 18px 15px;
+  border-radius: 14px;
+  background: rgba(4, 16, 26, 0.84);
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 0 0 1px rgba(143, 220, 255, 0.4),
+    0 18px 40px -18px rgba(0, 0, 0, 0.9);
+  color: #fff;
+  font: 700 18px/1 var(--font);
+  text-align: center;
+  animation: k3-tag 0.45s cubic-bezier(0.2, 1.5, 0.35, 1) both;
+}
+.k3-dl b::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 6px;
   height: 3px;
   border-radius: 3px;
-  background: var(--d-line);
-  overflow: hidden;
-}
-.l-load i {
-  display: block;
-  height: 100%;
   background: var(--l-glow);
-  box-shadow: 0 0 12px var(--l-glow);
+  box-shadow: 0 0 10px var(--l-glow);
+  transform: scaleX(var(--p, 0));
   transform-origin: 0 50%;
-  transition: transform 0.15s linear;
+  transition: transform 0.12s linear;
+}
+.k3-dl.done b {
+  background: #0a8fc7;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 0 26px rgba(47, 211, 255, 0.8);
+  animation: k3-hit 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.k3-dl.done b::after {
+  opacity: 0;
+}
+.k3-dl i {
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: rgba(4, 16, 26, 0.72);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(226, 243, 252, 0.95);
 }
 /* the depths' picks: Skim, then Dive, then Abyss, each reading further */
 .l-path {
@@ -918,7 +953,7 @@ html.kiai-landing body {
   flex-direction: column;
   align-items: flex-end;
   gap: 5px;
-  opacity: 0.32;
+  opacity: 0.45;
   transition: opacity 0.6s;
 }
 .l-path li + li::before {
@@ -932,7 +967,7 @@ html.kiai-landing body {
   opacity: 0.4;
 }
 .l-path li.past {
-  opacity: 0.55;
+  opacity: 0.72;
 }
 .l-path li.on {
   opacity: 1;
@@ -945,7 +980,8 @@ html.kiai-landing body {
   color: var(--d-ink-2);
 }
 .l-path b {
-  font: 700 clamp(28px, 2.8vw, 44px) / 0.95 var(--mono);
+  font: 760 clamp(28px, 2.8vw, 44px) / 0.95 var(--font);
+  font-stretch: 118%;
   letter-spacing: -0.03em;
 }
 .l-path li.on b {
@@ -957,6 +993,12 @@ html.kiai-landing body {
   font-style: normal;
   font-size: 12px;
   color: var(--d-ink-2);
+}
+/* on the light step, the glow colour is too pale to read: a deep cyan instead */
+.l-dive.d0 .l-path li.on b,
+.l-dive.d1 .l-path li.on b {
+  color: #0a6f9e;
+  text-shadow: none;
 }
 .l-acc {
   display: inline-flex;
@@ -989,7 +1031,8 @@ html.kiai-landing body {
   text-transform: uppercase;
 }
 .l-acc b {
-  font: 700 clamp(17px, 1.5vw, 22px) / 1 var(--mono);
+  font: 760 clamp(17px, 1.5vw, 22px) / 1 var(--font);
+  font-stretch: 118%;
   color: #fff;
   margin-left: 4px;
   text-shadow: 0 0 16px rgba(47, 211, 255, 0.5);
@@ -1060,10 +1103,61 @@ html.kiai-landing body {
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
+.l-graph-y {
+  position: absolute;
+  right: calc(100% + 10px);
+  translate: 0 -50%;
+  font: 500 11px/1 var(--mono);
+  color: var(--d-ink-2);
+}
 .l-graph-mark {
   position: absolute;
   width: 0;
   height: 0;
+}
+/* the move the board is on, riding the line */
+.l-graph-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 2px var(--l-glow),
+    0 0 14px 3px rgba(47, 211, 255, 0.8);
+  pointer-events: none;
+}
+.l-graph-x {
+  position: absolute;
+  top: calc(100% + 6px);
+  translate: -50% 0;
+  font: 500 11px/1 var(--mono);
+  color: var(--d-ink-2);
+  white-space: nowrap;
+}
+.l-graph-x.start {
+  translate: 0 0;
+}
+.l-graph-x.end {
+  translate: -100% 0;
+}
+.l-graph-key {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 24px);
+  margin: 0;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--d-ink-2);
+}
+.l-graph-key b {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 7px;
+  background: #ff9a4d;
+  color: #1a0d03;
+  font: 700 11px/1.4 var(--mono);
 }
 .l-graph-mark b {
   position: absolute;
@@ -1079,6 +1173,7 @@ html.kiai-landing body {
   background: #ff9a4d;
   color: #1a0d03;
   font: 700 13px/1 var(--mono);
+  white-space: nowrap;
   box-shadow:
     0 0 0 2px #fff,
     0 0 18px rgba(255, 154, 77, 0.9);
@@ -1089,7 +1184,7 @@ html.kiai-landing body {
 .l-cta {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
   align-items: center;
   gap: clamp(24px, 4vw, 64px);
   padding: clamp(90px, 12vw, 160px) var(--l-pad);
@@ -1114,6 +1209,11 @@ html.kiai-landing body {
 }
 .l-cta .l-btn {
   margin-top: 8px;
+}
+.l-cta .l-cta-note {
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: #8fa7bc;
 }
 .l-cta-demo {
   position: relative;
@@ -1217,6 +1317,15 @@ html.kiai-landing body {
     inset: 64px 0 76px;
     height: auto;
   }
+  /* the close views run off the stage's sides: fade them out rather than cut them */
+  .lb.l-stage-board {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  }
+  /* the review's graph and accuracy need a taller strip */
+  .l-dive.s-review .lb.l-stage-board {
+    bottom: 104px;
+  }
   .l-steps {
     z-index: 1;
     margin: 0;
@@ -1274,7 +1383,12 @@ html.kiai-landing body {
     left: 16px;
     right: 16px;
     bottom: 10px;
-    height: 36px;
+    height: 56px;
+  }
+  .l-graph-y,
+  .l-graph-x,
+  .l-graph-key {
+    display: none;
   }
   .l-graph-cap > span:first-child,
   .l-acc-cap {
@@ -1290,21 +1404,29 @@ html.kiai-landing body {
   /* the copy and the card stack at the top; the board stands clear below them */
   .l-hero {
     min-height: 0;
-    padding-bottom: calc(56vw + 90px);
+    padding-bottom: calc(64vw + 20px);
     background: #c0d1e2;
   }
-  /* the phone plate is shown whole at the foot of the hero (so the board is never under the
-     card); above it, the sky's own colour */
+  /* on a phone the plate's board and both bowls are shown whole at the foot of the hero (so the
+     board is never under the card); above it, the sky's own colour */
   .l-hero-art,
   .lb.l-hero-board {
     inset: auto 0 0 0;
     width: 100%;
     height: auto;
+    aspect-ratio: 1200 / 1350;
+  }
+  .l-hero:not(.live) .l-hero-art,
+  .l-hero:not(.live) .lb.l-hero-board {
     aspect-ratio: 836 / 1350;
   }
   .l-hero-art {
     -webkit-mask-image: linear-gradient(transparent, #000 16%);
     mask-image: linear-gradient(transparent, #000 16%);
+  }
+  .l-nav {
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
   .l-nav .l-btn.small {
     height: 44px;
@@ -1312,6 +1434,10 @@ html.kiai-landing body {
   .l-hero-art img {
     object-position: 50% 100%;
     object-fit: cover;
+  }
+  /* PHONE_X0 / PHONE_W in three/plate.ts: x 1120 to 2320 of the 2400 px frame */
+  .l-hero.live .l-hero-art img {
+    object-position: 93.33% 100%;
   }
   /* the copy is cut down so the board's near half is on the first screen */
   .l-hero-copy {

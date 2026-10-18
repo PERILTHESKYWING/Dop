@@ -1,5 +1,5 @@
 /**
- * "Watch it read": one 3D board held on screen while the steps scroll past it, each step a real
+ * "Watch KataGo read": one 3D board held on screen while the steps scroll past it, each step a real
  * feature replayed on it (the read growing, the three depths changing their minds, territory, a
  * whole-game review, the engine waking up on your device). The page darkens as the reading goes
  * deeper. The numbers live on the board and in the open stage, not in boxed panels.
@@ -34,7 +34,9 @@ function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: num
   const fov = 26;
   const fit = (BOARD_X * 1.25) / Math.tan((fov * Math.PI) / 360) / Math.min(1, aspect);
   const [x, z] = o.at ?? [0, 0];
-  return { kind: 'orbit', elev, azim, fov, dist: fit * (o.zoom ?? 1), target: [x, 0.06, z], spin: o.spin, shift };
+  // a phone's close views stand a little further back, so the board's corner reads as a corner
+  const zoom = (o.zoom ?? 1) * (wide || (o.zoom ?? 1) >= 1 ? 1 : 1.22);
+  return { kind: 'orbit', elev, azim, fov, dist: fit * zoom, target: [x, 0.06, z], spin: o.spin, shift };
 }
 // the reading happens on the right side (Q9 to R12), so the close views look there
 const VIEWS: Record<StepId, (w: number, h: number) => ViewMode> = {
@@ -44,7 +46,7 @@ const VIEWS: Record<StepId, (w: number, h: number) => ViewMode> = {
   abyss: (w, h) => orbit(40, -38, w, h, { zoom: 0.58, at: [0.1, -0.05] }),
   own: (w, h) => orbit(58, -6, w, h, { zoom: 1.08, at: [0, -0.07] }),
   review: (w, h) => orbit(64, -8, w, h, { zoom: 1.2, at: [0, -0.02] }),
-  device: (w, h) => orbit(30, -30, w, h, { zoom: 1.12, at: [0, -0.03], spin: 6 }),
+  device: (w, h) => orbit(30, -30, w, h, { zoom: 1.22, at: [0, -0.03], spin: 6 }),
 };
 
 interface Live {
@@ -84,12 +86,17 @@ function depthPicks(upto: DepthId, current: boolean): { cands: CandGlow[]; label
   return { cands, labels };
 }
 
-/** On a wide screen a depth's answer stands on the board, beside the top of its pick's column. */
-function say(id: DepthId): Label {
-  return { key: `q${id}`, loc: loc(PICK[id][0]), lift: lift(1), cls: 'k3-say', text: `“${words(ANS[id].summary, id === 'skim' ? 2 : 1)}”`, sub: `Kiai, ${ANS[id].depth}` };
+/**
+ * On a wide screen a depth's answer stands on the board, beside the top of its pick's column; once
+ * the depths stand side by side it moves left of them, so it covers none of their tags.
+ */
+function say(id: DepthId, aside = false): Label {
+  return { key: `q${id}`, loc: loc(aside ? 'O13' : PICK[id][0]), lift: lift(1), cls: 'k3-say', text: `“${words(ANS[id].summary, id === 'skim' ? 2 : 1)}”`, sub: `Kiai, ${ANS[id].depth}` };
 }
+/** The territory answer, standing beside the upper right it talks about (clear of its blocks). */
+const SAY_OWN: Label = { key: 'qown', loc: loc('N17'), lift: 0.03, cls: 'k3-say', text: `“${words(WHO.summary, 2)}”`, sub: `Kiai, ${WHO.depth}` };
 
-/** Plays one step on the board, over and over while it is the step in view. */
+/** Plays one step on the board once, then holds its last frame (the board keeps breathing) until the step is left. */
 function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabels: (l: Label[]) => void, still: boolean) {
   return async (sig: AbortSignal) => {
     switch (id) {
@@ -101,13 +108,7 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           set({ read: r, fav: r.cands[0].at });
           if (!still) await sleep(1300, sig);
         }
-        if (still) return sleep(1e9, sig);
-        await sleep(3400, sig);
-        v.fadeOut(500);
-        setLabels([]);
-        set({ read: null, fav: '' });
-        await sleep(700, sig);
-        return;
+        return sleep(1e9, sig);
       }
       case 'skim':
       case 'dive':
@@ -117,8 +118,8 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         if (still) {
           const p = depthPicks(id, true);
           v.setCandidates(p.cands, false);
-          v.setVariation(pv, 0);
-          setLabels([p.labels[p.labels.length - 1], ...lineLabels(pv).slice(1), say(id)]);
+          if (k === 0) v.setVariation(pv, 0);
+          setLabels(k === 0 ? [p.labels[p.labels.length - 1], ...lineLabels(pv).slice(1), say(id)] : [...p.labels, say(id, true)]);
           return sleep(1e9, sig);
         }
         // the shallower depth's pick stands first; then this depth reads on and changes its mind
@@ -134,25 +135,23 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
         setLabels([...now.labels, say(id)]);
         await sleep(1300, sig);
         v.setVariation(pv, 420);
-        // once the line is drawn, only this depth's pick keeps its tag (the line's numbers need the room)
+        // while the line is drawn, only this depth's pick keeps its tag (the line's numbers need the room)
         setLabels([now.labels[now.labels.length - 1], ...lineLabels(pv).slice(1), say(id)]);
-        await sleep(420 * pv.length + 3600, sig);
-        v.fadeOut(500);
-        setLabels([]);
-        await sleep(800, sig);
-        return;
+        if (k === 0) return sleep(1e9, sig);
+        // then the line clears and the depths stand side by side: the shallower picks pale, this one lit
+        await sleep(420 * pv.length + 2200, sig);
+        v.setVariation(null, 0);
+        setLabels([...now.labels, say(id, true)]);
+        return sleep(1e9, sig);
       }
       case 'own': {
         set({ done: false });
         if (!still) await sleep(300, sig);
         v.setOwnership(FINAL.own, !still);
         set({ done: true });
-        if (still) return sleep(1e9, sig);
-        await sleep(6500, sig);
-        v.fadeOut(600);
-        set({ done: false });
-        await sleep(900, sig);
-        return;
+        if (!still) await sleep(900, sig);
+        setLabels([SAY_OWN]);
+        return sleep(1e9, sig);
       }
       case 'review': {
         if (still) {
@@ -184,41 +183,50 @@ function scene(id: StepId, v: KayaView, set: (l: Partial<Live>) => void, setLabe
           } else await sleep(i < 60 ? 70 : 34, sig);
         }
         set({ done: true });
-        await sleep(4600, sig);
-        setLabels([]);
-        return;
+        return sleep(1e9, sig);
       }
       case 'device': {
-        // the engine arrives: the network loads (a spark runs round the board), then it reads
+        // the engine arrives: its network downloads onto the board (a spark runs round the edge),
+        // then it reads, with the badge saying it now works offline
         if (still) {
           v.setCandidates(glows(FINAL, 4), false);
-          setLabels(candLabels(FINAL));
+          setLabels([...candLabels(FINAL, 1), download(1)]);
           set({ load: 1, read: FINAL, fav: FINAL.cands[0].at });
           return sleep(1e9, sig);
         }
         set({ load: 0, read: null, fav: '' });
-        setLabels([]);
+        setLabels([download(0)]);
         await sleep(400, sig);
         v.edgeSweep(1800);
-        for (let i = 1; i <= 12; i++) {
-          set({ load: i / 12 });
-          await sleep(150, sig);
+        for (let i = 1; i <= 16; i++) {
+          setLabels([download(i / 16)]);
+          await sleep(110, sig);
         }
+        set({ load: 1 });
         v.ping(null, 1500);
         for (const r of DEMO.reads) {
           v.setCandidates(glows(r, 4));
-          setLabels(candLabels(r));
+          setLabels([...candLabels(r, 1), download(1)]);
           set({ read: r, fav: r.cands[0].at });
           await sleep(520, sig);
         }
-        await sleep(3600, sig);
-        v.fadeOut(500);
-        setLabels([]);
-        set({ read: null, fav: '', load: 0 });
-        await sleep(800, sig);
-        return;
+        return sleep(1e9, sig);
       }
     }
+  };
+}
+
+/** The network's download, as a badge standing on the board's near edge; once in, it says the board works offline. */
+function download(p: number): Label {
+  const done = p >= 1;
+  return {
+    key: 'dl',
+    loc: 18 * 19 + 9,
+    lift: 0.004,
+    cls: `k3-dl${done ? ' done' : ''}`,
+    text: done ? 'Ready, even offline' : `${(p * 11).toFixed(1)} of 11 MB`,
+    sub: done ? '11 MB, now on this device' : 'KataGo’s network, downloading',
+    style: { '--p': p.toFixed(3) } as React.CSSProperties,
   };
 }
 
@@ -247,8 +255,13 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
         <Depth id="hane" size={14} /> Skim · {fmt(ANS.skim.visits)} visits
       </>
     ),
-    title: 'Skim’s favourite: Q10.',
-    body: <Quote a={ANS.skim} n={2} phone />,
+    title: 'Skim picks Q10.',
+    body: (
+      <>
+        <p>You pick how deep KataGo reads: Skim is quick, Dive reads deeper, Abyss reads deepest. The same question at each:</p>
+        <Quote a={ANS.skim} n={2} phone />
+      </>
+    ),
   },
   {
     id: 'dive',
@@ -257,7 +270,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
         <Depth id="tesuji" size={14} /> Dive · {fmt(ANS.dive.visits)} visits
       </>
     ),
-    title: 'Dive changes its mind: R12.',
+    title: 'Dive changes its pick: R12.',
     body: <Quote a={ANS.dive} n={1} phone />,
   },
   {
@@ -271,7 +284,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Same question as Skim and Dive. Deeper is slower and surer.</p>
+        <p className="l-step-note">Three depths, three answers. The deeper the read, the slower it is and the more you can trust it.</p>
       </>
     ),
   },
@@ -281,8 +294,8 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Who is ahead, and where.',
     body: (
       <>
-        <p>Black’s points are blue blocks, White’s are white. The taller the block, the surer KataGo is.</p>
-        <Quote a={WHO} n={2} />
+        <p>Black’s points are blue blocks, White’s are white. The taller the block, the more certain KataGo is that the point is theirs.</p>
+        <Quote a={WHO} n={2} phone />
       </>
     ),
   },
@@ -293,8 +306,8 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'A whole game, graded.',
     body: (
       <p>
-        KataGo reads every move of a game; Kiai draws the win rate as a graph, pins the turning points to the board and gives each side an accuracy (how little win rate its moves gave
-        away). Here, all {GAME.moves.length} moves at {DEMO.review.visits} visits a move.
+        KataGo reads every move. Kiai graphs Black’s win rate, marks each turning point on its stone and scores each side’s accuracy: how little win rate its moves gave away.
+        This game: {GAME.moves.length} moves, {DEMO.review.visits} visits per move.
       </p>
     ),
   },
@@ -302,12 +315,9 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     id: 'device',
     anchor: 'device',
     kicker: 'On your device',
-    title: 'The engine comes to you.',
+    title: 'KataGo runs in your browser.',
     body: (
-      <p>
-        KataGo runs inside your browser tab. Its 11 MB network downloads once; after that it analyses even offline. Kiai’s written answers come from a server, so they need a
-        connection.
-      </p>
+      <p>Its 11 MB neural network downloads once; after that it analyses even offline. Kiai’s written answers come from a server, so they need a connection.</p>
     ),
   },
 ];
@@ -331,12 +341,14 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
   const y = (p: number) => H - p * H;
   const d = w.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p).toFixed(1)}`).join(' ');
   const area = `${d} L${W} ${H} L0 ${H} Z`;
-  // turning points a few moves apart stack upwards instead of covering each other
-  const marks = SWINGS.map((s) => ({ n: s.n, x: (s.n / (w.length - 1)) * 100, y: (1 - w[s.n]) * 100, lift: 0 }));
-  marks.forEach((m, i) => {
-    const p = marks[i - 1];
-    if (p && m.x - p.x < 4) m.lift = p.lift + 1;
-  });
+  // turning points a few moves apart share one mark ("23–25") instead of covering each other
+  const marks: { first: number; n: string; x: number; y: number }[] = [];
+  for (const s of SWINGS.slice(0, swings)) {
+    const x = (s.n / (w.length - 1)) * 100;
+    const p = marks[marks.length - 1];
+    if (p && x - p.x < 4) p.n = `${p.first}–${s.n}`;
+    else marks.push({ first: s.n, n: String(s.n), x, y: Math.min(1 - w[s.n], 0.85) * 100 });
+  }
   return (
     <div className="l-graph-wrap">
       <div className="l-graph-cap">
@@ -358,17 +370,32 @@ function Graph({ move, swings, acc }: { move: number; swings: number; acc: [numb
           </clipPath>
         </defs>
         <line className="l-graph-mid" x1="0" x2={W} y1={H / 2} y2={H / 2} />
+        <line className="l-graph-mid" x1="0" x2={W} y1="0" y2="0" />
         <g clipPath="url(#l-graph-clip)">
           <path className="l-graph-area" d={area} />
           <path className="l-graph-line" d={d} />
         </g>
         <line className="l-graph-head" x1={x(move)} x2={x(move)} y1="0" y2={H} />
       </svg>
-      {marks.slice(0, swings).map((m) => (
-        <span key={m.n} className="l-graph-mark" style={{ left: `${m.x}%`, top: `${m.y}%`, marginTop: -m.lift * 30 }}>
+      {['100%', '50%', '0%'].map((t, i) => (
+        <span key={t} className="l-graph-y" style={{ top: `${i * 50}%` }}>
+          {t}
+        </span>
+      ))}
+      {[1, 50, 100, 150, w.length - 1].map((n, i, a) => (
+        <span key={n} className={`l-graph-x${i === 0 ? ' start' : i === a.length - 1 ? ' end' : ''}`} style={{ left: `${(n / (w.length - 1)) * 100}%` }}>
+          {i === 0 ? 'move 1' : n}
+        </span>
+      ))}
+      {move > 0 && move < w.length - 1 && <span className="l-graph-dot" style={{ left: `${(move / (w.length - 1)) * 100}%`, top: `${(1 - w[move]) * 100}%` }} />}
+      {marks.map((m) => (
+        <span key={m.first} className="l-graph-mark" style={{ left: `${m.x}%`, top: `${m.y}%` }}>
           <b>{m.n}</b>
         </span>
       ))}
+      <p className="l-graph-key">
+        <b>{SWINGS[0]?.n ?? 1}</b> a turning point: its move number; on the board, the win rate it cost
+      </p>
     </div>
   );
 }
@@ -380,7 +407,6 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
   const lead = useTween(step === 'own' && live.done ? -FINAL.bLead : 0, 1100);
   const accB = useTween(live.done ? DEMO.review.accuracy.black : 0, 1400);
   const accW = useTween(live.done ? DEMO.review.accuracy.white : 0, 1400);
-  const mb = useTween(live.load * 11, 300);
   if (step === 'read' || (step === 'device' && live.load >= 1))
     return (
       <div className="l-stats">
@@ -394,18 +420,6 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
             <span>KataGo’s favourite</span>
           </div>
         )}
-      </div>
-    );
-  if (step === 'device')
-    return (
-      <div className="l-stats">
-        <div className="l-stat">
-          <b>{mb.toFixed(1)}</b>
-          <span>of 11 MB, KataGo’s network loading</span>
-        </div>
-        <div className="l-load" aria-hidden="true">
-          <i style={{ transform: `scaleX(${live.load})` }} />
-        </div>
       </div>
     );
   if (step === 'skim' || step === 'dive' || step === 'abyss')
@@ -427,7 +441,7 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
       <div className="l-stats">
         <div className="l-stat">
           <b>W+{lead.toFixed(1)}</b>
-          <span>White’s lead in points · Black’s chances {pct(FINAL.bWin)}</span>
+          <span>White’s lead in points · Black’s win rate {pct(FINAL.bWin)}</span>
         </div>
       </div>
     );
@@ -437,7 +451,7 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
         <div className="l-stats l-stats-moves">
           <div className="l-stat small">
             <b>{live.move}</b>
-            <span>of {GAME.moves.length} moves</span>
+            <span>moves replayed, of {GAME.moves.length}</span>
           </div>
         </div>
         <Graph move={live.move} swings={live.swings} acc={live.done ? [accB, accW] : null} />
@@ -499,10 +513,11 @@ export function Dive() {
   useScene(!!view && visible, view ? scene(step, view, setLive, setLabels, still) : null, [view, step]);
 
   const depth = DEPTH[step];
+  const at = STEPS.findIndex((s) => s.id === step);
   return (
     <section className={`l-dive d${depth} s-${step}`} id="dive" data-tone={depth >= 2 ? 'dark' : 'light'} aria-labelledby="l-dive-title">
       <h2 id="l-dive-title" className="l-visually-hidden">
-        Watch Kiai read
+        Watch KataGo read
       </h2>
       <div className="l-stage">
         <LiveBoard
@@ -514,11 +529,11 @@ export function Dive() {
           onVisible={setVisible}
         />
         <div className="l-rail" aria-hidden="true">
-          {['Surface', 'Skim', 'Dive', 'Abyss'].map((n, i) => (
-            <span key={n} className={`l-rail-tick${i <= depth ? ' past' : ''}`} style={{ top: `${(i / 3) * 100}%` }} />
+          {STEPS.map((s, i) => (
+            <span key={s.id} className={`l-rail-tick${i <= at ? ' past' : ''}`} style={{ top: `${(i / (STEPS.length - 1)) * 100}%` }} />
           ))}
-          <span className="l-rail-fill" style={{ transform: `scaleY(${depth / 3})` }} />
-          <span className="l-rail-ikki" style={{ top: `${(depth / 3) * 100}%` }}>
+          <span className="l-rail-fill" style={{ transform: `scaleY(${at / (STEPS.length - 1)})` }} />
+          <span className="l-rail-ikki" style={{ top: `${(at / (STEPS.length - 1)) * 100}%` }}>
             <Logo size={26} tile thinking={step === 'read' || step === 'skim' || step === 'dive' || step === 'abyss' || step === 'device'} />
           </span>
         </div>

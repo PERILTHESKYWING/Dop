@@ -69,8 +69,8 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           <span>Kiai</span>
         </a>
         <nav className="l-links" aria-label="Sections">
-          <a href="#dive">Watch it read</a>
-          <a href="#depths">Depths</a>
+          <a href="#dive">Watch KataGo read</a>
+          <a href="#depths">Reading depths</a>
           <a href="#review">Game review</a>
           <a href="#device">On your device</a>
         </nav>
@@ -85,10 +85,11 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       <section ref={cta} className={`l-cta${ctaSeen ? ' seen' : ''}`} data-tone="dark" aria-labelledby="l-cta">
         <div className="l-cta-copy">
           <h2 id="l-cta">Set up a position. Ask.</h2>
-          <p>Click stones onto the board, paste an SGF or open a file, then ask in your own words.</p>
+          <p>Click points to place stones, paste an SGF (a saved game) or open a file, then ask your question.</p>
           <a className="l-btn light" href="/" onClick={go}>
             Ask about a position
           </a>
+          <p className="l-cta-note">Free. No sign-up. KataGo runs in your browser.</p>
         </div>
         <CtaDemo />
       </section>

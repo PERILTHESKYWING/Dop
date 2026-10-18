@@ -57,9 +57,10 @@ rng = np.random.default_rng(SEED)
 warp = 5.0 * noise2(H, W, 3, 2, rng, slope=2.0) + 1.6 * noise2(H, W, 10, 6, rng, slope=1.0)
 U = np.arange(W)[None, :] + warp  # warped column (px)
 
-# wide bands of lighter and darker wood (early and late growth over many years)
+# bands of lighter and darker wood (early and late growth over many years); the broad ones kept gentle so
+# a straight-down view doesn't read as stripes
 N = 4 * W
-bands = 0.62 * noise1(N, 3, 40, 1.6, rng) + 0.24 * noise1(N, 30, 260, 1.2, rng) + 0.14 * noise1(N, 200, 900, 0.6, rng)
+bands = 0.36 * noise1(N, 3, 40, 1.6, rng) + 0.34 * noise1(N, 30, 260, 1.2, rng) + 0.3 * noise1(N, 200, 900, 0.6, rng)
 bands = (bands - bands.min()) / (bands.max() - bands.min())
 
 
@@ -77,7 +78,7 @@ B = sample(bands, (U + 40) * scaleN * 0.25)  # 0.25: N covers 4 widths, so bands
 lines = np.zeros(4 * W)
 x = 0.0
 while x < lines.size - 1:
-    x += rng.uniform(5, 16) * (1.6 if rng.random() < 0.15 else 1.0)
+    x += rng.uniform(3.5, 10) * (1.6 if rng.random() < 0.15 else 1.0)
     k = int(x)
     if k < lines.size:
         lines[k] += rng.uniform(0.35, 1.0)
@@ -93,11 +94,11 @@ fib = noise2(H, W, 520, 9, rng, slope=0.2)
 # broad tone drift across the board (no two boards are even)
 tone = noise2(H, W, 2.2, 1.6, rng, slope=1.5)
 
-KAYA = [(0.0, (228, 160, 84)), (0.35, (218, 147, 71)), (0.7, (204, 131, 58)), (1.0, (186, 112, 45))]
+KAYA = [(0.0, (216, 150, 80)), (0.35, (204, 137, 67)), (0.7, (190, 123, 55)), (1.0, (172, 106, 44))]
 col = ramp(B, KAYA)
-col *= (1 + 0.03 * fib[..., None]) * (1 + 0.075 * tone[..., None])
+col *= (1 + 0.06 * fib[..., None]) * (1 + 0.08 * tone[..., None])
 late = srgb((150, 86, 36))
-col = col * (1 - 0.32 * L[..., None]) + late * (0.32 * L[..., None]) * 0.9
+col = col * (1 - 0.42 * L[..., None]) + late * (0.42 * L[..., None]) * 0.85
 top = np.clip(col, 0, 1)
 
 # bump: latewood sits a hair lower, fibres give a fine tooth
@@ -118,15 +119,15 @@ print('top mean rgb', (top.reshape(-1, 3).mean(0) * 255).round(1), 'size', top.s
 FH = 384
 front = np.repeat(top[-1:, :, :], FH, axis=0)
 ff = noise2(FH, W, 520, 4, rng, slope=0.2)
-front = front * (0.9 + 0.035 * ff[..., None])
+front = front * (0.66 + 0.035 * ff[..., None])  # end grain drinks the light: darker than the top
 save(front, 'kaya-front.webp', 88)
 
 # long sides: grain along the length (rows of the top's colour field turned on their side)
 side_cols = top[:, W // 2 - FH // 2: W // 2 + FH // 2, :]  # H x FH
-side = np.transpose(side_cols, (1, 0, 2)) * 0.92
+side = np.transpose(side_cols, (1, 0, 2)) * 0.74
 save(side, 'kaya-side.webp', 88)
 
-# bowls: turned mulberry, reddish brown, rings running round the bowl
+# bowls: turned mulberry, dark brown like the reference's, rings running round the bowl
 rng2 = np.random.default_rng(SEED + 1)
 bh, bw = 512, 1024
 v = np.arange(bh)[:, None] + 9 * noise2(bh, bw, 4, 3, rng2, slope=2.0)
@@ -134,7 +135,7 @@ rings = noise1(4 * bh, 4, 80, 1.4, rng2)
 rings = (rings - rings.min()) / (rings.max() - rings.min())
 R = sample(rings, v * 4 * 0.5)
 bfib = noise2(bh, bw, 8, 260, rng2, slope=0.2)
-MULB = [(0.0, (128, 50, 22)), (0.5, (104, 38, 16)), (1.0, (76, 26, 11))]
+MULB = [(0.0, (112, 58, 34)), (0.5, (88, 42, 22)), (1.0, (62, 28, 14))]
 bowl = ramp(R, MULB) * (1 + 0.05 * bfib[..., None])
 save(bowl, 'bowl.webp', 86)
 

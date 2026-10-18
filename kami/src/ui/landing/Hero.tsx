@@ -2,11 +2,11 @@
  * The front of the landing: the sky-and-table plate (a path-traced render) with the live 3D
  * board standing on its table, drawn with the plate's own camera. Above the board, a question
  * pops up, Kiai reads (the board lights up as KataGo's real read grows from 8 to 2,048 visits)
- * and the answer streams in, with a line of light from the move it names to the board.
+ * and the answer streams in; the move it names flashes on its column of light.
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KayaView, ViewMode } from '../../three/kaya';
-import { coverCrop, HERO_CAM, TALL_W, TALL_X0 } from '../../three/plate';
+import { coverCrop, HERO_CAM, PHONE_W, PHONE_X0 } from '../../three/plate';
 import { webglOk } from '../../three/support';
 import { Logo } from '../Logo';
 import { answer, DEMO, FINAL, fmt, glows, loc, pct, PLAY_ORDER, STONES, words, type Read } from './data';
@@ -29,13 +29,19 @@ interface Scene {
 
 const PLAY = answer('What should Black play here?', 'Abyss');
 const SCORE = answer('Who is ahead, and why?', 'Abyss');
+/** The score answer's own numbers (its read, which its words round), so the foot and the answer agree. */
+function scoreFoot(): string {
+  const m = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections[0]?.text ?? '');
+  const lead = m ? m[1] : (-FINAL.bLead).toFixed(1), win = m ? `${m[2]}%` : pct(FINAL.bWin);
+  return `KataGo: White leads by ${lead} points\nBlack’s win rate: ${win} · ${fmt(SCORE.visits)} visits`;
+}
 // The board shows KataGo's 2,048-visit read of the position, so the numbers under each answer
 // are that read's; the words are Kiai's Abyss answers to the same position (no depth badge here,
 // since Abyss's own read is longer than the one on the board).
 const best = FINAL.cands[0];
 const SCENES: Scene[] = [
-  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s favourite ${best.at} · Black’s win rate after it ${pct(best.win)} · ${fmt(FINAL.visits)} visits` },
-  { q: SCORE.question, kind: 'score', point: null, text: words(SCORE.summary, 2), foot: `KataGo: White leads by ${(-FINAL.bLead).toFixed(1)} points · Black’s win rate ${pct(FINAL.bWin)}` },
+  { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate after it: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read on this device` },
+  { q: SCORE.question, kind: 'score', point: null, text: words(SCORE.summary, 3), foot: scoreFoot() },
 ];
 
 interface Card {
@@ -49,7 +55,7 @@ interface Card {
 
 const wide = (w: number) => w > 720;
 function heroFit(w: number, h: number): ViewMode {
-  const crop = wide(w) ? coverCrop(w, h, { x0: 0, pw: HERO_CAM.width, ph: HERO_CAM.height }, [0.66, 0.5]) : coverCrop(w, h, { x0: TALL_X0, pw: TALL_W, ph: HERO_CAM.height }, [0.5, 1]);
+  const crop = wide(w) ? coverCrop(w, h, { x0: 0, pw: HERO_CAM.width, ph: HERO_CAM.height }, [0.66, 0.5]) : coverCrop(w, h, { x0: PHONE_X0, pw: PHONE_W, ph: HERO_CAM.height }, [0.5, 1]);
   return { kind: 'plate', cam: HERO_CAM, crop };
 }
 
@@ -100,15 +106,12 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
   const pose = useMemo(() => (import.meta.env.DEV ? new URLSearchParams(location.search).get('pose') : null), []);
   const still = useMemo(() => reducedMotion() || !!pose, [pose]);
   const hero = useRef<HTMLElement>(null);
-  const leader = useRef<SVGPathElement>(null);
-  const dot = useRef<SVGCircleElement>(null);
   const [view, setView] = useState<KayaView | null>(null);
   const [visible, setVisible] = useState(true);
   const [ready, setReady] = useState(false);
   const [card, setCard] = useState<Card | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
   const [paused, setPaused] = useState(false);
-  const pointRef = useRef<string | null>(null);
 
   const onView = useCallback((v: KayaView | null) => {
     if (v) v.set.rotation.y = (HERO_CAM.board_rot_z * Math.PI) / 180;
@@ -122,8 +125,8 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
     if (!el) return;
     const a = v.project(0, 0), b = v.project(18, 0), c = v.project(18 * 19 + 18, 0);
     const cell = Math.hypot(b.x - a.x, b.y - a.y) / 18;
-    // the card clears the board's far edge and the tallest column of light
-    const col = v.project(loc(best.at), PILLAR + 0.025);
+    // the card clears the board's far edge and the tallest column of light, with its tag and the coordinate over it
+    const col = v.project(loc(best.at), PILLAR + 0.05);
     const top = Math.min(a.y - cell * 1.2, b.y - cell * 1.2, col.y), left = Math.min(a.x, b.x), right = Math.max(b.x, c.x);
     if (!Number.isFinite(top + left + right)) return;
     const e = edge.current;
@@ -133,26 +136,6 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       el.style.setProperty('--board-left', `${left.toFixed(0)}px`);
       el.style.setProperty('--board-right', `${right.toFixed(0)}px`);
     }
-    // the line of light, from the move named in the answer to its point on the board
-    const path = leader.current, d = dot.current;
-    const chip = pointRef.current ? el.querySelector<HTMLElement>(`.l-w.on .l-chip-c.point`) : null;
-    if (!path || !d) return;
-    if (!chip || !pointRef.current) {
-      path.setAttribute('d', '');
-      d.setAttribute('r', '0');
-      return;
-    }
-    // it leaves the card from its lower edge, straight under the chip, so it never crosses the text
-    const card = el.querySelector<HTMLElement>('.l-ask-a');
-    const hr = el.getBoundingClientRect(), cr = chip.getBoundingClientRect(), kr = card?.getBoundingClientRect();
-    const x0 = cr.left - hr.left + cr.width / 2, y0 = (kr ? kr.bottom : cr.bottom) - hr.top;
-    const p = v.project(loc(pointRef.current), 0.0005);
-    if (!Number.isFinite(p.x + p.y)) return;
-    const my = (y0 + p.y) / 2;
-    path.setAttribute('d', `M${x0.toFixed(1)} ${y0.toFixed(1)} C${x0.toFixed(1)} ${(my + 20).toFixed(1)} ${p.x.toFixed(1)} ${(my - 20).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`);
-    d.setAttribute('cx', p.x.toFixed(1));
-    d.setAttribute('cy', p.y.toFixed(1));
-    d.setAttribute('r', '3.5');
   }, []);
 
   // the board arrives: it fades in, a spark runs round its edge, and the game's stones drop in order
@@ -190,17 +173,16 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
     else {
       const r = pose === 'read' ? DEMO.reads[3] : FINAL;
       view.setCandidates(glows(r, CANDS), false);
-      setLabels(cand(r));
+      setLabels(cand(r, pose !== 'read'));
     }
     setCard({ id: 0, scene: s, phase: pose === 'read' ? 'read' : 'answer', typed: s.q.length, visits: pose === 'read' ? DEMO.reads[3].visits : FINAL.visits, shown: 999 });
-    pointRef.current = s.point;
     view.invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [still, view]);
 
-  // the win rates float on top of the columns
-  const cand = (r: Read): Label[] =>
-    r.cands.slice(0, CANDS).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / r.cands[0].visits) + 0.012, cls: `k3-cand tag${i === 0 ? ' best' : ''}`, text: `${(c.win * 100).toFixed(0)}%` }));
+  // the win rates float on top of the columns; once the answer names the favourite, its tag says which move it is
+  const cand = (r: Read, named = false): Label[] =>
+    r.cands.slice(0, CANDS).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / r.cands[0].visits) + 0.012, cls: `k3-cand tag${i === 0 ? ' best' : ''}${i === 0 && named ? ' hit' : ''}`, text: `${(c.win * 100).toFixed(0)}%`, sub: i === 0 && named ? c.at : undefined }));
 
   const run = useCallback(
     async (signal: AbortSignal) => {
@@ -209,7 +191,6 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       for (const s of SCENES) {
         id++;
         // the question pops up and types itself
-        pointRef.current = null;
         const c: Card = { id, scene: s, phase: 'ask', typed: 0, visits: 0, shown: 0 };
         setCard({ ...c });
         await sleep(380, signal);
@@ -231,19 +212,24 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
             v.setCandidates(glows(r, CANDS));
             setLabels(cand(r));
           }
-          await sleep(s.kind === 'play' ? 720 : 420, signal);
+          await sleep(s.kind === 'play' ? 560 : 380, signal);
         }
         if (s.kind === 'score') v.setOwnership(FINAL.own, true);
         await sleep(300, signal);
         // the answer streams in
         c.phase = 'answer';
         setCard({ ...c });
-        const n = s.text.split(' ').length;
-        for (let k = 1; k <= n; k++) {
+        const ws = s.text.split(' ');
+        let named = false;
+        for (let k = 1; k <= ws.length; k++) {
           c.shown = k;
-          if (s.point && s.text.split(' ').slice(0, k).some((w) => w.startsWith(s.point!))) pointRef.current = s.point;
           setCard({ ...c });
-          v.invalidate();
+          // the move the answer names flashes on the board: a ripple from its point, its tag lights up
+          if (s.point && !named && ws[k - 1].startsWith(s.point)) {
+            named = true;
+            v.ripple(loc(s.point), undefined, 3.2, 1100, 0.8);
+            setLabels(cand(FINAL, true));
+          }
           await sleep(48, signal);
         }
         // the columns stay up beside the answer (the line of play is shown close up further down)
@@ -251,7 +237,6 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
         // and away, for the next question
         c.phase = 'leave';
         setCard({ ...c });
-        pointRef.current = null;
         v.fadeOut(600);
         setLabels([]);
         await sleep(900, signal);
@@ -266,40 +251,34 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
     view.fadeOut(0);
     setLabels([]);
     setCard(null);
-    pointRef.current = null;
   }, [visible, paused, view, still]);
 
   const s = card?.scene;
   return (
     <section ref={hero} className={`l-hero${gl ? ' live' : ''}`} data-tone="light" aria-labelledby="l-title">
       <picture className="l-hero-art">
-        <source media="(max-width: 720px)" srcSet={gl ? `${ART}/3d/plate-tall.webp` : `${ART}/hero-tall.webp`} />
+        {!gl && <source media="(max-width: 720px)" srcSet={`${ART}/hero-tall.webp`} />}
         <img src={gl ? `${ART}/3d/plate.webp` : `${ART}/hero.webp`} alt="" />
       </picture>
       {gl && <LiveBoard className={`l-hero-board${view ? ' on' : ''}`} options={{ bowls: true, shadowCatcher: true, sun: HERO_CAM.sun, toneMapping: 'aces', exposure: 0.9, fx: 2.1, pillars: PILLAR, lite: typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches }} fit={heroFit} labels={labels} onView={onView} onVisible={setVisible} onFrame={follow} />}
-      <svg className="l-leader" aria-hidden="true">
-        <path ref={leader} className={card?.phase === 'answer' ? 'on' : ''} />
-        <circle ref={dot} r="0" />
-      </svg>
-
       <div className="l-hero-copy">
-        <p className="l-hero-kicker">Go analysis, in plain words</p>
-        <h1 id="l-title" aria-label="Read any Go position deeper.">
+        <p className="l-hero-kicker">KataGo’s analysis, in plain words</p>
+        <h1 id="l-title" aria-label="Any Go position, explained.">
           <span className="l-line">
-            <span>Read any Go</span>
+            <span>Any Go position,</span>
           </span>{' '}
           <span className="l-line">
-            <span>position deeper.</span>
+            <span>explained.</span>
           </span>
         </h1>
-        <p className="l-lead">Ask about a position in your own words. KataGo, the open-source Go AI, reads it on your device, and Kiai explains what it found. Free, no sign-up.</p>
-        <p className="l-lead short">KataGo reads it on your device, and Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead">Ask what to play, or who is ahead, in your own words. KataGo, the open-source Go AI, reads the position on your device, and Kiai explains what it found. Free, no sign-up.</p>
+        <p className="l-lead short">Ask in your own words. KataGo reads the position on your device; Kiai explains what it found. Free, no sign-up.</p>
         <div className="l-actions">
           <a className="l-btn" href="/" onClick={onEnter}>
             Ask about a position
           </a>
           <a className="l-btn ghost" href="#dive">
-            Watch it read
+            Watch KataGo read
           </a>
         </div>
       </div>
@@ -321,7 +300,7 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
                 )}
               </div>
               <div className={`l-ask-meter${card.phase === 'read' ? '' : ' done'}`} aria-hidden="true">
-                <i style={{ transform: `scaleX(${card.phase === 'read' ? Math.log2(Math.max(2, card.visits)) / 11 : 1})` }} />
+                <i style={{ transform: `scaleX(${card.phase === 'read' ? card.visits / FINAL.visits : 1})` }} />
               </div>
               <Answer text={s.text} shown={card.phase === 'read' ? 0 : card.shown} point={s.point} wait={card.phase === 'read'} />
               {/* both lines hold their place, so the card keeps its size as one gives way to the other */}

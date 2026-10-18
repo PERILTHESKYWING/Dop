@@ -44,9 +44,12 @@ interface Demo {
   komi: number;
   last: string;
   stones: [string, StoneColor][];
+  /** The order the position's stones were played in. */
+  order: string[];
   reads: Read[];
   answers: Answer[];
-  review: { visits: number; moves: [StoneColor, string][]; bWin: number[]; classes: [number, string][]; accuracy: { black: number; white: number } };
+  /** A whole game reviewed (another game than the position's: one whose lead changes hands). */
+  review: { game: string; visits: number; moves: [StoneColor, string][]; bWin: number[]; classes: [number, string][]; accuracy: { black: number; white: number } };
 }
 
 export const DEMO = raw as unknown as Demo;
@@ -58,10 +61,7 @@ export const STONES: number[] = (() => {
   for (const [g, c] of DEMO.stones) s[loc(g)] = c;
   return s;
 })();
-export const PLAY_ORDER: number[] = DEMO.review.moves
-  .slice(0, DEMO.turn)
-  .map(([, g]) => loc(g))
-  .filter((l) => STONES[l]);
+export const PLAY_ORDER: number[] = DEMO.order.map(loc).filter((l) => STONES[l]);
 
 /** KataGo's candidates in one read, as the board draws them. */
 export function glows(read: Read, max = 6): CandGlow[] {

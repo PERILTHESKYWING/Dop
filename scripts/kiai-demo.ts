@@ -3,11 +3,13 @@
  * through the WASM engine in Node, the same search the site runs) on the landing's game
  * (demo game g70dd864b0bcbfc05, 34 moves, Black to play), and Kiai's own engine text for three
  * questions at each depth. Nothing here calls a language model, so Abyss shows its engine text
- * without the Gemini wording.
+ * without the Gemini wording. The game review is of another demo game (g02b639852ab783a8, chosen
+ * because its win rate swings back and forth for most of the game, so the graph shows something).
  *
  *   npx tsx scripts/kiai-demo.ts --out kami/src/ui/landing/demo.json
+ *   npx tsx scripts/kiai-demo.ts --review-only   (keep the reads and answers, redo the review)
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { explain, type ExplainPosition, type Question, type ThinkingLevel } from '../src/lib/coach/explain';
 import { conceptById } from '../src/lib/coach/library';
@@ -18,12 +20,22 @@ import type { EngineRead, ModelId } from '../src/lib/coach/explain/types';
 import { reviewMoves, accuracy } from '../kami/src/lib/review';
 import { nodeProber } from './explainNode';
 
-const { values: arg } = parseArgs({ options: { out: { type: 'string', default: 'kami/src/ui/landing/demo.json' }, review: { type: 'string', default: '64' } } });
+const { values: arg } = parseArgs({
+  options: {
+    out: { type: 'string', default: 'kami/src/ui/landing/demo.json' },
+    review: { type: 'string', default: '64' },
+    'review-game': { type: 'string', default: 'g02b639852ab783a8' },
+    'review-only': { type: 'boolean', default: false },
+  },
+});
 const root = new URL('../', import.meta.url);
-const game = (JSON.parse(readFileSync(new URL('public/demo/demo.json', root), 'utf8')) as { games: { id: string; komi: number; moves: Move[] }[] }).games.find((g) => g.id === 'g70dd864b0bcbfc05')!;
+const games = (JSON.parse(readFileSync(new URL('public/demo/demo.json', root), 'utf8')) as { games: { id: string; komi: number; moves: Move[] }[] }).games;
+const game = games.find((g) => g.id === 'g70dd864b0bcbfc05')!;
+const rgame = games.find((g) => g.id === arg['review-game'])!;
 const TURN = 34;
 const name = (l: Loc) => (l === PASS ? 'pass' : locToGtp(l, 19));
-const posAt = (n: number): ExplainPosition => ({ size: 19, komi: game.komi, setup: [], moves: game.moves.slice(0, n), toPlay: (n < game.moves.length ? game.moves[n].color : n % 2 ? 2 : 1) as Color });
+const posIn = (g: typeof game, n: number): ExplainPosition => ({ size: 19, komi: g.komi, setup: [], moves: g.moves.slice(0, n), toPlay: (n < g.moves.length ? g.moves[n].color : n % 2 ? 2 : 1) as Color });
+const posAt = (n: number) => posIn(game, n);
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
@@ -41,8 +53,10 @@ const pack = (r: EngineRead) => ({
   cands: r.candidates.slice(0, 8).map((c) => ({ at: name(c.loc), win: r3(c.winrate), lead: r2(c.scoreLead), visits: c.visits, pv: c.pv.slice(0, 8).map(name) })),
   own: r.ownership ? Array.from(r.ownership, (o) => r2(o)) : null,
 });
-const reads = [];
-for (const v of [8, 32, 128, 512, 2048]) {
+// --review-only keeps the reads and answers already recorded
+const prev = arg['review-only'] && existsSync(arg.out!) ? (JSON.parse(readFileSync(arg.out!, 'utf8')) as { reads: unknown[]; answers: unknown[] }) : null;
+const reads: unknown[] = prev?.reads ?? [];
+for (const v of prev ? [] : [8, 32, 128, 512, 2048]) {
   const r = await prober.read(pos, { visits: v, maxMs: 600_000 });
   if (r) reads.push(pack(r));
   console.log(`read ${v}: ${r?.candidates.slice(0, 3).map((c) => `${name(c.loc)} ${(c.winrate * 100).toFixed(1)}%`).join(', ')}`);
@@ -59,8 +73,8 @@ const DEPTHS: { model: ModelId; name: string; thinking: ThinkingLevel }[] = [
   { model: 'tesuji', name: 'Dive', thinking: 'medium' },
   { model: 'myoshu', name: 'Abyss', thinking: 'high' },
 ];
-const answers = [];
-for (const { text, q } of QUESTIONS) {
+const answers: unknown[] = prev?.answers ?? [];
+for (const { text, q } of prev ? [] : QUESTIONS) {
   for (const d of DEPTHS) {
     const t = Date.now();
     const ex = await explain(pos, q, prober, { model: d.model, thinking: d.thinking, examplesFor: (id) => conceptById(id)?.examples ?? [] });
@@ -80,10 +94,10 @@ for (const { text, q } of QUESTIONS) {
 
 // 3. The whole game reviewed at a small, fixed number of visits per position.
 const RV = Number(arg.review);
-const positions = Array.from({ length: game.moves.length + 1 }, (_, i) => posAt(i));
+const positions = Array.from({ length: rgame.moves.length + 1 }, (_, i) => posIn(rgame, i));
 const gameReads: (EngineRead | undefined)[] = [];
 for (const p of positions) gameReads.push((await prober.read(p, { visits: RV, maxMs: 600_000 })) ?? undefined);
-const review = reviewMoves(positions, gameReads, game.moves, 19);
+const review = reviewMoves(positions, gameReads, rgame.moves, 19);
 const out = {
   game: game.id,
   turn: TURN,
@@ -91,11 +105,14 @@ const out = {
   komi: pos.komi,
   last: name(pos.moves[pos.moves.length - 1].loc),
   stones,
+  // the order the position's stones were played in (the hero drops them in this order)
+  order: game.moves.slice(0, TURN).map((m) => name(m.loc)),
   reads,
   answers,
   review: {
+    game: rgame.id,
     visits: RV,
-    moves: game.moves.map((m) => [m.color, name(m.loc)]),
+    moves: rgame.moves.map((m) => [m.color, name(m.loc)]),
     bWin: gameReads.map((r) => (r ? r3(r.bWin) : null)),
     classes: review.map((m) => [m.index, m.cls]),
     accuracy: { black: accuracy(review, 1), white: accuracy(review, 2) },

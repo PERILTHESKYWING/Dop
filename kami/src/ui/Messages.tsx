@@ -255,10 +255,21 @@ function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : nul
 
 const secs = (ms: number) => (ms < 1000 ? '<1s' : `${Math.round(ms / 1000)}s`);
 
+/** Seconds since `t0`, ticking, so a read that has not reported a step yet still visibly runs. */
+function Elapsed({ t0 }: { t0: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 200);
+    return () => window.clearInterval(id);
+  }, []);
+  return <span className="meta">{((Date.now() - t0) / 1000).toFixed(1)} s</span>;
+}
+
 function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage'] }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
   const label = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Thinking…') : `Thought for ${secs(ms)}`;
+  const t0 = useRef(Date.now() - ms).current;
   return (
     <details className={`thoughts${live ? ' live' : ''}`} open={live || undefined}>
       <summary>
@@ -279,7 +290,15 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtS
             {s.variation && ex && <VariationChip id={s.variation} ex={ex} msgId={msgId} link={link} />}
           </li>
         ))}
-        {!steps.length && (live ? <li className="wait">KataGo is reading the position…</li> : <li className="meta">No steps were recorded.</li>)}
+        {!steps.length &&
+          (live ? (
+            <li className="wait">
+              <span>KataGo is reading the position…</span>
+              <Elapsed t0={t0} />
+            </li>
+          ) : (
+            <li className="meta">No steps were recorded.</li>
+          ))}
       </ol>
       {ex && !live && (
         <p className="meta">

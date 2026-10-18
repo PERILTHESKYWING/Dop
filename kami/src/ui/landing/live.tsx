@@ -59,6 +59,7 @@ export interface Label {
   cls: string;
   text?: string;
   sub?: string;
+  style?: React.CSSProperties;
 }
 
 interface Props {
@@ -158,7 +159,7 @@ export function LiveBoard({ options, fit, labels = [], onView, onVisible, onFram
       <canvas ref={canvas} className="lb-canvas" />
       <div ref={layer} className="k3-layer lb-layer" aria-hidden="true">
         {labels.map((L) => (
-          <span key={L.key} className={`k3-l ${L.cls}`}>
+          <span key={L.key} className={`k3-l ${L.cls}`} style={L.style}>
             {L.text !== undefined && <b>{L.text}</b>}
             {L.sub && <i>{L.sub}</i>}
           </span>

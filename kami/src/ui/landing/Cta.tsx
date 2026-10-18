@@ -8,10 +8,10 @@ import { DEMO, FINAL, glows, loc, pct, PLAY_ORDER, STONES } from './data';
 import { LiveBoard, reducedMotion, sleep, useScene, type Label } from './live';
 
 const Q = 'What should Black play here?';
-const PILLAR = 0.07;
+const PILLAR = 0.09;
 const view = (w: number, h: number): ViewMode => {
   const aspect = w / Math.max(1, h);
-  return { kind: 'orbit', elev: 52, azim: -16, fov: 26, dist: (0.27 / Math.tan((13 * Math.PI) / 180)) * Math.max(1, 1.15 / aspect), target: [0.01, 0.06, 0.01] };
+  return { kind: 'orbit', elev: 52, azim: -16, fov: 26, dist: (0.24 / Math.tan((13 * Math.PI) / 180)) * Math.max(1, 1.15 / aspect), target: [0.01, 0.06, 0.01] };
 };
 
 export function CtaDemo() {
@@ -30,8 +30,9 @@ export function CtaDemo() {
       const b = v!;
       if (still) {
         b.setStones(STONES, false);
-        b.setCandidates(glows(FINAL, 3), false);
-        setLabels(tags());
+        b.setCandidates(glows(FINAL, 4), false);
+        // the still shows the end of the loop: the question asked, the read up, the cursor at rest clear of the tags
+        setLabels([...tags(), { key: 'cursor', loc: loc('K10'), lift: 0.012, cls: 'k3-cursor' }]);
         return sleep(1e9, sig);
       }
       b.fadeOut(0);
@@ -61,7 +62,7 @@ export function CtaDemo() {
       // and KataGo reads it
       b.ping(null, 1500);
       for (const r of DEMO.reads.slice(1)) {
-        b.setCandidates(glows(r, 3));
+        b.setCandidates(glows(r, 4));
         await sleep(380, sig);
       }
       setLabels(tags());
@@ -77,7 +78,7 @@ export function CtaDemo() {
 
   return (
     <div className="l-cta-demo">
-      <LiveBoard className="l-cta-board" options={{ stage: 'void', toneMapping: 'aces', exposure: 0.95, fx: 1.15, pillars: PILLAR, lite: window.matchMedia('(pointer: coarse)').matches }} fit={view} labels={labels} onView={setV} onVisible={setVisible} />
+      <LiveBoard className="l-cta-board" options={{ stage: 'void', toneMapping: 'aces', exposure: 1.02, fx: 1.6, pillars: PILLAR, lite: window.matchMedia('(pointer: coarse)').matches }} fit={view} labels={labels} onView={setV} onVisible={setVisible} />
       <p className={`l-cta-q${asked ? ' on' : ''}`} aria-hidden="true">
         {Q.slice(0, typed)}
         {asked && typed < Q.length && <span className="l-caret" />}

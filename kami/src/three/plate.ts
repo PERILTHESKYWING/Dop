@@ -16,9 +16,13 @@ export const HERO_CAM: PlateCamera = {
   board_rot_z: -9,
 };
 
-/** The phone plate is a crop of the same frame (compose_hero.py: 836 px wide, centred at 70%). */
-export const TALL_X0 = 1680 - 418;
-export const TALL_W = 836;
+/**
+ * On a phone the hero shows this part of the plate's frame: wide enough for the board and both
+ * bowls (x 1120 to 2320 of 2400), at full height. The CSS shows the plate image the same way
+ * (aspect 1200 / 1350, object-position 93.3%), so the two line up.
+ */
+export const PHONE_X0 = 1120;
+export const PHONE_W = 1200;
 
 /**
  * Which part of the plate's full frame an `object-fit: cover` image shows in a box, given its

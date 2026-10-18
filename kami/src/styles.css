@@ -3,8 +3,8 @@
 :root {
   --bg: #f6f8fb;
   --side: #eef2f7;
-  --panel: #edf1f6;
-  --board-sky: url('/kiai/sky.webp');
+  --panel: #e8eef5;
+  --board-sky: none;
   --card: #ffffff;
   --raised: #ffffff;
   --ink: #0b0f14;
@@ -1457,7 +1457,7 @@ kbd {
 .board-panel {
   position: relative;
   background: var(--panel);
-  /* the board above the clouds, as on the landing: a washed-out photo of the same sky (light theme) */
+  /* plain, so the 3D board and its light are the only picture here */
   background-image: var(--board-sky);
   background-size: cover;
   background-position: 50% 30%;
@@ -1689,6 +1689,28 @@ kbd {
   color: var(--ink-2);
   margin: 0;
   text-align: center;
+}
+/* the key to KataGo's discs, under the 3D board */
+.bp-key {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  max-width: 100%;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-key i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #c4e6f6;
+  box-shadow: inset 0 0 0 2px #2eb4ee;
 }
 .bp-foot {
   flex: none;

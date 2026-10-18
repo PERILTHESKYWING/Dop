@@ -453,7 +453,8 @@ interface CandFx {
 
 const DIAL_SEGS = 72;
 const C_BEST = 0x2fd3ff, C_GOOD = 0x8fdcff, C_MID = 0xe4f1ff, C_BAD = 0xffb057;
-const LENS_BEST = new Color(0x02384d), LENS = new Color(0x0a141c);
+// smoked blue glass, a clear step lighter than a black stone so a candidate never reads as one
+const LENS_BEST = new Color(0x2eb4ee), LENS = new Color(0xc4e6f6);
 const WHITE = new Color(0xffffff);
 
 // ------------------------------------------------------------------ the view
@@ -598,7 +599,7 @@ export class KayaView {
   private buildBoard(catcher: boolean) {
     const n = this.size;
     const W = (n - 1) * SX + 2 * MX, L = (n - 1) * SY + 2 * MY, T = this.BT;
-    const g = new RoundedBoxGeometry(W, T, L, 3, 0.0022);
+    const g = new RoundedBoxGeometry(W, T, L, 4, 0.0036);
     // the top texture is cut to this board's size from a 19x19 board's top
     const fx = W / 0.424, fy = L / 0.454;
     const top = tex('kaya-top.webp', true, `n${n}`);
@@ -607,9 +608,10 @@ export class KayaView {
     const bump = tex('kaya-bump.webp', false, `n${n}`);
     bump.repeat.copy(top.repeat);
     bump.offset.copy(top.offset);
-    const topMat = new MeshPhysicalMaterial({ map: top, color: 0xeec39a, bumpMap: bump, bumpScale: 0.3, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.36, specularIntensity: 0.6 });
-    const front = new MeshPhysicalMaterial({ map: tex('kaya-front.webp'), roughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.5 });
-    const side = new MeshPhysicalMaterial({ map: tex('kaya-side.webp'), roughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.5 });
+    // a satin finish: enough gloss for a soft glint, little enough that a bright sky doesn't veil the grain
+    const topMat = new MeshPhysicalMaterial({ map: top, color: 0xfff1de, bumpMap: bump, bumpScale: 0.45, roughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.42, specularIntensity: 0.38 });
+    const front = new MeshPhysicalMaterial({ map: tex('kaya-front.webp'), roughness: 0.66, specularIntensity: 0.3 });
+    const side = new MeshPhysicalMaterial({ map: tex('kaya-side.webp'), roughness: 0.66, specularIntensity: 0.3 });
     const under = new MeshPhysicalMaterial({ color: 0x6b4120, roughness: 0.9 });
     // BoxGeometry groups: +x, -x, +y, -y, +z, -z
     this.board = new Mesh(g, [side, side, topMat, under, front, front]);
@@ -666,7 +668,7 @@ export class KayaView {
     this.set.add(this.ao);
 
     if (catcher) {
-      const c = new Mesh(new PlaneGeometry(4, 4).rotateX(-Math.PI / 2), new ShadowMaterial({ opacity: 0.32 }));
+      const c = new Mesh(new PlaneGeometry(4, 4).rotateX(-Math.PI / 2), new ShadowMaterial({ opacity: 0.44 }));
       c.receiveShadow = true;
       c.position.y = 0.0002;
       this.scene.add(c);
@@ -674,7 +676,7 @@ export class KayaView {
   }
 
   private buildBowls() {
-    const wood = new MeshPhysicalMaterial({ map: tex('bowl.webp'), color: 0xffcf9a, roughness: 0.46, clearcoat: 0.4, clearcoatRoughness: 0.3, specularIntensity: 0.6 });
+    const wood = new MeshPhysicalMaterial({ map: tex('bowl.webp'), roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.38, specularIntensity: 0.45 });
     const prof = BOWL.map(([r, z]) => new Vector2(r, z));
     const lathe = new LatheGeometry(prof, 96);
     // two bowls behind the board, near Blender's (tools/kiai-art/hero.py; the black one pulled in so a wide crop keeps it whole), not turned with it
@@ -688,17 +690,20 @@ export class KayaView {
       bowl.receiveShadow = true;
       bowl.position.set(bx, 0, -by);
       this.scene.add(bowl);
-      // a heap of stones: layered rings, randomly tilted, a dome on top
-      const heap = new InstancedMesh(this.stoneGeo[c], this.stoneMat[c], 120);
+      // a full bowl: a bed of stones up to the rim and a heap domed just above it, so it reads as full from a low camera
+      const bed = new Mesh(new CircleGeometry(0.058, 40).rotateX(-Math.PI / 2), this.stoneMat[c]);
+      bed.position.set(bx, 0.05, -by);
+      this.scene.add(bed);
+      const heap = new InstancedMesh(this.stoneGeo[c], this.stoneMat[c], 140);
       heap.castShadow = true;
       heap.receiveShadow = true;
       let k = 0;
       const rnd = (i: number) => hash(i * 97 + seed * 1013);
-      for (let layer = 0; layer < 8 && k < 120; layer++) {
-        const y = 0.009 + layer * 0.0062;
-        const rmax = Math.min(0.05, 0.044 + layer * 0.004) - Math.max(0, layer - 5) * 0.014;
-        const ringN = Math.floor(10 + rmax * 260);
-        for (let i = 0; i < ringN && k < 120; i++, k++) {
+      // [height, how far from the middle a stone's centre may sit (the wall less a stone's radius)]
+      const layers: [number, number][] = [[0.052, 0.046], [0.058, 0.045], [0.064, 0.043], [0.07, 0.039], [0.076, 0.03], [0.082, 0.018], [0.087, 0.006]];
+      for (const [y, rmax] of layers) {
+        const ringN = Math.floor(6 + rmax * 360);
+        for (let i = 0; i < ringN && k < 140; i++, k++) {
           const a = rnd(k) * Math.PI * 2, rr = rmax * Math.sqrt(rnd(k + 500));
           this.tmpQ.setFromAxisAngle(this.tmpV.set(rnd(k + 9) - 0.5, 0, rnd(k + 19) - 0.5).normalize(), (rnd(k + 29) - 0.5) * 0.9);
           this.tmpM.compose(this.tmpS.set(bx + rr * Math.cos(a), y + rnd(k + 39) * 0.003, -by + rr * Math.sin(a)), this.tmpQ, new Vector3(1, 1, 1));
@@ -939,7 +944,7 @@ export class KayaView {
     const ringGeo = () => new RingGeometry(SX * 0.38, SX * (0.38 + 0.085 * Math.min(1.4, this.fx)), DIAL_SEGS, 1, Math.PI / 2, Math.PI * 2).rotateX(-Math.PI / 2).scale(-1, 1, 1);
     const track = new Mesh(ringGeo(), new MeshBasicMaterial({ transparent: true, depthWrite: false, side: DoubleSide }));
     const arc = new Mesh(ringGeo(), new MeshBasicMaterial({ transparent: true, depthWrite: false, side: DoubleSide }));
-    const hs = SX * (this.pillarH ? 2.8 : 2.1) * this.fx;
+    const hs = SX * 2.1 * this.fx;
     const halo = new Mesh(new PlaneGeometry(hs, hs).rotateX(-Math.PI / 2), this.glowMat(C_BEST, 0));
     halo.renderOrder = 1;
     lens.renderOrder = 2;
@@ -982,32 +987,32 @@ export class KayaView {
     const s = Math.max(0.0001, k.on);
     fx.g.scale.setScalar(s * (1 + 0.12 * Math.sin(Math.min(1, k.on) * Math.PI)));
     fx.lens.material.color.copy(LENS).lerp(LENS_BEST, k.best);
-    fx.lens.material.opacity = ((0.5 + 0.18 * k.strength) * (1 - k.best) + 0.78 * k.best) * Math.min(1, k.on);
+    fx.lens.material.opacity = ((0.78 + 0.12 * k.strength) * (1 - k.best) + 0.92 * k.best) * Math.min(1, k.on);
     fx.track.material.color.copy(k.col);
     fx.track.material.opacity = 0.22 * k.strength * Math.min(1, k.on);
     fx.arc.material.color.copy(k.col);
     fx.arc.material.opacity = Math.min(1, k.strength + 0.45) * Math.min(1, k.on);
     fx.arc.geometry.setDrawRange(0, Math.round(DIAL_SEGS * MathUtils.clamp(k.share, 0, 1)) * 6);
     fx.halo.material.color.copy(k.col);
-    fx.halo.material.opacity = ((this.pillarH ? 0.55 : 0.3) * k.strength * (1 - k.best) + (this.pillarH ? 0.9 : 0.55) * k.best) * Math.min(1, k.on);
+    fx.halo.material.opacity = ((this.pillarH ? 0.32 : 0.3) * k.strength * (1 - k.best) + (this.pillarH ? 0.4 : 0.55) * k.best) * Math.min(1, k.on);
     if (fx.pillar && fx.cap && fx.core && fx.bloom && fx.flare) {
       const on = Math.min(1, k.on);
       const h = Math.max(0.0005, this.pillarH * Math.max(0.05, k.share) * on);
-      const lit = Math.min(1, k.strength + 0.2) * on;
+      const lit = Math.min(1, k.strength + 0.35) * on;
       fx.pillar.scale.set(1, h / s, 1);
       fx.pillar.material.color.copy(k.col);
       fx.pillar.material.opacity = (0.26 + 0.34 * k.best) * lit;
       fx.core.scale.set(1, h / s, 1);
-      fx.core.material.color.copy(k.col).lerp(WHITE, 0.5);
+      fx.core.material.color.copy(k.col).lerp(WHITE, 0.3);
       fx.core.material.opacity = (0.62 + 0.33 * k.best) * lit;
       fx.cap.position.y = h / s;
       fx.cap.material.color.copy(k.col);
       fx.cap.material.opacity = Math.min(1, k.strength + 0.25) * on;
-      // the bloom: a tall soft glow round the column and a flare at its top
-      fx.bloom.position.y = h / s / 2;
-      fx.bloom.scale.set(SX * (1.5 + 0.9 * k.best) * this.fx, h / s + SX * 1.6, 1);
+      // the bloom: a soft glow round the column's upper part (kept off the stones at its foot) and a flare at its top
+      fx.bloom.position.y = (h / s) * 0.62;
+      fx.bloom.scale.set(SX * (0.95 + 0.4 * k.best) * this.fx, (h / s) * 0.8 + SX, 1);
       fx.bloom.material.color.copy(k.col);
-      fx.bloom.material.opacity = (0.2 + 0.24 * k.best) * lit;
+      fx.bloom.material.opacity = (0.18 + 0.16 * k.best) * lit;
       fx.flare.position.y = h / s;
       const fs = SX * (1.1 + 1.1 * k.best) * this.fx;
       fx.flare.scale.set(fs, fs, 1);
@@ -1307,12 +1312,14 @@ export class KayaView {
     }
     const n = this.size * this.size;
     const cells: { loc: Loc; s: number; h: number; mesh: InstancedMesh; k: number; pad: InstancedMesh | null }[] = [];
-    // seen from the side (columns on), territory stands up as a relief of small glass blocks
+    // seen from the side (columns on), territory stands up as a relief of glass blocks, one per
+    // point and nearly touching, so each side's area reads as one terraced region: the surer the
+    // point, the taller its block, in three clear steps (likely, sure, settled)
     const relief = this.pillarH > 0;
-    const geo = relief ? new BoxGeometry(SX, 1, SX).translate(0, 0.5, 0) : new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2);
+    const geo = relief ? new BoxGeometry(SX, 1, SY).translate(0, 0.5, 0) : new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2);
     const meshes = ([1, 2] as StoneColor[]).map((side) => {
       const mat = relief
-        ? new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0b2c47 : 0xdcecff, emissive: side === 1 ? 0x0c86c4 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.2 : 1.05, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false })
+        ? new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0f5f98 : 0xdcecff, emissive: side === 1 ? 0x18aaf2 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.35 : 1.3, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false })
         : new MeshBasicMaterial({ color: side === 1 ? 0x061423 : 0xffffff, map: squareTexture(), transparent: true, opacity: side === 1 ? 0.58 : 0.78, depthWrite: false });
       const m = new InstancedMesh(geo, mat, n);
       m.count = 0;
@@ -1339,7 +1346,8 @@ export class KayaView {
       const mesh = meshes[side - 1];
       const k = mesh.count++;
       if (relief) pads[side - 1].count++;
-      cells.push({ loc: l, s: relief ? 0.74 + 0.16 * s : 0.22 + 0.36 * Math.sqrt(s), h: relief ? (0.002 + 0.013 * s) * this.fx : 1, mesh, k, pad: relief ? pads[side - 1] : null });
+      const tier = s < 0.4 ? 0.22 : s < 0.8 ? 0.55 : 1;
+      cells.push({ loc: l, s: relief ? 0.94 : 0.22 + 0.36 * Math.sqrt(s), h: relief ? (0.0018 + 0.019 * tier) * this.fx : 1, mesh, k, pad: relief ? pads[side - 1] : null });
     }
     const place = (sweep: number) => {
       for (const c of cells) {
@@ -1421,9 +1429,9 @@ export class KayaView {
       const mid = a.clone().add(b).multiplyScalar(0.5);
       mid.y += 0.004 + a.distanceTo(b) * 0.18;
       const curve = new CatmullRomCurve3([a, mid, b]);
-      const tube = new Mesh(new TubeGeometry(curve, 32, 0.0007 * this.fx, 6, false), new MeshBasicMaterial({ color: 0x8fe8ff, transparent: true, opacity: 0.95, blending: AdditiveBlending, depthWrite: false }));
+      const tube = new Mesh(new TubeGeometry(curve, 32, 0.0011 * this.fx, 6, false), new MeshBasicMaterial({ color: 0xbff3ff, transparent: true, opacity: 0.95, blending: AdditiveBlending, depthWrite: false }));
       // and a wide faint tube round it: the line's glow
-      const haze = new Mesh(new TubeGeometry(curve, 32, 0.0024 * this.fx, 8, false), new MeshBasicMaterial({ color: 0x2fc6ff, transparent: true, opacity: 0.2, blending: AdditiveBlending, depthWrite: false }));
+      const haze = new Mesh(new TubeGeometry(curve, 32, 0.0042 * this.fx, 8, false), new MeshBasicMaterial({ color: 0x2fc6ff, transparent: true, opacity: 0.3, blending: AdditiveBlending, depthWrite: false }));
       tube.renderOrder = haze.renderOrder = 6;
       this.varGroup.add(haze, tube);
       if (stepMs) {

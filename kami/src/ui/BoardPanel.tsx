@@ -326,8 +326,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     />
   );
   const caps = view.captures;
-  // Only the note under a previewed line shares the stage with the board.
-  const [boxRef, side] = useSquare(preview ? 42 : 0);
+  // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
+  const keyOn = !preview && want3d && !!candidates?.length;
+  const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 26 : 0);
   // A cropped board keeps its own shape inside the square.
   const aspect = crop ? cropAspect(crop, coords) : 1;
   const boxW = Math.round(aspect >= 1 ? side : side * aspect);
@@ -543,6 +544,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               flatBoard
             )}
           </div>
+          {keyOn && (
+            <p className="bp-key">
+              <i aria-hidden="true" /> {toPlay === 1 ? 'Black' : 'White'}’s win rate there · visits below · ring: share of KataGo’s search
+            </p>
+          )}
           {preview && (
             <p className="bp-note">
               {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
