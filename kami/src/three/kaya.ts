@@ -1008,7 +1008,8 @@ export class KayaView {
       fx.pillar.material.color.copy(k.col);
       fx.pillar.material.opacity = (0.3 + 0.34 * k.best) * lit;
       fx.core.scale.set(1, h / s, 1);
-      fx.core.material.color.copy(k.col).lerp(WHITE, 0.3);
+      // only the favourite's core runs toward white; the others keep their blue, so their tops never read as stones
+      fx.core.material.color.copy(k.col).lerp(WHITE, 0.08 + 0.22 * k.best);
       fx.core.material.opacity = (0.62 + 0.33 * k.best) * lit;
       fx.cap.position.y = h / s;
       fx.cap.material.color.copy(k.col);

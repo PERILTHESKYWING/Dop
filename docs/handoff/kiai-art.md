@@ -19,4 +19,5 @@ Summary: Kiai's flat board skin, the landing's sky-and-table plate and the live 
 
 ## Honest state
 - 2026-10-17 critique (5 Haiku critics): bird 3/10, board 4/10, stones 3/10, logo 3/10.
-- 2026-10-18 redesign: 10 Haiku critics a round (meaning, board vs reference, glow, premium, motion, logo, app, mobile, copy, slide detector) on stills from headless Chromium; scores per round are in the PR.
+- 2026-10-18 redesign: 10 Haiku critics a round (meaning, board vs reference, glow, premium, motion, logo, app, mobile, copy, slide detector) on stills from headless Chromium, 8 rounds; averages 4.5, 4.5, 4.2, 4.7, 4.6, 4.7, 5.0, 4.8 (round 8: meaning 6, phone 6, glow/premium/motion/copy 5, board/logo/app/slides 4). No critic reached 9. Their critiques also flip between rounds (round 7 asked for the hero to open on the answer and for holds to rest; round 8's motion critic asked for the opposite), so read single scores as noise of about ±1.
+- Live board materials now: wood tint 0xf8d0a8 over the kaya map (deeper amber, matched to the reference's hue), lacquered bowls (clearcoat 0.85), stones with an offset contact shadow. What critics still ask for: a darker rim/vignette on the wood, a visible bevel in the app's straight-down view, glass (fresnel) columns and tiles, and an app board that matches the landing's life.

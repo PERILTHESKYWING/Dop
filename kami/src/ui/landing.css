@@ -284,7 +284,8 @@ html.kiai-landing body {
   position: absolute;
   z-index: 3;
   margin: 0;
-  right: max(var(--l-pad), calc(100% - var(--board-right, 95%) + 3%));
+  /* its right edge on the page's gutter, in line with the bar's button */
+  right: var(--l-pad);
   bottom: calc(100% - var(--board-top, 62%) + 16px);
   width: min(430px, 36vw);
   display: flex;
@@ -603,6 +604,22 @@ html.kiai-landing body {
   background: #fff;
   box-shadow: 0 0 0 2px rgba(47, 211, 255, 0.9), 0 0 12px 2px rgba(47, 211, 255, 0.8);
 }
+.l-legend .tile {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  margin: 0 2px 0 6px;
+}
+.l-legend .tile.b {
+  background: #18aaf2;
+  box-shadow: 0 0 10px rgba(24, 170, 242, 0.7);
+}
+.l-legend .tile.w {
+  margin-left: 12px;
+  background: #eef7ff;
+  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.25);
+}
 .l-legend .tag {
   margin-left: 10px;
   padding: 3px 8px;
@@ -658,13 +675,13 @@ html.kiai-landing body {
 @media (min-width: 901px) {
   /* the canvas only: the words standing on the board (bubbles, tags) never fade with it */
   .lb.l-stage-board .lb-canvas {
-    -webkit-mask-image: linear-gradient(90deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
-    mask-image: linear-gradient(90deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
+    mask-image: linear-gradient(90deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
   }
   .l-dive.s-own .lb.l-stage-board .lb-canvas,
   .l-dive.s-device .lb.l-stage-board .lb-canvas {
-    -webkit-mask-image: linear-gradient(270deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
-    mask-image: linear-gradient(270deg, transparent 33%, rgba(0, 0, 0, 0.45) 40%, #000 48%);
+    -webkit-mask-image: linear-gradient(270deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
+    mask-image: linear-gradient(270deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
   }
   .l-step.right {
     justify-content: flex-end;
@@ -970,7 +987,7 @@ html.kiai-landing body {
   flex-direction: column;
   align-items: flex-end;
   gap: 5px;
-  opacity: 0.45;
+  opacity: 0.6;
   transition: opacity 0.6s;
 }
 .l-path li + li::before {
@@ -1286,7 +1303,8 @@ html.kiai-landing body {
   gap: 22px;
 }
 .l-cta h2 {
-  font-size: clamp(40px, 5.4vw, 84px);
+  /* two lines in the copy column ("Find KataGo's / pick, and why."), not a stack of single words */
+  font-size: clamp(36px, 3.4vw, 54px);
 }
 .l-cta p {
   margin: 0;

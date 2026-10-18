@@ -178,9 +178,9 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [still, view]);
 
-  // the win rates float on top of the columns; once the answer names the favourite, its tag says which move it is
+  // the win rates float on top of the columns; once the answer names the favourite, every tag says which move it is
   const cand = (r: Read, named = false): Label[] =>
-    r.cands.slice(0, CANDS).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / r.cands[0].visits) + 0.012, cls: `k3-cand tag${i === 0 ? ' best' : ''}${i === 0 && named ? ' hit' : ''}`, text: `${(c.win * 100).toFixed(0)}%`, sub: i === 0 && named ? c.at : undefined }));
+    r.cands.slice(0, CANDS).map((c, i) => ({ key: `c${c.at}`, loc: loc(c.at), lift: PILLAR * Math.max(0.05, c.visits / r.cands[0].visits) + 0.012, cls: `k3-cand tag${i === 0 ? ' best' : ''}${i === 0 && named ? ' hit' : ''}`, text: `${(c.win * 100).toFixed(0)}%`, sub: named ? c.at : undefined }));
 
   // the first time round the page opens on a finished answer (the question, the answer and the
   // columns of light all up at once); the loop after that shows each read growing from its question
@@ -339,8 +339,17 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
       )}
       <div className="l-hero-foot">
       {gl && (
+        // the key follows the answer on the board: columns for a move, tiles for the score
         <p className="l-legend" aria-hidden="true">
-          <i className="col" /> a move KataGo is considering: the taller the column, the more KataGo checked it <i className="tag">20%</i> Black’s win rate if played
+          {s?.kind === 'score' ? (
+            <>
+              <i className="tile b" /> Black’s points <i className="tile w" /> White’s points: the taller the tile, the surer KataGo is
+            </>
+          ) : (
+            <>
+              <i className="col" /> a move KataGo is considering: the taller the column, the more visits it got <i className="tag">20%</i> Black’s win rate if played
+            </>
+          )}
         </p>
       )}
       {gl && !still && (

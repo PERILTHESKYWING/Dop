@@ -2,8 +2,8 @@
  * Ikki, Kiai's razorbill, in side profile: a round black head, a deep blunt bill about one and a
  * half times as long as it is deep, ending in a hooked point, the white band across the bill, and
  * the white streak that runs from the base of the bill back over the eye (as on the bird).
- * Black and white only. At 24 px and below the streak is left out (it would be a smudge) and the
- * band and eye are drawn a little bolder so they still read.
+ * Black and white only. Below 40 px the streak is left out (it would be a smudge), and at 24 px
+ * and below the band and eye are drawn a little bolder so they still read.
  * `tile` puts it on a white rounded square (app icon).
  * `thinking` animates it: Ikki dips its head as if diving for a read, blinks, and a glint runs
  * down the band.
@@ -17,7 +17,7 @@ const STREAK = 'M160 64 C142 59 118 63 100 77 C118 70 140 69 157 73 Z';
 const EYE = { x: 116, y: 85, r: 6.5 };
 const FRAME = 'translate(110 110) translate(-139 -112)';
 
-export function IkkiHead({ ink = '#0b0f14', paper = '#ffffff', small = false }: { ink?: string; paper?: string; small?: boolean }) {
+export function IkkiHead({ ink = '#0b0f14', paper = '#ffffff', small = false, streak = true }: { ink?: string; paper?: string; small?: boolean; streak?: boolean }) {
   const r = small ? EYE.r * 1.3 : EYE.r;
   const clip = `ikki${useId().replace(/:/g, '')}`;
   return (
@@ -30,7 +30,7 @@ export function IkkiHead({ ink = '#0b0f14', paper = '#ffffff', small = false }: 
       <path d={HEAD} fill={ink} />
       <g clipPath={`url(#${clip})`}>
         <path className="ikki-band" d={BAND} fill="none" stroke={paper} strokeWidth={small ? 11.5 : 8.5} />
-        {!small && <path d={STREAK} fill={paper} />}
+        {streak && !small && <path d={STREAK} fill={paper} />}
       </g>
       <g className="ikki-eye">
         <circle cx={EYE.x} cy={EYE.y} r={r} fill={paper} />
@@ -46,7 +46,7 @@ export function Logo({ size = 22, tile = false, thinking = false, className }: {
     <svg className={cls} width={size} height={size} viewBox="0 0 220 220" aria-hidden="true">
       {tile && <rect width="220" height="220" rx="48" fill="#ffffff" />}
       <g transform={FRAME}>
-        <IkkiHead small={size <= 24} />
+        <IkkiHead small={size <= 24} streak={size >= 40} />
       </g>
     </svg>
   );

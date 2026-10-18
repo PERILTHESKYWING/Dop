@@ -277,7 +277,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Watch KataGo’s search grow.',
     body: (
       <>
-        <p>Each column is a move KataGo is considering; the taller it is, the more KataGo checked that move. A visit is one simulated line of play from the position.</p>
+        <p>Each column is a move KataGo is considering. A visit is one simulated line of play from the position; the taller the column, the more visits that move got.</p>
         <p className="l-step-note">At 128 visits its favourite is the hane at Q10; by 512, Q9 has taken over. This is the real read of this position, replayed.</p>
       </>
     ),
@@ -293,7 +293,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     title: 'Skim picks Q10.',
     body: (
       <>
-        <p>You pick how deep KataGo reads: Skim is quickest, Abyss reads deepest. The same question at each:</p>
+        <p>You pick how deep KataGo reads: Skim is quickest, Abyss reads longest. Same question, three depths.</p>
         <Quote a={ANS.skim} n={2} phone />
       </>
     ),
@@ -319,7 +319,7 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Each depth picked a different move. Abyss read longest, so the most visits stand behind its pick. More visits usually mean a steadier pick, not a certain one.</p>
+        <p className="l-step-note">Here each depth picked a different move. Abyss read longest. More visits usually mean a steadier pick, not a certain one.</p>
       </>
     ),
   },
