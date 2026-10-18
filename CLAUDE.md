@@ -30,4 +30,4 @@ New session? Start with `docs/handoff/START-HERE.md` (state, checklist, next ste
 - `open-items.md` unfinished or unverified things
 - `kami.md` + `kami-*.md` Kami site, explain engine, factory, trainer, library
 - `project-instructions.md` paste-ready project instructions + thread/PR history
-- `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change) and two hook mods, `lean-tokens` and `dop-guard`, that load on their own (see `.claude/MODS.md`)
+- `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change, and `/clarify`, which asks 5+ questions in one batch before a task) and two hook mods, `lean-tokens` and `dop-guard`, that load on their own (see `.claude/MODS.md`)
