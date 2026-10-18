@@ -124,6 +124,22 @@ export const SETTINGS: SettingDef[] = [
 
   // Board
   {
+    key: 'board.3d',
+    group: 'board',
+    type: 'toggle',
+    label: '3D board',
+    help: 'The kaya board in real light, with KataGo’s reading drawn as light on it. Off: the flat board, lighter on old phones.',
+    default: true,
+  },
+  {
+    key: 'board.tilt',
+    group: 'board',
+    type: 'toggle',
+    label: 'Tilt when idle',
+    help: 'After a while without the pointer on it, the 3D board leans back a little; it straightens as soon as you come back.',
+    default: true,
+  },
+  {
     key: 'board.coords',
     group: 'board',
     type: 'toggle',

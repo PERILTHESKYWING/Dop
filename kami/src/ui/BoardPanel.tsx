@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Board, type Mark } from '../../../src/components/Board';
 import { BlunderPanel, TrendPanel } from '../../../src/components/Report';
 import '../../../src/components/boardscreen.css';
@@ -17,8 +17,13 @@ import { Icon } from './Icon';
 import { Performance } from './Performance';
 import { Popover } from './Popover';
 import { KIAI_SKIN } from './skin';
+import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Term } from './Term';
+
+/** The 3D board and three.js load after the page, behind the flat board. */
+const Kaya3D = lazy(() => import('../three/Kaya3D'));
+const HAS_GL = typeof document !== 'undefined' && webglOk();
 
 /** A variation, point or built position drawn over the position it starts from. */
 export interface Preview {
@@ -146,6 +151,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const bestCount = useSetting<number>('board.bestCount');
   const territoryOn = useSetting<boolean>('board.territory');
   const coords = useSetting<boolean>('board.coords');
+  const want3d = useSetting<boolean>('board.3d') && HAS_GL;
+  const tiltIdle = useSetting<boolean>('board.tilt');
   const file = useRef<HTMLInputElement>(null);
 
   const n = board.moves.length;
@@ -297,6 +304,27 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     return () => document.removeEventListener('keydown', key);
   }, []);
 
+  const onCandidateHover = (l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null));
+  const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
+  const flatBoard = (
+    <Board
+      size={view.size}
+      crop={crop}
+      stones={view.stones}
+      lastMove={view.last}
+      toPlay={preview ? undefined : toPlay}
+      onPlay={(l) => play(l)}
+      marks={view.marks}
+      candidates={candidates}
+      onCandidateHover={onCandidateHover}
+      onCandidateClick={(l) => play(l, true)}
+      variation={variation}
+      ownership={ownership}
+      coords={coords}
+      skin={KIAI_SKIN}
+      ariaLabel={ariaLabel}
+    />
+  );
   const caps = view.captures;
   // Only the note under a previewed line shares the stage with the board.
   const [boxRef, side] = useSquare(preview ? 42 : 0);
@@ -491,23 +519,29 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
           <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
-            <Board
-              size={view.size}
-              crop={crop}
-              stones={view.stones}
-              lastMove={view.last}
-              toPlay={preview ? undefined : toPlay}
-              onPlay={(l) => play(l)}
-              marks={view.marks}
-              candidates={candidates}
-              onCandidateHover={(l) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null))}
-              onCandidateClick={(l) => play(l, true)}
-              variation={variation}
-              ownership={ownership}
-              coords={coords}
-              skin={KIAI_SKIN}
-              ariaLabel={preview ? `Variation: ${preview.title}` : 'Board: click to play'}
-            />
+            {want3d ? (
+              <Suspense fallback={flatBoard}>
+                <Kaya3D
+                  size={view.size}
+                  crop={crop}
+                  stones={view.stones}
+                  lastMove={view.last}
+                  toPlay={preview ? undefined : toPlay}
+                  onPlay={(l) => play(l)}
+                  marks={view.marks}
+                  candidates={candidates}
+                  onCandidateHover={onCandidateHover}
+                  onCandidateClick={(l) => play(l, true)}
+                  variation={variation}
+                  ownership={ownership}
+                  coords={coords}
+                  idleTiltMs={tiltIdle && !preview ? 15000 : 0}
+                  ariaLabel={ariaLabel}
+                />
+              </Suspense>
+            ) : (
+              flatBoard
+            )}
           </div>
           {preview && (
             <p className="bp-note">

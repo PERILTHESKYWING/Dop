@@ -1,0 +1,251 @@
+/* The 3D board (Kaya3D.tsx): the canvas, and the words and numbers laid over it. */
+.k3 {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.k3-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: manipulation;
+  /* seen straight down the board shows no sides; its shadow on the page gives it its height */
+  filter: drop-shadow(0 14px 22px rgba(16, 32, 48, 0.3)) drop-shadow(0 2px 3px rgba(16, 32, 48, 0.25));
+}
+.k3.playable .k3-canvas {
+  cursor: pointer;
+}
+.k3-layer {
+  --cell: 30px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* each label is a zero-size box at its point; its content centres on it */
+.k3-l {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+  font-family: var(--font, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.25s;
+}
+/* a tag that would cover a better one steps aside */
+.k3-l.k3-hide {
+  opacity: 0;
+}
+.k3-l b,
+.k3-l i {
+  font-style: normal;
+}
+
+.k3-cand b {
+  font-size: max(12px, calc(var(--cell) * 0.42));
+  font-weight: 700;
+  color: #e8f7ff;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.k3-cand i {
+  margin-top: 1px;
+  font-size: max(9.5px, calc(var(--cell) * 0.27));
+  font-weight: 600;
+  color: rgba(214, 236, 248, 0.88);
+}
+.k3-cand.best b {
+  color: #fff;
+}
+/* on top of a column of light: a small dark tag, so it reads over sky and wood alike */
+.k3-cand.tag {
+  transform-origin: 50% 100%;
+}
+/* tags stand on top of their column (the label's point is the column's top), not across it */
+.k3-cand.tag {
+  justify-content: flex-end;
+  top: -5px;
+}
+.k3-cand.tag b {
+  order: 1;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(4, 16, 26, 0.86);
+  box-shadow: 0 0 0 1px rgba(143, 220, 255, 0.45);
+  font-size: max(13px, calc(var(--cell) * 0.44));
+  animation: k3-tag 0.45s cubic-bezier(0.2, 1.5, 0.35, 1) both;
+}
+.k3-cand.tag.best b {
+  background: #0a8fc7;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 0 18px rgba(47, 211, 255, 0.9);
+}
+/* the coordinate (or the depth) sits on the tag's top edge */
+.k3-cand.tag i {
+  order: 0;
+  margin: 0 0 3px;
+  font-size: max(11px, calc(var(--cell) * 0.3));
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.75),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+.k3-cand.tag.pick:not(.best) b {
+  background: rgba(4, 16, 26, 0.6);
+  color: rgba(232, 247, 255, 0.85);
+}
+.k3-cand.tag.pick:not(.best) {
+  opacity: 0.8;
+}
+@keyframes k3-tag {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.7);
+  }
+}
+/* a turning point of a reviewed game, pinned to its stone */
+.k3-swing b {
+  display: grid;
+  place-items: center;
+  min-width: max(24px, calc(var(--cell) * 0.78));
+  height: max(24px, calc(var(--cell) * 0.78));
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff9a4d;
+  color: #1a0d03;
+  font-size: max(12px, calc(var(--cell) * 0.38));
+  font-weight: 750;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 16px rgba(255, 154, 77, 0.95);
+  translate: 0 -70%;
+  animation: k3-tag 0.5s cubic-bezier(0.2, 1.6, 0.35, 1) both;
+}
+.k3-swing i {
+  margin-top: 2px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(26, 13, 3, 0.8);
+  color: #ffb57d;
+  font-size: max(11px, calc(var(--cell) * 0.3));
+  font-weight: 700;
+  translate: 0 -70%;
+  animation: k3-tag 0.5s 0.1s cubic-bezier(0.2, 1.6, 0.35, 1) both;
+}
+.k3-var.rise b {
+  animation: k3-rise 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.k3-var.rise:nth-child(2) b { animation-delay: 0.38s; }
+.k3-var.rise:nth-child(3) b { animation-delay: 0.76s; }
+.k3-var.rise:nth-child(4) b { animation-delay: 1.14s; }
+.k3-var.rise:nth-child(5) b { animation-delay: 1.52s; }
+.k3-var.rise:nth-child(6) b { animation-delay: 1.9s; }
+.k3-var.rise:nth-child(7) b { animation-delay: 2.28s; }
+.k3-var.rise:nth-child(8) b { animation-delay: 2.66s; }
+.k3-var.rise:nth-child(9) b { animation-delay: 3.04s; }
+@keyframes k3-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.6);
+  }
+}
+
+.k3-var b {
+  display: grid;
+  place-items: center;
+  width: max(21px, calc(var(--cell) * 0.62));
+  height: max(21px, calc(var(--cell) * 0.62));
+  border-radius: 50%;
+  font-size: max(12px, calc(var(--cell) * 0.4));
+  font-weight: 750;
+}
+/* each number on a small disc of its stone's colour, ringed with the line's light */
+.k3-var.b b {
+  color: #f2fbff;
+  background: rgba(6, 14, 22, 0.85);
+  box-shadow: 0 0 0 1.5px rgba(111, 224, 255, 0.85);
+}
+.k3-var.w b {
+  color: #0b1620;
+  background: rgba(246, 251, 255, 0.95);
+  box-shadow: 0 0 0 1.5px rgba(47, 190, 240, 0.9);
+}
+.k3-var.cur b {
+  color: #1bb7e6;
+}
+.k3-var.b.cur b {
+  color: #6fe0ff;
+}
+
+.k3-last::before,
+.k3-mark::before {
+  content: '';
+  position: absolute;
+  width: calc(var(--cell) * 0.36);
+  height: calc(var(--cell) * 0.36);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+}
+.k3-last.on-b::before {
+  border: max(1.5px, calc(var(--cell) * 0.06)) solid #f4f8fb;
+}
+.k3-last.on-w::before {
+  border: max(1.5px, calc(var(--cell) * 0.06)) solid #12161b;
+}
+.k3-mark::before {
+  width: calc(var(--cell) * 0.7);
+  height: calc(var(--cell) * 0.7);
+  border: 2px solid #2fd3ff;
+  box-shadow: 0 0 calc(var(--cell) * 0.25) rgba(47, 211, 255, 0.75);
+}
+.k3-evidence::before {
+  border-radius: 22%;
+  border-color: #ffb057;
+  box-shadow: 0 0 calc(var(--cell) * 0.25) rgba(255, 176, 87, 0.7);
+}
+.k3-mark b {
+  font-size: max(9px, calc(var(--cell) * 0.34));
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+.k3-coord b {
+  font-size: max(8px, calc(var(--cell) * 0.3));
+  font-weight: 600;
+  color: var(--ink-3, #5a6878);
+}
+
+@media (max-width: 600px) {
+  .k3-cand i {
+    display: none;
+  }
+}
+
+/* a pointer clicking a stone onto the board (the landing's set-up demo) */
+.k3-cursor::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 20px;
+  background: #fff;
+  clip-path: polygon(0 0, 0 78%, 26% 60%, 44% 100%, 58% 94%, 40% 56%, 74% 56%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}

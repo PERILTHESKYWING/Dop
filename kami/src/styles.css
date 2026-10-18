@@ -560,9 +560,62 @@ kbd {
 }
 /* the white Ikki tile needs an edge on light paper; on dark it stands on its own */
 .logo.tile {
-  border-radius: 23%;
+  border-radius: 22%;
   box-shadow: 0 0 0 1px var(--line);
   flex: none;
+}
+/* Ikki at work: dips for a read and comes back up, blinks, and a glint runs down the band */
+.logo.thinking .ikki {
+  transform-box: fill-box;
+  transform-origin: 30% 85%;
+  animation: ikki-dip 1.8s cubic-bezier(0.45, 0, 0.3, 1) infinite;
+}
+.logo.thinking .ikki-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ikki-blink 3.6s steps(1, end) infinite;
+}
+.logo.thinking .ikki-band {
+  animation: ikki-glint 1.8s ease-in-out infinite;
+}
+@keyframes ikki-dip {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  45% {
+    transform: rotate(9deg) translateY(2%);
+  }
+  60% {
+    transform: rotate(7deg) translateY(1.5%);
+  }
+}
+@keyframes ikki-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  94% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes ikki-glint {
+  0%,
+  30%,
+  100% {
+    stroke: #ffffff;
+  }
+  50% {
+    stroke: #7fe3ff;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo.thinking .ikki,
+  .logo.thinking .ikki-eye,
+  .logo.thinking .ikki-band {
+    animation: none;
+  }
 }
 .new-chat {
   margin: 6px 8px 14px;
@@ -1016,6 +1069,30 @@ kbd {
 }
 .thoughts li .meta {
   margin-left: 8px;
+}
+/* before the first step lands, the line shimmers so the wait reads as work */
+.thoughts li.wait {
+  list-style: none;
+  margin-left: -20px;
+  color: transparent;
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 38%, var(--accent) 50%, var(--muted) 62%, var(--muted) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: think-sheen 1.8s linear infinite;
+}
+@keyframes think-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thoughts li.wait {
+    animation: none;
+    color: var(--muted);
+  }
 }
 .thoughts > .meta {
   margin: 0;

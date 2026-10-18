@@ -279,7 +279,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtS
             {s.variation && ex && <VariationChip id={s.variation} ex={ex} msgId={msgId} link={link} />}
           </li>
         ))}
-        {!steps.length && <li className="meta">{live ? 'Waiting for the engine…' : 'No steps were recorded.'}</li>}
+        {!steps.length && (live ? <li className="wait">KataGo is reading the position…</li> : <li className="meta">No steps were recorded.</li>)}
       </ol>
       {ex && !live && (
         <p className="meta">
@@ -596,7 +596,7 @@ function KamiMessage({
   return (
     <div className="msg kami">
       <div className="who">
-        <Logo size={20} tile />
+        <Logo size={20} tile thinking={live} />
         {tier ? `${tier.name} ${KAMI_VERSION}` : 'Kiai'}
         {m.thinking && m.thinking !== 'off' && !(a && a.type === 'concept') ? <span className="meta"> · thinking {m.thinking}</span> : null}
       </div>
