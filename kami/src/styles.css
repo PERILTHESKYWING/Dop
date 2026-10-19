@@ -1335,7 +1335,7 @@ kbd {
   gap: 4px;
   border-radius: 8px;
   padding: 5px 8px;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--ink-2);
   font-weight: 500;
   white-space: nowrap;
@@ -1384,11 +1384,13 @@ kbd {
   flex-direction: column;
 }
 .mi-name {
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
 }
 .mi-tag {
-  margin-left: 6px;
-  font-weight: 500;
+  margin-left: 8px;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--accent);
 }
 .menu-head {
@@ -1397,7 +1399,7 @@ kbd {
   color: var(--ink);
 }
 .mi-blurb {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.35;
   color: var(--ink-2);
   text-wrap: pretty;

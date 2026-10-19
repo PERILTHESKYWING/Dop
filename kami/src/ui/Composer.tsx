@@ -5,10 +5,10 @@ import type { PickId, Tier } from '../lib/writer';
 import { Icon } from './Icon';
 
 const LEVELS: { id: ThinkingLevel; name: string; blurb: string }[] = [
-  { id: 'off', name: 'Off', blurb: 'No extra reading. Fastest.' },
-  { id: 'low', name: 'Low', blurb: 'A little extra reading.' },
-  { id: 'medium', name: 'Medium', blurb: 'Reads the most likely moves.' },
-  { id: 'high', name: 'High', blurb: 'Reads more moves. Slowest.' },
+  { id: 'off', name: 'Off', blurb: 'Explains right away. Fastest.' },
+  { id: 'low', name: 'Low', blurb: 'Thinks a little first.' },
+  { id: 'medium', name: 'Medium', blurb: 'Thinks a bit longer first.' },
+  { id: 'high', name: 'High', blurb: 'Thinks the longest first. Slowest.' },
 ];
 
 /** A button with a small menu that opens above it. */
@@ -102,7 +102,7 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
           }
         >
           {(close) => [
-            <div key="head" className="menu-head">Depth: how long KataGo reads</div>,
+            <div key="head" className="menu-head">Depth: how long KataGo reads the board</div>,
             ...tiers.map((t) => (
               <button
                 key={t.id}
@@ -129,7 +129,7 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
         </Menu>
         <Menu className="think-menu" label={<>Thinking: {LEVELS.find((l) => l.id === thinking)?.name}</>}>
           {(close) => [
-            <div key="head" className="menu-head">Thinking: how much extra reading Kiai does</div>,
+            <div key="head" className="menu-head">Thinking: how long Kiai thinks before explaining</div>,
             ...LEVELS.map((l) => (
               <button
                 key={l.id}

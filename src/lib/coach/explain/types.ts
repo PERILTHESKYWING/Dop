@@ -28,9 +28,9 @@ export interface ModelInfo {
 }
 
 export const MODELS: readonly ModelInfo[] = [
-  { id: 'hane', name: 'Quick', blurb: 'Answers right away, from a short read.', llm: false, defaultThinking: 'off' },
-  { id: 'tesuji', name: 'Careful', blurb: 'Reads a few seconds, then shows why.', llm: false, defaultThinking: 'medium' },
-  { id: 'myoshu', name: 'Deep', blurb: 'Reads the longest, up to half a minute.', llm: true, defaultThinking: 'high' },
+  { id: 'hane', name: 'Quick', blurb: 'Answers right away.', llm: false, defaultThinking: 'off' },
+  { id: 'tesuji', name: 'Careful', blurb: 'Takes a few seconds.', llm: false, defaultThinking: 'medium' },
+  { id: 'myoshu', name: 'Deep', blurb: 'Takes the longest, up to half a minute.', llm: true, defaultThinking: 'high' },
 ];
 
 /** Version shown next to the model name; bumped only when the coach test set score goes up. */
