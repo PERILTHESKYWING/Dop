@@ -369,7 +369,7 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Night Dive' : 'Gemini'}, checked against KataGo’s facts.</p>}
+      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Kiai’s local model' : 'Gemini'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {ex.facts.length > 0 && (
         <details className="facts">

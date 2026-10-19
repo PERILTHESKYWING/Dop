@@ -14,8 +14,8 @@ import { LiveBoard, reducedMotion, sleep, useScene, useTween, type Label } from 
 type StepId = 'read' | 'skim' | 'dive' | 'abyss' | 'own' | 'review' | 'device';
 type DepthId = 'skim' | 'dive' | 'abyss';
 const Q = 'What should Black play here?';
-const ANS = { skim: answer(Q, 'Skim'), dive: answer(Q, 'Dive'), abyss: answer(Q, 'Abyss') };
-const WHO = answer('Who is ahead, and why?', 'Abyss');
+const ANS = { skim: answer(Q, 'Quick'), dive: answer(Q, 'Careful'), abyss: answer(Q, 'Deep') };
+const WHO = answer('Who is ahead, and why?', 'Deep');
 const PICK = { skim: ANS.skim.variations[0].moves, dive: ANS.dive.variations[0].moves, abyss: ANS.abyss.variations[0].moves };
 const DEPTHS: DepthId[] = ['skim', 'dive', 'abyss'];
 
@@ -40,7 +40,7 @@ function orbit(elev: number, azim: number, w: number, h: number, o: { zoom?: num
   return { kind: 'orbit', elev, azim, fov, dist: fit * zoom, target: [x, 0.06, z], spin: o.spin, shift };
 }
 // the reading happens on the right side (Q9 to R12), so the close views look there; each depth
-// dives closer and lower than the last (Skim from high up, Abyss down among the stones)
+// dives closer and lower than the last (Quick from high up, Deep down among the stones)
 const VIEWS: Record<StepId, (w: number, h: number) => ViewMode> = {
   read: (w, h) => orbit(40, -26, w, h, { zoom: 0.6, at: [0.1, -0.05], spin: 0.5 }),
   skim: (w, h) => orbit(52, -10, w, h, { zoom: 0.82, at: [0.08, -0.04] }),
@@ -287,13 +287,13 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     anchor: 'depths',
     kicker: (
       <>
-        <Depth id="hane" size={14} /> Skim · {fmt(ANS.skim.visits)} visits
+        <Depth id="hane" size={14} /> Quick · {fmt(ANS.skim.visits)} visits
       </>
     ),
-    title: 'Skim picks Q10.',
+    title: 'Quick picks Q10.',
     body: (
       <>
-        <p>You pick how deep KataGo reads: Skim is quickest, Abyss reads longest. Same question, three depths.</p>
+        <p>You pick how deep KataGo reads: Quick reads least, Deep reads longest. Same question, three depths.</p>
         <Quote a={ANS.skim} n={2} phone />
       </>
     ),
@@ -302,24 +302,24 @@ const STEPS: { id: StepId; kicker: ReactNode; title: string; body: ReactNode; an
     id: 'dive',
     kicker: (
       <>
-        <Depth id="tesuji" size={14} /> Dive · {fmt(ANS.dive.visits)} visits
+        <Depth id="tesuji" size={14} /> Careful · {fmt(ANS.dive.visits)} visits
       </>
     ),
-    title: 'Dive changes its pick: R12.',
+    title: 'Careful changes its pick: R12.',
     body: <Quote a={ANS.dive} n={1} phone />,
   },
   {
     id: 'abyss',
     kicker: (
       <>
-        <Depth id="myoshu" size={14} /> Abyss · {fmt(ANS.abyss.visits)} visits
+        <Depth id="myoshu" size={14} /> Deep · {fmt(ANS.abyss.visits)} visits
       </>
     ),
-    title: 'Abyss settles on Q9.',
+    title: 'Deep settles on Q9.',
     body: (
       <>
         <Quote a={ANS.abyss} n={1} phone />
-        <p className="l-step-note">Here each depth picked a different move. Abyss read longest. More visits usually mean a steadier pick, not a certain one.</p>
+        <p className="l-step-note">Here each depth picked a different move. Deep read longest. More visits usually mean a steadier pick, not a certain one.</p>
       </>
     ),
   },
@@ -451,7 +451,7 @@ function Stats({ step, live }: { step: StepId; live: Live }) {
             <li key={d} className={d === step ? 'on' : DEPTHS.indexOf(step) > i ? 'past' : ''}>
               <span>{ANS[d].depth}</span>
               <b>{PICK[d][0]}</b>
-              {/* the visits behind each pick, to scale: Abyss's bar is full */}
+              {/* the visits behind each pick, to scale: Deep's bar is full */}
               <em style={{ ['--v' as string]: Math.max(0.04, ANS[d].visits / ANS.abyss.visits) }} />
               <i>{fmt(ANS[d].visits)} visits</i>
             </li>

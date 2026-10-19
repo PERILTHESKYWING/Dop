@@ -28,17 +28,17 @@ interface Scene {
   foot: string;
 }
 
-const PLAY = answer('What should Black play here?', 'Abyss');
-const SCORE = answer('Who is ahead, and why?', 'Abyss');
+const PLAY = answer('What should Black play here?', 'Deep');
+const SCORE = answer('Who is ahead, and why?', 'Deep');
 /** The score answer's own numbers (its read, which its words round), so the foot and the answer agree. */
 function scoreFoot(): string {
   const m = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections[0]?.text ?? '');
   const lead = m ? m[1] : (-FINAL.bLead).toFixed(1), win = m ? `${m[2]}%` : pct(FINAL.bWin);
-  return `KataGo’s Abyss read: White leads by ${lead} points\nBlack’s win rate: ${win} · ${fmt(SCORE.visits)} visits`;
+  return `KataGo’s Deep read: White leads by ${lead} points\nBlack’s win rate: ${win} · ${fmt(SCORE.visits)} visits`;
 }
 // The board shows KataGo's 2,048-visit read of the position, so the numbers under each answer
-// are that read's; the words are Kiai's Abyss answers to the same position (no depth badge here,
-// since Abyss's own read is longer than the one on the board).
+// are that read's; the words are Kiai's Deep answers to the same position (no depth badge here,
+// since Deep's own read is longer than the one on the board).
 const best = FINAL.cands[0];
 const SCENES: Scene[] = [
   { q: PLAY.question, kind: 'play', point: best.at, text: words(PLAY.summary), foot: `KataGo’s pick: ${best.at} · Black’s win rate if played: ${pct(best.win)}\n${fmt(FINAL.visits)} visits, read in your browser` },

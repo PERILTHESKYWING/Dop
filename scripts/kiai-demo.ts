@@ -2,7 +2,7 @@
  * The landing page's live demos, recorded from real reads: KataGo (the bundled b10 network
  * through the WASM engine in Node, the same search the site runs) on the landing's game
  * (demo game g70dd864b0bcbfc05, 34 moves, Black to play), and Kiai's own engine text for three
- * questions at each depth. Nothing here calls a language model, so Abyss shows its engine text
+ * questions at each depth. Nothing here calls a language model, so Deep shows its engine text
  * without the Gemini wording. The game review is of another demo game (g02b639852ab783a8, chosen
  * because its win rate swings back and forth for most of the game, so the graph shows something).
  *
@@ -69,9 +69,9 @@ const QUESTIONS: { text: string; q: Question }[] = [
   { text: 'Who is ahead, and why?', q: { kind: 'overview', text: 'Who is ahead, and why?', intent: 'ahead' } },
 ];
 const DEPTHS: { model: ModelId; name: string; thinking: ThinkingLevel }[] = [
-  { model: 'hane', name: 'Skim', thinking: 'off' },
-  { model: 'tesuji', name: 'Dive', thinking: 'medium' },
-  { model: 'myoshu', name: 'Abyss', thinking: 'high' },
+  { model: 'hane', name: 'Quick', thinking: 'off' },
+  { model: 'tesuji', name: 'Careful', thinking: 'medium' },
+  { model: 'myoshu', name: 'Deep', thinking: 'high' },
 ];
 const answers: unknown[] = prev?.answers ?? [];
 for (const { text, q } of prev ? [] : QUESTIONS) {

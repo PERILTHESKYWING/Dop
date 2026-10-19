@@ -25,7 +25,7 @@ export interface Tier {
   defaultThinking: ThinkingLevel;
 }
 
-export const LOCAL_PICK: Tier = { id: 'local', name: 'Night Dive', blurb: 'Beta. Kiai’s own small model, on this device.', model: 'tesuji', defaultThinking: 'medium' };
+export const LOCAL_PICK: Tier = { id: 'local', name: 'Local', blurb: 'Beta. Kiai’s own small model, running on this device.', model: 'tesuji', defaultThinking: 'medium' };
 
 export function picks(withLocal: boolean): Tier[] {
   const tiers: Tier[] = MODELS.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, model: m.id, defaultThinking: m.defaultThinking }));
@@ -66,7 +66,7 @@ export const NOTES = {
   failed: 'Wording failed the fact check, showing engine text.',
   noLlm: 'No language model on this server, showing engine text.',
   llmError: 'The language model did not answer, showing engine text.',
-  localError: 'Night Dive could not run here, showing engine text.',
+  localError: 'Local could not run here, showing engine text.',
 } as const;
 
 /**
