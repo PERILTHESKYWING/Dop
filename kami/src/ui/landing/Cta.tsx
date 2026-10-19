@@ -99,7 +99,7 @@ export function CtaDemo() {
       </p>
       <p className={`l-cta-a${said ? ' on' : ''}`} aria-hidden="true">
         <span className="l-cta-who">
-          <Logo size={18} tile /> Kiai
+          <Logo size={18} /> Kiai
         </span>
         {A.map((w, i) => (
           <span key={i} className={`l-w${i < said ? ' on' : ''}`}>

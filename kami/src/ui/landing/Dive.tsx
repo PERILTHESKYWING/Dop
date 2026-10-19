@@ -362,7 +362,7 @@ function Quote({ a, n, phone }: { a: ReturnType<typeof answer>; n: number; phone
     <blockquote className={`l-quote${phone ? ' phone' : ''}`}>
       <p>“{words(a.summary, n)}”</p>
       <cite>
-        <Logo size={18} tile /> Kiai, {a.depth}
+        <Logo size={18} /> Kiai, {a.depth}
       </cite>
     </blockquote>
   );
@@ -537,8 +537,8 @@ export function Dive() {
             <span key={s.id} className={`l-rail-tick${i <= at ? ' past' : ''}`} style={{ top: `${(i / (STEPS.length - 1)) * 100}%` }} />
           ))}
           <span className="l-rail-fill" style={{ transform: `scaleY(${at / (STEPS.length - 1)})` }} />
-          <span className="l-rail-ikki" style={{ top: `${(at / (STEPS.length - 1)) * 100}%` }}>
-            <Logo size={26} tile thinking={step === 'read' || step === 'skim' || step === 'dive' || step === 'abyss' || step === 'device'} />
+          <span className="l-rail-mark" style={{ top: `${(at / (STEPS.length - 1)) * 100}%` }}>
+            <Logo size={26} />
           </span>
         </div>
         <Stats key={step} step={step} live={live} />

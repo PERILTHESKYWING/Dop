@@ -18,6 +18,7 @@ import { Messages, type Running } from './ui/Messages';
 import { Settings, type SettingsPage } from './ui/Settings';
 import { Sidebar } from './ui/Sidebar';
 import { Splitter } from './ui/Splitter';
+import { markReady } from './lib/ready';
 import { getSetting, useSetting } from './lib/settings';
 import { observeMove, studentProfile } from './lib/style';
 
@@ -82,6 +83,8 @@ export function App() {
   const controller = useRef<AbortController | null>(null);
 
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
+
+  useEffect(markReady, []);
 
   useEffect(() => {
     loadConversations().then((saved) => {

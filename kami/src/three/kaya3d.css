@@ -55,7 +55,7 @@
   font-size: max(13px, calc(var(--cell) * 0.44));
   font-weight: 750;
   color: #062236;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.005em;
 }
 .k3-cand:not(.tag) b::after {
   content: '%';
@@ -296,8 +296,7 @@
     0 0 24px rgba(47, 211, 255, 0.35);
   color: #fff;
   font: 760 26px/1 var(--font, system-ui, sans-serif);
-  font-stretch: 118%;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.005em;
   animation: k3-tag 0.45s cubic-bezier(0.2, 1.5, 0.35, 1) both;
 }
 .k3-count i {

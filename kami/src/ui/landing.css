@@ -35,9 +35,8 @@ html.kiai-landing body {
 .landing h1,
 .landing h2,
 .landing h3 {
-  font-stretch: 118%;
   font-weight: 760;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.005em;
   line-height: 0.98;
   margin: 0;
   text-wrap: balance;
@@ -94,10 +93,9 @@ html.kiai-landing body {
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  font-stretch: 118%;
   font-weight: 760;
   font-size: 21px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.005em;
 }
 .l-brand .logo.tile {
   border-radius: 8px;
@@ -778,7 +776,7 @@ html.kiai-landing body {
   border-radius: 5px;
 }
 
-/* the depth rail down the left edge, with Ikki diving down it */
+/* the depth rail down the left edge, with the seal marking where you are */
 .l-rail {
   position: absolute;
   left: max(18px, calc(var(--l-pad) - 30px));
@@ -809,7 +807,7 @@ html.kiai-landing body {
   background: var(--l-glow);
   opacity: 1;
 }
-.l-rail-ikki {
+.l-rail-mark {
   position: absolute;
   left: -13px;
   display: flex;
@@ -818,7 +816,7 @@ html.kiai-landing body {
   transform: translateY(-50%);
   transition: top 1.4s cubic-bezier(0.5, 0, 0.2, 1);
 }
-.l-rail-ikki .logo {
+.l-rail-mark .logo {
   display: block;
   flex: none;
   border-radius: 7px;
@@ -826,7 +824,7 @@ html.kiai-landing body {
     0 0 0 1px rgba(11, 15, 20, 0.12),
     0 0 18px rgba(47, 211, 255, 0.45);
 }
-.l-rail-ikki b {
+.l-rail-mark b {
   font: 600 10.5px/1 var(--mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -879,8 +877,7 @@ html.kiai-landing body {
 }
 .l-stat b {
   font: 760 clamp(40px, 4.6vw, 72px) / 0.9 var(--font);
-  font-stretch: 118%;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.005em;
   font-variant-numeric: tabular-nums;
 }
 .l-stat.small b {
@@ -1015,8 +1012,7 @@ html.kiai-landing body {
 }
 .l-path b {
   font: 760 clamp(28px, 2.8vw, 44px) / 0.95 var(--font);
-  font-stretch: 118%;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.005em;
 }
 .l-path li.on b {
   color: var(--l-glow);
@@ -1101,7 +1097,6 @@ html.kiai-landing body {
 }
 .l-acc b {
   font: 760 clamp(17px, 1.5vw, 22px) / 1 var(--font);
-  font-stretch: 118%;
   color: #fff;
   margin-left: 4px;
   text-shadow: 0 0 16px rgba(47, 211, 255, 0.5);

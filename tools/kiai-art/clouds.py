@@ -1,5 +1,5 @@
-"""The sky plate: a sea of cumulus seen from above it, under a physical sky. Used behind Ikki's
-flight (panned and streaked) and, out of focus, behind the hero board.
+"""The sky plate: a sea of cumulus seen from above it, under a physical sky. Used out of focus
+behind the hero board.
 Usage: python clouds.py OUT.png W H SAMPLES"""
 import sys, os, math
 sys.path.insert(0, os.path.dirname(__file__))

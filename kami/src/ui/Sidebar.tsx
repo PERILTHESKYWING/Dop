@@ -155,7 +155,7 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
     <nav className="sidebar" aria-label="Conversations">
       <div className="side-head">
         <span className="brand">
-          <Logo size={24} tile />
+          <Logo size={24} />
           <span className="wordmark">Kiai</span>
         </span>
         <button className="icon-btn side-fold" aria-label="Close sidebar" title="Close sidebar" onClick={onToggle}>
