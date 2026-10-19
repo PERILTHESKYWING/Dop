@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { KAMI_VERSION, type ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import type { ThinkingLevel } from '../../../src/lib/coach/explain/types';
 import { useSetting } from '../lib/settings';
 import type { PickId, Tier } from '../lib/writer';
-import { Depth } from './Depth';
 import { Icon } from './Icon';
 
 const LEVELS: { id: ThinkingLevel; name: string; blurb: string }[] = [
-  { id: 'off', name: 'Off', blurb: 'One quick read.' },
-  { id: 'low', name: 'Low', blurb: 'A few short reads.' },
-  { id: 'medium', name: 'Medium', blurb: 'Reads the main lines.' },
-  { id: 'high', name: 'High', blurb: 'Reads deeper and wider.' },
+  { id: 'off', name: 'Off', blurb: 'No extra reading. Fastest.' },
+  { id: 'low', name: 'Low', blurb: 'A little extra reading.' },
+  { id: 'medium', name: 'Medium', blurb: 'Reads the most likely moves.' },
+  { id: 'high', name: 'High', blurb: 'Reads more moves. Slowest.' },
 ];
 
 /** A button with a small menu that opens above it. */
@@ -55,10 +54,9 @@ interface Props {
   running: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
-  llmOn: boolean | null;
 }
 
-export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThinking, running, onSend, onStop, llmOn }: Props) {
+export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThinking, running, onSend, onStop }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const enterSends = useSetting<boolean>('chat.enterSends');
   useEffect(() => {
@@ -99,13 +97,13 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
           className="pick-menu"
           label={
             <>
-              <Depth id={tier.id} />
-              {tier.name} <span className="ver">{KAMI_VERSION}</span>
+              Depth: {tier.name}
             </>
           }
         >
-          {(close) =>
-            tiers.map((t) => (
+          {(close) => [
+            <div key="head" className="menu-head">Depth: how long KataGo reads</div>,
+            ...tiers.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -117,24 +115,22 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
                   close();
                 }}
               >
-                <Depth id={t.id} />
                 <span className="mi-main">
                   <span className="mi-name">
-                    {t.name} <span className="ver">{KAMI_VERSION}</span>
+                    {t.name}
+                    {t.id === 'tesuji' && <span className="mi-tag">Recommended</span>}
                   </span>
-                  <span className="mi-blurb">
-                    {t.blurb}
-                    {t.id === 'myoshu' && llmOn === false ? ' (no LLM here: engine text)' : ''}
-                  </span>
+                  <span className="mi-blurb">{t.blurb}</span>
                 </span>
                 {t.id === tier.id && <Icon name="check" size={16} />}
               </button>
-            ))
-          }
+            )),
+          ]}
         </Menu>
         <Menu className="think-menu" label={<>Thinking: {LEVELS.find((l) => l.id === thinking)?.name}</>}>
-          {(close) =>
-            LEVELS.map((l) => (
+          {(close) => [
+            <div key="head" className="menu-head">Thinking: how much extra reading Kiai does</div>,
+            ...LEVELS.map((l) => (
               <button
                 key={l.id}
                 type="button"
@@ -147,13 +143,16 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
                 }}
               >
                 <span className="mi-main">
-                  <span className="mi-name">{l.name}</span>
+                  <span className="mi-name">
+                    {l.name}
+                    {l.id === 'medium' && <span className="mi-tag">Recommended</span>}
+                  </span>
                   <span className="mi-blurb">{l.blurb}</span>
                 </span>
                 {l.id === thinking && <Icon name="check" size={16} />}
               </button>
-            ))
-          }
+            )),
+          ]}
         </Menu>
         <span className="grow" />
         {running ? (

@@ -367,7 +367,6 @@ export function App() {
             running={!!running}
             onSend={send}
             onStop={stop}
-            llmOn={llmOn}
           />
         </main>
         {!boardHidden && <Splitter />}
