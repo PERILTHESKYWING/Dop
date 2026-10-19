@@ -13,7 +13,7 @@ import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { pickById } from '../lib/writer';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
-import { Logo } from './Logo';
+import { Calligraphy, Logo } from './Logo';
 import { AskContext, Term } from './Term';
 
 export interface Running {
@@ -615,7 +615,7 @@ function KamiMessage({
   return (
     <div className="msg kami">
       <div className="who">
-        <Logo size={20} tile thinking={live} />
+        <Logo size={20} />
         {tier ? `${tier.name} ${KAMI_VERSION}` : 'Kiai'}
         {m.thinking && m.thinking !== 'off' && !(a && a.type === 'concept') ? <span className="meta"> · thinking {m.thinking}</span> : null}
       </div>
@@ -650,6 +650,20 @@ interface Props {
   busy: boolean;
 }
 
+/** 気合 writes itself the first time the empty chat shows; after that it is simply there. */
+let helloWritten = false;
+function HelloMark() {
+  const [write] = useState(() => !helloWritten);
+  useEffect(() => {
+    helloWritten = true;
+  }, []);
+  return (
+    <div className="hello-mark">
+      <Calligraphy height={80} layout="h" write={write} />
+    </div>
+  );
+}
+
 export function Messages({ messages, running, board, link, onAsk, onRegenerate, onEdit, onShowBoard, busy }: Props) {
   const end = useRef<HTMLDivElement>(null);
   const steps = running?.steps.length ?? 0;
@@ -665,7 +679,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     return (
       <div className="messages empty">
         <div className="hello">
-          <Logo size={72} tile className="hello-logo" />
+          <HelloMark />
           <h1>What shall we read?</h1>
           <p>Ask about any Go position. KataGo reads it in your browser, and Kiai tells you why.</p>
           <div className="ideas">

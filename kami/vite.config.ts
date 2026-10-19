@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleLlmRequest } from '../shared/llmServer.js';
+import { loaderHtml } from './src/ui/brand/loader';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..');
@@ -74,6 +75,11 @@ function llmApi(env: Record<string, string>): Plugin {
   };
 }
 
+/** The 気合 loading sheet, inlined so it shows before any script loads (src/ui/brand/loader.ts). */
+function kiaiLoader(): Plugin {
+  return { name: 'kiai-loader', transformIndexHtml: (html) => html.replace('<!--kiai-loader-->', loaderHtml()) };
+}
+
 const katagoProxy = {
   target: 'https://media.katagotraining.org',
   changeOrigin: true,
@@ -87,7 +93,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: here,
     publicDir: 'public',
-    plugins: [react(), llmApi(env)],
+    plugins: [react(), llmApi(env), kiaiLoader()],
     worker: { format: 'es' },
     // The strong network (kata1 b18) downloads through /katago-models, as on Dop (vercel.json has the same rewrite).
     server: { port: 5174, fs: { allow: [repo] }, proxy: { '/katago-models': katagoProxy } },

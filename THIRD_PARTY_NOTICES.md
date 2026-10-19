@@ -33,17 +33,19 @@ above, where it falls under the same MIT licence ("all other content in this rep
 blocked, and it is the default on the CPU.
 
 ### Fonts (SIL Open Font License 1.1)
-Bundled from the `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
+Bundled from the `@fontsource` / `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
 
-- **Archivo**, Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+- **Archivo** (Dop), Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+- **Alegreya Sans** (Kiai), Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans). Kiai's loading screen also carries "Kiai" and one line of text in it as outlines (`kami/src/ui/brand/glyphs.ts`).
+- **Yuji Syuku** (Kiai), Copyright 2021 The Yuji Project Authors (https://github.com/Kinutafontfactory/Yuji). Not shipped as a font: the outlines of 気 and 合 are taken from it for the 気合 calligraphy and the seal (`kami/src/ui/brand/glyphs.ts`, made by `tools/brand/kiai_brush.py`), which the OFL allows for artwork.
 
 ### Artwork (original, no third-party images)
 The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) and the board's wood texture
 (`public/art/kaya.webp`) were generated procedurally for this project by the scripts in `tools/art/`. They
 contain no photographs or other third-party images, so no third-party licence applies.
 
-Kiai's pictures (`kami/public/kiai/`) and the Ikki logo (`kami/src/ui/Logo.tsx`, `kami/public/favicon.svg`)
-are original too. The pictures, including the sky-and-table plates behind the live board
+Kiai's pictures (`kami/public/kiai/`) are original too; the washi paper behind the loading screen is
+made with numpy by `tools/brand/washi.py`. The pictures, including the sky-and-table plates behind the live board
 (`kami/public/kiai/3d/plate*.webp`), were path-traced in Blender from the procedural scenes in
 `tools/kiai-art/` (no downloaded models, textures or photographs); Blender's GPL covers Blender itself, not the
 images it renders. The live 3D board's wood, bowl and shell textures (`kami/public/kiai/3d/`) are made with

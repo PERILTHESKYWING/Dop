@@ -1,4 +1,4 @@
-/* Kiai. A high-altitude look: cloud-white paper, razorbill-black ink, one clear sky blue.
+/* Kiai. A high-altitude look: cloud-white paper, sumi-black ink, one clear sky blue, one seal red.
  * Light and dark come from the tokens below; nothing else names a colour except the board. */
 :root {
   --bg: #f6f8fb;
@@ -26,7 +26,7 @@
   --shadow: 0 6px 24px rgba(16, 32, 56, 0.07), 0 1px 3px rgba(16, 32, 56, 0.06);
   --shadow-pop: 0 14px 44px rgba(16, 32, 56, 0.16), 0 2px 6px rgba(16, 32, 56, 0.07);
   --scroll: rgba(11, 15, 20, 0.16);
-  --font: 'Archivo Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
+  --font: 'Alegreya Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
   --read: ui-serif, 'Iowan Old Style', Charter, 'Sitka Text', Cambria, Georgia, 'Songti SC', 'SimSun', serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   /* Hooks used by Dop's board, graphs and badges. */
@@ -134,6 +134,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font: 15px/1.5 var(--font);
+  /* Alegreya Sans has a small x-height; this sizes it to read like a 16 px sans */
+  font-size-adjust: 0.5;
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
@@ -553,69 +555,30 @@ kbd {
   align-items: center;
 }
 .wordmark {
-  font-stretch: 118%;
   font-weight: 760;
   font-size: 19px;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.005em;
 }
-/* the white Ikki tile needs an edge on light paper; on dark it stands on its own */
-.logo.tile {
-  border-radius: 22%;
-  box-shadow: 0 0 0 1px var(--line);
+/* the seal (ui/brand/seal.ts) and brush 気合 (ui/brand/brush.ts) are inline SVG */
+.logo {
+  display: inline-block;
   flex: none;
+  line-height: 0;
 }
-/* Ikki at work: dips for a read and comes back up, blinks, and a glint runs down the band */
-.logo.thinking .ikki {
-  transform-box: fill-box;
-  transform-origin: 30% 85%;
-  animation: ikki-dip 1.8s cubic-bezier(0.45, 0, 0.3, 1) infinite;
+.logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.logo.thinking .ikki-eye {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: ikki-blink 3.6s steps(1, end) infinite;
+.brush {
+  display: inline-block;
+  height: var(--brush-h, 80px);
+  line-height: 0;
+  color: var(--ink);
 }
-.logo.thinking .ikki-band {
-  animation: ikki-glint 1.8s ease-in-out infinite;
-}
-@keyframes ikki-dip {
-  0%,
-  100% {
-    transform: rotate(0deg) translateY(0);
-  }
-  45% {
-    transform: rotate(9deg) translateY(2%);
-  }
-  60% {
-    transform: rotate(7deg) translateY(1.5%);
-  }
-}
-@keyframes ikki-blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(1);
-  }
-  94% {
-    transform: scaleY(0.15);
-  }
-}
-@keyframes ikki-glint {
-  0%,
-  30%,
-  100% {
-    stroke: #ffffff;
-  }
-  50% {
-    stroke: #7fe3ff;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .logo.thinking .ikki,
-  .logo.thinking .ikki-eye,
-  .logo.thinking .ikki-band {
-    animation: none;
-  }
+.brush .kb {
+  height: 100%;
+  width: auto;
 }
 .new-chat {
   margin: 6px 8px 14px;
@@ -1201,17 +1164,17 @@ kbd {
   padding: 16px;
   margin-top: -6vh;
 }
-.hello-logo {
-  display: block;
+.hello-mark {
+  display: flex;
+  justify-content: center;
   margin: 0 auto 22px;
 }
 .hello h1 {
-  font-stretch: 118%;
   font-weight: 760;
   font-size: clamp(30px, 4vw, 42px);
   line-height: 1.05;
   margin: 0 0 12px;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.005em;
 }
 .hello p {
   margin: 0 0 22px;
@@ -1220,6 +1183,8 @@ kbd {
 }
 .hello .meta {
   margin-top: 18px;
+  font-size: 15px;
+  color: var(--muted);
 }
 .ideas {
   display: flex;
@@ -2424,16 +2389,15 @@ kbd {
     margin-bottom: 14px;
     font-size: 14.5px;
   }
-  /* one row of ideas that scrolls sideways, not a ragged wrap */
-  .ideas {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 -16px;
-    padding: 2px 16px 4px;
+  /* every idea fully on screen: they wrap rather than run off the edge */
+  .hello-mark .brush {
+    height: 56px;
   }
-  .ideas::-webkit-scrollbar {
+  .hello-mark {
+    margin-bottom: 14px;
+  }
+  /* no room for the how-to line under the ideas on a phone; the board is right above */
+  .hello .meta {
     display: none;
   }
   .idea {

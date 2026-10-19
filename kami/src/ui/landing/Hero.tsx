@@ -8,6 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import type { KayaView, ViewMode } from '../../three/kaya';
 import { coverCrop, HERO_CAM, PHONE_W, PHONE_X0 } from '../../three/plate';
 import { webglOk } from '../../three/support';
+import { markReady } from '../../lib/ready';
 import { Logo } from '../Logo';
 import { answer, DEMO, FINAL, fmt, glows, loc, pct, PLAY_ORDER, STONES, words, type Read } from './data';
 import { LiveBoard, reducedMotion, sleep, useScene, type Label } from './live';
@@ -110,6 +111,11 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
   const [card, setCard] = useState<Card | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
   const [paused, setPaused] = useState(false);
+
+  // the 気合 sheet lifts once the 3D board is built (or at once without WebGL)
+  useEffect(() => {
+    if (view || !gl) markReady();
+  }, [view, gl]);
 
   const onView = useCallback((v: KayaView | null) => {
     if (v) v.set.rotation.y = (HERO_CAM.board_rot_z * Math.PI) / 180;
@@ -317,7 +323,7 @@ export function Hero({ onEnter }: { onEnter: (e?: React.MouseEvent) => void }) {
           </p>
           <div className={`l-ask-a${card.phase === 'ask' ? ' hold' : ''}`} aria-hidden={card.phase === 'ask'}>
               <div className="l-ask-who">
-                <Logo size={22} tile thinking={card.phase === 'read'} />
+                <Logo size={22} />
                 <b>Kiai</b>
                 {card.phase === 'read' && (
                   <span className="l-ask-reading">

@@ -71,7 +71,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     <div className="landing">
       <header className={`l-nav${solid ? ' solid' : ''}${dark ? ' dark' : ''}`}>
         <a className="l-brand" href="#welcome" aria-label="Kiai">
-          <Logo size={30} tile />
+          <Logo size={30} />
           <span>Kiai</span>
         </a>
         <nav className="l-links" aria-label="Sections">

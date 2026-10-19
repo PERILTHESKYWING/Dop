@@ -1,6 +1,9 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/archivo/wdth.css';
+import '@fontsource/alegreya-sans/400.css';
+import '@fontsource/alegreya-sans/500.css';
+import '@fontsource/alegreya-sans/700.css';
+import '@fontsource/alegreya-sans/800.css';
 import { App } from './App';
 import './styles.css';
 
