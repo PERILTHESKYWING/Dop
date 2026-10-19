@@ -11,7 +11,7 @@ import { LiveBoard, reducedMotion, sleep, useScene, type Label } from './live';
 
 const Q = 'What should Black play here?';
 /** Kiai's real (recorded) answer to it, word by word. */
-const A = words(answer(Q, 'Abyss').summary, 1).split(' ');
+const A = words(answer(Q, 'Deep').summary, 1).split(' ');
 const PILLAR = 0.09;
 const view = (w: number, h: number): ViewMode => {
   const aspect = w / Math.max(1, h);

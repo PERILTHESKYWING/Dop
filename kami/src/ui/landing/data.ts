@@ -29,7 +29,7 @@ export interface Read {
 }
 export interface Answer {
   question: string;
-  depth: 'Skim' | 'Dive' | 'Abyss';
+  depth: 'Quick' | 'Careful' | 'Deep';
   summary: string;
   sections: { title: string; text: string }[];
   variations: { id: string; moves: string[] }[];

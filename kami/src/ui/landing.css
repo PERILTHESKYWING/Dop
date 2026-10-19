@@ -970,7 +970,7 @@ html.kiai-landing body {
   font-weight: 600;
   color: rgba(226, 243, 252, 0.95);
 }
-/* the depths' picks: Skim, then Dive, then Abyss, each reading further */
+/* the depths' picks: Quick, then Careful, then Deep, each reading further */
 .l-path {
   list-style: none;
   margin: 0;
@@ -1024,7 +1024,7 @@ html.kiai-landing body {
   font-size: 12px;
   color: var(--d-ink-2);
 }
-/* each depth's visits as a bar, to scale (Abyss's is full); it fills when its depth is reached */
+/* each depth's visits as a bar, to scale (Deep's is full); it fills when its depth is reached */
 .l-path em {
   position: relative;
   display: block;

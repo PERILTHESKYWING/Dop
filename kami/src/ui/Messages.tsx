@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { CONCEPTS, conceptById, type ConceptEntry, type ConceptExample } from '../../../src/lib/coach/library';
-import { KAMI_VERSION, type ConceptHit, type Explanation, type ExplainPosition, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
+import { type ConceptHit, type Explanation, type ExplainPosition, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
 import { locToGtp } from '../../../src/lib/go/coords';
 import { colorName } from '../../../src/lib/go/types';
 import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/chips';
@@ -369,7 +369,7 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Night Dive' : 'Gemini'}, checked against KataGo’s facts.</p>}
+      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Kiai’s local model' : 'Gemini'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {ex.facts.length > 0 && (
         <details className="facts">
@@ -616,7 +616,7 @@ function KamiMessage({
     <div className="msg kami">
       <div className="who">
         <Logo size={20} />
-        {tier ? `${tier.name} ${KAMI_VERSION}` : 'Kiai'}
+        {tier ? `Kiai · ${tier.name}` : 'Kiai'}
         {m.thinking && m.thinking !== 'off' && !(a && a.type === 'concept') ? <span className="meta"> · thinking {m.thinking}</span> : null}
       </div>
       {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} />}

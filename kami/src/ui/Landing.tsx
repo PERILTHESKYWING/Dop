@@ -9,7 +9,7 @@ import './landing.css';
 /**
  * Kiai's front door. The hero is a path-traced sky and table with the live 3D board on it,
  * answering questions about a real position; below, one board stays on screen while the page
- * dives (Skim, Dive, Abyss) through what Kiai does, every number and answer recorded from the
+ * dives (Quick, Careful, Deep) through what Kiai does, every number and answer recorded from the
  * real engine (landing/data.ts).
  */
 export default function Landing({ onEnter }: { onEnter: () => void }) {
