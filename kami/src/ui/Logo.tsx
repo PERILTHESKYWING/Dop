@@ -1,50 +1,52 @@
 /**
- * Ikki, Kiai's razorbill, head-on with the head tipped to one side as in XIAO's photo: the black
- * head and neck, the deep bill with its white edges and groove, and the two white lines that run
- * from the bill out to the eyes. Black and white only.
- * `tile` puts it on a white rounded square (app icon, dark theme). Below 40 px the groove is
- * dropped and the face drawn larger and heavier so it still reads.
+ * Ikki, Kiai's razorbill, in side profile: a round black head, a deep blunt bill about one and a
+ * half times as long as it is deep, ending in a hooked point, the white band across the bill, and
+ * the white streak that runs from the base of the bill back over the eye (as on the bird).
+ * Black and white only. Below 40 px the streak is left out (it would be a smudge), and at 24 px
+ * and below the band and eye are drawn a little bolder so they still read.
+ * `tile` puts it on a white rounded square (app icon).
+ * `thinking` animates it: Ikki dips its head as if diving for a read, blinks, and a glint runs
+ * down the band.
  */
-const HEAD = 'M34 262 C34 200 26 150 30 108 C34 58 70 22 114 24 C152 26 176 60 172 108 C168 150 166 205 168 262 Z';
-const BILL = 'M85 69 C85 92 89 112 94 125 C96.5 131.5 103.5 131.5 106 125 C111 112 115 92 115 69 C108.5 62.5 91.5 62.5 85 69 Z';
-const GROOVE = 'M100 73 C100 92 100 108 100 123';
-// crescents from the bill's upper corners out to the eyes: thick by the bill, fine at the eye
-const LINES = 'M113 72 C120 63 132 58 146 59 C134 63 123 68 113 74 Z M87 72 C80 63 68 58 54 59 C66 63 77 68 87 74 Z';
-const LINES_HEAVY = 'M112 73 C119 60 133 54 151 56 C136 62 124 69 112 77 Z M88 73 C81 60 67 54 49 56 C64 62 76 69 88 77 Z';
+import { useId } from 'react';
 
-export function IkkiHead({ ink = '#0b0f14', paper = '#ffffff', small = false }: { ink?: string; paper?: string; small?: boolean }) {
-  const edge = small ? 7 : 3.4;
+const HEAD = 'M74 162 C58 148 52 124 56 102 C62 72 88 54 118 52 C136 51 148 57 156 64 C184 62 212 74 221 92 C227 104 225 117 215 119 C211 120 209 115 204 115 C188 114 168 116 156 122 C151 132 147 146 141 160 C135 168 120 173 104 172 C92 171 82 168 74 162 Z';
+const BAND = 'M198 68 L195 120';
+/** The white streak: wide where it leaves the bill, tapering to a point behind the eye. */
+const STREAK = 'M160 64 C142 59 118 63 100 77 C118 70 140 69 157 73 Z';
+const EYE = { x: 116, y: 85, r: 6.5 };
+const FRAME = 'translate(110 110) translate(-139 -112)';
+
+export function IkkiHead({ ink = '#0b0f14', paper = '#ffffff', small = false, streak = true }: { ink?: string; paper?: string; small?: boolean; streak?: boolean }) {
+  const r = small ? EYE.r * 1.3 : EYE.r;
+  const clip = `ikki${useId().replace(/:/g, '')}`;
   return (
-    <g>
-      {/* the neck stays upright; the crown leans over it and the face tips with it, as in the photo */}
+    <g className="ikki">
+      <defs>
+        <clipPath id={clip}>
+          <path d={HEAD} />
+        </clipPath>
+      </defs>
       <path d={HEAD} fill={ink} />
-      <g transform={`translate(10 3) rotate(13 100 85)${small ? ' translate(100 80) scale(1.3) translate(-100 -80)' : ''}`}>
-        <path d={BILL} fill={ink} stroke={paper} strokeWidth={edge} strokeLinejoin="round" />
-        {!small && <path d={GROOVE} fill="none" stroke={paper} strokeWidth={2} strokeLinecap="round" />}
-        <path d={small ? LINES_HEAVY : LINES} fill={paper} />
+      <g clipPath={`url(#${clip})`}>
+        <path className="ikki-band" d={BAND} fill="none" stroke={paper} strokeWidth={small ? 11.5 : 8.5} />
+        {streak && !small && <path d={STREAK} fill={paper} />}
+      </g>
+      <g className="ikki-eye">
+        <circle cx={EYE.x} cy={EYE.y} r={r} fill={paper} />
+        <circle cx={EYE.x + 2} cy={EYE.y + 0.5} r={r * 0.4} fill={ink} />
       </g>
     </g>
   );
 }
 
-export function Logo({ size = 22, tile = false, className }: { size?: number; tile?: boolean; className?: string }) {
-  const small = size < 40;
+export function Logo({ size = 22, tile = false, thinking = false, className }: { size?: number; tile?: boolean; thinking?: boolean; className?: string }) {
+  const cls = ['logo', tile && 'tile', thinking && 'thinking', className].filter(Boolean).join(' ');
   return (
-    <svg className={`logo${tile ? ' tile' : ''} ${className ?? ''}`} width={size} height={size} viewBox="0 0 200 200" aria-hidden="true">
-      <defs>
-        <clipPath id={tile ? 'ikki-tile' : 'ikki-box'}>{tile ? <rect width="200" height="200" rx="46" /> : <rect width="200" height="200" />}</clipPath>
-      </defs>
-      <g clipPath={`url(#${tile ? 'ikki-tile' : 'ikki-box'})`}>
-        {tile ? (
-          <>
-            <rect width="200" height="200" fill="#ffffff" />
-            <g transform="translate(20 34) scale(0.8)">
-              <IkkiHead small={small} />
-            </g>
-          </>
-        ) : (
-          <IkkiHead small={small} />
-        )}
+    <svg className={cls} width={size} height={size} viewBox="0 0 220 220" aria-hidden="true">
+      {tile && <rect width="220" height="220" rx="48" fill="#ffffff" />}
+      <g transform={FRAME}>
+        <IkkiHead small={size <= 24} streak={size >= 40} />
       </g>
     </svg>
   );

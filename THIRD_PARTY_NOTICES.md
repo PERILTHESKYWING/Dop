@@ -42,10 +42,12 @@ The background paintings (`public/art/meadow*.webp`, `public/art/clouds.webp`) a
 (`public/art/kaya.webp`) were generated procedurally for this project by the scripts in `tools/art/`. They
 contain no photographs or other third-party images, so no third-party licence applies.
 
-Kiai's pictures and intro video (`kami/public/kiai/`) and the Ikki logo (`kami/src/ui/Logo.tsx`,
-`kami/public/favicon.svg`) are original too. The pictures were path-traced in Blender from the procedural
-scenes in `tools/kiai-art/` (no downloaded models, textures or photographs); Blender's GPL covers Blender
-itself, not the images it renders. The logo was drawn by hand in SVG, using a reference photo only as a guide.
+Kiai's pictures (`kami/public/kiai/`) and the Ikki logo (`kami/src/ui/Logo.tsx`, `kami/public/favicon.svg`)
+are original too. The pictures, including the sky-and-table plates behind the live board
+(`kami/public/kiai/3d/plate*.webp`), were path-traced in Blender from the procedural scenes in
+`tools/kiai-art/` (no downloaded models, textures or photographs); Blender's GPL covers Blender itself, not the
+images it renders. The live 3D board's wood, bowl and shell textures (`kami/public/kiai/3d/`) are made with
+numpy by `tools/kiai-art/kaya_tex.py`. The logo was drawn by hand in SVG, using a reference photo only as a guide.
 
 ### Rank calibration statistics
 `public/level/calibration.json` holds statistics (averages, spreads and counts per rank) computed by
@@ -70,6 +72,7 @@ played in positions from the first 40 moves of that collection's professional ga
 - **zustand** (MIT), Paul Henschel and contributors.
 - **idb** (ISC), Jake Archibald.
 - **qrcode-generator** (MIT), Kazuhiko Arase. QR Code is a registered trademark of DENSO WAVE INCORPORATED.
+- **three.js** (MIT), three.js authors (https://github.com/mrdoob/three.js), used by Kiai's live 3D board.
 
 Build-time tools (Vite, TypeScript, Vitest, tsx) are not shipped to users.
 
