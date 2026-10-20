@@ -12,7 +12,7 @@ Copies of XIAO's claude.ai account skills, kept here so any Claude account can a
 | design-shots | automatically when checking a web design | fixed desktop/phone screenshots, measured against the reference |
 | design-critic-panel | automatically when running design critics | anchored, pairwise, median-scored critics |
 | dop-dev | automatically on Dop/Kiai work | hard rules, lean session, verify, ship a ready PR |
-| clarify | `/clarify` | 5-8 questions in one batch before work |
+| clarify | `/clarify` | 5-8 questions as tappable choices (AskUserQuestion, or cards in project threads) before work |
 
 ## Add them to another Claude account
 Open a Claude Code session (or a project thread) on that account with this repo, and send:

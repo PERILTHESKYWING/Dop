@@ -15,7 +15,7 @@ Goal: one question batch, one set of answers, then the work. Every extra turn co
 Anything answered there is not a question.
 
 ## 2. Ask with AskUserQuestion
-- Ask at least 5 and at most 8 questions with the AskUserQuestion tool.
+- Ask at least 5 and at most 8 questions with the AskUserQuestion tool (if it is deferred, load it first with ToolSearch `select:AskUserQuestion`). In a project thread, where AskUserQuestion does not exist, post one `ask_decision` card per question in the same turn instead, with `recommended` set; never fall back to a typed list while either tool exists.
 - AskUserQuestion takes at most 4 questions per call. For 5 to 8 questions, send two AskUserQuestion calls in the same message (for example 4 and 3), so the user sees one batch and answers once.
 - Each question has a `header` of 12 characters or fewer, one line ending in "?", and 2 to 4 options. List the default first and end its label with "(Recommended)". Give each option a short description. Other is added automatically, so do not add it.
 - Pick the areas that fit the task, at least five in total:
