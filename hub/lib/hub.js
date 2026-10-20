@@ -265,6 +265,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     }
   }
 
+  // A fresh connector link: connectors made with the old one stop working.
+  async function newKey(name) {
+    const a = await account(name);
+    if (!a) throw new Error('No such account.');
+    a.key = randomBytes(18).toString('base64url');
+    await putAccount(a);
+    return { name: a.name, key: a.key };
+  }
+
   async function setLow(name, low, note = '') {
     const a = await account(name);
     if (!a) throw new Error('No such account.');
@@ -736,7 +745,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   return {
-    settings, saveSettings, accounts, account, upsertAccount, removeAccount, publicAccount, authAgent, touchAccount, setLow, refreshUsage, setUsage,
+    settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, setLow, refreshUsage, setUsage,
     logConn, connLog,
     threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, sweep, dispatch,
     start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),

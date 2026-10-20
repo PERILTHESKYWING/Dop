@@ -577,7 +577,7 @@ async function openSheet(kind, name) {
     const free = S.accounts.find((a) => a.name === name)?.plan === 'free';
     html = `<h3>Connect ${esc(name)}</h3>
       <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
-      <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button></div><div id="testOut" class="hidden"></div>
+      <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button><button class="btn small" data-newkey="${esc(name)}">New link</button></div><div id="testOut" class="hidden"></div>
       <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link, keep Advanced settings closed and press Add. If a Connect button appears, press it. No sign-in page should open.</p>
       ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the Dop hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the Dop repo and a model, turn on the Dop hub connector, add an API trigger, and paste this prompt:</p>
       <code class="copyline">${esc(ROUTINE_PROMPT)}</code><div><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button></div>
@@ -640,6 +640,15 @@ $('sheetBox').addEventListener('click', async (e) => {
       out.style.color = j.ok ? 'var(--green)' : 'var(--red)'; out.style.fontWeight = '600';
       out.textContent = j.ok ? `This link works for ${j.account}. Now do step 2.` : `This link doesn't work: ${j.problem || 'unknown problem'}`;
     } catch (err) { out.style.color = 'var(--red)'; out.textContent = `Could not reach the hub: ${err.message}`; }
+    return;
+  }
+  if (t.closest('[data-newkey]')) {
+    const n = t.dataset.newkey;
+    if (!confirm(`Make a new link for ${n}? Connectors made with the old link stop working, and so do routines that use them, until you add the new link on claude.ai.`)) return;
+    await api('account-newkey', { name: n });
+    await openSheet('connect', n);
+    const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--green)'; out.style.fontWeight = '600';
+    out.textContent = 'New link made. The old one no longer works.';
     return;
   }
   if (t.closest('[data-addrow]')) return $('fRoutines').insertAdjacentHTML('beforeend', routineRow({ model: 'sonnet', id: '' }));
