@@ -261,7 +261,7 @@ export const SETTINGS: SettingDef[] = [
     group: 'positions',
     type: 'toggle',
     label: 'Build positions to explain ideas',
-    help: 'With Careful or Deep, thinking medium or high, Kiai may cut the fight out of the game or set up a textbook position, then show it only if every check passes with KataGo reading last.',
+    help: 'From thinking Medium up, Kiai may cut the fight out of the game or set up a textbook position, then show it only if every check passes with KataGo reading last.',
     default: true,
   },
   {

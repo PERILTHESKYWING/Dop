@@ -8,6 +8,7 @@ import { App } from './App';
 import './styles.css';
 
 const Landing = lazy(() => import('./ui/Landing'));
+const Annotate = lazy(() => import('./ui/Annotate'));
 
 function entered(): boolean {
   try {
@@ -19,10 +20,12 @@ function entered(): boolean {
 
 /** First visit (or #welcome): the landing page. After "Open Kiai", straight to the app. */
 function Root() {
-  const [landing, setLanding] = useState(() => location.hash === '#welcome' || !entered());
+  const [landing, setLanding] = useState(() => location.hash === '#welcome' || (!entered() && location.hash !== '#annotate'));
+  const [notes, setNotes] = useState(() => location.hash === '#annotate');
   useEffect(() => {
     const on = () => {
       if (location.hash === '#welcome') setLanding(true);
+      setNotes(location.hash === '#annotate');
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
@@ -37,6 +40,12 @@ function Root() {
     window.scrollTo(0, 0);
     setLanding(false);
   };
+  if (notes)
+    return (
+      <Suspense fallback={null}>
+        <Annotate />
+      </Suspense>
+    );
   if (landing)
     return (
       <Suspense fallback={null}>

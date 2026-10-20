@@ -10,7 +10,8 @@ import type { Answer, ChatMessage } from '../lib/store';
 import { pointView } from '../lib/points';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
-import { pickById } from '../lib/writer';
+import { levelOfMessage } from '../lib/levels';
+import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
 import { Calligraphy, Logo } from './Logo';
@@ -265,13 +266,21 @@ function Elapsed({ t0 }: { t0: number }) {
   return <span className="meta">{((Date.now() - t0) / 1000).toFixed(1)} s</span>;
 }
 
-function Thoughts({ steps, live, ms, ex, msgId, link, stage }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage'] }) {
+function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
-  const label = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Thinking…') : `Thought for ${secs(ms)}`;
+  const text = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Thinking…') : `Thought for ${secs(ms)}`;
+  // ultraGO says so while it works: its name in the running rainbow before the stage.
+  const label = live && ultra && stage !== 'engine' ? (
+    <>
+      <UltraGo /> {text.toLowerCase()}
+    </>
+  ) : (
+    text
+  );
   const t0 = useRef(Date.now() - ms).current;
   return (
-    <details className={`thoughts${live ? ' live' : ''}`} open={live || undefined}>
+    <details className={`thoughts${live ? ' live' : ''}${live && ultra ? ' think-live ultra' : ''}`} open={live || undefined}>
       <summary>
         {live ? <span className="dive" aria-hidden="true" /> : <Icon name="spark" size={15} />}
         {label}
@@ -369,7 +378,7 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {w.text && <p className="note">Worded by {w.by === 'local' ? 'Kiai’s local model' : 'Gemini'}, checked against KataGo’s facts.</p>}
+      {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {ex.facts.length > 0 && (
         <details className="facts">
@@ -432,7 +441,7 @@ function ConceptAnswer({
         <section className="ans-section">
           <h4>In more depth</h4>
           <RichText text={a.expansion.text} msgId={msg.id} link={link} terms={plan[1]} />
-          <p className="note">Worded by Gemini from the library entry.</p>
+          <p className="note">Worded by ultraGO from the library entry.</p>
         </section>
       )}
       {a.expansion?.note && <p className="note">{a.expansion.note}</p>}
@@ -609,17 +618,22 @@ function KamiMessage({
   onShowBoard: (b: BoardState) => void;
   busy: boolean;
 }) {
-  const tier = m.pick ? pickById(m.pick) : null;
+  const lvl = levelOfMessage(m);
   const live = running?.msgId === m.id;
   const a = m.answer;
   return (
     <div className="msg kami">
       <div className="who">
         <Logo size={20} />
-        {tier ? `Kiai · ${tier.name}` : 'Kiai'}
-        {m.thinking && m.thinking !== 'off' && !(a && a.type === 'concept') ? <span className="meta"> · thinking {m.thinking}</span> : null}
+        Kiai
+        {lvl && !(a && a.type === 'concept' && lvl.id !== 'ultrago') ? (
+          <span className="meta">
+            {' · '}
+            <LevelName level={lvl} />
+          </span>
+        ) : null}
       </div>
-      {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} />}
+      {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
       {!live && !a && <p className="note">Stopped.</p>}
       {a?.type === 'explain' && <ExplainAnswer a={a} msg={m} link={link} />}
       {a?.type === 'concept' && <ConceptAnswer a={a} msg={m} link={link} onAsk={onAsk} onShowBoard={onShowBoard} />}

@@ -214,12 +214,12 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
     ['Chats', String(chats.length)],
     ['Questions asked', String(asked)],
     ['KataGo', status.state === 'idle' ? 'Starts with your first position' : status.text],
-    ['Gemini wording (Deep)', llmOn === null ? 'Checking…' : llmOn ? 'On, free tier' : 'Off on this site: answers use engine text'],
+    ['ultraGO wording', llmOn === null ? 'Checking…' : llmOn ? 'On' : 'Off on this site: answers use engine text'],
   ];
   if (bytes) stats.push(['Stored in this browser', `${mb(bytes.used)} of ${mb(bytes.quota)}`]);
   return (
     <>
-      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only Deep’s wording calls Gemini, once per answer.</p>
+      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only ultraGO’s wording uses Kiai’s server, once per answer.</p>
       <dl className="stats">
         {stats.map(([k, v]) => (
           <div key={k}>
@@ -311,7 +311,7 @@ function AboutPage() {
         <strong>Kiai {KAMI_VERSION}</strong> is a Go analyst you can talk to. KataGo reads every position in your browser, and Kiai explains what the reading shows. When Kiai sets up a position to explain an idea,
         KataGo checks it before you see it.
       </p>
-      <p>Quick and Careful answer from KataGo alone. Deep asks Gemini to word the answer, then checks every number and move against KataGo’s facts.</p>
+      <p>Low to Max answer from KataGo alone, reading longer at each level. ultraGO reads the most and has Kiai’s writer word the answer, then checks every number and move against KataGo’s facts.</p>
       <p className="set-help">Built on Dop. KataGo by David Wu (MIT). See the third-party notices for networks and libraries.</p>
     </div>
   );

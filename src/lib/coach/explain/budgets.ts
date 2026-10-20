@@ -8,6 +8,7 @@
  * - Hane: two reads (the position, and the asked move or the best move), no line play.
  * - Tesuji: reads ahead; consequence lines grow with the thinking level.
  * - Myoshu: deepest reads (the LLM only rewords them afterwards).
+ * xhigh and max (2026-10-20) extend each row for Kiai's six thinking levels; ultraGO is Myoshu at max.
  */
 import type { Budget, ModelId, ThinkingLevel } from './types';
 
@@ -23,18 +24,24 @@ const TABLE: Record<ModelId, Record<ThinkingLevel, Budget>> = {
     low: B(2, 100, 0, 0, 3000),
     medium: B(2, 160, 0, 0, 4000),
     high: B(2, 240, 0, 0, 6000),
+    xhigh: B(2, 320, 0, 0, 8000),
+    max: B(2, 400, 0, 0, 10000),
   },
   tesuji: {
     off: B(4, 160, 64, 10, 6000),
     low: B(6, 200, 80, 16, 9000),
     medium: B(8, 240, 100, 20, 14000),
     high: B(10, 320, 128, 28, 20000),
+    xhigh: B(12, 400, 160, 32, 28000),
+    max: B(16, 500, 200, 40, 38000),
   },
   myoshu: {
     off: B(8, 240, 100, 20, 12000),
     low: B(10, 320, 128, 24, 18000),
     medium: B(12, 400, 160, 30, 26000),
     high: B(16, 500, 200, 40, 36000),
+    xhigh: B(18, 600, 224, 44, 44000),
+    max: B(20, 700, 256, 48, 52000),
   },
 };
 

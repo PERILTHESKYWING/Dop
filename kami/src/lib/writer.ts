@@ -64,8 +64,8 @@ const isAbort = (e: unknown) => (e as Error)?.name === 'AbortError';
 export const NOTES = {
   unchecked: 'Wording unchecked, showing engine text.',
   failed: 'Wording failed the fact check, showing engine text.',
-  noLlm: 'No language model on this server, showing engine text.',
-  llmError: 'The language model did not answer, showing engine text.',
+  noLlm: 'ultraGO’s writer is off on this site, showing Kiai’s engine text.',
+  llmError: 'ultraGO’s writer is resting for a moment, showing Kiai’s engine text.',
   localError: 'Local could not run here, showing engine text.',
 } as const;
 
@@ -89,6 +89,28 @@ export async function writerDiagram(ex: Explanation, text: string, deps: Pick<Wr
   return { ex: { ...ex, illustrations: [...(ex.illustrations ?? []), v.illustration], facts: [...ex.facts, ...v.facts] }, text: parsed.text, diagram };
 }
 
+/** Opening lines a chat assistant writes and Kiai never does ("Great question!", "Certainly."). */
+const OPENERS = /^\s*(?:(?:great|good|nice|excellent|interesting) question[.!]?|certainly[.!,]?|of course[.!,]?|sure[.!,]|absolutely[.!,]?|let'?s (?:dive in|take a look|break (?:it|this) down)[.!:]?|alright[.!,]?)\s*/i;
+/** Closing lines that offer more help or wish the student well. */
+const CLOSERS = /\s*(?:(?:I hope (?:this|that) helps|hope (?:this|that) helps|let me know|feel free to|happy (?:studying|playing|go)|good luck|keep (?:it up|practicing|practising))[^\n]*)$/i;
+/**
+ * The writer's text in Kiai's voice: chat-assistant openers and closers dropped, dashes
+ * between clauses turned into commas. Facts are untouched (checkAnswer runs after).
+ */
+export function kiaiVoice(text: string): string {
+  let t = text.trim();
+  for (let i = 0; i < 3 && OPENERS.test(t); i++) t = t.replace(OPENERS, '');
+  for (let i = 0; i < 3 && CLOSERS.test(t); i++) t = t.replace(CLOSERS, '');
+  t = t
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+    .replace(/ +([,.!?])/g, '$1')
+    .replace(/,\s*,/g, ',')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : t;
+}
+
 /** Gate a model's text: it passes checkAnswer, or the engine's text is shown. */
 function gate(ex: Explanation, text: string, by: 'gemini' | 'local', check: WriterDeps['checkAnswer'], model?: string): Writing {
   let score: AnswerScore;
@@ -106,7 +128,7 @@ export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDep
   const prompt = buildLmPrompt(ex, deps.level);
   /** Check the writer's diagram (if any), then gate the text against the explanation with it. */
   const finish = async (raw: string, by: 'gemini' | 'local', model?: string): Promise<Writing> => {
-    const d = await writerDiagram(ex, raw, deps);
+    const d = await writerDiagram(ex, kiaiVoice(raw), deps);
     const w = gate(d.ex, d.text, by, deps.checkAnswer, model);
     if (w.by !== 'engine' && d.diagram) w.diagram = d.diagram;
     if (d.note) w.diagramNote = d.note;
@@ -152,6 +174,6 @@ export async function expandConcept(entry: ConceptEntry, question: string, callL
     return { text: r.text, model: r.model };
   } catch (e) {
     if (isAbort(e)) throw e;
-    return { note: e instanceof LlmUnavailable ? 'No language model on this server; this is the library entry.' : 'The language model did not answer; this is the library entry.' };
+    return { note: e instanceof LlmUnavailable ? 'ultraGO’s writer is off on this site; this is the library entry.' : 'ultraGO’s writer is resting for a moment; this is the library entry.' };
   }
 }

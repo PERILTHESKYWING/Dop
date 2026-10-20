@@ -2638,3 +2638,37 @@ kbd {
     bottom: calc(100% + 4px);
   }
 }
+
+/* ultraGO (2026-10-20): the top thinking level's name runs a slow rainbow through its letters,
+ * like Claude's ultracode. Transform-free (background only), still under reduced motion. */
+.ultrago {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  background-image: linear-gradient(90deg, #e5484d, #f76b15, #d39e00, #30a46c, #0090ff, #8e4ec6, #d6409f, #e5484d, #f76b15, #d39e00, #30a46c, #0090ff, #8e4ec6, #d6409f, #e5484d);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ultrago-run 3.2s linear infinite;
+}
+@keyframes ultrago-run {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: -100% 50%;
+  }
+}
+.menu-item.ultra .mi-blurb {
+  color: var(--ink-2);
+}
+.think-live.ultra .ultrago {
+  animation-duration: 1.6s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ultrago,
+  .think-live.ultra .ultrago {
+    animation: none;
+  }
+}

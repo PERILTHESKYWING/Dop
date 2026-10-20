@@ -15,7 +15,7 @@ import type { Color, Loc, Move } from '../../go/types';
 /** Kami's "models": the same KataGo with different planners and budgets. */
 export type ModelId = 'hane' | 'tesuji' | 'myoshu';
 /** Claude-style thinking levels: how many reads and how deep. */
-export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high';
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface ModelInfo {
   id: ModelId;
