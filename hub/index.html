@@ -357,7 +357,14 @@ async function openSheet(kind, name) {
       <label class="field">Hub overhead budget per 5 hours (tokens)<input id="sBudget" type="number" min="0" step="1000" value="${s.overheadTokens}"></label>
       <p>Counts the coordinator and the hub's own messages, not the work itself. Over budget, prompts skip the coordinator.</p>
       <label class="field"><span><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}> Continue stopped threads on another account</span></label>
-      <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>`;
+      <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>
+      <div class="sect">Connection log (newest first)</div>
+      <p>Every time claude.ai or an agent calls the hub, a line appears here. Screenshot this if a connector won't connect.</p>
+      <pre id="connLog" style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto">Loading…</pre>`;
+    api('connlog', {}).then((rows) => {
+      const el = $('connLog'); if (!el) return;
+      el.textContent = rows.length ? rows.map((r) => `${new Date(r.at).toLocaleTimeString()}  ${r.http} ${r.path || ''}${r.account ? ' account=' + r.account : ''}${r.http === 'POST' || r.account ? (r.keyOk ? ' key OK' : ' key WRONG') : ''}${r.rpc ? ' ' + r.rpc : ''} via ${r.via}  ${r.ua}`).join('\n') : 'Nothing has called the hub yet.';
+    }).catch((e) => { const el = $('connLog'); if (el) el.textContent = e.message; });
   }
   box.innerHTML = html; $('sheet').classList.remove('hidden');
 }

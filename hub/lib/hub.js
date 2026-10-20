@@ -5,7 +5,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
-const K = { seq: 'hub:seq', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires' };
+const K = { seq: 'hub:seq', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 // A thread whose agent has said nothing for this long is treated as stopped.
@@ -204,6 +204,17 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       ['LTRIM', K.feed, -KEEP_FEED, -1],
     ]);
     return msg;
+  }
+
+  // Connection log: what each connector request looked like, to debug claude.ai setup.
+  async function logConn(entry) {
+    await store.multi([
+      ['RPUSH', K.conn, json({ at: now(), ...entry })],
+      ['LTRIM', K.conn, -40, -1],
+    ]);
+  }
+  async function connLog() {
+    return (await store.cmd('LRANGE', K.conn, 0, -1)).map((s) => parse(s)).filter(Boolean).reverse();
   }
 
   async function feed(limit = 400) {
@@ -575,6 +586,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
 
   return {
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, publicAccount, authAgent, touchAccount, setLow,
+    logConn, connLog,
     threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, sweep, dispatch,
     start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
   };

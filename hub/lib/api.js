@@ -48,6 +48,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
       if (!t) return { status: 404, body: { error: 'No such thread.' } };
       return { status: 200, body: await hub.dispatch(t, t.checkpoint ? 'resume' : 'worker') };
     }
+    if (op === 'connlog') return { status: 200, body: await hub.connLog() };
     if (op === 'settings') return { status: 200, body: await hub.saveSettings(body) };
   } catch (e) {
     return { status: 400, body: { error: e.message } };
@@ -75,6 +76,16 @@ export async function mcpApi({ hub, method, query, body, headers }) {
     key = raw.slice(i + 1);
   }
   const agent = await hub.authAgent(name, key);
+  try {
+    await hub.logConn({
+      http: method,
+      account: String(name || '').slice(0, 24),
+      keyOk: !!agent,
+      rpc: String(body?.method || '').slice(0, 40),
+      via: auth ? 'header' : key ? 'link' : 'none',
+      ua: String(headers['user-agent'] || '').slice(0, 60),
+    });
+  } catch {}
   const bad = 'Unknown account or key. Copy the link again from the hub page.';
   // Opening the link in a browser shows whether it works.
   if (method === 'GET') return { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
