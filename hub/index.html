@@ -330,20 +330,18 @@ async function openSheet(kind, name) {
     const url = `${location.origin}/api/mcp?account=${encodeURIComponent(k.name)}&key=${encodeURIComponent(k.key)}`;
     const free = S.accounts.find((a) => a.name === name)?.plan === 'free';
     html = `<h3>Connect ${esc(name)}</h3>
-      <p>This link is the key for this account. Keep it private.</p>
+      <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
       <code class="copyline">${esc(url)}</code><button class="btn small" data-copy="${esc(url)}">Copy link</button>
-      <p><b>1. claude.ai, signed in as this account</b> (works on phone too): Settings, Connectors, Add custom connector. Name it <i>Dop hub</i>, paste the link, choose no sign-in, Add.</p>
-      ${free ? `<p><b>2.</b> Open a chat on this account (phone or web) and say "check the Dop hub". It picks up questions and writing work queued for it; free plans can't run code from the hub.</p>` : `<p><b>2. A routine for each model you want</b>. On claude.ai/code open Routines, New routine: repo PERILTHESKYWING/Dop, the Dop hub connector on, pick the model, add an API trigger, and paste this prompt:</p>
+      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link, choose <i>No sign in</i>.</p>
+      ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the Dop hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the Dop repo and a model, turn on the Dop hub connector, add an API trigger, and paste this prompt:</p>
       <code class="copyline">${esc(ROUTINE_PROMPT)}</code><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button>
-      <p>Then press Edit on this account here and paste the routine's id (trig_...) and token.</p>
-      <p><b>3. Claude Code on a PC (optional):</b></p>
-      <code class="copyline">claude mcp add --transport http dop-hub "${esc(url)}"</code>`}
+      <p><b>Step 4.</b> Press Edit on this account here and paste the routine's id and token. Repeat steps 3 and 4 for each model you want.</p>`}
       <button class="btn primary" data-close>Done</button>`;
   } else if (kind === 'add' || kind === 'edit') {
     const a = S.accounts.find((x) => x.name === name) || { name: '', plan: 'pro', routines: [] };
     const rows = [...a.routines, { model: 'sonnet', id: '', hasToken: false }];
     html = `<h3>${kind === 'add' ? 'Add account' : 'Edit ' + esc(a.name)}</h3>
-      <label class="field">Name (short, like A or Work)<input id="fName" value="${esc(a.name)}" ${kind === 'edit' ? 'readonly' : ''} required></label>
+      <label class="field">Name (short, like Main or Helper1)<input id="fName" value="${esc(a.name)}" ${kind === 'edit' ? 'readonly' : ''} required></label>
       <label class="field">Plan<select id="fPlan">${['free', 'pro', 'max', 'team'].map((p) => `<option ${a.plan === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
       <div class="sect">Routines (paid plans): one per model</div>
       <div id="fRoutines">${rows.map(routineRow).join('')}</div>
