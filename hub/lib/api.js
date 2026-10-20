@@ -1,0 +1,98 @@
+// Request handling shared by the Vercel functions and the tests.
+import { createHub, safeEqual } from './hub.js';
+import { handleMcp } from './mcp.js';
+import { memoryStore, storeFromEnv } from './store.js';
+
+let devStore = null;
+export function hubFromEnv(env = process.env) {
+  const store = storeFromEnv(env) || (env.HUB_DEV_MEMORY === '1' ? (devStore ||= memoryStore()) : null);
+  if (!store) return null;
+  return createHub({ store });
+}
+
+const SETUP_HELP =
+  'The hub has no storage yet. In Vercel open the dop-hub project, Storage, connect an Upstash Redis store, then redeploy (see docs/handoff/hub-cloud.md).';
+
+// The page and its API: XIAO's password.
+export async function pageApi({ hub, password, method, query, body, headers }) {
+  if (!password) return { status: 500, body: { error: 'Set HUB_PASSWORD in the Vercel project settings, then redeploy.' } };
+  if (!hub) return { status: 500, body: { error: SETUP_HELP } };
+  const given = headers['x-hub-password'] || '';
+  if (!given || !safeEqual(given, password)) return { status: 401, body: { error: 'Wrong password.' } };
+  const op = query.op || '';
+  if (method === 'GET' && op === 'seq') return { status: 200, body: { seq: await hub.nextSeq() } };
+  if (method === 'GET' && op === 'state') {
+    await hub.sweep();
+    const threads = await hub.threads();
+    const accounts = Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads));
+    return {
+      status: 200,
+      body: { seq: await hub.nextSeq(), threads, accounts, messages: await hub.feed(Number(query.limit) || 600), settings: await hub.settings(), overhead: await hub.overhead() },
+    };
+  }
+  if (method === 'GET' && op === 'connect') {
+    // The connector link for one account, shown once on the page when asked.
+    const a = await hub.account(String(query.account || ''));
+    if (!a) return { status: 404, body: { error: 'No such account.' } };
+    return { status: 200, body: { name: a.name, key: a.key } };
+  }
+  if (method !== 'POST') return { status: 404, body: { error: 'Not found.' } };
+  try {
+    if (op === 'prompt') return { status: 200, body: await hub.prompt(body) };
+    if (op === 'account') return { status: 200, body: hub.publicAccount(await hub.upsertAccount(body)) };
+    if (op === 'account-remove') return (await hub.removeAccount(String(body.name))), { status: 200, body: { ok: true } };
+    if (op === 'account-low') return { status: 200, body: hub.publicAccount(await hub.setLow(String(body.name), !!body.low, body.note)) };
+    if (op === 'thread') return { status: 200, body: await hub.updateThread(Number(body.id), body) };
+    if (op === 'retry') {
+      const t = await hub.thread(Number(body.id));
+      if (!t) return { status: 404, body: { error: 'No such thread.' } };
+      return { status: 200, body: await hub.dispatch(t, t.checkpoint ? 'resume' : 'worker') };
+    }
+    if (op === 'settings') return { status: 200, body: await hub.saveSettings(body) };
+  } catch (e) {
+    return { status: 400, body: { error: e.message } };
+  }
+  return { status: 404, body: { error: 'Not found.' } };
+}
+
+// The MCP endpoint: each account has its own key, sent as
+//   https://<hub>/api/mcp?account=<name>&key=<key>
+// or as the header  Authorization: Bearer <name>:<key>
+export async function mcpApi({ hub, method, query, body, headers }) {
+  if (method === 'GET' || method === 'DELETE') return { status: 405, body: { error: 'Use POST.' } };
+  if (!hub) return { status: 500, body: { error: SETUP_HELP } };
+  let name = query.account;
+  let key = query.key;
+  const auth = headers.authorization || '';
+  if (auth.startsWith('Bearer ') && auth.includes(':')) {
+    const raw = auth.slice(7);
+    const i = raw.indexOf(':');
+    name = raw.slice(0, i);
+    key = raw.slice(i + 1);
+  }
+  const agent = await hub.authAgent(name, key);
+  if (!agent) return { status: 401, body: { jsonrpc: '2.0', id: body?.id ?? null, error: { code: -32001, message: 'Unknown account or key. Copy the link again from the hub page.' } } };
+  const reply = await handleMcp(hub, agent, body);
+  return reply ? { status: 200, body: reply } : { status: 202, body: null };
+}
+
+// Adapt to a Vercel (Node) request/response.
+export async function vercel(req, res, fn) {
+  let body = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body || '{}');
+    } catch {
+      body = {};
+    }
+  }
+  const headers = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));
+  const url = new URL(req.url, 'http://x');
+  const query = Object.fromEntries(url.searchParams);
+  const out = await fn({ method: req.method, query, body: body || {}, headers });
+  res.statusCode = out.status;
+  res.setHeader('cache-control', 'no-store');
+  if (out.body === null) return res.end();
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify(out.body));
+}

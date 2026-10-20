@@ -1,0 +1,7 @@
+{
+  "name": "dop-hub",
+  "private": true,
+  "type": "module",
+  "description": "Dop hub: one live room for Claude agents on several Claude accounts. Deployed as its own free Vercel project (Root Directory: hub).",
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ec">
+<title>Dop hub</title>
+<style>
+:root {
+  --bg: #f4f1ec; --panel: #fffdf9; --line: #e2dcd2; --ink: #1d1b18; --soft: #5d574e; --faint: #8c857a;
+  --green: #2f6b4f; --on-green: #fff; --amber: #a86a12; --red: #b03a33; --me: #ece6dc; --sel: #e9e3d8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #171614; --panel: #201f1c; --line: #34312c; --ink: #ece8e1; --soft: #b0a99e; --faint: #8c857a;
+    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --me: #2a2824; --sel: #2c2a26; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 16px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.hidden { display: none !important; }
+/* login */
+#login { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+#login form { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 24px; width: min(360px, 100%); display: grid; gap: 12px; }
+#login h1 { margin: 0; font-size: 24px; }
+input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 9px 10px; font-size: 16px; }
+.btn { border: 1px solid var(--line); background: var(--bg); border-radius: 4px; padding: 8px 14px; font-size: 15px; }
+.btn.primary { background: var(--green); color: var(--on-green); border-color: var(--green); font-weight: 700; }
+.btn.small { padding: 4px 10px; font-size: 14px; }
+.err { color: var(--red); font-size: 15px; min-height: 1em; }
+/* app */
+.app { display: grid; grid-template-columns: 280px 1fr 300px; height: 100vh; height: 100dvh; }
+.col { min-height: 0; display: flex; flex-direction: column; }
+.side { border-right: 1px solid var(--line); background: var(--panel); }
+.right { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding: 16px; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.brand b { font-size: 19px; }
+.brand span { margin-left: auto; font-size: 14px; color: var(--soft); }
+.list { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.item { text-align: left; border: 0; background: none; border-radius: 4px; padding: 10px; display: grid; gap: 3px; width: 100%; }
+.item:hover { background: var(--sel); }
+.item.on { background: var(--sel); }
+.item .t { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.item .s { font-size: 13px; color: var(--soft); display: flex; gap: 6px; align-items: baseline; }
+.item .s .dot { transform: translateY(-1px); }
+.group { font-size: 13px; font-weight: 700; color: var(--faint); padding: 12px 10px 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.st-working .dot, .dot.working { background: var(--green); }
+.st-waiting .dot, .st-queued .dot, .dot.waiting { background: var(--amber); }
+.st-stalled .dot { background: var(--red); }
+.main { min-width: 0; }
+.head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); min-height: 56px; flex-wrap: wrap; }
+.head h2 { margin: 0; font-size: 18px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.head .meta { font-size: 14px; color: var(--soft); }
+.back { display: none; }
+.feed { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.msg { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; max-width: 860px; }
+.msg.me { background: var(--me); }
+.msg.hub { background: none; border-style: dashed; }
+.msg.alert { border-left: 4px solid var(--amber); }
+.msg.handover { border-left: 4px solid var(--green); }
+.mh { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--soft); flex-wrap: wrap; }
+.mh b { color: var(--ink); font-size: 15px; }
+.mh .when { margin-left: auto; }
+.tag { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); }
+.tag.prompt, .tag.done, .tag.handover { color: var(--green); border-color: var(--green); }
+.tag.question { color: var(--amber); border-color: var(--amber); }
+.tag.alert { color: var(--red); border-color: var(--red); }
+.body { white-space: pre-wrap; word-wrap: break-word; line-height: 1.45; margin-top: 4px; }
+.body a, .msg a, .head a { color: var(--green); }
+.goto { border: 0; background: none; padding: 0; color: var(--green); font-size: 14px; text-decoration: underline; }
+.compose { border-top: 1px solid var(--line); background: var(--panel); padding: 10px 20px calc(10px + env(safe-area-inset-bottom)); display: grid; gap: 8px; }
+.compose .row { display: flex; gap: 8px; align-items: flex-end; }
+.compose textarea { flex: 1; resize: none; min-height: 46px; max-height: 40vh; }
+.compose .opts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--soft); }
+.compose select { padding: 5px 8px; font-size: 15px; }
+.empty { margin: auto; text-align: center; color: var(--soft); max-width: 440px; line-height: 1.5; padding: 24px; }
+.card { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--bg); }
+.card .top { display: flex; align-items: baseline; gap: 8px; }
+.card .name { font-size: 20px; font-weight: 700; }
+.card .plan { font-size: 13px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
+.card .line { font-size: 14px; color: var(--soft); margin-top: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.card .low { color: var(--red); font-weight: 600; }
+.bar { margin-top: 8px; }
+.bar label { display: flex; justify-content: space-between; font-size: 13px; color: var(--soft); }
+.track { height: 7px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.fill { height: 100%; background: var(--green); }
+.fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
+.acts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.sect { font-size: 13px; font-weight: 700; color: var(--faint); margin-top: 6px; }
+/* sheets */
+.sheet { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; padding: 16px; z-index: 5; }
+.sheet .box { background: var(--panel); border-radius: 6px; padding: 20px; width: min(560px, 100%); max-height: 90dvh; overflow-y: auto; display: grid; gap: 12px; }
+.sheet h3 { margin: 0; font-size: 19px; }
+.sheet p { margin: 0; line-height: 1.5; color: var(--soft); }
+.sheet code, .copyline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+.copyline { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; display: block; white-space: pre-wrap; }
+.routine { display: grid; grid-template-columns: 110px 1fr; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.routine input { min-width: 0; }
+.field { display: grid; gap: 4px; font-size: 14px; color: var(--soft); }
+.over { font-size: 14px; }
+.tabs { display: none; }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .app > .col { grid-row: 1; grid-column: 1; }
+  .app[data-tab="threads"] .main, .app[data-tab="threads"] .right { display: none; }
+  .app[data-tab="chat"] .side, .app[data-tab="chat"] .right { display: none; }
+  .app[data-tab="accounts"] .side, .app[data-tab="accounts"] .main { display: none; }
+  .side, .right { border: 0; }
+  .back { display: inline-block; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); background: var(--panel); padding-bottom: env(safe-area-inset-bottom); }
+  .tabs button { border: 0; background: none; padding: 12px 0; font-size: 15px; font-weight: 600; color: var(--soft); }
+  .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 2px 0 var(--ink); }
+  .feed, .compose, .head { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body>
+<div id="login">
+  <form id="loginForm">
+    <h1>Dop hub</h1>
+    <input id="pw" type="password" placeholder="Hub password" autocomplete="current-password" required>
+    <button class="btn primary" type="submit">Open</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div class="app hidden" id="app" data-tab="chat">
+  <section class="col side">
+    <div class="brand"><b>Dop hub</b><span id="live">Live</span></div>
+    <div class="list" id="threads"></div>
+  </section>
+  <section class="col main">
+    <div class="head">
+      <button class="btn small back" id="back" type="button">Threads</button>
+      <h2 id="title">Project chat</h2>
+      <span class="meta" id="tmeta"></span>
+    </div>
+    <div class="feed" id="feed"></div>
+    <form class="compose" id="compose">
+      <div class="opts" id="opts"></div>
+      <div class="row">
+        <textarea id="text" rows="2" placeholder="Ask for anything. The coordinator splits it into threads."></textarea>
+        <button class="btn primary" type="submit">Send</button>
+      </div>
+    </form>
+  </section>
+  <aside class="col right" id="right"></aside>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="threads">Threads</button>
+    <button type="button" data-tab="chat">Chat</button>
+    <button type="button" data-tab="accounts">Accounts</button>
+  </nav>
+</div>
+<div id="sheet" class="sheet hidden"><div class="box" id="sheetBox"></div></div>
+
+<script>
+const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
+const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
+const STATUS = { new: 'Starting', working: 'Working', waiting: 'Needs you', queued: 'Waiting for an agent', stalled: 'Stopped', done: 'Done' };
+const ROUTINE_PROMPT = 'You are an agent in XIAO\'s Dop hub. First call hub_start from the Dop hub connector, with payload set to the full text of the routine-fire payload (or no payload if there is none). Then do exactly what hub_start returns.';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+const clock = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : `${Math.round(ms / 86400e3)} d ago`;
+let pw = ''; try { pw = localStorage.getItem('hubpw') || ''; } catch {}
+let S = { threads: [], accounts: [], messages: [], settings: {}, overhead: {} };
+let seq = -1, sel = 0, drafts = {};
+
+async function api(op, body) {
+  const res = await fetch(`/api/hub?op=${op}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { showLogin('Wrong password.'); throw new Error('auth'); }
+  if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+  return j;
+}
+
+function showLogin(msg = '') { $('login').classList.remove('hidden'); $('app').classList.add('hidden'); $('loginErr').textContent = msg; }
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault(); pw = $('pw').value;
+  try { await load(true); try { localStorage.setItem('hubpw', pw); } catch {} $('login').classList.add('hidden'); $('app').classList.remove('hidden'); }
+  catch (err) { if (err.message !== 'auth') $('loginErr').textContent = err.message; }
+});
+
+async function load(force) {
+  if (!force) { const s = await api('seq'); if (s.seq === seq) return; }
+  S = await api('state'); seq = S.seq; render();
+}
+async function tick() {
+  if (document.hidden || !pw || $('app').classList.contains('hidden')) return;
+  try { await load(false); $('live').textContent = 'Live'; } catch (e) { if (e.message !== 'auth') $('live').textContent = 'Offline'; }
+}
+setInterval(tick, 4000);
+document.addEventListener('visibilitychange', tick);
+
+function threadItem(t) {
+  const last = S.messages.filter((m) => m.thread === t.id).at(-1);
+  return `<button class="item st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}">
+    <span class="t">${esc(t.title)}</span>
+    <span class="s"><span class="dot"></span><span>${t.status === 'queued' && t.account ? 'Waiting for ' + esc(t.account) : STATUS[t.status] || t.status} · ${esc(t.account || 'any account')} · ${MODEL_NAME[t.model] || t.model}${last ? ' · ' + ago(Date.now() - last.at) : ''}</span></span>
+  </button>`;
+}
+
+function renderThreads() {
+  const open = S.threads.filter((t) => t.status !== 'done').reverse();
+  const done = S.threads.filter((t) => t.status === 'done').reverse().slice(0, 30);
+  const pending = S.messages.filter((m) => m.thread === 0).at(-1);
+  $('threads').innerHTML = `<button class="item ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="t">Project chat</span><span class="s">${pending ? esc(pending.from === 'XIAO' ? 'You' : pending.from) + ': ' + esc(pending.text.slice(0, 50)) : 'Send a prompt to start'}</span></button>`
+    + (open.length ? '<div class="group">Open</div>' + open.map(threadItem).join('') : '')
+    + (done.length ? '<div class="group">Done</div>' + done.map(threadItem).join('') : '');
+}
+
+function msgHtml(m) {
+  const who = m.from === 'XIAO' ? 'You' : m.from === 'hub' ? 'Hub' : m.from;
+  const cls = m.from === 'XIAO' ? 'me' : m.from === 'hub' ? 'hub' : '';
+  const re = m.replyTo && m.kind !== 'routed' ? S.messages.find((x) => x.id === m.replyTo) : null;
+  const kind = m.kind === 'routed' ? 'routed' : m.kind;
+  let extra = '';
+  if (m.thread === 0 && m.kind === 'routed') {
+    const ids = [...m.text.matchAll(/#(\d+)/g)].map((x) => Number(x[1])).filter((id) => S.threads.some((t) => t.id === id));
+    extra = ids.map((id) => `<button class="goto" data-thread="${id}">Open #${id}</button>`).join(' ');
+  }
+  return `<div class="msg ${cls} ${m.kind}">
+    <div class="mh"><b>${esc(who)}</b><span class="tag ${kind}">${esc(kind)}</span>${re ? `<span>re: ${esc(re.text.slice(0, 60))}</span>` : ''}<span class="when">${clock(m.at)}</span></div>
+    <div class="body">${linkify(m.text)}</div>${extra ? `<div>${extra}</div>` : ''}
+  </div>`;
+}
+
+function renderFeed() {
+  const feed = $('feed');
+  const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 120;
+  const t = S.threads.find((x) => x.id === sel);
+  if (sel && !t) sel = 0;
+  $('title').textContent = t ? t.title : 'Project chat';
+  $('tmeta').innerHTML = t ? `<span class="st-${t.status}" style="display:inline-flex;gap:6px;align-items:center"><span class="dot"></span>${STATUS[t.status]}</span>${t.sessionUrl ? ` · <a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener">session</a>` : ''}` : '';
+  const msgs = S.messages.filter((m) => m.thread === sel);
+  let html = msgs.map(msgHtml).join('');
+  const recentHandover = msgs.slice(-4).some((m) => m.kind === 'handover');
+  if (t && t.checkpoint && !recentHandover) html = `<div class="msg handover"><div class="mh"><b>Latest handover</b><span class="tag handover">handover</span><span class="when">${clock(t.checkpoint.at)}</span></div><div class="body">${linkify(`Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}`)}</div></div>` + html;
+  if (!html) html = sel ? '<div class="empty">No messages yet.</div>' : `<div class="empty"><h3>Nothing here yet</h3><p>Type what you want done. The coordinator splits it into threads, picks an account and model for each, and starts them.</p>${S.accounts.length ? '' : '<p><button class="btn primary" data-open="add">Add your first account</button></p>'}</div>`;
+  feed.innerHTML = html;
+  if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
+  feed.dataset.sel = String(sel);
+  renderCompose(t);
+}
+
+function renderCompose(t) {
+  const accs = S.accounts.map((a) => `<option value="${esc(a.name)}" ${t && t.account === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  if (t) {
+    $('opts').innerHTML = `Model <select id="model">${MODELS.map((m) => `<option value="${m}" ${t.model === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>
+      Account <select id="acct"><option value="">Any</option>${accs}</select>
+      ${t.status === 'done' ? '' : `<button type="button" class="btn small" data-act="done">Mark done</button>`}
+      ${['stalled', 'queued'].includes(t.status) ? `<button type="button" class="btn small" data-act="retry">Start again</button>` : ''}`;
+    $('text').placeholder = 'Reply in this thread';
+  } else {
+    $('opts').innerHTML = `<label><input type="checkbox" id="direct" ${localGet('direct') === '1' ? 'checked' : ''}> One thread, skip the coordinator</label>
+      <span id="dmodel" class="${localGet('direct') === '1' ? '' : 'hidden'}">Model <select id="pmodel">${MODELS.map((m) => `<option value="${m}" ${m === (localGet('pmodel') || 'sonnet') ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select></span>`;
+    $('text').placeholder = 'Ask for anything. The coordinator splits it into threads.';
+  }
+  const want = drafts[sel] || '';
+  if (document.activeElement !== $('text')) $('text').value = want;
+}
+
+function usageBar(name, pct) {
+  if (typeof pct !== 'number') return '';
+  const c = pct >= 85 ? 'bad' : pct >= 60 ? 'warn' : '';
+  return `<div class="bar"><label><span>${name}</span><b>${Math.round(pct)}%</b></label><div class="track"><div class="fill ${c}" style="width:${Math.min(100, pct)}%"></div></div></div>`;
+}
+
+function renderRight() {
+  const cards = S.accounts.map((a) => `<div class="card">
+    <div class="top"><span class="name">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>
+    <div class="line"><span class="dot ${a.working ? 'working' : ''}"></span>${a.working ? `${a.working} working` : 'Free'} · seen ${a.lastSeen ? ago(Date.now() - a.lastSeen) : 'never'}</div>
+    ${a.low ? `<div class="line low">Low: ${esc(a.lowNote)}</div>` : ''}
+    <div class="line">${a.models.length ? 'Can start: ' + a.models.map((m) => MODEL_NAME[m]).join(', ') : a.plan === 'free' ? 'Chat only: works when you open a chat and say "check the hub"' : 'No routines yet: add one so the hub can start it'}</div>
+    ${usageBar('5-hour use', a.usage?.five_hour_pct)}${usageBar('Weekly use', a.usage?.seven_day_pct)}
+    <div class="acts"><button class="btn small" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-low="${esc(a.name)}" data-v="${a.low ? '0' : '1'}">${a.low ? 'Usage is back' : 'Running low'}</button></div>
+  </div>`).join('');
+  const ov = S.overhead || {};
+  $('right').innerHTML = `<div class="sect">Accounts</div>${cards || '<p class="over">No accounts yet.</p>'}
+    <button class="btn" data-open="add">Add account</button>
+    <div class="sect">Hub overhead, last 5 hours</div>
+    ${usageBar(`${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens`, ov.budget ? (100 * ov.used) / ov.budget : 0)}
+    <div class="over">${ov.coordinatorSessions || 0} coordinator runs, ${ov.fires || 0} sessions started</div>
+    <button class="btn" data-open="settings">Settings</button>
+    <button class="btn" data-open="logout">Sign out on this device</button>`;
+}
+
+function render() { renderThreads(); renderFeed(); renderRight(); }
+
+function setTab(tab) { $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab)); }
+function openThread(id) { drafts[sel] = $('text').value; sel = id; render(); setTab('chat'); }
+
+document.addEventListener('click', async (e) => {
+  const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
+  const tab = e.target.closest('#tabs button'); if (tab) return setTab(tab.dataset.tab);
+  if (e.target.closest('#back')) return setTab('threads');
+  const op = e.target.closest('[data-open]'); if (op) return openSheet(op.dataset.open, op.dataset.name);
+  const low = e.target.closest('[data-low]'); if (low) { await api('account-low', { name: low.dataset.low, low: low.dataset.v === '1', note: 'marked on the page' }); return load(true); }
+  const act = e.target.closest('[data-act]');
+  if (act) { if (act.dataset.act === 'done') await api('thread', { id: sel, status: 'done' }); else await api('retry', { id: sel }); return load(true); }
+  if (e.target === $('sheet')) closeSheet();
+});
+document.addEventListener('change', async (e) => {
+  if (e.target.id === 'direct') { localSet('direct', e.target.checked ? '1' : '0'); $('dmodel').classList.toggle('hidden', !e.target.checked); return; }
+  if (e.target.id === 'pmodel') return localSet('pmodel', e.target.value);
+  if (e.target.id === 'model' || e.target.id === 'acct') { await api('thread', { id: sel, model: $('model').value, account: $('acct').value }); load(true); }
+});
+$('text').addEventListener('input', () => { drafts[sel] = $('text').value; });
+$('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('compose').requestSubmit(); });
+$('compose').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('text').value.trim(); if (!text) return;
+  $('text').value = ''; drafts[sel] = '';
+  const direct = !sel && localGet('direct') === '1';
+  try { await api('prompt', { text, thread: sel || 0, direct, model: direct ? localGet('pmodel') || 'sonnet' : undefined }); } catch (err) { if (err.message !== 'auth') { alert(err.message); $('text').value = text; } }
+  load(true);
+});
+
+function localGet(k) { try { return localStorage.getItem('hub-' + k); } catch { return null; } }
+function localSet(k, v) { try { localStorage.setItem('hub-' + k, v); } catch {} }
+function closeSheet() { $('sheet').classList.add('hidden'); }
+async function openSheet(kind, name) {
+  const box = $('sheetBox'); let html = '';
+  if (kind === 'logout') { try { localStorage.removeItem('hubpw'); } catch {} pw = ''; return showLogin(); }
+  if (kind === 'connect') {
+    const k = await api(`connect&account=${encodeURIComponent(name)}`);
+    const url = `${location.origin}/api/mcp?account=${encodeURIComponent(k.name)}&key=${encodeURIComponent(k.key)}`;
+    const free = S.accounts.find((a) => a.name === name)?.plan === 'free';
+    html = `<h3>Connect ${esc(name)}</h3>
+      <p>This link is the key for this account. Keep it private.</p>
+      <code class="copyline">${esc(url)}</code><button class="btn small" data-copy="${esc(url)}">Copy link</button>
+      <p><b>1. claude.ai, signed in as this account</b> (works on phone too): Settings, Connectors, Add custom connector. Name it <i>Dop hub</i>, paste the link, choose no sign-in, Add.</p>
+      ${free ? `<p><b>2.</b> Open a chat on this account (phone or web) and say "check the Dop hub". It picks up questions and writing work queued for it; free plans can't run code from the hub.</p>` : `<p><b>2. A routine for each model you want</b>. On claude.ai/code open Routines, New routine: repo PERILTHESKYWING/Dop, the Dop hub connector on, pick the model, add an API trigger, and paste this prompt:</p>
+      <code class="copyline">${esc(ROUTINE_PROMPT)}</code><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button>
+      <p>Then press Edit on this account here and paste the routine's id (trig_...) and token.</p>
+      <p><b>3. Claude Code on a PC (optional):</b></p>
+      <code class="copyline">claude mcp add --transport http dop-hub "${esc(url)}"</code>`}
+      <button class="btn primary" data-close>Done</button>`;
+  } else if (kind === 'add' || kind === 'edit') {
+    const a = S.accounts.find((x) => x.name === name) || { name: '', plan: 'pro', routines: [] };
+    const rows = [...a.routines, { model: 'sonnet', id: '', hasToken: false }];
+    html = `<h3>${kind === 'add' ? 'Add account' : 'Edit ' + esc(a.name)}</h3>
+      <label class="field">Name (short, like A or Work)<input id="fName" value="${esc(a.name)}" ${kind === 'edit' ? 'readonly' : ''} required></label>
+      <label class="field">Plan<select id="fPlan">${['free', 'pro', 'max', 'team'].map((p) => `<option ${a.plan === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
+      <div class="sect">Routines (paid plans): one per model</div>
+      <div id="fRoutines">${rows.map(routineRow).join('')}</div>
+      <button class="btn small" type="button" data-addrow>Add another routine</button>
+      <div class="err" id="fErr"></div>
+      <div class="acts"><button class="btn primary" data-save>Save</button><button class="btn" data-close>Cancel</button>${kind === 'edit' ? `<button class="btn" data-remove="${esc(a.name)}">Remove account</button>` : ''}</div>`;
+  } else if (kind === 'settings') {
+    const s = S.settings;
+    html = `<h3>Settings</h3>
+      <label class="field">Coordinator model<select id="sModel">${MODELS.map((m) => `<option value="${m}" ${s.coordinatorModel === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select></label>
+      <label class="field">Coordinator account<select id="sAcct"><option value="">Pick automatically</option>${S.accounts.map((a) => `<option ${s.coordinatorAccount === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label class="field">Hub overhead budget per 5 hours (tokens)<input id="sBudget" type="number" min="0" step="1000" value="${s.overheadTokens}"></label>
+      <p>Counts the coordinator and the hub's own messages, not the work itself. Over budget, prompts skip the coordinator.</p>
+      <label class="field"><span><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}> Continue stopped threads on another account</span></label>
+      <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>`;
+  }
+  box.innerHTML = html; $('sheet').classList.remove('hidden');
+}
+function routineRow(r) {
+  return `<div class="routine"><select class="rModel">${MODELS.map((m) => `<option value="${m}" ${r.model === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>
+    <input class="rId" placeholder="Routine id (trig_...)" value="${esc(r.id)}">
+    <span></span><input class="rToken" type="password" placeholder="${r.hasToken ? 'Token saved (leave empty to keep)' : 'Token (sk-ant-oat01-...)'}"></div>`;
+}
+$('sheetBox').addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.closest('[data-close]')) return closeSheet();
+  if (t.closest('[data-copy]')) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy it'; } return; }
+  if (t.closest('[data-addrow]')) return $('fRoutines').insertAdjacentHTML('beforeend', routineRow({ model: 'sonnet', id: '' }));
+  if (t.closest('[data-remove]')) { if (confirm('Remove this account from the hub?')) { await api('account-remove', { name: t.dataset.remove }); closeSheet(); load(true); } return; }
+  if (t.closest('[data-save]')) {
+    const routines = [...document.querySelectorAll('.routine')].map((r) => ({ model: r.querySelector('.rModel').value, id: r.querySelector('.rId').value.trim(), token: r.querySelector('.rToken').value.trim() })).filter((r) => r.id);
+    try { await api('account', { name: $('fName').value.trim(), plan: $('fPlan').value, routines }); closeSheet(); load(true); } catch (err) { $('fErr').textContent = err.message; }
+    return;
+  }
+  if (t.closest('[data-savesettings]')) {
+    await api('settings', { coordinatorModel: $('sModel').value, coordinatorAccount: $('sAcct').value, overheadTokens: Number($('sBudget').value), autoResume: $('sResume').checked });
+    closeSheet(); load(true);
+  }
+});
+
+setTab('chat');
+if (pw) load(true).then(() => { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); }).catch(() => showLogin());
+else showLogin();
+</script>
+</body>
+</html>
