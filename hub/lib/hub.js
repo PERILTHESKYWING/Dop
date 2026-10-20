@@ -233,7 +233,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   };
   async function readUsage(a) {
     const token = (a.routines || []).find((r) => r.token)?.token;
-    if (!token) return null;
+    if (!token) return { error: (a.routines || []).length ? 'its routine has no token saved (Edit the account and paste it)' : 'no routine added, so there is nothing to read from' };
     try {
       const res = await fetchImpl('https://api.anthropic.com/api/oauth/usage', {
         headers: { authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20', 'anthropic-version': '2023-06-01' },
@@ -241,6 +241,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) return { error: `Claude refused this token (${res.status}); a routine token may not be allowed to read usage` };
         return { error: `Claude answered ${res.status}${e?.error?.message ? ': ' + clean(e.error.message, 140) : ''}` };
       }
       const b = await res.json();
@@ -266,7 +267,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     // Connectors added before the hub tracked connections show up in the log.
     const seen = new Map((await connLog()).filter((e) => e.keyOk && e.account && e.http === 'POST').map((e) => [e.account, e.at]));
     for (const a of Object.values(await accounts())) if (!a.connectedAt && seen.has(a.name)) await putAccount({ ...a, connectedAt: seen.get(a.name) });
-    const all = Object.values(await accounts()).filter((a) => (a.routines || []).some((r) => r.token));
+    const all = Object.values(await accounts()).filter((a) => a.plan !== 'free');
     const due = all.filter((a) => force || now() - (a.usageTriedAt || 0) > USAGE_EVERY_MS);
     // Claim the slot first so overlapping page polls don't all ask Claude.
     for (const a of due) await putAccount({ ...a, usageTriedAt: now() });

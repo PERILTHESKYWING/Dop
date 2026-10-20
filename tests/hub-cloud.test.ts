@@ -439,3 +439,16 @@ describe('cloud hub: usage-left threshold and team threads', () => {
     expect(alert.text).toContain('2 more accounts wanted');
   });
 });
+
+describe('cloud hub: usage cards explain why numbers are missing', () => {
+  it('says why when an account has no token, and reads paid accounts without one as an error not silence', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'NoTok', plan: 'pro', routines: [{ model: 'opus', id: 'trig_n' }] });
+    await h.upsertAccount({ name: 'Bare', plan: 'max' });
+    await h.refreshUsage({ force: true });
+    expect(h.publicAccount(await h.account('NoTok')).usageErr).toContain('no routine');
+    expect(h.publicAccount(await h.account('Bare')).usageErr).toContain('no routine');
+  });
+});
