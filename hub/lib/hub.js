@@ -95,12 +95,17 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     const plan = ['free', 'pro', 'max', 'team'].includes(input.plan) ? input.plan : old.plan || 'pro';
     let routines = old.routines || [];
     if (Array.isArray(input.routines)) {
+      // Accept the whole trigger URL too: keep only its trig_... part.
+      const routineId = (v) => {
+        const raw = clean(v, 300);
+        return (/trig_[A-Za-z0-9_-]+/.exec(raw) || [raw])[0].slice(0, 80);
+      };
       routines = input.routines
         .map((r) => {
-          const prev = routines.find((p) => p.id === clean(r.id, 80));
+          const prev = routines.find((p) => p.id === routineId(r.id));
           return {
             model: MODELS.includes(r.model) ? r.model : 'sonnet',
-            id: clean(r.id, 80),
+            id: routineId(r.id),
             // A blank token keeps the one saved before (the page never sees it).
             token: clean(r.token, 300) || prev?.token || '',
             fires: prev?.fires || [],
@@ -253,6 +258,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function fire(a, model, payload, role) {
+    const out = await fireOnce(a, model, payload, role);
+    try {
+      await logConn({ http: 'START', account: a.name, rpc: `${role} on ${model}`, keyOk: out.ok, via: out.ok ? 'routine started' : 'failed: ' + String(out.reason).slice(0, 160) });
+    } catch {}
+    return out;
+  }
+
+  async function fireOnce(a, model, payload, role) {
     const r = pickRoutine(a, model);
     if (!r) return { ok: false, reason: `${a.name} has no ${model} routine with fires left` };
     let res;
@@ -274,7 +287,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) return { ok: false, reason: `${a.name}'s ${model} routine token was refused (${res.status})` };
       if (res.status === 429) return { ok: false, reason: `${a.name} is rate limited` };
-      return { ok: false, reason: `Claude returned ${res.status}` };
+      return { ok: false, reason: `Claude returned ${res.status}: ${JSON.stringify(body).slice(0, 120)}` };
     }
     const fresh = await account(a.name);
     const fr = (fresh.routines || []).find((x) => x.id === r.id);

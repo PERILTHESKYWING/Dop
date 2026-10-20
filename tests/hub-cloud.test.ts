@@ -201,11 +201,12 @@ describe('cloud hub with a single Opus routine', () => {
     const { memoryStore } = await lib('store.js');
     const before = fires.length;
     const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
-    await h.upsertAccount({ name: 'Dad', plan: 'pro', routines: [{ model: 'opus', id: 'trig_dad_o', token: 'good-dad' }] });
+    await h.upsertAccount({ name: 'Dad', plan: 'pro', routines: [{ model: 'opus', id: 'https://api.anthropic.com/v1/claude_code/routines/trig_dad_o/fire', token: 'good-dad' }] });
     await h.prompt({ text: 'Fix the slider' });
     expect(fires.length).toBe(before + 1);
     expect(fires.at(-1)!.routine).toBe('trig_dad_o');
     const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
     expect(t).toMatchObject({ account: 'Dad', status: 'working' });
+    expect((await h.connLog())[0]).toMatchObject({ http: 'START', keyOk: true });
   });
 });
