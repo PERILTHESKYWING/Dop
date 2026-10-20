@@ -1,5 +1,7 @@
 # Dop hub: two Claude accounts working as one team
 
+> The cloud version (every account, every device, phone) is in `hub-cloud.md`. This page is the PC-only version.
+
 A small live room on XIAO's PC that links Claude Code agents from two Claude accounts. XIAO watches it and sends prompts at **http://localhost:7790**; the agents take tasks there, ask each other questions, and warn each other when an account is running out of usage. Code: `tools/hub/`. Tests: `tests/hub.test.ts`.
 
 ## Start it (Windows, three double-clicks)
