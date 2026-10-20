@@ -1,6 +1,7 @@
-/* Kiai's landing page. It starts in a high, clear sky (the path-traced plate) and dives: the
- * page darkens step by step as the reading goes deeper, so KataGo's light reads clearly on the
- * board. Flat colours only; the depth comes from the renders and the live board. */
+/* Kiai's landing: one live picture (the board on a marble pillar above the clouds) behind six
+ * short chapters. The picture stays; the scroll moves its camera. Words are few and large, one
+ * chapter at a time; diagrams do the rest. Flat colours and seal red, no glows: the light comes
+ * from the rendered sky. */
 html.kiai-landing,
 html.kiai-landing body,
 html.kiai-landing #root {
@@ -9,1642 +10,871 @@ html.kiai-landing #root {
   overflow: visible;
 }
 html.kiai-landing body {
-  background: #f4f8fc;
+  background: #dfe8f1;
+}
+/* settle on a chapter when the scrolling stops near one */
+html.kiai-landing {
+  scroll-snap-type: y proximity;
 }
 
 .landing {
-  --l-bg: #f4f8fc;
-  --l-card: #ffffff;
-  --l-ink: #0b0f14;
-  --l-ink-2: #3b4653;
-  --l-muted: #6a7684;
-  --l-line: #d4dfea;
-  --l-accent: #1d63d8;
-  --l-glow: #2fd3ff;
-  --l-abyss: #03090f;
-  --l-pad: clamp(20px, 5vw, 72px);
+  --l-ink: #15130f;
+  --l-ink-2: #2b2722;
+  --l-muted: #4a453d;
+  --l-paper: #f7f3ea;
+  --l-seal: #b3302a;
+  --l-line: rgba(21, 19, 15, 0.18);
+  --l-left: 64px;
   color-scheme: light;
   color: var(--l-ink);
-  background: var(--l-bg);
-  font: 400 17px/1.55 var(--font);
+  font: 400 22px/1.35 var(--font);
   -webkit-font-smoothing: antialiased;
 }
 .landing a {
   color: inherit;
 }
 .landing h1,
-.landing h2,
-.landing h3 {
-  font-weight: 760;
-  letter-spacing: -0.005em;
-  line-height: 0.98;
+.landing h2 {
   margin: 0;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 0.98;
   text-wrap: balance;
 }
-.l-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+.landing h1 {
+  font-size: clamp(48px, 5.2vw, 80px);
+}
+.landing h2 {
+  font-size: clamp(44px, 4.6vw, 72px);
+}
+.landing p {
+  margin: 0;
 }
 
-/* ---- navigation */
+/* the sky as a still picture, until (or instead of) the live one */
+.l-sky {
+  position: fixed;
+  inset: 0;
+  background: #c9d9ea url('/kiai/sky-1536.webp') 62% 46% / cover no-repeat;
+}
+.l-flat {
+  position: fixed;
+}
+.l-flat svg {
+  width: 100%;
+  height: 100%;
+}
+.l-stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* the point the words name, labelled on the board */
+.l-callouts {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.l-callout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+}
+.l-callout span {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: l-callout 0.45s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.l-callout b {
+  padding: 5px 12px 6px;
+  border-radius: 10px;
+  background: var(--l-paper);
+  box-shadow: 0 3px 10px rgba(21, 19, 15, 0.22);
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--l-seal);
+  white-space: nowrap;
+}
+.l-callout i {
+  width: 3px;
+  height: 40px;
+  background: var(--l-paper);
+  box-shadow: 0 2px 4px rgba(21, 19, 15, 0.25);
+}
+@keyframes l-callout {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+/* ------------------------------------------------ top bar */
 .l-nav {
   position: fixed;
+  z-index: 20;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 28px;
-  padding: 16px var(--l-pad);
-  transition:
-    background-color 0.4s,
-    border-color 0.4s,
-    color 0.4s;
-  border-bottom: 1px solid transparent;
+  justify-content: space-between;
+  padding: 18px clamp(18px, 3vw, 40px);
+  pointer-events: none;
 }
-.l-nav.solid {
-  background: rgba(244, 248, 252, 0.86);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  border-bottom-color: rgba(11, 15, 20, 0.08);
-}
-.l-nav.dark {
-  background: rgba(3, 9, 15, 0.78);
-  border-bottom-color: rgba(120, 200, 255, 0.12);
-  color: #eef6fc;
-}
-.l-nav.dark .l-links a {
-  color: #a9bfd3;
-}
-.l-nav.dark .l-links a:hover {
-  color: #fff;
-}
-.l-nav.dark .l-btn {
-  background: #eef6fc;
-  color: var(--l-ink) !important;
+.l-nav > * {
+  pointer-events: auto;
 }
 .l-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   text-decoration: none;
-  font-weight: 760;
-  font-size: 21px;
-  letter-spacing: -0.005em;
+  font-size: 30px;
+  font-weight: 800;
 }
-.l-brand .logo.tile {
-  border-radius: 8px;
-  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.1);
-}
-.l-links {
-  display: flex;
-  gap: 26px;
-  margin-left: auto;
-  font-size: 15px;
-  font-weight: 500;
-}
-.l-links a {
-  text-decoration: none;
-  color: var(--l-ink-2);
-  transition: color 0.2s;
-}
-.l-links a:hover {
-  color: var(--l-ink);
-}
-
 .l-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 52px;
-  padding: 0 26px;
+  min-height: 50px;
+  padding: 0 24px;
   border-radius: 999px;
   background: var(--l-ink);
-  color: #fff !important;
+  color: var(--l-paper) !important;
+  font-size: 21px;
+  font-weight: 700;
   text-decoration: none;
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: -0.005em;
-  transition:
-    background-color 0.2s,
-    transform 0.2s,
-    box-shadow 0.2s;
+  transition: background 0.2s, transform 0.2s;
 }
 .l-btn:hover {
-  background: #1f2832;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px -6px rgba(11, 15, 20, 0.45);
+  background: #000;
 }
 .l-btn:active {
   transform: translateY(1px);
-  box-shadow: none;
 }
-.l-btn.small {
-  height: 40px;
-  padding: 0 18px;
-  font-size: 15px;
-}
-.l-btn.ghost {
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--l-ink) !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(11, 15, 20, 0.16),
-    0 8px 22px -12px rgba(16, 40, 72, 0.45);
-}
-.l-btn.ghost:hover {
-  background: #fff;
-}
-.l-btn.light {
-  background: #eef6fc;
-  color: var(--l-ink) !important;
-}
-.l-btn.light:hover {
-  background: #fff;
-  box-shadow: 0 0 0 6px rgba(47, 211, 255, 0.18);
-}
-
-/* ---- hero: the sky, the table, and the live board on it */
-.l-hero {
-  position: relative;
-  min-height: max(640px, 100svh);
-  display: flex;
-  align-items: flex-start;
-  overflow: hidden;
-  background: #dfe9f3;
-}
-.l-hero-art,
-.l-hero-art img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.l-hero-art img {
-  object-fit: cover;
-  object-position: 66% 50%;
-}
-.lb.l-hero-board {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-1.5%);
-  transition:
-    opacity 0.9s ease,
-    transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.lb.l-hero-board.on {
-  opacity: 1;
-  transform: none;
-}
-.lb {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.lb-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.l-hero-copy {
-  position: relative;
-  z-index: 3;
-  padding: clamp(116px, 16vh, 180px) var(--l-pad) 0;
-  max-width: 800px;
-}
-.l-hero h1 {
-  font-size: clamp(46px, 5.3vw, 88px);
-}
-/* each line of the headline rises through its own mask */
-.l-line {
-  display: inline-block;
-  overflow: hidden;
-  padding-bottom: 0.08em;
-  margin-bottom: -0.08em;
-  vertical-align: top;
-}
-.l-line > span {
-  display: inline-block;
-  animation: l-mask 1s cubic-bezier(0.2, 0.85, 0.15, 1) both;
-}
-.l-line + .l-line > span {
-  animation-delay: 0.09s;
-}
-@keyframes l-mask {
-  from {
-    transform: translateY(105%);
-  }
-}
-.l-hero-kicker {
-  margin: 0 0 18px;
-  font: 600 13px/1 var(--font);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #0b6f9e;
-  animation: l-up 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-lead {
-  margin: 24px 0 0;
-  max-width: 520px;
-  font-size: clamp(17px, 1.4vw, 20px);
-  line-height: 1.5;
-  color: var(--l-ink-2);
-  animation: l-up 0.9s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-lead.short {
-  display: none;
-}
-.l-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 32px;
-  animation: l-up 0.9s 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-@keyframes l-up {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-}
-
-/* the question and Kiai's answer, popping up above the board */
-.l-ask {
-  position: absolute;
-  z-index: 3;
-  margin: 0;
-  /* its right edge on the page's gutter, in line with the bar's button */
-  right: var(--l-pad);
-  bottom: calc(100% - var(--board-top, 62%) + 16px);
-  width: min(430px, 36vw);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  transform-origin: 70% 100%;
-  animation: l-pop 0.55s cubic-bezier(0.2, 1.35, 0.35, 1) both;
-}
-.l-ask.leave {
-  animation: l-sink 0.5s cubic-bezier(0.5, 0, 0.8, 0.4) both;
-}
-@keyframes l-pop {
-  from {
-    opacity: 0;
-    transform: translateY(22px) scale(0.86);
-  }
-}
-@keyframes l-settle {
-  40% {
-    box-shadow:
-      0 0 0 2px rgba(47, 211, 255, 0.55),
-      0 0 34px rgba(47, 211, 255, 0.45),
-      0 24px 48px -20px rgba(16, 40, 72, 0.5);
-  }
-}
-@keyframes l-sink {
-  to {
-    opacity: 0;
-    transform: translateY(10px) scale(0.96);
-    filter: blur(4px);
-  }
-}
-.l-ask-q {
-  align-self: flex-end;
-  max-width: 88%;
-  margin: 0;
-  padding: 10px 16px;
-  border-radius: 18px 18px 5px 18px;
-  background: var(--l-ink);
-  color: #fff;
-  font-size: 15px;
-  line-height: 1.4;
-  box-shadow: 0 10px 24px -12px rgba(11, 15, 20, 0.6);
-}
-.l-caret {
-  display: inline-block;
-  width: 2px;
-  height: 1.05em;
-  margin-left: 2px;
-  vertical-align: -0.15em;
-  background: var(--l-glow);
-  animation: l-blink 0.8s steps(1) infinite;
-}
-@keyframes l-blink {
-  50% {
-    opacity: 0;
-  }
-}
-.l-ask-a {
-  padding: 14px 16px 15px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px) saturate(1.5);
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
-  box-shadow:
-    0 0 0 1px rgba(11, 15, 20, 0.08),
-    0 2px 6px -2px rgba(16, 40, 72, 0.18),
-    0 24px 48px -20px rgba(16, 40, 72, 0.5);
-  transform-origin: 20% 0;
-  animation:
-    l-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    l-settle 0.9s 0.4s ease-out;
-}
-/* laid out (so the card never changes size) but not shown until Kiai starts reading */
-.l-ask-a.hold {
-  visibility: hidden;
-  animation: none;
-}
-.l-ask-who {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-.l-ask-who .logo {
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.1);
-}
-.l-ask-depth {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 8px 1px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(11, 15, 20, 0.12);
-  color: var(--l-ink-2);
-  font-size: 12.5px;
-}
-.l-ask-depth .depth {
-  color: var(--l-accent);
-}
-.l-ask-reading {
-  margin-left: auto;
-  font: 500 12px/1 var(--mono);
-  color: var(--l-muted);
-  white-space: nowrap;
-}
-.l-ask-reading b {
-  color: var(--l-ink);
-  font-weight: 650;
-}
-.l-ask-meter {
-  margin-top: 12px;
-  height: 3px;
-  border-radius: 3px;
-  background: rgba(11, 15, 20, 0.08);
-  overflow: hidden;
-  transition: opacity 0.6s ease;
-}
-.l-ask-meter.done {
-  opacity: 0.35;
-}
-.l-ask-meter i {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #1d9fd8, var(--l-glow));
-  transform-origin: 0 50%;
-  transition: transform 0.7s cubic-bezier(0.3, 0.7, 0.2, 1);
-  box-shadow: 0 0 10px var(--l-glow);
-}
-/* three lines held for every answer, so the card is one size for both questions */
-.l-ask-text {
-  position: relative;
-  min-height: 4.65em;
-  margin: 10px 0 0;
-  font-size: 15.5px;
-  line-height: 1.55;
-  color: var(--l-ink);
-}
-.l-w {
-  visibility: hidden;
-}
-.l-w.on {
-  visibility: visible;
-  animation: l-word 0.4s ease both;
-}
-/* while Kiai reads: one shimmering line where the answer will start */
-.l-skel {
-  position: absolute;
-  inset: 7px 0 auto;
-}
-.l-skel i {
-  display: block;
-  width: 72%;
-  height: 8px;
-  border-radius: 12px;
-  background: linear-gradient(90deg, rgba(11, 15, 20, 0.06) 30%, rgba(47, 211, 255, 0.3) 50%, rgba(11, 15, 20, 0.06) 70%) 0 0 / 300% 100%;
-  animation: l-shimmer 1.4s linear infinite;
-}
-@keyframes l-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -50% 0;
-  }
-}
-@keyframes l-word {
-  from {
-    opacity: 0;
-    filter: blur(5px);
-  }
-}
-.l-chip-c {
-  font-weight: 650;
-  color: #0b5d86;
-  background: rgba(47, 211, 255, 0.16);
-  border-radius: 6px;
-  padding: 0 4px;
-}
-.l-w.on .l-chip-c.point {
-  color: #fff;
-  background: #0a8fc7;
-  box-shadow: 0 0 14px rgba(47, 211, 255, 0.8);
-}
-.l-ask-foot {
-  display: grid;
-  margin: 10px 0 0;
-  padding-top: 9px;
-  border-top: 1px solid rgba(11, 15, 20, 0.08);
-  font: 500 13px/1.45 var(--font);
-  font-variant-numeric: tabular-nums;
-  color: #5b6573;
-}
-.l-ask-foot span {
-  grid-area: 1 / 1;
-  visibility: hidden;
-  white-space: pre-line;
-}
-.l-ask-foot span.on {
-  visibility: visible;
-  animation: l-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-/* pausing the hero's demo (it loops forever otherwise) */
-.l-pause {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.1), 0 8px 20px -10px rgba(16, 40, 72, 0.5);
-  color: var(--l-ink);
-  cursor: pointer;
-  animation: l-up 0.8s 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-pause svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-.l-pause:focus-visible {
-  outline: 2px solid var(--l-glow);
+.l-btn:focus-visible,
+.l-rail a:focus-visible,
+.l-steps button:focus-visible,
+.l-brand:focus-visible {
+  outline: 3px solid var(--l-seal);
   outline-offset: 3px;
 }
-
-/* a depth's answer, standing on the board beside the top of its pick's column (wide screens) */
-.k3-say b {
-  position: absolute;
-  right: calc(var(--cell) * 1.2 + 6px);
-  bottom: -10px;
-  width: min(300px, 24vw);
-  padding: 13px 15px 32px;
-  border-radius: 16px 16px 4px 16px;
-  background: rgba(5, 18, 31, 0.86);
-  box-shadow:
-    0 0 0 1px rgba(127, 233, 255, 0.35),
-    0 16px 40px -14px rgba(47, 211, 255, 0.5);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  color: #eaf4fb;
-  font: 500 15px/1.45 var(--font);
-  letter-spacing: 0;
-  white-space: normal;
-  text-align: left;
-  transform-origin: 100% 100%;
-  animation: l-say 0.55s 0.25s cubic-bezier(0.2, 1.35, 0.35, 1) both;
+.l-nav .l-btn {
+  transition: opacity 0.3s, background 0.2s;
 }
-.k3-say i {
-  position: absolute;
-  right: calc(var(--cell) * 1.2 + 21px);
-  bottom: 2px;
-  font: 600 12px/1 var(--font);
-  letter-spacing: 0.04em;
-  color: var(--l-glow);
-  animation: l-say 0.55s 0.35s cubic-bezier(0.2, 1.35, 0.35, 1) both;
-}
-@keyframes l-say {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.92);
-  }
-}
-@media (min-width: 901px) {
-  .l-quote.phone {
-    display: none;
-  }
-}
-@media (max-width: 900px) {
-  .k3-say {
-    display: none;
-  }
-}
-
-/* the foot of the hero: how to read the columns, and the demo's pause button beside it */
-.l-hero-foot {
-  position: absolute;
-  z-index: 3;
-  left: var(--l-pad);
-  bottom: 28px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.l-legend {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  box-shadow:
-    0 0 0 1px rgba(11, 15, 20, 0.06),
-    0 10px 26px -16px rgba(16, 40, 72, 0.55);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--l-ink);
-  animation: l-up 0.8s 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-legend i {
-  font-style: normal;
-}
-.l-legend .col {
-  flex: none;
-  width: 6px;
-  height: 22px;
-  margin: 0 4px 0 6px;
-  border-radius: 3px;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(47, 211, 255, 0.9), 0 0 12px 2px rgba(47, 211, 255, 0.8);
-}
-.l-legend .tile {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  margin: 0 2px 0 6px;
-}
-.l-legend .tile.b {
-  background: #18aaf2;
-  box-shadow: 0 0 10px rgba(24, 170, 242, 0.7);
-}
-.l-legend .tile.w {
-  margin-left: 12px;
-  background: #eef7ff;
-  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.25);
-}
-.l-legend .tag {
-  margin-left: 10px;
-  padding: 3px 8px;
-  border-radius: 7px;
-  background: #0a8fc7;
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-}
-
-/* ---- the dive: one board held on screen while the steps scroll past it */
-.l-dive {
-  position: relative;
-  background-color: #e9f1f9;
-  color: var(--l-ink);
-  transition:
-    background-color 1.2s ease,
-    color 1.2s ease;
-  --d-ink-2: #3b4653;
-  --d-line: rgba(11, 15, 20, 0.14);
-  --d-panel: rgba(255, 255, 255, 0.72);
-}
-.l-dive.d1 {
-  background-color: #c9dced;
-}
-.l-dive.d2 {
-  background-color: #0e2740;
-  color: #eaf4fb;
-  --d-ink-2: #a9c0d4;
-  --d-line: rgba(150, 210, 255, 0.18);
-  --d-panel: rgba(6, 22, 36, 0.62);
-}
-.l-dive.d3 {
-  background-color: var(--l-abyss);
-  color: #eef6fc;
-  --d-ink-2: #8fa7bc;
-  --d-line: rgba(150, 210, 255, 0.16);
-  --d-panel: rgba(4, 14, 24, 0.66);
-}
-.l-stage {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  height: 100svh;
-  overflow: hidden;
-}
-.lb.l-stage-board {
-  position: absolute;
-  inset: 0;
-}
-/* on a wide screen the board dissolves into the page beside the text (on whichever side the text is):
-   a short fade, so no long band of half-faded wood and grid lies under the words */
-@media (min-width: 901px) {
-  /* the canvas only: the words standing on the board (bubbles, tags) never fade with it */
-  .lb.l-stage-board .lb-canvas {
-    -webkit-mask-image: linear-gradient(90deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
-    mask-image: linear-gradient(90deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
-  }
-  .l-dive.s-own .lb.l-stage-board .lb-canvas,
-  .l-dive.s-device .lb.l-stage-board .lb-canvas {
-    -webkit-mask-image: linear-gradient(270deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
-    mask-image: linear-gradient(270deg, transparent 38%, rgba(0, 0, 0, 0.45) 44%, #000 51%);
-  }
-  .l-step.right {
-    justify-content: flex-end;
-  }
-}
-.l-steps {
-  position: relative;
-  z-index: 2;
-  list-style: none;
-  margin: -100vh 0 0;
-  margin-top: -100svh;
-  padding: 0 var(--l-pad) 0 calc(var(--l-pad) + 28px);
+/* where the screen has its own big button, the bar's one steps aside */
+.l-nav.quiet .l-btn {
+  opacity: 0;
   pointer-events: none;
 }
-.l-step {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-}
-.l-step-in {
-  max-width: 460px;
-  pointer-events: auto;
-  opacity: 0.12;
-  transform: translateY(24px);
-  transition:
-    opacity 0.7s ease,
-    transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.l-step.on .l-step-in {
-  opacity: 1;
-  transform: none;
-}
-.l-step.on .l-step-in > * {
-  animation: l-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-step.on .l-step-in > :nth-child(2) {
-  animation-delay: 0.09s;
-}
-.l-step.on .l-step-in > :nth-child(3) {
-  animation-delay: 0.18s;
-}
-.l-step.on .l-step-in > :nth-child(4) {
-  animation-delay: 0.27s;
-}
-.l-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 18px;
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--l-accent);
-}
-.l-dive.d2 .l-kicker,
-.l-dive.d3 .l-kicker {
-  color: var(--l-glow);
-}
-.l-step h3 {
-  font-size: clamp(36px, 3.8vw, 60px);
-}
-.l-step p {
-  margin: 22px 0 0;
-  font-size: clamp(17px, 1.3vw, 19px);
-  color: var(--d-ink-2);
-  transition: color 1.2s;
-}
-.l-step .l-step-note {
-  font-size: 14.5px;
-}
-.l-quote {
-  margin: 26px 0 0;
-  padding: 2px 0 2px 20px;
-  border-left: 2px solid var(--l-glow);
-}
-.l-quote p {
-  margin: 0;
-  font-size: clamp(19px, 1.55vw, 23px);
-  line-height: 1.45;
-  color: inherit;
-  letter-spacing: -0.01em;
-}
-.l-quote cite {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  font-style: normal;
-  font-size: 14px;
-  color: var(--d-ink-2);
-}
-.l-quote cite .logo {
-  border-radius: 5px;
+.l-btn.big {
+  min-height: 64px;
+  padding: 0 38px;
+  font-size: 25px;
 }
 
-/* the depth rail down the left edge, with the seal marking where you are */
+/* ------------------------------------------------ the rail: where you are, and a way to jump */
 .l-rail {
+  position: fixed;
+  z-index: 15;
+  left: clamp(18px, 2.6vw, 40px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.l-rail-track {
   position: absolute;
-  left: max(18px, calc(var(--l-pad) - 30px));
-  top: 22%;
-  height: 56%;
-  width: 1px;
-  background: var(--d-line);
-  z-index: 3;
+  left: 9px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: var(--l-line);
 }
 .l-rail-fill {
   position: absolute;
   inset: 0;
-  background: var(--l-glow);
-  box-shadow: 0 0 8px var(--l-glow);
-  transform-origin: 50% 0;
-  transition: transform 1.4s cubic-bezier(0.5, 0, 0.2, 1);
+  background: var(--l-ink);
+  transform-origin: top;
+  transform: scaleY(var(--p, 0));
 }
-.l-rail-tick {
-  position: absolute;
-  left: -3px;
-  width: 7px;
-  height: 1px;
-  transition: background 0.6s, opacity 0.6s;
-  background: var(--d-ink-2);
-  opacity: 0.6;
-}
-.l-rail-tick.past {
-  background: var(--l-glow);
-  opacity: 1;
-}
-.l-rail-mark {
-  position: absolute;
-  left: -13px;
+.l-rail a {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  transform: translateY(-50%);
-  transition: top 1.4s cubic-bezier(0.5, 0, 0.2, 1);
+  min-height: 48px;
+  text-decoration: none;
+  color: var(--l-ink);
 }
-.l-rail-mark .logo {
-  display: block;
-  flex: none;
-  border-radius: 7px;
-  box-shadow:
-    0 0 0 1px rgba(11, 15, 20, 0.12),
-    0 0 18px rgba(47, 211, 255, 0.45);
-}
-.l-rail-mark b {
-  font: 600 10.5px/1 var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--d-ink-2);
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  display: none;
-}
-
-/* on a wide screen the depths' picks and the review graph sit under the copy, clear of the board */
-@media (min-width: 901px) {
-  .l-stats.l-stats-path {
-    top: auto;
-    right: auto;
-    bottom: clamp(36px, 9vh, 96px);
-    left: calc(var(--l-pad) + 28px);
-    align-items: flex-start;
-    text-align: left;
-  }
-  .l-stats-path .l-path li {
-    align-items: flex-start;
-  }
-  .l-dive .l-graph-wrap {
-    left: calc(var(--l-pad) + 28px);
-    right: auto;
-    width: min(40%, 580px);
-    height: clamp(104px, 16vh, 160px);
-    bottom: clamp(52px, 8vh, 80px);
-  }
-}
-/* the step's numbers, set in the open stage over the board: big figures, no panels */
-.l-stats {
+/* a chapter's name shows beside its dot when pointed at */
+.l-rail a span {
   position: absolute;
-  z-index: 2;
-  top: clamp(96px, 14vh, 140px);
-  right: var(--l-pad);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 18px;
-  text-align: right;
+  left: 34px;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--l-paper);
+  box-shadow: 0 3px 12px rgba(21, 19, 15, 0.14);
+  font-size: 20px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.2s, transform 0.2s;
   pointer-events: none;
 }
-.l-stat {
+.l-rail a:hover span,
+.l-rail a:focus-visible span {
+  opacity: 1;
+  transform: none;
+}
+.l-rail a i {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  background: #f1ede5;
+  box-shadow: inset 0 0 0 2px var(--l-ink-2);
+  transition: background 0.3s, transform 0.3s;
+}
+.l-rail a.on i {
+  background: var(--l-seal);
+  box-shadow: inset 0 0 0 2px var(--l-seal);
+  transform: scale(1.15);
+}
+
+/* ------------------------------------------------ the chapters' words */
+.l-words {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  pointer-events: none;
+}
+.l-ch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--l-left) + 2vw);
+  width: min(580px, 40vw);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  animation: l-up 0.6s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  justify-content: center;
+  gap: 26px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: auto;
+  will-change: opacity, transform;
+  /* a soft paper-coloured edge round the letters, so they hold over cloud as well as marble */
+  text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 0 16px rgba(247, 243, 234, 0.85), 0 0 32px rgba(247, 243, 234, 0.6);
 }
-.l-stat b {
-  font: 760 clamp(40px, 4.6vw, 72px) / 0.9 var(--font);
-  letter-spacing: -0.005em;
+.l-btn,
+.l-steps button {
+  text-shadow: none;
+}
+.l-lead {
+  font-size: clamp(32px, 2.8vw, 44px);
+  line-height: 1.1;
+  font-weight: 700;
+}
+.l-text {
+  font-size: clamp(25px, 2.1vw, 31px);
+  line-height: 1.28;
+  font-weight: 500;
+  color: var(--l-ink);
+  text-wrap: pretty;
+}
+
+/* the first chapter: a question and Kiai's answer, as large as the title */
+.l-qa {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* the question, as asked: plain words with a stone for the side to play */
+.l-q {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(25px, 2vw, 30px);
+  font-weight: 700;
+  color: var(--l-ink-2);
+}
+.l-q::before {
+  content: '';
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: #17161a;
+}
+.l-a {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  font-size: clamp(28px, 2.4vw, 36px);
+  line-height: 1.22;
+  font-weight: 600;
+}
+.l-a-mark {
+  flex: none;
+  margin-top: 4px;
+}
+.l-at {
+  color: var(--l-seal);
+  font-weight: 800;
+}
+.l-cta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 23px;
+  color: var(--l-ink-2);
+}
+
+/* ------------------------------------------------ diagrams: as plain as a printed figure */
+.l-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.l-chart-head {
+  font-size: 23px;
+  font-weight: 800;
+  color: var(--l-ink);
+}
+
+/* reading: the count, a bar per move, and the pick changing */
+.l-count {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.l-count b {
+  font-size: clamp(56px, 5vw, 80px);
+  line-height: 1;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.l-stat.small b {
-  font-size: clamp(26px, 2.4vw, 36px);
-}
-.l-stat b.glow {
-  color: #0a8fc7;
-}
-.l-stat span {
-  font-size: 13px;
-  font-weight: 550;
-  letter-spacing: 0.02em;
-  color: var(--d-ink-2);
-  max-width: 260px;
-}
-.l-dive.d2 .l-stat b,
-.l-dive.d3 .l-stat b {
-  color: #fff;
-  text-shadow: 0 0 22px rgba(47, 211, 255, 0.6);
-}
-.l-dive.d2 .l-stat b.glow,
-.l-dive.d3 .l-stat b.glow {
-  color: var(--l-glow);
-}
-/* the network downloading onto the board: a badge on its near edge with a filling bar */
-.k3-dl {
-  gap: 7px;
-}
-.k3-dl b,
-.k3-dl i {
-  translate: 0 -46px;
-}
-.k3-dl b {
-  position: relative;
-  min-width: 210px;
-  padding: 11px 18px 15px;
-  border-radius: 14px;
-  background: rgba(4, 16, 26, 0.84);
-  backdrop-filter: blur(8px);
-  box-shadow:
-    0 0 0 1px rgba(143, 220, 255, 0.4),
-    0 18px 40px -18px rgba(0, 0, 0, 0.9);
-  color: #fff;
-  font: 700 18px/1 var(--font);
-  text-align: center;
-  animation: k3-tag 0.45s cubic-bezier(0.2, 1.5, 0.35, 1) both;
-}
-.k3-dl b::after {
-  content: '';
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 6px;
-  height: 3px;
-  border-radius: 3px;
-  background: var(--l-glow);
-  box-shadow: 0 0 10px var(--l-glow);
-  transform: scaleX(var(--p, 0));
-  transform-origin: 0 50%;
-  transition: transform 0.12s linear;
-}
-.k3-dl.done b {
-  background: rgba(4, 16, 26, 0.9);
-  box-shadow:
-    0 0 0 1px rgba(127, 233, 255, 0.55),
-    0 0 22px rgba(47, 211, 255, 0.35);
-  color: #fff;
-  animation: k3-hit 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
-}
-/* a lit dot before "Ready": the one accent */
-.k3-dl.done b::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin: 0 9px 2px 0;
-  border-radius: 50%;
-  background: var(--l-glow);
-  box-shadow: 0 0 10px var(--l-glow);
-  vertical-align: middle;
-}
-.k3-dl.done b::after {
-  opacity: 0;
-}
-.k3-dl i {
-  padding: 4px 9px;
-  border-radius: 7px;
-  background: rgba(4, 16, 26, 0.72);
-  font-size: 12.5px;
+.l-count span {
+  font-size: 26px;
   font-weight: 600;
-  color: rgba(226, 243, 252, 0.95);
+  color: var(--l-ink-2);
 }
-/* the depths' picks: Quick, then Careful, then Deep, each reading further */
-.l-path {
+.l-reading ul {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  gap: clamp(18px, 2.4vw, 34px);
-}
-.l-path li {
-  position: relative;
-  display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  opacity: 0.6;
-  transition: opacity 0.6s;
+  gap: 12px;
 }
-.l-path li + li::before {
-  content: '';
-  position: absolute;
-  right: calc(100% + 4px);
-  top: 50%;
-  width: clamp(10px, 1.6vw, 26px);
-  height: 1px;
-  background: currentColor;
-  opacity: 0.4;
+.l-reading li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
-.l-path li.past {
-  opacity: 0.72;
+.l-row-at {
+  width: 58px;
+  font-size: 27px;
+  font-weight: 800;
 }
-.l-path li.on {
-  opacity: 1;
-}
-.l-path span {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--d-ink-2);
-}
-.l-path b {
-  font: 760 clamp(28px, 2.8vw, 44px) / 0.95 var(--font);
-  letter-spacing: -0.005em;
-}
-.l-path li.on b {
-  color: var(--l-glow);
-  text-shadow: 0 0 20px rgba(47, 211, 255, 0.6);
-  animation: l-pop 0.6s 0.9s cubic-bezier(0.2, 1.5, 0.35, 1) both;
-}
-.l-path i {
-  font-style: normal;
-  font-size: 12px;
-  color: var(--d-ink-2);
-}
-/* each depth's visits as a bar, to scale (Deep's is full); it fills when its depth is reached */
-.l-path em {
-  position: relative;
-  display: block;
-  width: clamp(64px, 6.4vw, 104px);
-  height: 5px;
-  border-radius: 3px;
-  background: var(--d-line);
+/* each bar is drawn on its own paper track with an ink edge, so it reads over cloud or marble */
+.l-bar {
+  flex: 1;
+  height: 22px;
+  border-radius: 11px;
+  background: #fbf9f4;
+  box-shadow: inset 0 0 0 2px var(--l-ink);
   overflow: hidden;
 }
-.l-path em::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: currentColor;
-  opacity: 0.7;
-  transform-origin: 0 50%;
-  transform: scaleX(0);
-  transition: transform 1.4s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+.l-bar i {
+  display: block;
+  height: 100%;
+  background: var(--l-ink-2);
+  transform-origin: left;
+  transition: transform 1.1s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
-.l-path li.on em::after,
-.l-path li.past em::after {
-  transform: scaleX(var(--v));
+.l-reading li.best .l-bar i {
+  background: var(--l-seal);
 }
-.l-path li.on em::after {
-  opacity: 1;
-  background: var(--l-glow);
-  box-shadow: 0 0 10px rgba(47, 211, 255, 0.7);
+.l-reading li.best .l-row-at {
+  color: var(--l-seal);
 }
-.l-dive.d0 .l-path li.on em::after,
-.l-dive.d1 .l-path li.on em::after {
-  background: #0a6f9e;
-  box-shadow: none;
+.l-pick {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  margin-top: 6px;
 }
-/* on the light step, the glow colour is too pale to read: a deep cyan instead */
-.l-dive.d0 .l-path li.on b,
-.l-dive.d1 .l-path li.on b {
-  color: #0a6f9e;
-  text-shadow: none;
+.l-pick > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.l-acc {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 14px;
-  font-size: 13px;
-  color: var(--d-ink-2);
+.l-pick small {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--l-ink);
+}
+.l-pick b {
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 800;
+}
+.l-pick .l-arrow {
+  width: 56px;
+  height: 28px;
+  margin-bottom: 8px;
+  fill: none;
+  stroke: var(--l-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.l-pick .l-arrow,
+.l-pick-b {
   opacity: 0;
-  transform: translateY(6px);
-  transition:
-    opacity 0.6s,
-    transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translateX(-12px);
+  transition: opacity 0.6s, transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
-.l-acc.on {
+.l-pick.changed .l-arrow,
+.l-pick.changed .l-pick-b {
   opacity: 1;
   transform: none;
 }
-.l-graph-cap > span {
-  white-space: nowrap;
+.l-pick.changed .l-pick-b {
+  transition-delay: 0.25s;
 }
-.l-graph-cap .l-acc {
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 500;
+.l-pick-b b {
+  color: var(--l-seal);
 }
-.l-acc-cap {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+
+/* next moves: the line as a book diagram, and steps */
+.l-diagram {
+  width: min(360px, 100%);
+  aspect-ratio: 1;
+  text-shadow: none;
+  /* a printed page: paper to its edges, lying on the scene */
+  background: #f1ebe0;
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(21, 19, 15, 0.18), 0 1px 3px rgba(21, 19, 15, 0.12);
+  overflow: hidden;
 }
-.l-acc b {
-  font: 760 clamp(17px, 1.5vw, 22px) / 1 var(--font);
-  color: #fff;
-  margin-left: 4px;
-  text-shadow: 0 0 16px rgba(47, 211, 255, 0.5);
+/* the numbered stones printed flat, like the rest of the page */
+.l-diagram svg.board .bd-var.b circle {
+  fill: #1b1714;
 }
-.l-acc .st {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin: 0 7px 0 3px;
-  vertical-align: -1px;
+.l-diagram svg.board .bd-var.w circle {
+  fill: #fbf8f1;
+  stroke: #1b1714;
+  stroke-width: 0.045;
 }
-/* each side's key is its stone sitting on a ring of wood, so Black's reads as solid on the dark page */
-.st.b,
-.st.w {
-  box-shadow: 0 0 0 3px #d9a46a;
-}
-.st.b {
-  background: #0b0f14;
-}
-.st.w {
-  background: #f6f4ee;
-}
-/* the review's win-rate graph, drawn across the foot of the stage */
-.l-graph-wrap {
-  position: absolute;
-  z-index: 2;
-  left: 46%;
-  right: var(--l-pad);
-  bottom: clamp(20px, 5vh, 52px);
-  height: clamp(70px, 12vh, 120px);
-  pointer-events: none;
-  animation: l-up 0.7s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.l-graph-cap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + 10px);
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--d-ink-2);
-}
-.l-graph {
-  display: block;
+.l-diagram svg.board {
   width: 100%;
   height: 100%;
-  overflow: visible;
+  display: block;
 }
-.l-graph-mid {
-  stroke: var(--d-line);
-  stroke-dasharray: 3 4;
-  vector-effect: non-scaling-stroke;
+.l-diagram svg.board .bd-wood-base {
+  fill: #f1ebe0;
 }
-.l-graph-area {
-  fill: rgba(47, 211, 255, 0.12);
+.l-diagram svg.board .bd-bevel,
+.l-diagram svg.board .bd-rim,
+.l-diagram svg.board .bd-lip {
+  display: none;
 }
-.l-graph-line {
-  fill: none;
-  stroke: var(--l-glow);
-  stroke-width: 2.5;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 6px rgba(47, 211, 255, 0.9));
+.l-diagram svg.board .bd-grid {
+  stroke: #1b1714;
 }
-.l-graph-head {
-  stroke: rgba(255, 255, 255, 0.8);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+.l-diagram svg.board .bd-var text {
+  font-size: 0.6px;
 }
-/* the scale sits inside the plot, over its own line, so the graph lines up with the copy */
-.l-graph-y {
-  position: absolute;
-  left: 0;
-  translate: 0 calc(-100% - 3px);
-  font: 500 12px/1 var(--font);
+.l-diagram svg.board .bd-var text.cur {
+  fill: var(--l-seal);
+}
+.l-steps {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 27px;
+}
+.l-steps b {
   font-variant-numeric: tabular-nums;
-  color: #8e98a6;
 }
-.l-graph-y.top {
-  translate: 0 4px;
-}
-.l-graph-mark {
-  position: absolute;
-  width: 0;
-  height: 0;
-}
-/* the move the board is on, riding the line, with its number over it */
-.l-graph-dot {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  translate: -50% -50%;
+.l-steps button {
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow:
-    0 0 0 2px var(--l-glow),
-    0 0 14px 3px rgba(47, 211, 255, 0.8);
-  pointer-events: none;
-}
-.l-graph-dot i {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  translate: -50% 0;
-  font-variant-numeric: tabular-nums;
-  padding: 2px 7px;
-  border-radius: 7px;
-  background: rgba(4, 16, 26, 0.86);
-  box-shadow: 0 0 0 1px rgba(143, 220, 255, 0.4);
-  color: #fff;
-  font: 650 12px/1.3 var(--font);
-  font-style: normal;
-  white-space: nowrap;
-}
-/* near the end of the game the label hangs left of the dot, inside the graph */
-.l-graph-dot.end i {
-  left: auto;
-  right: -3px;
-  translate: 0 0;
-}
-.l-graph-x {
-  position: absolute;
-  top: calc(100% + 7px);
-  translate: -50% 0;
-  font: 500 12px/1 var(--font);
-  font-variant-numeric: tabular-nums;
-  color: #8e98a6;
-  white-space: nowrap;
-}
-.l-graph-x.start {
-  translate: 0 0;
-}
-.l-graph-x.end {
-  translate: -100% 0;
-}
-.l-graph-key {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 28px);
-  margin: 0;
-  white-space: nowrap;
-  font-size: 13px;
-  color: #a3adba;
-}
-.l-graph-key b {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 1px 7px;
-  border-radius: 7px;
-  background: #ff9a4d;
-  color: #1a0d03;
-  font: 700 12px/1.4 var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.l-graph-mark b {
-  position: absolute;
-  left: 0;
-  top: 0;
-  translate: -50% -50%;
   display: grid;
   place-items: center;
-  min-width: 28px;
+  background: var(--l-ink);
+  color: var(--l-paper);
+  border: 0;
+  cursor: pointer;
+}
+.l-steps button:disabled {
+  background: rgba(21, 19, 15, 0.25);
+  cursor: default;
+}
+.l-steps svg {
+  width: 28px;
   height: 28px;
-  padding: 0 6px;
-  border-radius: 14px;
-  background: #ff9a4d;
-  color: #1a0d03;
-  font: 700 13px/1 var(--font);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 18px rgba(255, 154, 77, 0.9);
-  animation: l-pop 0.5s cubic-bezier(0.2, 1.6, 0.35, 1) both;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-/* ---- the call to open it, in the deep: the setting-up shown on a live board */
-.l-cta {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  align-items: center;
-  gap: clamp(24px, 4vw, 64px);
-  padding: clamp(90px, 12vw, 160px) var(--l-pad);
-  background: var(--l-abyss);
-  color: #eef6fc;
+/* who is ahead: two big numbers and a bar between them */
+.l-chance-nums {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 26px;
+  font-weight: 600;
+}
+.l-chance-nums b {
+  font-size: clamp(52px, 4.4vw, 70px);
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.l-chance-bar {
+  display: block;
+  height: 26px;
+  border-radius: 13px;
+  background: #fbf9f4;
+  box-shadow: inset 0 0 0 2px var(--l-ink);
   overflow: hidden;
 }
-.l-cta-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 22px;
+.l-chance-bar i {
+  display: block;
+  height: 100%;
+  background: var(--l-ink);
+  transform-origin: left;
+  transition: transform 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
-.l-cta h2 {
-  /* two lines in the copy column ("Find KataGo's / pick, and why."), not a stack of single words */
-  font-size: clamp(36px, 3.4vw, 54px);
-}
-.l-cta p {
+
+/* game review: the line draws itself, then the drop is marked */
+.l-game {
   margin: 0;
-  max-width: 460px;
-  color: #8fa7bc;
-  font-size: 18px;
 }
-.l-cta .l-btn {
-  margin-top: 8px;
-}
-.l-cta .l-cta-note {
-  margin: 14px 0 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #e3eef7;
-}
-.l-cta-demo {
+.l-game-plot {
   position: relative;
-  aspect-ratio: 6 / 5;
+}
+.l-game svg {
   width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
 }
-/* the glow under the board fades out before the canvas edge */
-.lb.l-cta-board {
+.l-game .l-frame {
+  fill: rgba(251, 249, 244, 0.92);
+  stroke: var(--l-ink);
+  stroke-width: 2;
+}
+.l-axis {
   position: absolute;
-  inset: 0;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(transparent, #000 9%, #000 91%, transparent);
-  -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(transparent, #000 9%, #000 91%, transparent);
-  mask-composite: intersect;
+  left: 10px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--l-ink);
+  text-shadow: none;
 }
-/* the question, typed above the board once the stones are in */
-.l-cta-q {
-  position: absolute;
-  z-index: 2;
-  top: 4%;
-  right: 6%;
-  margin: 0;
-  padding: 10px 16px;
-  border-radius: 18px 18px 5px 18px;
-  background: #eef6fc;
-  color: var(--l-ink) !important;
-  font-size: 15px !important;
-  line-height: 1.4;
-  box-shadow: 0 10px 30px -10px rgba(47, 211, 255, 0.45);
-  opacity: 0;
-  transform: translateY(10px) scale(0.94);
-  transform-origin: 90% 100%;
-  transition:
-    opacity 0.35s ease,
-    transform 0.45s cubic-bezier(0.2, 1.35, 0.35, 1);
+.l-axis.top {
+  top: 6px;
 }
-.l-cta-q.on {
-  opacity: 1;
-  transform: none;
+.l-axis.bottom {
+  bottom: 6px;
 }
-/* Kiai's answer, under the question and on the other side, as in a chat (the columns of light
-   stand on the right, so it leaves them clear) */
-.l-cta-a {
-  position: absolute;
-  z-index: 2;
-  top: calc(4% + 58px);
-  left: 2%;
-  max-width: min(380px, 70%);
-  margin: 0;
-  padding: 12px 16px 14px;
-  border-radius: 18px 18px 18px 5px;
-  background: rgba(6, 22, 36, 0.9);
-  box-shadow:
-    0 0 0 1px rgba(143, 220, 255, 0.3),
-    0 18px 40px -16px rgba(47, 211, 255, 0.5);
-  color: #e8f4fc !important;
-  font-size: 15px !important;
-  line-height: 1.45;
-  opacity: 0;
-  transform: translateY(12px) scale(0.94);
-  transform-origin: 10% 0;
-  transition:
-    opacity 0.35s ease,
-    transform 0.5s cubic-bezier(0.2, 1.35, 0.35, 1);
-}
-.l-cta-a.on {
-  opacity: 1;
-  transform: none;
-}
-.l-cta-who {
+.l-axis-x {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 6px;
-  font-weight: 650;
-  font-size: 13px;
-  color: #8fdcff;
-}
-.l-cta-copy > * {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.8s ease,
-    transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.l-cta.seen .l-cta-copy > * {
-  opacity: 1;
-  transform: none;
-}
-.l-cta.seen .l-cta-copy > :nth-child(2) {
-  transition-delay: 0.12s;
-}
-.l-cta.seen .l-cta-copy > :nth-child(3) {
-  transition-delay: 0.24s;
-}
-@media (max-width: 900px) {
-  .l-cta {
-    grid-template-columns: 1fr;
-  }
-}
-
-.l-footer {
-  display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px 24px;
-  padding: 28px var(--l-pad) 36px;
-  border-top: 1px solid rgba(150, 210, 255, 0.12);
-  background: var(--l-abyss);
-  font-size: 13px;
-  hyphens: manual;
-  color: #7f97ab;
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--l-ink);
 }
-.l-footer a {
-  margin-left: 18px;
-  text-decoration: none;
+.l-game .l-mid {
+  stroke: var(--l-line);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 6;
 }
-.l-footer a:hover {
-  color: #fff;
+.l-game .l-under,
+.l-game .l-line {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.l-game .l-under {
+  stroke: rgba(247, 243, 234, 0.9);
+  stroke-width: 10;
+}
+.l-game .l-line {
+  stroke: var(--l-ink);
+  stroke-width: 3;
+}
+.l-game.on .l-under,
+.l-game.on .l-line {
+  transition: stroke-dashoffset 2.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+  stroke-dashoffset: 0;
+}
+.l-game .l-drop {
+  stroke: var(--l-seal);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.l-game .l-drop,
+.l-game .l-dot,
+.l-game-note {
+  opacity: 0;
+}
+.l-game .l-dot {
+  fill: var(--l-seal);
+}
+.l-game.on .l-drop,
+.l-game.on .l-dot,
+.l-game.on .l-game-note {
+  opacity: 1;
+  transition: opacity 0.6s 1.4s;
+}
+.l-game-note {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--l-seal);
+  font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 1100px) {
-  .l-links {
-    display: none;
-  }
-  .l-nav .l-btn.small {
-    margin-left: auto;
-  }
+/* the last chapter: 気合 written over the sky */
+.l-start {
+  align-items: flex-start;
 }
-@media (max-width: 900px) {
-  .l-stage {
-    height: 60vh;
-    height: 60svh;
-    z-index: 3;
-    background-color: inherit;
-  }
-  /* on a phone the board sits between the bar on top and a strip of numbers under it */
-  .lb.l-stage-board {
-    inset: 64px 0 76px;
-    height: auto;
-  }
-  /* the close views run off the stage's sides: fade them out rather than cut them */
-  .lb.l-stage-board {
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(#000 80%, transparent);
-    -webkit-mask-composite: source-in;
-    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(#000 80%, transparent);
-    mask-composite: intersect;
-  }
-  /* the visit count stands higher over the favourite, clear of its tag, and drops its caption */
-  .k3-count b {
-    translate: 0 -22px;
-    font-size: 22px;
-  }
-  .k3-count i {
-    display: none;
-  }
-  /* the review's graph and accuracy need a taller strip */
-  .l-dive.s-review .lb.l-stage-board {
-    bottom: 104px;
-  }
-  .l-steps {
-    z-index: 1;
-    margin: 0;
-    width: auto;
-    padding: 0 var(--l-pad);
-  }
-  .l-step {
-    min-height: 64svh;
-    align-items: flex-start;
-    padding-top: 20px;
-  }
-  .l-step h3 {
-    font-size: clamp(30px, 8vw, 40px);
-  }
-  .l-step p {
-    margin-top: 14px;
-  }
-  .l-rail {
-    display: none;
-  }
-  .l-stats {
-    top: auto;
-    bottom: 12px;
-    left: 16px;
-    right: 16px;
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .l-stats-moves {
-    display: none;
-  }
-  .l-stat b {
-    font-size: 30px;
-  }
-  .l-stat.small b {
-    font-size: 22px;
-  }
-  .l-stat span,
-  .l-path span,
-  .l-path i {
-    font-size: 12px;
-  }
-  .l-path b {
-    font-size: 20px;
-  }
-  .l-acc {
-    gap: 10px;
-  }
-  .l-acc b {
-    font-size: 15px;
-  }
-  .l-graph-wrap {
-    left: 16px;
-    right: 16px;
-    bottom: 10px;
-    height: 56px;
-  }
-  .l-graph-y,
-  .l-graph-x,
-  .l-graph-key {
-    display: none;
-  }
-  .l-graph-cap > span:first-child,
-  .l-acc-cap {
-    display: none;
-  }
-  .l-graph-mark b {
-    min-width: 20px;
-    height: 20px;
-    font-size: 10px;
-  }
+.l-brush {
+  height: 220px;
+  color: var(--l-ink);
 }
-@media (max-width: 720px) {
-  /* the copy and the card stack at the top; the board stands clear below them */
-  /* it fills the first screen, so the plate's foot never shows as an edge above the fold */
-  .l-hero {
-    min-height: 100svh;
-    padding-bottom: calc(64vw + 20px);
-    background: #c0d1e2;
+.l-links {
+  display: flex;
+  gap: 24px;
+  font-size: 20px;
+}
+
+/* the scroll itself: one screen per chapter */
+.l-track {
+  position: relative;
+  pointer-events: none;
+}
+.l-anchor {
+  height: 100vh;
+  height: 100lvh;
+  scroll-snap-align: start;
+}
+
+/* ------------------------------------------------ narrow and tall screens: the board above, the words below */
+@media (max-width: 860px), (max-aspect-ratio: 9/10) {
+  .landing {
+    --l-left: 0px;
   }
-  /* on a phone the plate's board and both bowls are shown whole at the foot of the hero (so the
-     board is never under the card); above it, the sky's own colour */
-  .l-hero-art,
-  .lb.l-hero-board {
-    inset: auto 0 0 0;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1200 / 1350;
-  }
-  .l-hero:not(.live) .l-hero-art,
-  .l-hero:not(.live) .lb.l-hero-board {
-    aspect-ratio: 836 / 1350;
-  }
-  .l-hero-art {
-    -webkit-mask-image: linear-gradient(transparent, #000 16%);
-    mask-image: linear-gradient(transparent, #000 16%);
+  .landing h1,
+  .landing h2 {
+    font-size: clamp(34px, 9.4vw, 46px);
   }
   .l-nav {
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding: 12px 16px;
   }
-  .l-nav .l-btn.small {
-    height: 44px;
-  }
-  .l-hero-art img {
-    object-position: 50% 100%;
-    object-fit: cover;
-  }
-  /* PHONE_X0 / PHONE_W in three/plate.ts: x 1120 to 2320 of the 2400 px frame */
-  .l-hero.live .l-hero-art img {
-    object-position: 93.33% 100%;
-  }
-  /* the copy is cut down so the board's near half is on the first screen */
-  .l-hero-copy {
-    padding-top: 84px;
-  }
-  .l-hero h1 {
-    font-size: 35px;
-  }
-  .l-hero-kicker {
-    margin-bottom: 12px;
-  }
-  .l-lead {
-    display: none;
-  }
-  .l-lead.short {
-    display: block;
-    font-size: 15.5px;
-    margin-top: 14px;
-  }
-  .l-actions {
-    margin-top: 18px;
-  }
-  .l-ask-foot,
-  .l-legend,
-  .l-hero-kicker .l-wide,
-  .l-actions .l-btn.ghost {
-    display: none;
+  .l-brand {
+    font-size: 26px;
   }
   .l-btn {
-    height: 46px;
-    padding: 0 20px;
-    font-size: 15px;
+    min-height: 46px;
+    font-size: 19px;
+    padding: 0 18px;
   }
-  .l-hero {
-    flex-direction: column;
+  .l-btn.big {
+    min-height: 56px;
+    font-size: 22px;
   }
-  .l-ask {
-    position: relative;
-    left: auto;
-    right: auto;
+  /* the rail becomes a row of dots under the top bar */
+  .l-rail {
+    top: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: row;
+    gap: 0;
+  }
+  .l-rail-track {
+    left: 22px;
+    right: 22px;
+    top: 23px;
     bottom: auto;
     width: auto;
-    margin: 18px var(--l-pad) 0;
+    height: 2px;
   }
-  .l-ask-text {
-    font-size: 14.5px;
+  .l-rail-fill {
+    transform-origin: left;
+    transform: scaleX(var(--p, 0));
   }
-  .l-footer a {
-    margin: 0 18px 0 0;
+  .l-rail a {
+    width: 44px;
+    justify-content: center;
+  }
+  .l-rail a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  /* the words sit on a sheet of paper at the foot of the screen, the scene above it */
+  .l-ch {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
+    border-radius: 26px 26px 0 0;
+    background: var(--l-paper);
+    box-shadow: 0 -10px 30px rgba(21, 19, 15, 0.12);
+    text-shadow: none;
+  }
+  /* and the top bar is paper too, with the row of dots, so no edge of the scene runs behind them */
+  .l-nav {
+    z-index: 14;
+    height: 114px;
+    align-items: flex-start;
+    background: var(--l-paper);
+    box-shadow: 0 8px 24px rgba(21, 19, 15, 0.1);
+  }
+  .l-lead {
+    font-size: 28px;
+  }
+  .l-text {
+    font-size: 22px;
+  }
+  .l-q {
+    font-size: 22px;
+  }
+  .l-q::before {
+    width: 22px;
+    height: 22px;
+  }
+  .l-a {
+    font-size: 24px;
+    gap: 12px;
+  }
+  .l-a-mark {
+    width: 30px;
+    height: 30px;
+  }
+  .l-cta {
+    font-size: 20px;
+  }
+  .l-count b {
+    font-size: 50px;
+  }
+  .l-count span {
+    font-size: 22px;
+  }
+  .l-reading ul {
+    gap: 8px;
+  }
+  .l-row-at {
+    width: 50px;
+    font-size: 23px;
+  }
+  .l-bar {
+    height: 16px;
+  }
+  .l-pick b {
+    font-size: 34px;
+  }
+  .l-pick small {
+    font-size: 20px;
+  }
+  .l-diagram {
+    width: min(300px, 80vw);
+  }
+  .l-steps {
+    font-size: 23px;
+  }
+  .l-steps button {
+    width: 52px;
+    height: 52px;
+  }
+  .l-chance-nums {
+    font-size: 22px;
+  }
+  .l-chance-nums b {
+    font-size: 48px;
+  }
+  .l-chance-bar {
+    height: 20px;
+  }
+  .l-chart-head {
+    font-size: 20px;
+  }
+  .l-game-note {
+    font-size: 24px;
+  }
+  .l-callout b {
+    font-size: 22px;
+    padding: 4px 9px 5px;
+  }
+  .l-callout i {
+    height: 26px;
+  }
+  .l-start {
+    top: 0;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 0 16px rgba(247, 243, 234, 0.85), 0 0 32px rgba(247, 243, 234, 0.6);
+  }
+  .l-brush {
+    height: 140px;
+  }
+  .l-brush .brush {
+    --brush-h: 140px !important;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .landing *,
-  .landing *::before,
-  .landing *::after {
-    animation-duration: 0.001s !important;
-    animation-delay: 0s !important;
-    transition-duration: 0.001s !important;
+  .l-callout span {
+    animation: none;
+  }
+  .l-bar i,
+  .l-chance-bar i,
+  .l-pick .l-arrow,
+  .l-pick-b,
+  .l-game.on .l-under,
+  .l-game.on .l-line,
+  .l-game.on .l-drop,
+  .l-game.on .l-dot,
+  .l-game.on .l-game-note {
+    transition: none;
   }
 }

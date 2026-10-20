@@ -21,8 +21,10 @@ import {
   DataTexture,
   DirectionalLight,
   DoubleSide,
+  EquirectangularReflectionMapping,
   FloatType,
   Group,
+  HemisphereLight,
   InstancedMesh,
   LatheGeometry,
   LinearFilter,
@@ -159,7 +161,7 @@ export interface PlateCamera {
 export type ViewMode =
   | { kind: 'top'; tilt?: number; crop?: { x0: number; y0: number; x1: number; y1: number } | null; pad?: number }
   | { kind: 'plate'; cam: PlateCamera; crop: { x: number; y: number; w: number; h: number } }
-  | { kind: 'orbit'; elev: number; azim: number; dist?: number; target?: [number, number, number]; fov?: number; spin?: number; shift?: number };
+  | { kind: 'orbit'; elev: number; azim: number; dist?: number; target?: [number, number, number]; fov?: number; spin?: number; shift?: number; shiftY?: number };
 
 export interface KayaOptions {
   canvas: HTMLCanvasElement;
@@ -186,6 +188,21 @@ export interface KayaOptions {
   fx?: number;
   /** 'void': the board floats in the dark, with a cool rim light and a glow under it. */
   stage?: 'void';
+  /**
+   * A 360° panorama (an equirectangular image's URL) around the set: seen behind it exactly as
+   * rendered (not tone mapped again) and lighting it. Its sun should be where `sun` puts the light.
+   */
+  skyUrl?: string;
+  /**
+   * Turns the panorama about the vertical by this many degrees (so its sun can be put anywhere).
+   * Note three.js turns an equirectangular background against the angle: a feature at azimuth A
+   * (KayaOptions.sun's convention) as rendered shows at A + skyTurn.
+   */
+  skyTurn?: number;
+  /** A honed marble table under the board, catching its shadows (the landing). */
+  table?: boolean;
+  /** A soft warm light from everywhere above (0 by default): shade under a blue sky stays grey. */
+  fill?: number;
   /**
    * Candidate moves stand up as columns of light this tall (metres, for the most visited move),
    * for boards seen from the side. 0 (the default) keeps them flat, for boards seen from above.
@@ -632,6 +649,9 @@ export class KayaView {
     this.set.add(this.paleGroup);
     if (o.bowls) this.buildBowls();
     if (o.stage === 'void') this.buildVoid();
+    if (o.table) this.buildTable();
+    if (o.fill) this.scene.add(new HemisphereLight(0xfff4e6, 0xd9d2c6, o.fill));
+    if (o.skyUrl) this.loadSky(o.skyUrl, o.envIntensity ?? 0.85, o.skyTurn ?? 0);
     this.set.add(this.glow);
     this.glow.add(this.candGroup, this.varGroup);
     this.resizeArrays();
@@ -737,6 +757,53 @@ export class KayaView {
       this.scene.add(c);
     }
   }
+
+  /**
+   * The landing's table: a pillar of honed white marble (tools/kiai-art/marble.py) a hand wider
+   * than the board, standing out of sight far below, so the cloud sea shows all round it.
+   */
+  private buildTable() {
+    const top = tex('marble.webp', true, 'top');
+    top.wrapS = top.wrapT = RepeatWrapping;
+    top.repeat.set(1 / 1.2, 1 / 1.2);
+    const side = tex('marble.webp', true, 'side');
+    side.wrapS = side.wrapT = RepeatWrapping;
+    side.repeat.set(1 / 1.2, 3 / 1.2);
+    const look = { roughness: 0.42, clearcoat: 0.15, clearcoatRoughness: 0.3, specularIntensity: 0.45 };
+    const topMat = new MeshPhysicalMaterial({ map: top, ...look });
+    const sideMat = new MeshPhysicalMaterial({ map: side, ...look });
+    const g = new RoundedBoxGeometry(0.64, 3, 0.66, 3, 0.006);
+    // BoxGeometry groups: +x, -x, +y, -y, +z, -z
+    const pillar = new Mesh(g, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
+    pillar.position.set(0, -1.5, 0.02);
+    pillar.receiveShadow = true;
+    this.scene.add(pillar);
+  }
+
+  /** The panorama as the world: background and light (see KayaOptions.skyUrl). */
+  private loadSky(url: string, env: number, turn: number) {
+    loader.load(url, (t) => {
+      if (this.disposed) {
+        t.dispose();
+        return;
+      }
+      t.colorSpace = SRGBColorSpace;
+      t.mapping = EquirectangularReflectionMapping;
+      this.scene.background = t;
+      this.scene.backgroundRotation.y = MathUtils.degToRad(turn);
+      const pm = new PMREMGenerator(this.renderer);
+      this.scene.environment = pm.fromEquirectangular(t).texture;
+      this.scene.environmentIntensity = env;
+      this.scene.environmentRotation.y = MathUtils.degToRad(turn);
+      pm.dispose();
+      this.skyReady = true;
+      this.onSky?.();
+      this.invalidate();
+    });
+  }
+  /** True once the panorama is in; `onSky` is called when it arrives. */
+  skyReady = false;
+  onSky: (() => void) | null = null;
 
   private buildBowls() {
     const wood = new MeshPhysicalMaterial({ map: tex('bowl.webp'), roughness: 0.5, clearcoat: 0.85, clearcoatRoughness: 0.14, specularIntensity: 0.45 });
@@ -1364,9 +1431,10 @@ export class KayaView {
 
   /**
    * Territory, as Go programs show it: a square on each point sized by how sure KataGo is,
-   * dark for Black and light for White, revealed by a scan of light across the board.
+   * dark for Black and light for White, revealed by a scan of light across the board. `scale`
+   * makes the squares larger (the landing, seen from afar).
    */
-  setOwnership(own: ArrayLike<number> | null, reveal = true) {
+  setOwnership(own: ArrayLike<number> | null, reveal = true, scale = 1) {
     for (const m of this.ownMesh) {
       this.glow.remove(m);
       m.geometry.dispose();
@@ -1416,14 +1484,14 @@ export class KayaView {
       const k = mesh.count++;
       if (relief) pads[side - 1].count++;
       const tier = s < 0.4 ? 0.22 : s < 0.8 ? 0.55 : 1;
-      cells.push({ loc: l, s: relief ? 0.94 : 0.22 + 0.36 * Math.sqrt(s), h: relief ? (0.0018 + 0.019 * tier) * this.fx : 1, mesh, k, pad: relief ? pads[side - 1] : null });
+      cells.push({ loc: l, s: relief ? 0.94 : Math.min(0.9, (0.22 + 0.36 * Math.sqrt(s)) * scale), h: relief ? (0.0018 + 0.019 * tier) * this.fx : 1, mesh, k, pad: relief ? pads[side - 1] : null });
     }
     const place = (sweep: number) => {
       for (const c of cells) {
         const x = (c.loc % this.size) / (this.size - 1);
         const k = MathUtils.clamp((sweep - x) / 0.18, 0, 1);
         const e = easeOut(k);
-        this.tmpM.compose(this.pointAt(c.loc, 0.0002, this.tmpV), this.tmpQ.identity(), this.tmpS.set(c.s * e + 0.0001, relief ? c.h * (k * k * (3 - 2 * k)) + 0.00001 : 1, c.s * e + 0.0001));
+        this.tmpM.compose(this.pointAt(c.loc, relief ? 0.0002 : 0.0007, this.tmpV), this.tmpQ.identity(), this.tmpS.set(c.s * e + 0.0001, relief ? c.h * (k * k * (3 - 2 * k)) + 0.00001 : 1, c.s * e + 0.0001));
         c.mesh.setMatrixAt(c.k, this.tmpM);
         if (c.pad) {
           this.tmpM.compose(this.pointAt(c.loc, 0.00015, this.tmpV), this.tmpQ.identity(), this.tmpS.set(e + 0.0001, 1, e + 0.0001));
@@ -1552,6 +1620,8 @@ export class KayaView {
       const stone = new Mesh(this.stoneGeo[m.color], mat);
       stone.applyMatrix4(this.stoneMatrix(m.loc, m.color, over));
       stone.renderOrder = 4;
+      // a solid one is a real stone with its number printed on it: it casts its shadow too
+      stone.castShadow = m.alpha >= 0.99;
       this.paleGroup.add(stone);
       if (!m.text) continue;
       const d = (m.color === 1 ? STONE_B : STONE_W).d * 0.96;
@@ -1635,6 +1705,44 @@ export class KayaView {
     this.invalidate();
   }
 
+  /**
+   * For an orbit view: the distance and off-centre shifts that make the whole board (its top and
+   * its foot) fill `box` (left, top, right, bottom as fractions of the canvas) as fully as it can
+   * without leaving it. The owner can then keep the board clear of words laid over the canvas.
+   */
+  fitOrbit(v: { elev: number; azim: number; target?: [number, number, number]; fov?: number }, box: [number, number, number, number]): { dist: number; shift: number; shiftY: number } {
+    const n = this.size;
+    const hw = ((n - 1) * SX + 2 * MX) / 2, hl = ((n - 1) * SY + 2 * MY) / 2;
+    const pts: Vector3[] = [];
+    for (const x of [-hw, hw]) for (const y of [0, this.BT]) for (const z of [-hl, hl]) pts.push(new Vector3(x, y, z));
+    const cam = new PerspectiveCamera(v.fov ?? 26, this.w / Math.max(1, this.h), 0.01, 50);
+    const tgt = new Vector3(...(v.target ?? [0, this.BT, 0]));
+    const el = MathUtils.degToRad(v.elev), az = MathUtils.degToRad(v.azim);
+    const dir = new Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+    const q = new Vector3();
+    const bounds = (dist: number) => {
+      cam.position.copy(tgt).addScaledVector(dir, dist);
+      cam.lookAt(tgt);
+      cam.updateMatrixWorld();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of pts) {
+        q.copy(p).project(cam);
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+      }
+      return { x0, x1, y0, y1 };
+    };
+    const bw = 2 * Math.max(0.01, box[2] - box[0]), bh = 2 * Math.max(0.01, box[3] - box[1]);
+    let dist = 1;
+    for (let i = 0; i < 5; i++) {
+      const b = bounds(dist);
+      dist *= Math.max((b.x1 - b.x0) / bw, (b.y1 - b.y0) / bh);
+    }
+    const b = bounds(dist);
+    // the box's centre and the board's, in normalised device coordinates (y up)
+    const bx = box[0] + box[2] - 1, by = 1 - (box[1] + box[3]);
+    return { dist, shift: (bx - (b.x0 + b.x1) / 2) / 2, shiftY: (by - (b.y0 + b.y1) / 2) / 2 };
+  }
+
   private applyCam(c: { pos: Vector3; quat: Quaternion; fov: number }) {
     this.camera.position.copy(c.pos);
     this.camera.quaternion.copy(c.quat);
@@ -1667,8 +1775,9 @@ export class KayaView {
       const el = MathUtils.degToRad(v.elev), az = MathUtils.degToRad(v.azim);
       const pos = new Vector3(tgt.x + dist * Math.cos(el) * Math.sin(az), tgt.y + dist * Math.sin(el), tgt.z + dist * Math.cos(el) * Math.cos(az));
       const m = new Matrix4().lookAt(pos, tgt, new Vector3(0, 1, 0));
-      // `shift` moves the board off centre (a fraction of the width), leaving room for text
-      if (v.shift) this.camera.setViewOffset(this.w, this.h, -v.shift * this.w, 0, this.w, this.h);
+      // `shift` moves the board off centre (a fraction of the width), leaving room for text;
+      // `shiftY` moves it up (a fraction of the height), for text below it on a phone
+      if (v.shift || v.shiftY) this.camera.setViewOffset(this.w, this.h, -(v.shift ?? 0) * this.w, (v.shiftY ?? 0) * this.h, this.w, this.h);
       return { pos, quat: new Quaternion().setFromRotationMatrix(m), fov };
     }
     // straight down (or leaning back by `tilt` degrees, so the board's front edge shows as it does
