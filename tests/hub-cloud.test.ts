@@ -330,3 +330,98 @@ describe('cloud hub: usage per account', () => {
     usageReply = null;
   });
 });
+
+describe('cloud hub: usage-left threshold and team threads', () => {
+  let h: any;
+  const fresh = async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    for (const n of ['P1', 'P2', 'P3']) await h.upsertAccount({ name: n, plan: 'max', routines: [{ model: 'sonnet', id: `trig_${n}`, token: `good-${n}` }] });
+  };
+
+  it('only gives new work to accounts with at least the minimum usage left, which XIAO can change', async () => {
+    await fresh();
+    expect((await h.settings()).minLeftPct).toBe(15);
+    await h.setUsage('P1', { five_hour_pct: 70, seven_day_pct: 10 }); // 30% left
+    await h.setUsage('P2', { five_hour_pct: 20, seven_day_pct: 20 });
+    await h.setUsage('P3', { five_hour_pct: 50, seven_day_pct: 50 });
+    expect((await h.account('P1')).low).toBe(false);
+    // Raise the bar to 40% left: P1 (30% left) is now low and gets nothing.
+    await h.saveSettings({ minLeftPct: 40 });
+    expect((await h.account('P1')).low).toBe(true);
+    const a = await h.createThread({ title: 'T1', brief: 'x', model: 'sonnet' });
+    const b = await h.createThread({ title: 'T2', brief: 'x', model: 'sonnet' });
+    expect([a.account, b.account].sort()).toEqual(['P2', 'P3']);
+    // The freest account goes first when loads are equal.
+    expect(a.account).toBe('P2');
+    expect(await h.overview()).toContain('at least 40% usage left');
+    // Lowering it again clears the automatic low mark.
+    await h.saveSettings({ minLeftPct: 5 });
+    expect((await h.account('P1')).low).toBe(false);
+    expect((await h.saveSettings({ minLeftPct: 500 })).minLeftPct).toBe(95);
+  });
+
+  it('runs one thread on several accounts that share messages and hand over per member', async () => {
+    await fresh();
+    const before = fires.length;
+    const t = await h.createThread({ title: 'Big job', brief: 'Split me', model: 'sonnet', team: 3 });
+    const started = fires.slice(before);
+    expect(started.map((f) => f.payload.role)).toEqual(['worker', 'member', 'member']);
+    expect(new Set(started.map((f) => f.routine)).size).toBe(3); // three different accounts
+    const lead = t.account;
+    const [m1, m2] = Object.keys((await h.thread(t.id)).crew);
+    expect([lead, m1, m2].sort()).toEqual(['P1', 'P2', 'P3']);
+
+    const leadBrief = await h.start({ name: lead, plan: 'max' }, JSON.stringify(started[0].payload));
+    expect(leadBrief).toContain('You are the lead');
+    const memberBrief = await h.start({ name: m1, plan: 'max' }, JSON.stringify(started[1].payload));
+    expect(memberBrief).toContain('You are a team member');
+    await h.start({ name: m2, plan: 'max' }, JSON.stringify(started[2].payload));
+
+    // The lead addresses one member; everyone sees it.
+    await h.agentPost({ name: lead }, { thread: t.id, kind: 'progress', text: `Plan: ${m1} does the UI`, to: m1 });
+    expect(h.msgLine((await h.feed()).at(-1))).toContain(`→ ${m1}`);
+    // A member's handover is kept apart from the lead's.
+    await h.checkpoint({ name: m1 }, { thread: t.id, done: 'UI half', next: 'UI rest', branch: 'b/ui' });
+    await h.checkpoint({ name: lead }, { thread: t.id, done: 'core', next: 'merge', branch: 'b/lead' });
+    let th = await h.thread(t.id);
+    expect(th.checkpoint.next).toBe('merge');
+    expect(th.crew[m1].checkpoint.next).toBe('UI rest');
+    // A member's done closes only its part.
+    await h.agentPost({ name: m2 }, { thread: t.id, kind: 'done', text: 'b/docs pushed' });
+    th = await h.thread(t.id);
+    expect(th.status).toBe('working');
+    expect(th.crew[m2].done).toBe(true);
+
+    // m1 goes quiet while the lead keeps talking: its part moves to another account.
+    await h.upsertAccount({ name: 'P4', plan: 'max', routines: [{ model: 'sonnet', id: 'trig_P4', token: 'good-P4' }] });
+    clock += 10 * 60_000;
+    await h.heartbeat(t.id, lead);
+    clock += 6 * 60_000;
+    await h.heartbeat(t.id, lead);
+    await h.sweep();
+    expect(last().payload).toMatchObject({ role: 'member', thread: t.id, replaces: m1 });
+    expect(last().routine).toBe('trig_P4');
+    th = await h.thread(t.id);
+    expect(th.crew[m1].gone).toBe(true);
+    expect(th.status).toBe('working'); // the lead is fine
+    const repl = await h.start({ name: 'P4', plan: 'max' }, JSON.stringify(last().payload));
+    expect(repl).toContain(`You replace ${m1}`);
+    expect(repl).toContain('UI rest');
+
+    // Only the lead closes the thread.
+    await h.agentPost({ name: lead }, { thread: t.id, kind: 'done', text: 'PR ready' });
+    expect((await h.thread(t.id)).status).toBe('done');
+  });
+
+  it('says when fewer accounts can join a team than asked', async () => {
+    await fresh();
+    await h.setUsage('P2', { five_hour_pct: 99 });
+    await h.setUsage('P3', { five_hour_pct: 99 });
+    const t = await h.createThread({ title: 'Wants three', brief: 'x', model: 'sonnet', team: 3 });
+    expect(t.account).toBe('P1');
+    const alert = (await h.feed()).filter((m: any) => m.thread === t.id && m.kind === 'alert').at(-1);
+    expect(alert.text).toContain('2 more accounts wanted');
+  });
+});

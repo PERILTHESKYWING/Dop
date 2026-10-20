@@ -7,6 +7,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export function toolsFor(hub) {
   const num = { type: 'number' };
   const str = { type: 'string' };
+  const team = { type: 'number', description: 'Accounts working this thread together (1-4, default 1): a lead plus members sharing its messages and handovers.' };
   return [
     {
       name: 'hub_start',
@@ -27,7 +28,7 @@ export function toolsFor(hub) {
             type: 'array',
             items: {
               type: 'object',
-              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, code: { type: 'boolean' }, account: str, thread_id: num },
+              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, code: { type: 'boolean' }, account: str, team, thread_id: num },
               required: ['brief'],
             },
           },
@@ -38,10 +39,10 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_create_thread',
-      description: 'Coordinator: open a thread for one piece of work and start an agent on it. model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
+      description: 'Coordinator: open a thread for one piece of work and start an agent on it (team > 1 starts several accounts on it). model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
       inputSchema: {
         type: 'object',
-        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, code: { type: 'boolean' } },
+        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, team, code: { type: 'boolean' } },
         required: ['title', 'brief'],
       },
       run: async (a, x) => {
@@ -57,10 +58,10 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_post',
-      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO), answer (with reply_to), note, done (final result; closes the thread).',
+      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO, or to a teammate with to), answer (with reply_to), note, done (final result; closes the thread, or only your part if you are a team member). to: a teammate\'s account name, to address one teammate (everyone on the thread still sees it).',
       inputSchema: {
         type: 'object',
-        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'done'] }, reply_to: num },
+        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'done'] }, reply_to: num, to: str },
         required: ['thread', 'text'],
       },
       run: (a, x) => hub.agentPost(a, x),
@@ -88,7 +89,7 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_wait',
-      description: 'Wait up to wait_s (max 45) for new messages in a thread after message id `after` (questions for you, answers, new prompts from XIAO). Returns at once if there are any.',
+      description: 'Wait up to wait_s (max 45) for new messages in a thread after message id `after` (questions for you, answers, teammates\' posts, new prompts from XIAO). Returns at once if there are any. "→ <name>" marks a post addressed to that account.',
       inputSchema: { type: 'object', properties: { thread: num, after: num, wait_s: num }, required: ['thread'] },
       run: async (a, x) => {
         const tid = Number(x.thread) || 0;
@@ -98,7 +99,7 @@ export function toolsFor(hub) {
         for (;;) {
           const list = await hub.messagesSince(after, mine);
           if (list.length || Date.now() >= end) {
-            if (tid) await hub.heartbeat(tid);
+            if (tid) await hub.heartbeat(tid, a.name);
             return list.length ? list.map(hub.msgLine).join('\n') : 'No new messages.';
           }
           await sleep(3000);
