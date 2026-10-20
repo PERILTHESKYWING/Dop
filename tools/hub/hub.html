@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dop hub</title>
+<style>
+:root {
+  --bg: #f4f1ec; --panel: #fffdf9; --line: #e2dcd2; --ink: #1d1b18; --soft: #5d574e;
+  --green: #2f6b4f; --on-green: #fff; --amber: #a86a12; --red: #b03a33; --grey: #8c857a; --me: #ece6dc;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #171614; --panel: #201f1c; --line: #34312c; --ink: #ece8e1; --soft: #b0a99e;
+    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --grey: #8c857a; --me: #2a2824; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 16px; }
+.app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
+header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 20px; margin: 0; font-weight: 700; }
+#conn { margin-left: auto; font-size: 15px; color: var(--soft); }
+#conn.off { color: var(--red); }
+aside { grid-row: 2 / 4; border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+aside h2, .empty h2 { font-size: 15px; margin: 0; color: var(--soft); font-weight: 600; }
+.agent { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
+.agent.stalled { border-color: var(--red); }
+.agent .top { display: flex; align-items: baseline; gap: 8px; }
+.agent .name { font-size: 24px; font-weight: 700; }
+.agent .acct { font-size: 15px; color: var(--soft); }
+.presence { display: flex; align-items: center; gap: 6px; font-size: 15px; margin-top: 6px; font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); }
+.working .dot { background: var(--green); } .working { color: var(--green); }
+.idle .dot { background: var(--soft); }
+.stalled .dot { background: var(--red); } .presence.stalled { color: var(--red); }
+.offline { color: var(--grey); }
+.task { font-size: 15px; margin-top: 6px; line-height: 1.35; }
+.bars { margin-top: 10px; display: grid; gap: 8px; }
+.bar label { display: flex; justify-content: space-between; font-size: 14px; color: var(--soft); }
+.bar label b { color: var(--ink); font-weight: 600; }
+.track { height: 8px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 3px; }
+.fill { height: 100%; background: var(--green); }
+.fill.warn { background: var(--amber); } .fill.low { background: var(--red); }
+.nousage { font-size: 14px; color: var(--soft); margin-top: 8px; }
+.seen { font-size: 13px; color: var(--grey); margin-top: 8px; }
+main { overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.msg { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; max-width: 900px; }
+.msg.xiao { background: var(--me); }
+.msg.alert { border-left: 4px solid var(--amber); }
+.msg .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--soft); }
+.msg .who { font-weight: 700; color: var(--ink); font-size: 15px; }
+.kind { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--soft); }
+.kind.prompt { color: var(--green); border-color: var(--green); }
+.kind.ask { color: var(--amber); border-color: var(--amber); }
+.kind.done { color: var(--green); border-color: var(--green); }
+.kind.alert { color: var(--red); border-color: var(--red); }
+.msg .time { margin-left: auto; }
+.re { font-size: 14px; color: var(--soft); margin-top: 6px; border-left: 2px solid var(--line); padding-left: 8px; cursor: pointer; }
+.text { white-space: pre-wrap; word-wrap: break-word; margin-top: 6px; line-height: 1.45; font-size: 16px; }
+.msg.flash { outline: 2px solid var(--amber); }
+.empty { margin: auto; text-align: center; color: var(--soft); max-width: 460px; line-height: 1.5; }
+form { grid-column: 2; border-top: 1px solid var(--line); background: var(--panel); padding: 12px 20px; display: grid; gap: 8px; }
+.to { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 15px; color: var(--soft); }
+.to button { font: inherit; font-size: 15px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.to button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.row { display: flex; gap: 8px; }
+textarea { flex: 1; font: inherit; font-size: 16px; padding: 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; min-height: 48px; max-height: 40vh; }
+.send { font: inherit; font-size: 16px; font-weight: 700; padding: 0 22px; border: 0; border-radius: 4px; background: var(--green); color: var(--on-green); cursor: pointer; }
+.send:active { transform: translateY(1px); }
+.hint { font-size: 13px; color: var(--grey); }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+  aside { grid-row: auto; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 16px; }
+  aside h2 { display: none; }
+  .agent { min-width: 240px; }
+  main { padding: 12px 16px; }
+  form { grid-column: 1; padding: 10px 16px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>Dop hub</h1><span id="conn">Connecting</span></header>
+  <aside id="agents"><h2>Agents</h2></aside>
+  <main id="feed"></main>
+  <form id="compose">
+    <div class="to" id="to">Send to</div>
+    <div class="row">
+      <textarea id="text" placeholder="Give the agents a task, or ask them something" rows="2"></textarea>
+      <button class="send" type="submit">Send</button>
+    </div>
+    <div class="hint">Ctrl+Enter sends. "Any" goes to the first free agent. "All" goes to every agent and they split the work.</div>
+  </form>
+</div>
+<script>
+const agents = new Map();
+const messages = new Map();
+let target = 'any';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : `${Math.round(ms / 3600e3)} h ago`;
+const label = { working: 'Working', idle: 'Free', offline: 'Offline', stalled: 'Gone quiet' };
+
+function bar(name, pct, resets) {
+  if (typeof pct !== 'number') return '';
+  const cls = pct >= 85 ? 'low' : pct >= 60 ? 'warn' : '';
+  const r = resets ? ` · resets ${clock(resets)}` : '';
+  return `<div class="bar"><label><span>${name}${r}</span><b>${Math.round(pct)}%</b></label><div class="track"><div class="fill ${cls}" style="width:${Math.min(100, pct)}%"></div></div></div>`;
+}
+
+function renderAgents() {
+  const list = [...agents.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const html = list.map((a) => {
+    const u = a.usage || {};
+    const bars = bar('5-hour use', u.five_hour_pct, u.resets_at) + bar('Weekly use', u.seven_day_pct);
+    return `<div class="agent ${a.presence}">
+      <div class="top"><span class="name">${esc(a.name)}</span><span class="acct">${esc(a.account || '')}</span></div>
+      <div class="presence ${a.presence}"><span class="dot"></span>${label[a.presence] || a.presence}</div>
+      ${a.task && a.presence !== 'offline' ? `<div class="task">${esc(a.task)}</div>` : ''}
+      ${bars ? `<div class="bars">${bars}</div>` : '<div class="nousage">Usage shows after its first reply</div>'}
+      <div class="seen">Last active ${ago(Date.now() - (a.lastActive || a.lastSeen || 0))}${a.model ? ' · ' + esc(a.model) : ''}</div>
+    </div>`;
+  }).join('');
+  $('agents').innerHTML = '<h2>Agents</h2>' + (html || '<div class="nousage">No agents yet. Start one with start-agent A.</div>');
+  renderTargets();
+}
+
+function renderTargets() {
+  const names = ['any', 'all', ...[...agents.keys()].sort()];
+  if (!names.includes(target)) target = 'any';
+  const nice = (n) => n === 'any' ? 'Any' : n === 'all' ? 'All' : n;
+  $('to').innerHTML = 'Send to ' + names.map((n) => `<button type="button" data-to="${esc(n)}" aria-pressed="${n === target}">${esc(nice(n))}</button>`).join('');
+}
+
+function msgHtml(m) {
+  const from = m.from === 'XIAO' ? 'You' : m.from === 'hub' ? 'Hub' : m.from;
+  const to = m.to === 'XIAO' ? 'you' : m.to === 'any' ? (m.claimedBy ? `any, taken by ${m.claimedBy}` : 'any free agent') : m.to;
+  const parent = m.replyTo ? messages.get(m.replyTo) : null;
+  const re = parent ? `<div class="re" data-jump="${parent.id}">Re: ${esc(parent.text.slice(0, 120))}${parent.text.length > 120 ? '...' : ''}</div>` : '';
+  return `<div class="meta"><span class="who">${esc(from)}</span><span>to ${esc(to)}</span><span class="kind ${m.kind}">${m.kind}</span><span class="time">#${m.id} · ${clock(m.at)}</span></div>${re}<div class="text">${esc(m.text)}</div>`;
+}
+
+function putMessage(m) {
+  const feed = $('feed');
+  const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+  messages.set(m.id, m);
+  let el = document.getElementById('m' + m.id);
+  if (!el) {
+    feed.querySelector('.empty')?.remove();
+    el = document.createElement('div');
+    el.id = 'm' + m.id;
+    feed.appendChild(el);
+  }
+  el.className = `msg ${m.from === 'XIAO' ? 'xiao' : ''} ${m.kind === 'alert' ? 'alert' : ''}`;
+  el.innerHTML = msgHtml(m);
+  if (stick) feed.scrollTop = feed.scrollHeight;
+}
+
+function showEmpty() {
+  if (messages.size) return;
+  $('feed').innerHTML = '<div class="empty"><h2>Nothing here yet</h2><p>Type a task below. The agents pick it up, ask each other questions here, and post back when they are done.</p></div>';
+}
+
+function connect() {
+  const es = new EventSource('/events');
+  es.addEventListener('hello', (e) => {
+    const d = JSON.parse(e.data);
+    agents.clear(); messages.clear(); $('feed').innerHTML = '';
+    d.agents.forEach((a) => agents.set(a.name, a));
+    d.messages.forEach(putMessage);
+    renderAgents(); showEmpty();
+    $('conn').textContent = 'Live'; $('conn').className = '';
+  });
+  es.addEventListener('message', (e) => putMessage(JSON.parse(e.data)));
+  es.addEventListener('agent', (e) => { const a = JSON.parse(e.data); agents.set(a.name, a); renderAgents(); });
+  es.addEventListener('agents', (e) => { agents.clear(); JSON.parse(e.data).forEach((a) => agents.set(a.name, a)); renderAgents(); });
+  es.onerror = () => { $('conn').textContent = 'Hub is off. Start it with start-hub.'; $('conn').className = 'off'; };
+}
+
+$('to').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-to]');
+  if (b) { target = b.dataset.to; renderTargets(); $('text').focus(); }
+});
+$('feed').addEventListener('click', (e) => {
+  const r = e.target.closest('[data-jump]');
+  if (!r) return;
+  const el = document.getElementById('m' + r.dataset.jump);
+  if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200); }
+});
+$('compose').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('text').value.trim();
+  if (!text) return;
+  const res = await fetch('/api/post', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from: 'XIAO', to: target, text, kind: 'prompt' }) });
+  if (res.ok) $('text').value = '';
+  else alert('Could not send: ' + (await res.text()));
+});
+$('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('compose').requestSubmit(); });
+setInterval(renderAgents, 30e3);
+renderTargets();
+connect();
+</script>
+</body>
+</html>
