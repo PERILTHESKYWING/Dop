@@ -578,7 +578,7 @@ async function openSheet(kind, name) {
     html = `<h3>Connect ${esc(name)}</h3>
       <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
       <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button><button class="btn small" data-newkey="${esc(name)}">New link</button></div><div id="testOut" class="hidden"></div>
-      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link, keep Advanced settings closed and press Add. If a Connect button appears, press it. No sign-in page should open.</p>
+      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link. Under sign-in, tick <b>No sign-in</b> (it says Detected), then press Add. If a Connect button appears, press it. No sign-in page should open.</p>
       ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the Dop hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the Dop repo and a model, turn on the Dop hub connector, add an API trigger, and paste this prompt:</p>
       <code class="copyline">${esc(ROUTINE_PROMPT)}</code><div><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button></div>
       <p><b>Step 4.</b> Press Edit on this account here and paste the routine's id and token. Repeat steps 3 and 4 for each model you want.</p>`}
