@@ -47,6 +47,10 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (op === 'account-low') return { status: 200, body: hub.publicAccount(await hub.setLow(String(body.name), !!body.low, body.note)) };
     if (op === 'thread') return { status: 200, body: await hub.updateThread(Number(body.id), body) };
     if (op === 'thread-delete') return (await hub.deleteThread(Number(body.id))), { status: 200, body: { ok: true } };
+    if (op === 'message-delete') {
+      const ok = await hub.deleteMessage(Number(body.id));
+      return ok ? { status: 200, body: { ok } } : { status: 404, body: { error: 'No such message.' } };
+    }
     if (op === 'retry') {
       const t = await hub.thread(Number(body.id));
       if (!t) return { status: 404, body: { error: 'No such thread.' } };

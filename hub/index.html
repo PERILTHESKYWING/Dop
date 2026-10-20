@@ -145,6 +145,17 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .text a, .bubble a { color: var(--green); }
 .picks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
 .picks span { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
+/* swipe a message left (or use its ⋯ on a computer) to show Delete */
+.sw { position: relative; overflow: hidden; flex: none; }
+.sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
+.sw.drag .sw-in { transition: none; }
+.sw.open .sw-in { transform: translateX(-104px); }
+.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 700; transition: opacity .15s; }
+.sw.open .sw-del, .sw.drag .sw-del { opacity: 1; pointer-events: auto; }
+.sw-x { position: absolute; top: 2px; right: 2px; z-index: 2; opacity: 0; border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; background: var(--panel); color: var(--soft); font: inherit; font-size: 15px; line-height: 1.3; }
+.sw:hover .sw-x, .sw-x:focus-visible { opacity: 1; }
+.sw.open .sw-x { opacity: 0; pointer-events: none; }
+@media (hover: none) { .sw-x { display: none; } }
 .note { text-align: center; font-size: 14px; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; }
 .note.alert { color: var(--amber); font-weight: 600; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 8px; padding: 12px 16px; }
@@ -380,7 +391,8 @@ async function load(full) {
   const since = full ? 0 : maxId();
   const d = await api('state' + (since ? `&since=${since}` : ''));
   speed = { rtt: Math.round(performance.now() - t0), ms: d.ms || 0 };
-  const held = d.full ? [] : S.messages.filter((m) => !m.pending);
+  const gone = new Set(d.deleted || []);
+  const held = d.full ? [] : S.messages.filter((m) => !m.pending && !gone.has(m.id));
   const have = new Set(held.map((m) => m.id));
   const ids = new Set(d.threads.map((t) => t.id));
   // A message still sending stays until the hub has it.
@@ -564,6 +576,21 @@ function msgHtml(m) {
   const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : '';
   return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when}</div><div class="text">${linkify(m.text)}</div></div></div>`;
 }
+// Real messages (not the page's own drafts or the handover summary) can be deleted.
+let openMsg = null;
+function swipeable(m, h) {
+  if (!h || typeof m.id !== 'number' || m.pending) return h;
+  return `<div class="sw${openMsg === m.id ? ' open' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">⋯</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
+}
+function setOpen(id) {
+  openMsg = id;
+  for (const el of document.querySelectorAll('.sw')) el.classList.toggle('open', Number(el.dataset.mid) === id);
+}
+async function deleteMsg(id) {
+  S.messages = S.messages.filter((m) => m.id !== id); openMsg = null; render();
+  try { await api('message-delete', { id }); } catch (e) { if (e.message !== 'auth' && e.message !== 'No such message.') alert(e.message); }
+  load(false).catch(() => {});
+}
 function renderHead(t) {
   const back = '<button class="btn small back" id="back" type="button">Threads</button>';
   if (!t) {
@@ -585,7 +612,7 @@ function renderFeed() {
   if (sel && !t) sel = 0;
   renderHead(t);
   const msgs = S.messages.filter((m) => m.thread === sel);
-  let html = msgs.map(msgHtml).join('');
+  let html = msgs.map((m) => swipeable(m, msgHtml(m))).join('');
   const recentHandover = msgs.slice(-4).some((m) => m.kind === 'handover');
   if (t && t.checkpoint && !recentHandover) html += msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` });
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
@@ -782,6 +809,10 @@ function openThread(id) { drafts[sel] = $('text').value; sel = id; closePop(); s
 
 document.addEventListener('click', async (e) => {
   if (!$('pop').classList.contains('hidden') && !e.target.closest('#pop') && !e.target.closest('[data-pop]')) closePop();
+  if (Date.now() - swiped < 400) return;
+  const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
+  const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
+  if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
   const tab = e.target.closest('#tabs button'); if (tab) return setTab(tab.dataset.tab);
   if (e.target.closest('#back')) return setTab('threads');
@@ -797,7 +828,35 @@ document.addEventListener('click', async (e) => {
   if (act) return threadAction(act.dataset.act);
   if (e.target === $('sheet')) closeSheet();
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeSheet(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeSheet(); setOpen(null); } });
+// Swipe left on a message (touch or pen) to show its Delete button; swipe right or tap elsewhere to hide it.
+let drag = null, swiped = 0;
+$('feed').addEventListener('pointerdown', (e) => {
+  const sw = e.target.closest('.sw');
+  if (e.pointerType === 'mouse' || !sw || e.target.closest('.sw-del')) return;
+  drag = { sw, id: Number(sw.dataset.mid), x: e.clientX, y: e.clientY, base: sw.classList.contains('open') ? -104 : 0, at: null };
+});
+$('feed').addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (drag.at == null) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
+    if (Math.abs(dx) < 10) return;
+    drag.sw.classList.add('drag');
+  }
+  drag.at = Math.max(-150, Math.min(0, drag.base + dx));
+  drag.sw.querySelector('.sw-in').style.transform = `translateX(${drag.at}px)`;
+});
+function endDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.at == null) return;
+  swiped = Date.now();
+  d.sw.classList.remove('drag'); d.sw.querySelector('.sw-in').style.transform = '';
+  setOpen(d.at < -50 ? d.id : openMsg === d.id ? null : openMsg);
+}
+$('feed').addEventListener('pointerup', endDrag);
+$('feed').addEventListener('pointercancel', endDrag);
 $('text').addEventListener('input', () => { drafts[sel] = $('text').value; grow(); });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); $('compose').requestSubmit(); } });
 $('compose').addEventListener('submit', async (e) => {
