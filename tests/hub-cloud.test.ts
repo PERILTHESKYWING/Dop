@@ -65,6 +65,12 @@ describe('cloud hub', () => {
     expect(ok.body.ok).toBe(true);
   });
 
+  it('logs connector calls for debugging', async () => {
+    const log = (await page('connlog', {})).body;
+    expect(log.some((r: any) => r.account === 'A' && !r.keyOk)).toBe(true);
+    expect(log.some((r: any) => r.account === 'A' && r.keyOk)).toBe(true);
+  });
+
   it('starts the coordinator for a prompt, which opens threads on the right accounts and models', async () => {
     await page('prompt', { text: 'Fix the move slider on phones and write a changelog entry.' });
     expect(last().payload).toMatchObject({ hub: 'dop', role: 'coordinator' });
