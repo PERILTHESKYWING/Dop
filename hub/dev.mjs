@@ -12,14 +12,21 @@ process.env.HUB_PASSWORD ||= 'dev';
 if (process.env.HUB_FAKE_CLAUDE === '1') {
   const real = globalThis.fetch;
   let n = 0;
-  globalThis.fetch = (url, init) =>
-    String(url).startsWith('https://api.anthropic.com/')
-      ? Promise.resolve(new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_url: `https://claude.ai/code/session_demo${++n}` })))
-      : real(url, init);
+  const later = (h) => new Date(Date.now() + h * 3600e3).toISOString();
+  globalThis.fetch = (url, init) => {
+    if (!String(url).startsWith('https://api.anthropic.com/')) return real(url, init);
+    if (String(url).includes('/api/oauth/usage')) {
+      // Made-up usage that differs per token, so the Team panel shows different bars.
+      const k = [...String(init?.headers?.authorization || '')].reduce((x, c) => x + c.charCodeAt(0), 0);
+      return Promise.resolve(new Response(JSON.stringify({ five_hour: { utilization: (k * 7) % 96, resets_at: later(2) }, seven_day: { utilization: (k * 3) % 90, resets_at: later(80) } })));
+    }
+    return Promise.resolve(new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_url: `https://claude.ai/code/session_demo${++n}` })));
+  };
 }
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { default: hubApi } = await import('./api/hub.js');
 const { default: mcpApi } = await import('./api/mcp.js');
+const { default: pathApi } = await import('./api/c/[account]/[key].js');
 const port = Number(process.env.PORT || 7791);
 
 createServer((req, res) => {
@@ -30,6 +37,7 @@ createServer((req, res) => {
     const p = new URL(req.url, 'http://x').pathname;
     if (p === '/api/hub') return hubApi(req, res);
     if (p === '/api/mcp') return mcpApi(req, res);
+    if (p.startsWith('/api/c/')) return pathApi(req, res);
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.end(readFileSync(path.join(here, 'index.html')));
   });

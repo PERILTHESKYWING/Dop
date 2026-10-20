@@ -14,21 +14,22 @@ Now open the hub's link and type your password. On your phone, use "Add to Home 
 ## Part 2: add a paid account (Pro or Max)
 1. On the hub page: **Add account**, type a name (like *Main*), choose the plan, **Save**.
 2. Press **Connect** on that account and copy the link.
-3. On claude.ai, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, leave the OAuth fields empty. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
+3. On claude.ai, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, keep Advanced settings closed (OAuth boxes empty) and press **Add**; if a **Connect** button appears, press it (no sign-in page should open). **Test link** on the Connect screen checks the link first; **New link** makes a fresh one (connectors and routines using the old link stop working until you add the new one). Add stays grey until Name and URL both have text, or if that account already has a connector with the same link. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
 4. On claude.ai/code: **Routines** › **New routine**. Pick the Dop repo and a model, turn on the Dop hub connector, add an **API trigger**, and paste the prompt from the Connect screen. Copy the routine's id and token into the hub (**Edit** on that account). Repeat for each model you want on that account.
 
 ## Part 3: add a free helper account (repeat for each one)
 1. On the hub page: **Add account**, type a name (like *Helper1*), choose **free**, **Save**.
 2. Press **Connect** and copy the link.
-3. On claude.ai or the Claude phone app, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, leave the OAuth fields empty. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
+3. On claude.ai or the Claude phone app, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, keep Advanced settings closed (OAuth boxes empty) and press **Add**; if a **Connect** button appears, press it (no sign-in page should open). **Test link** on the Connect screen checks the link first; **New link** makes a fresh one (connectors and routines using the old link stop working until you add the new one). Add stays grey until Name and URL both have text, or if that account already has a connector with the same link. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
 
 To put a helper to work, open a chat on it and type: **check the Dop hub**. It does one task, then asks the hub for the next.
 
 ## Using it
-- Type a task in **Project chat**. The coordinator opens threads and says where each went.
+- Type a task in **Project chat**. The coordinator opens threads and says where each went, with a card per thread.
+- The buttons under the box pick, for that task: **Model** (Auto lets the coordinator choose), **Thinking** (Low, Medium, High, Max) and **Accounts** (any, or tick one or more; only those accounts work on it). **One thread** skips the coordinator. The picks are remembered on that device.
 - Tasks that need code go to paid accounts and start within seconds. Tasks that don't need code wait for a free helper; open a chat on it and type **check the Dop hub**.
-- In a thread you can reply, change the **Model** or **Account**, or press **Mark done**.
-- When an account runs low, press **Running low** on its card (PC agents do this by themselves). New work goes elsewhere, and the thread continues from its last handover.
+- In a thread you can reply, change its **Model**, **Thinking** or **Accounts**, or press **Mark done**.
+- The **Team** panel shows each account's 5-hour and weekly limits (% used and when each resets), sorted with the freest first. At 85% of either the hub marks it low and moves new work elsewhere; the thread continues from its last handover. **Usage** on a card lets you type the numbers in or mark it **Running low** by hand.
 
 ---
 
@@ -38,7 +39,9 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **Skills**: skills saved on an account load by themselves in that account's chats and cloud sessions; the repo's `.claude/skills` load in every cloud session. Each account needs its own copies (see `.claude/account-skills/`).
 - **Handover**: agents save what's done, the exact next step and the branch after each milestone. If a working thread goes quiet for 15 minutes, the hub restarts it on another account from that handover (at most once every 30 minutes per thread; it can be turned off in Settings).
 - **Usage** (measured 2026-10-20): one coordinator run on Haiku took 4 turns, 3 to 15k new tokens plus about 180k cached reads, about US$0.004 at API prices. The hub's own messages are about 500 tokens per prompt. The page shows the hub's overhead for the last 5 hours against a budget (default 60k tokens, set in Settings); over budget, prompts skip the coordinator. Anthropic doesn't publish the free plan's 5-hour limit as a number, so staying under half of it can't be proven.
-- **Saving usage**: tick **One thread, skip the coordinator** for simple tasks.
+- **Thinking level**: routines have no effort setting the hub can change, so the level goes in as words Claude Code reads: Medium adds "think", High "think hard", Max "ultrathink" at the top of the start message, plus a line in the brief. Not measured yet whether this changes how long the sessions think.
+- **Where usage numbers come from**: every 5 minutes (or **Refresh**) the hub asks Claude's usage endpoint (`api/oauth/usage`, undocumented) with the account's routine token. If Claude refuses that token the card says so; then type the numbers in from claude.ai › Settings › Usage, or let a PC agent's status line (`hub/pc-statusline.mjs`) report them every 10 minutes. Free plans have no routine token, so they need one of those two.
+- **Saving usage**: turn on **One thread** under the box for simple tasks.
 - **PC agents (optional)**: `claude mcp add --transport http dop-hub "<link>"`. Set `HUB_MCP_URL` to the link and use `hub/pc-statusline.mjs` as the status line to report low usage automatically.
 - **Storage**: the page checks for news every 4 seconds while it's open, and waiting agents check every 3 seconds, well inside Upstash's free allowance.
 - **PC-only version**: `tools/hub/` (see `hub.md`) still works offline.

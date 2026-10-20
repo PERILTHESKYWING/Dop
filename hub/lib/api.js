@@ -23,6 +23,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   if (method === 'GET' && op === 'seq') return { status: 200, body: { seq: await hub.nextSeq() } };
   if (method === 'GET' && op === 'state') {
     await hub.sweep();
+    await hub.refreshUsage({ force: query.usage === 'now' });
     const threads = await hub.threads();
     const accounts = Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads));
     return {
@@ -41,6 +42,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (op === 'prompt') return { status: 200, body: await hub.prompt(body) };
     if (op === 'account') return { status: 200, body: hub.publicAccount(await hub.upsertAccount(body)) };
     if (op === 'account-remove') return (await hub.removeAccount(String(body.name))), { status: 200, body: { ok: true } };
+    if (op === 'account-newkey') return { status: 200, body: await hub.newKey(String(body.name)) };
     if (op === 'account-low') return { status: 200, body: hub.publicAccount(await hub.setLow(String(body.name), !!body.low, body.note)) };
     if (op === 'thread') return { status: 200, body: await hub.updateThread(Number(body.id), body) };
     if (op === 'retry') {
@@ -48,6 +50,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
       if (!t) return { status: 404, body: { error: 'No such thread.' } };
       return { status: 200, body: await hub.dispatch(t, t.checkpoint ? 'resume' : 'worker') };
     }
+    if (op === 'account-usage') return { status: 200, body: hub.publicAccount(await hub.setUsage(String(body.name), body)) };
     if (op === 'connlog') return { status: 200, body: await hub.connLog() };
     if (op === 'settings') return { status: 200, body: await hub.saveSettings(body) };
   } catch (e) {
