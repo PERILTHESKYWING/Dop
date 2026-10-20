@@ -235,18 +235,22 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .afoot .upd { font-size: 13px; color: var(--soft); margin-left: auto; }
 .aacts { display: flex; gap: 4px; flex-wrap: wrap; }
 .tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
-.tgroup summary { display: flex; justify-content: space-between; cursor: pointer; padding: 6px 4px; font-weight: 600; font-size: 13px; }
-.tgroup summary b { color: var(--muted, #888); font-weight: 500; }
-.task { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
-.task:hover { background: rgba(127,127,127,.12); }
-.task .tick { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; opacity: .5; }
-.task.st-working .tick, .task.st-waiting .tick { border-top-color: transparent; animation: tspin 1s linear infinite; opacity: 1; }
-.task.st-done .tick { background: currentColor; opacity: .7; }
-.task.st-done .ttl { text-decoration: line-through; opacity: .6; }
-.task .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.task .tw { display: flex; align-items: center; gap: 6px; flex: none; }
-.task small { opacity: .6; font-size: 11px; }
-@keyframes tspin { to { transform: rotate(360deg); } }
+.tasks > *, .tgroup { min-width: 0; }
+.tasks .cap { white-space: nowrap; }
+.tasks .thead { padding: 4px 4px 0; }
+.tasks .cap { padding: 0; font-size: 14px; color: var(--soft); }
+.tgroup summary { display: flex; justify-content: space-between; cursor: pointer; padding: 6px 4px; font-weight: 700; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.tgroup summary b { font-weight: 600; }
+.tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
+.tk:hover { background: var(--sel); }
+.tk .tk-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); }
+.tk .spin { width: 14px; }
+.tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
+.tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
+.tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
+.tk .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
+.tk small { color: var(--soft); font-size: 12px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
 
 /* sheets */
@@ -726,7 +730,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="task st-${t.status}" data-thread="${t.id}"><span class="tick" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status] || t.status)}</small></span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? '<span class="spin">✻</span>' : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
