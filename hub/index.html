@@ -193,6 +193,19 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .afoot .mdl { font-size: 13px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--chip); }
 .afoot .upd { font-size: 13px; color: var(--soft); margin-left: auto; }
 .aacts { display: flex; gap: 4px; flex-wrap: wrap; }
+.tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
+.tgroup summary { display: flex; justify-content: space-between; cursor: pointer; padding: 6px 4px; font-weight: 600; font-size: 13px; }
+.tgroup summary b { color: var(--muted, #888); font-weight: 500; }
+.task { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.task:hover { background: rgba(127,127,127,.12); }
+.task .tick { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; opacity: .5; }
+.task.st-working .tick, .task.st-waiting .tick { border-top-color: transparent; animation: tspin 1s linear infinite; opacity: 1; }
+.task.st-done .tick { background: currentColor; opacity: .7; }
+.task.st-done .ttl { text-decoration: line-through; opacity: .6; }
+.task .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.task .tw { display: flex; align-items: center; gap: 6px; flex: none; }
+.task small { opacity: .6; font-size: 11px; }
+@keyframes tspin { to { transform: rotate(360deg); } }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
 
 /* sheets */
@@ -587,6 +600,24 @@ function accountCard(a) {
     <div class="aacts"><button class="btn small ${a.connected ? '' : 'primary'}" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-open="usage" data-name="${esc(a.name)}">Usage</button>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>
   </div>`;
 }
+// ---------- task list (like Projects in Claude) ----------
+const TASK_GROUPS = [
+  ['Working on', 'work', (t) => ['working', 'waiting'].includes(t.status)],
+  ['Not started', 'todo', (t) => ['new', 'queued', 'stalled'].includes(t.status)],
+  ['Finished', 'fin', (t) => t.status === 'done'],
+];
+function taskRow(t) {
+  const who = threadAccounts(t);
+  return `<button type="button" class="task st-${t.status}" data-thread="${t.id}"><span class="tick" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status] || t.status)}</small></span></button>`;
+}
+function taskList() {
+  const live = S.threads.filter((t) => !t.archived);
+  if (!live.length) return '';
+  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
+    const rows = live.filter(f);
+    return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
+  }).join('')}</div>`;
+}
 function renderTeam() {
   const rank = (a) => (a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
@@ -596,6 +627,7 @@ function renderTeam() {
   $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button></div>
     ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
+    ${taskList()}
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
       <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
