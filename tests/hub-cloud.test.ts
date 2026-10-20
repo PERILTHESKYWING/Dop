@@ -53,6 +53,12 @@ describe('cloud hub', () => {
     for (const n of ['A', 'B', 'Phone']) keys[n] = (await page(`connect&account=${n}`)).body.key;
   });
 
+  it('can take back an old connector key', async () => {
+    await page('account', { name: 'Old', plan: 'free', key: 'reusedKey_1234567890' });
+    expect((await page('connect&account=Old')).body.key).toBe('reusedKey_1234567890');
+    await page('account-remove', { name: 'Old' });
+  });
+
   it('rejects a wrong connector key', async () => {
     expect((await mcp('A', 'tools/list', {}, 'wrong')).status).toBe(403); // never 401: claude.ai would try OAuth
     const ok = await mcpApi({ hub, method: 'GET', query: { account: 'A', key: keys.A }, body: {}, headers: {} });

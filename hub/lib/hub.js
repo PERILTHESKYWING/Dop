@@ -86,6 +86,12 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     const name = clean(input.name, 24);
     if (!/^[A-Za-z0-9][A-Za-z0-9 _-]{0,23}$/.test(name)) throw new Error('Account name: letters, numbers, spaces, - or _.');
     const old = (await account(name)) || { name, key: randomBytes(18).toString('base64url'), createdAt: now(), low: false };
+    // Reusing a key lets a connector made for a deleted account work again.
+    const reuse = String(input.key || '').trim();
+    if (reuse) {
+      if (!/^[A-Za-z0-9_-]{16,64}$/.test(reuse)) throw new Error('Key: paste the last part of an old connector link.');
+      old.key = reuse;
+    }
     const plan = ['free', 'pro', 'max', 'team'].includes(input.plan) ? input.plan : old.plan || 'pro';
     let routines = old.routines || [];
     if (Array.isArray(input.routines)) {
