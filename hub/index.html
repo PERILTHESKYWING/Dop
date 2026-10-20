@@ -295,7 +295,7 @@ let S = { threads: [], accounts: [], messages: [], settings: {}, overhead: {}, l
 // Last view, so a reload paints at once and then catches up.
 try { const c = JSON.parse(ls.get('hub-cache') || 'null'); if (c && pw) S = { ...c, loading: false }; } catch {}
 let seq = '', sel = 0, drafts = {}, colors = {}, initials = {}, showArchived = false, tmp = 0, speed = { rtt: 0, ms: 0 };
-let opts = { model: '', thinking: 'medium', accounts: [], direct: false };
+let opts = { model: '', thinking: 'medium', accounts: [], team: 1, direct: false };
 try { opts = { ...opts, ...JSON.parse(localStorage.getItem('hub-opts') || '{}') }; } catch {}
 const saveOpts = () => { try { localStorage.setItem('hub-opts', JSON.stringify(opts)); } catch {} };
 
@@ -365,9 +365,15 @@ function acctState(a) {
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
 }
-const workingOn = (a) => S.threads.filter((t) => t.account === a.name && t.status === 'working').map((t) => t.title);
+const workingOn = (a) => S.threads.filter((t) => (t.account === a.name || crewOf(t).includes(a.name)) && t.status === 'working').map((t) => t.title);
 // The account doing the work, or the accounts XIAO allowed when none is on it yet.
-function threadAccounts(t) { return t.account ? [t.account] : t.accounts || []; }
+function threadAccounts(t) { return t.account ? [t.account, ...crewOf(t)] : t.accounts || []; }
+// Team members working with the lead right now.
+function crewOf(t) { return Object.keys(t.crew || {}).filter((n) => n !== t.account && t.crew[n].role === 'member' && !t.crew[n].done && !t.crew[n].gone); }
+const TEAM_MAX = 4;
+const teamName = (n) => (n > 1 ? `Team of ${n}` : 'Solo');
+// Usage at or above this share counts as low (Settings › minimum usage left).
+const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
 // ---------- sidebar ----------
 function threadRow(t) {
@@ -404,7 +410,7 @@ function threadCard(t) {
 }
 function picksOf(meta) {
   if (!meta) return '';
-  const p = [meta.model && MODEL_NAME[meta.model], meta.thinking && meta.thinking !== 'medium' && `${THINK_NAME[meta.thinking]} thinking`, meta.accounts?.length && meta.accounts.join(' + ')].filter(Boolean);
+  const p = [meta.model && MODEL_NAME[meta.model], meta.thinking && meta.thinking !== 'medium' && `${THINK_NAME[meta.thinking]} thinking`, meta.accounts?.length && meta.accounts.join(' + '), meta.team > 1 && teamName(meta.team)].filter(Boolean);
   return p.length ? `<div class="picks">${p.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : '';
 }
 function msgHtml(m) {
@@ -465,7 +471,7 @@ function renderFeed() {
 }
 
 // ---------- composer ----------
-function curPicks(t) { return t ? { model: t.model, thinking: t.thinking || 'medium', accounts: t.accounts?.length ? t.accounts : t.account ? [t.account] : [] } : opts; }
+function curPicks(t) { return t ? { model: t.model, thinking: t.thinking || 'medium', accounts: t.accounts?.length ? t.accounts : t.account ? [t.account] : [], team: t.team || 1 } : { ...opts, team: opts.team || 1 }; }
 function acctChip(list) { return list.length ? `${avList(list)}${esc(list.length === 1 ? list[0] : `${list.length} accounts`)}` : 'Any account'; }
 function renderTools(t) {
   const p = curPicks(t);
@@ -473,6 +479,7 @@ function renderTools(t) {
     <button type="button" class="chip" data-pop="model">${p.model ? MODEL_NAME[p.model] : 'Auto<span class="wide"> model</span>'}<span class="caret">▼</span></button>
     <button type="button" class="chip" data-pop="thinking">${meter(p.thinking)}${THINK_NAME[p.thinking]}<span class="wide"> thinking</span><span class="caret">▼</span></button>
     <button type="button" class="chip" data-pop="accounts">${acctChip(p.accounts)}<span class="caret">▼</span></button>
+    <button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}<span class="caret">▼</span></button>
     ${t ? '' : `<button type="button" class="chip" data-toggle="direct" aria-pressed="${opts.direct}" title="Skip the coordinator and make one thread">One thread</button>`}
     <button class="send" type="submit" aria-label="Send" id="sendBtn">↑</button>`;
   $('text').placeholder = t ? `Reply in ${t.title}` : 'What should the team do?';
@@ -492,6 +499,9 @@ function openPop(kind, anchor) {
     pop.innerHTML = `<h4>Model</h4>${list.map((m) => `<button type="button" class="opt ${p.model === m ? 'on' : ''}" data-pick="model" data-v="${m}"><span></span><b>${m ? MODEL_NAME[m] : 'Auto'}</b><span class="tick">✓</span><small>${MODEL_HINT[m]}</small></button>`).join('')}`;
   } else if (kind === 'thinking') {
     pop.innerHTML = `<h4>Thinking level</h4>${THINK.map((v) => `<button type="button" class="opt ${p.thinking === v ? 'on' : ''}" data-pick="thinking" data-v="${v}">${meter(v)}<b>${THINK_NAME[v]}</b><span class="tick">✓</span><small>${THINK_HINT[v]}</small></button>`).join('')}`;
+  } else if (kind === 'team') {
+    const hint = (n) => n === 1 ? 'One account does the work' : `A lead and ${n - 1} more account${n > 2 ? 's' : ''}, each on a part, sharing the thread's messages and handovers`;
+    pop.innerHTML = `<h4>Accounts working together</h4>${Array.from({ length: TEAM_MAX }, (_, i) => i + 1).map((n) => `<button type="button" class="opt ${p.team === n ? 'on' : ''}" data-pick="team" data-v="${n}"><span></span><b>${teamName(n)}</b><span class="tick">✓</span><small>${hint(n)}</small></button>`).join('')}<p style="margin:8px 10px">Only accounts with at least ${100 - lowAt()}% usage left join (Settings).</p>`;
   } else if (kind === 'tmenu') {
     pop.innerHTML = `${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
       ${t.archived ? '<button type="button" class="opt" data-tact="restore"><span></span><b>Restore</b><small>Put it back in the list</small></button>' : '<button type="button" class="opt" data-tact="archive"><span></span><b>Archive</b><small>Hide it and start no new sessions. You can restore it.</small></button>'}
@@ -546,6 +556,7 @@ $('pop').addEventListener('click', async (e) => {
   const cur = curPicks(t).accounts.slice();
   if (b.dataset.pick === 'model') { closePop(); return setPick({ model: b.dataset.v }); }
   if (b.dataset.pick === 'thinking') { closePop(); return setPick({ thinking: b.dataset.v }); }
+  if (b.dataset.pick === 'team') { closePop(); return setPick({ team: Number(b.dataset.v) }); }
   const anchor = document.querySelector('[data-pop="accounts"]');
   if (b.dataset.pick === 'any') await setPick({ accounts: [] });
   if (b.dataset.pick === 'account') { const v = b.dataset.v; await setPick({ accounts: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] }); }
@@ -555,7 +566,7 @@ $('pop').addEventListener('click', async (e) => {
 // ---------- team ----------
 function usageRow(label, pct, resets) {
   if (typeof pct !== 'number') return '';
-  const c = pct >= 85 ? 'bad' : pct >= 60 ? 'warn' : '';
+  const c = pct >= lowAt() ? 'bad' : pct >= lowAt() - 25 ? 'warn' : '';
   return `<div class="use"><span class="lbl">${label}</span><div class="track"><div class="fill ${c}" style="width:${pct > 0 ? Math.min(100, Math.max(2, pct)) : 0}%"></div></div><span class="pct">${Math.round(pct)}%</span>${resets ? `<span class="rs">${esc(until(resets))}</span>` : ''}</div>`;
 }
 function accountCard(a) {
@@ -625,7 +636,7 @@ $('compose').addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = $('text').value.trim(); if (!text) return;
   $('text').value = ''; drafts[sel] = ''; grow();
-  const body = sel ? { text, thread: sel } : { text, thread: 0, direct: opts.direct, model: opts.model || undefined, thinking: opts.thinking, accounts: opts.accounts };
+  const body = sel ? { text, thread: sel } : { text, thread: 0, direct: opts.direct, model: opts.model || undefined, thinking: opts.thinking, accounts: opts.accounts, team: opts.team || 1 };
   // Show it straight away; starting the agents happens while it says Sending.
   S.messages.push({ id: `tmp${++tmp}`, at: Date.now(), thread: sel, from: 'XIAO', kind: 'prompt', text, meta: sel ? null : body, pending: true });
   renderFeed(); toBottom();
@@ -667,7 +678,7 @@ async function openSheet(kind, name) {
   } else if (kind === 'usage') {
     const a = S.accounts.find((x) => x.name === name); const u = a?.usage || {};
     html = `<h3>Usage for ${esc(name)}</h3>
-      <p>Use this when Claude doesn't share the numbers (free plans, or a refused token). You can see them on claude.ai › Settings › Usage, signed in as ${esc(name)}. At 85% the hub moves new work to other accounts.</p>
+      <p>Use this when Claude doesn't share the numbers (free plans, or a refused token). You can see them on claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% (less than ${100 - lowAt()}% left; change it in Settings) the hub moves new work to other accounts.</p>
       <div class="pairs"><label class="field">5-hour limit used (%)<input id="u5" type="number" min="0" max="100" value="${u.five_hour_pct ?? ''}"></label>
       <label class="field">Weekly limit used (%)<input id="u7" type="number" min="0" max="100" value="${u.seven_day_pct ?? ''}"></label></div>
       <div class="acts"><button class="btn primary" data-saveusage="${esc(name)}">Save</button><button class="btn" data-close>Cancel</button></div>
@@ -681,6 +692,8 @@ async function openSheet(kind, name) {
       <label class="field">Coordinator account<select id="sAcct"><option value="">Pick automatically</option>${S.accounts.map((a) => `<option ${s.coordinatorAccount === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
       <label class="field">Hub overhead budget per 5 hours (tokens)<input id="sBudget" type="number" min="0" step="1000" value="${s.overheadTokens}"></label>
       <p>Counts the coordinator and the hub's own messages, not the work itself. Over budget, prompts skip the coordinator.</p>
+      <label class="field">Minimum usage left for new work (%)<input id="sMinLeft" type="number" min="0" max="95" step="1" value="${s.minLeftPct ?? 15}"></label>
+      <p>An account with less than this much of its 5-hour or weekly limit left gets no new work or team places, and its running threads hand over to other accounts.</p>
       <label class="field"><span><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}> Continue stopped threads on another account</span></label>
       <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>
       <div class="sect">Speed</div>
@@ -731,7 +744,7 @@ $('sheetBox').addEventListener('click', async (e) => {
   }
   if (t.closest('[data-saveusage]')) { await api('account-usage', { name: t.dataset.saveusage, five_hour_pct: $('u5').value, seven_day_pct: $('u7').value }); closeSheet(); return load(true); }
   if (t.closest('[data-savesettings]')) {
-    await api('settings', { coordinatorModel: $('sModel').value, coordinatorAccount: $('sAcct').value, overheadTokens: Number($('sBudget').value), autoResume: $('sResume').checked });
+    await api('settings', { coordinatorModel: $('sModel').value, coordinatorAccount: $('sAcct').value, overheadTokens: Number($('sBudget').value), minLeftPct: Number($('sMinLeft').value), autoResume: $('sResume').checked });
     closeSheet(); load(true);
   }
 });
