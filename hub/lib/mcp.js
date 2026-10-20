@@ -58,10 +58,10 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_post',
-      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO, or to a teammate with to), answer (with reply_to), note, done (final result; closes the thread, or only your part if you are a team member). to: a teammate\'s account name, to address one teammate (everyone on the thread still sees it).',
+      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO, or to a teammate with to), answer (with reply_to), note, thinking (one or two sentences of your reasoning at a key decision; XIAO\'s page shows it only when asked, and other agents don\'t receive it), done (final result; closes the thread, or only your part if you are a team member). to: a teammate\'s account name, to address one teammate (everyone on the thread still sees it).',
       inputSchema: {
         type: 'object',
-        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'done'] }, reply_to: num, to: str },
+        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'thinking', 'done'] }, reply_to: num, to: str },
         required: ['thread', 'text'],
       },
       run: (a, x) => hub.agentPost(a, x),
@@ -95,7 +95,7 @@ export function toolsFor(hub) {
         const tid = Number(x.thread) || 0;
         const after = Number(x.after) || 0;
         const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 20) * 1000;
-        const mine = (m) => m.thread === tid && m.from !== a.name;
+        const mine = (m) => m.thread === tid && m.from !== a.name && m.kind !== 'thinking';
         for (;;) {
           const list = await hub.messagesSince(after, mine);
           if (list.length || Date.now() >= end) {

@@ -10,12 +10,13 @@
   --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
   --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --me: #ebe4d8; --sel: #ebe5da; --chip: #f1ece4;
   --shadow: 0 6px 24px rgba(40, 30, 10, .12);
+  --clay: rgb(215, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
     --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --me: #2b2925; --sel: #2c2a26; --chip: #282622;
-    --shadow: 0 6px 24px rgba(0, 0, 0, .5); }
+    --shadow: 0 6px 24px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 16px; }
@@ -89,6 +90,46 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; animation: rise .18s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .feed > * { animation: none; } }
+
+/* Claude-style thinking: ✻ spinner, shimmering verb, elapsed time (frames, verbs and colours from Claude Code) */
+.thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--clay); min-width: 0; }
+.spin { display: inline-block; width: 1.1em; text-align: center; font-weight: 700; color: var(--clay); flex: none; }
+.thinking .verb { font-weight: 600; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.trow .spin { font-size: 14px; width: 9px; }
+/* agents' thinking notes, folded like Claude's "Thought process" */
+.thought { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; color: var(--soft); }
+.thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; }
+.thought summary::-webkit-details-marker { display: none; }
+.thought summary::after { content: '›'; font-size: 16px; transition: transform .15s; }
+.thought[open] summary::after { transform: rotate(90deg); }
+.thought summary b { color: var(--ink); font-weight: 600; }
+.thought .text { font-size: 15px; margin-top: 4px; }
+.thoughts-hidden { font-size: 13px; }
+/* Clawd, Claude Code's mascot, redrawn from its terminal sprite */
+.clawd { width: 36px; height: 20px; flex: none; overflow: visible; }
+.clawd.s { width: 22px; height: 12px; }
+.clawd.l { width: 108px; height: 60px; }
+.clawd .cl-body, .clawd .cl-legs { fill: var(--clay); }
+.clawd .cl-eyes { fill: var(--clay-eye); }
+.clawd g, .clawd rect { transform-box: fill-box; transform-origin: center bottom; }
+.clawd .cl-eyes { transform-origin: center; animation: cl-blink 4.2s infinite; }
+.clawd .cl-up { animation: cl-bob 1.8s steps(2, jump-none) infinite; }
+.clawd.busy .cl-up { animation: none; }
+.clawd.busy .lg.a { animation: cl-step .36s steps(2, jump-none) infinite; }
+.clawd.busy .lg.b { animation: cl-step .36s steps(2, jump-none) infinite reverse; }
+.clawd.busy .cl-arm { animation: cl-arm .36s steps(2, jump-none) infinite; }
+.clawd.busy .cl-arm.r { animation-direction: reverse; }
+.clawd.wave .cl-arm.r { animation: cl-wave .9s steps(2, jump-none) infinite; }
+@keyframes cl-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.15); } }
+@keyframes cl-bob { from { transform: translateY(0); } to { transform: translateY(-.6px); } }
+@keyframes cl-step { from { transform: translateY(0); } to { transform: translateY(-1px); } }
+@keyframes cl-arm { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+@keyframes cl-wave { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+.stroll { display: block; animation: cl-stroll 9s ease-in-out infinite; }
+@keyframes cl-stroll { 0%, 100% { transform: translateX(-40px); } 45%, 55% { transform: translateX(40px); } }
+@media (prefers-reduced-motion: reduce) { .clawd *, .stroll, .thinking .verb { animation: none !important; } }
 .row { display: flex; gap: 10px; align-items: flex-start; }
 .row.me { justify-content: flex-end; }
 .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; min-width: 0; max-width: 100%; }
@@ -193,6 +234,23 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .afoot .mdl { font-size: 13px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--chip); }
 .afoot .upd { font-size: 13px; color: var(--soft); margin-left: auto; }
 .aacts { display: flex; gap: 4px; flex-wrap: wrap; }
+.tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
+.tasks > *, .tgroup { min-width: 0; }
+.tasks .cap { white-space: nowrap; }
+.tasks .thead { padding: 4px 4px 0; }
+.tasks .cap { padding: 0; font-size: 14px; color: var(--soft); }
+.tgroup summary { display: flex; justify-content: space-between; cursor: pointer; padding: 6px 4px; font-weight: 700; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.tgroup summary b { font-weight: 600; }
+.tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
+.tk:hover { background: var(--sel); }
+.tk .tk-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); }
+.tk .spin { width: 14px; }
+.tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
+.tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
+.tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
+.tk .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
+.tk small { color: var(--soft); font-size: 12px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
 
 /* sheets */
@@ -243,7 +301,7 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><span class="mark" id="mark"></span><b>Dop hub</b><span class="live" id="live">Live</span></div>
+    <div class="brand"><span id="clawdMark" title="Clawd"></span><span class="mark" id="mark"></span><b>Dop hub</b><span class="live" id="live">Live</span></div>
     <button class="btn newtask" id="newTask" type="button"><span>+</span>New task</button>
     <nav class="list" id="threads"></nav>
   </aside>
@@ -375,16 +433,73 @@ const teamName = (n) => (n > 1 ? `Team of ${n}` : 'Solo');
 // Usage at or above this share counts as low (Settings › minimum usage left).
 const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
+
+// ---------- thinking and Clawd ----------
+// Spinner frames, verbs and colours are Claude Code's own (read from its CLI).
+const SPIN = ['·', '✢', '✳', '✶', '✻', '✽'];
+const SPIN_LOOP = [...SPIN, ...SPIN.slice().reverse()];
+const VERBS = ['Accomplishing', 'Architecting', 'Baking', 'Beboppin\'', 'Brewing', 'Calculating', 'Canoodling', 'Cerebrating', 'Churning', 'Clauding', 'Cogitating', 'Combobulating', 'Concocting', 'Contemplating', 'Cooking', 'Crafting', 'Crunching', 'Deciphering', 'Deliberating', 'Doodling', 'Elucidating', 'Envisioning', 'Fermenting', 'Finagling', 'Forging', 'Frolicking', 'Generating', 'Germinating', 'Hatching', 'Herding', 'Honking', 'Ideating', 'Imagining', 'Incubating', 'Inferring', 'Kneading', 'Manifesting', 'Marinating', 'Meandering', 'Moseying', 'Mulling', 'Noodling', 'Orchestrating', 'Percolating', 'Philosophizing', 'Pondering', 'Pontificating', 'Puttering', 'Puzzling', 'Reticulating', 'Ruminating', 'Scampering', 'Schlepping', 'Simmering', 'Spelunking', 'Stewing', 'Synthesizing', 'Thinking', 'Tinkering', 'Transmogrifying', 'Unfurling', 'Vibing', 'Whirring', 'Wibbling', 'Working', 'Wrangling', 'Zigzagging'];
+const verbFor = (key) => { let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return VERBS[h % VERBS.length]; };
+const span = (ms) => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor(sec / 60) % 60}m`; };
+// Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks.
+function clawd(cls = '') {
+  return `<svg class="clawd ${cls}" viewBox="0 0 18 10" aria-hidden="true" shape-rendering="crispEdges"><g class="cl-up"><g class="cl-body"><rect x="3" y="0" width="12" height="8"/><rect class="cl-arm l" x="1" y="4" width="2" height="2"/><rect class="cl-arm r" x="15" y="4" width="2" height="2"/></g><g class="cl-eyes"><rect x="5" y="2" width="1" height="2"/><rect x="12" y="2" width="1" height="2"/></g></g><g class="cl-legs"><rect class="lg a" x="4" y="8" width="1" height="2"/><rect class="lg b" x="6" y="8" width="1" height="2"/><rect class="lg a" x="11" y="8" width="1" height="2"/><rect class="lg b" x="13" y="8" width="1" height="2"/></g></svg>`;
+}
+// One live line per agent at work: the text stays fixed so the feed only
+// redraws on news; the spinner and clock tick in place.
+function thinkingLine(who, since, key) {
+  return `<div class="thinking">${clawd('s busy')}<span class="spin">✻</span><span class="verb">${esc(verbFor(key))}…</span><span class="tmeta">(<span data-since="${since}"></span> · ${esc(who)})</span></div>`;
+}
+// Who is working in this view right now.
+function liveLines(t, msgs) {
+  if (!t) {
+    // Project chat: the coordinator is on XIAO's last prompt until it answers.
+    const last = msgs.filter((m) => m.from === 'XIAO' && !m.pending).at(-1);
+    if (!last || Date.now() - last.at > 20 * 60e3 || msgs.some((m) => m.id > last.id && m.kind === 'routed')) return '';
+    return thinkingLine('Coordinator', last.at, 'c' + last.id);
+  }
+  if (t.archived || !['working', 'new'].includes(t.status)) return '';
+  const out = [];
+  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.status === 'new' ? `${t.account}, starting` : t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`));
+  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`));
+  return out.join('');
+}
+let spinI = 0;
+setInterval(() => {
+  if (document.hidden) return;
+  spinI = (spinI + 1) % SPIN_LOOP.length;
+  for (const el of document.querySelectorAll('.spin')) el.textContent = SPIN_LOOP[spinI];
+  for (const el of document.querySelectorAll('[data-since]')) el.textContent = span(Date.now() - Number(el.dataset.since));
+}, 120);
+// Agents' thinking notes: hidden, folded (default) or open, and per account.
+let think = { mode: 'fold', hide: [] };
+try { think = { ...think, ...JSON.parse(ls.get('hub-think') || '{}') }; } catch {}
+const saveThink = () => ls.set('hub-think', JSON.stringify(think));
+const thoughtShown = (name) => !think.hide.includes(name);
+const openThoughts = new Set();
+function thoughtHtml(m) {
+  const a = acctOf(m.from);
+  if (think.mode === 'hide' || !thoughtShown(a?.name || m.from)) return '';
+  const open = think.mode === 'open' || openThoughts.has(m.id);
+  return `<details class="thought" data-tid="${m.id}"${open ? ' open' : ''}><summary>${av(a?.name, 's')}<b>${esc(m.from)}</b> thought <span class="when">${clock(m.at)}</span></summary><div class="text">${linkify(m.text)}</div></details>`;
+}
+$('feed').addEventListener('toggle', (e) => {
+  const d = e.target; if (!d.matches?.('details.thought')) return;
+  const id = Number(d.dataset.tid);
+  if (d.open) openThoughts.add(id); else openThoughts.delete(id);
+}, true);
+
 // ---------- sidebar ----------
 function threadRow(t) {
   const last = S.messages.filter((m) => m.thread === t.id).at(-1);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
   return `<button class="trow st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}">
     <span class="ttl">${esc(t.title)}</span>
-    <span class="tsub">${avList(threadAccounts(t))}<span class="stx">${esc(st)}</span><span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></span>
+    <span class="tsub">${avList(threadAccounts(t))}${t.status === 'working' && !t.archived ? '<span class="spin">✻</span>' : ''}<span class="stx">${esc(st)}</span><span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></span>
   </button>`;
 }
 function renderSide() {
+  $('clawdMark').innerHTML = clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'busy' : '');
   $('mark').innerHTML = (S.accounts.length ? S.accounts.slice(0, 4).map((a) => colors[a.name]) : PALETTE.slice(0, 3)).map((c) => `<i style="background:${c}"></i>`).join('');
   const live = S.threads.filter((t) => !t.archived);
   const archived = S.threads.filter((t) => t.archived).reverse();
@@ -417,6 +532,7 @@ function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}"><div class="text">${linkify(m.text)}</div>${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
   if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}">${esc(m.text)} · ${clock(m.at)}</div>`;
+  if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
   if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when}</div><div class="text">${linkify(m.text)}</div></div>`;
   if (m.kind === 'handover') {
@@ -438,13 +554,14 @@ function renderHead(t) {
   const back = '<button class="btn small back" id="back" type="button">Threads</button>';
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span>`;
+    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide">✻ </span>Thinking</button>`;
     return;
   }
   $('head').innerHTML = `${back}<h2 title="${esc(t.title)}">${esc(t.title)}</h2><span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : STATUS[t.status])}</span>
     ${t.sessionUrl ? `<a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : t.status === 'done' ? '' : '<button type="button" class="btn small" data-act="done">Mark done</button>'}
+    <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide">✻ </span>Thinking</button>
     <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>`;
 }
 function renderFeed() {
@@ -457,8 +574,12 @@ function renderFeed() {
   let html = msgs.map(msgHtml).join('');
   const recentHandover = msgs.slice(-4).some((m) => m.kind === 'handover');
   if (t && t.checkpoint && !recentHandover) html += msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` });
+  const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
+  if (hid) html += `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>`;
+  html += liveLines(t, msgs);
   if (!html && S.loading) html = '<div class="note">Loading…</div>';
   if (!html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
+      <span class="stroll">${clawd('l wave')}</span>
       <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
       <h3>What should the team work on?</h3>
       <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
@@ -502,6 +623,13 @@ function openPop(kind, anchor) {
   } else if (kind === 'team') {
     const hint = (n) => n === 1 ? 'One account does the work' : `A lead and ${n - 1} more account${n > 2 ? 's' : ''}, each on a part, sharing the thread's messages and handovers`;
     pop.innerHTML = `<h4>Accounts working together</h4>${Array.from({ length: TEAM_MAX }, (_, i) => i + 1).map((n) => `<button type="button" class="opt ${p.team === n ? 'on' : ''}" data-pick="team" data-v="${n}"><span></span><b>${teamName(n)}</b><span class="tick">✓</span><small>${hint(n)}</small></button>`).join('')}<p style="margin:8px 10px">Only accounts with at least ${100 - lowAt()}% usage left join (Settings).</p>`;
+  } else if (kind === 'think') {
+    const modes = [['hide', 'Hidden', 'Only a count of notes'], ['fold', 'Folded', 'One line each; tap to open'], ['open', 'Open', 'Every note in full']];
+    const names = [...new Set([...S.accounts.map((a) => a.name), ...think.hide])];
+    pop.innerHTML = `<h4>Agents' thinking</h4>${modes.map(([v, b, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}"><span></span><b>${b}</b><span class="tick">✓</span><small>${h}</small></button>`).join('')}
+      ${names.length ? `<h4>Show for</h4>${names.map((n) => `<button type="button" class="opt ${thoughtShown(n) ? 'on' : ''}" data-pick="think-acct" data-v="${esc(n)}">${av(n)}<b>${esc(n)}</b><span class="box">✓</span><small>Thinking notes and live line</small></button>`).join('')}` : ''}
+      <p style="margin:8px 10px">Agents post a short note at key decisions. Their full private reasoning stays in each session (Open session).</p>
+      <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   } else if (kind === 'tmenu') {
     pop.innerHTML = `${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
       ${t.archived ? '<button type="button" class="opt" data-tact="restore"><span></span><b>Restore</b><small>Put it back in the list</small></button>' : '<button type="button" class="opt" data-tact="archive"><span></span><b>Archive</b><small>Hide it and start no new sessions. You can restore it.</small></button>'}
@@ -554,6 +682,13 @@ $('pop').addEventListener('click', async (e) => {
   if (b.dataset.tact) return threadAction(b.dataset.tact);
   const t = S.threads.find((x) => x.id === sel);
   const cur = curPicks(t).accounts.slice();
+  if (b.dataset.pick === 'think-mode' || b.dataset.pick === 'think-acct') {
+    const v = b.dataset.v;
+    if (b.dataset.pick === 'think-mode') think.mode = v;
+    else think.hide = think.hide.includes(v) ? think.hide.filter((x) => x !== v) : [...think.hide, v];
+    saveThink(); render();
+    return openPop('think', document.querySelector('[data-pop="think"]') || b);
+  }
   if (b.dataset.pick === 'model') { closePop(); return setPick({ model: b.dataset.v }); }
   if (b.dataset.pick === 'thinking') { closePop(); return setPick({ thinking: b.dataset.v }); }
   if (b.dataset.pick === 'team') { closePop(); return setPick({ team: Number(b.dataset.v) }); }
@@ -587,6 +722,24 @@ function accountCard(a) {
     <div class="aacts"><button class="btn small ${a.connected ? '' : 'primary'}" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-open="usage" data-name="${esc(a.name)}">Usage</button>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>
   </div>`;
 }
+// ---------- task list (like Projects in Claude) ----------
+const TASK_GROUPS = [
+  ['Working on', 'work', (t) => ['working', 'waiting'].includes(t.status)],
+  ['Not started', 'todo', (t) => ['new', 'queued', 'stalled'].includes(t.status)],
+  ['Finished', 'fin', (t) => t.status === 'done'],
+];
+function taskRow(t) {
+  const who = threadAccounts(t);
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? '<span class="spin">✻</span>' : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+}
+function taskList() {
+  const live = S.threads.filter((t) => !t.archived);
+  if (!live.length) return '';
+  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
+    const rows = live.filter(f);
+    return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
+  }).join('')}</div>`;
+}
 function renderTeam() {
   const rank = (a) => (a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
@@ -596,6 +749,7 @@ function renderTeam() {
   $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button></div>
     ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
+    ${taskList()}
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
       <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
@@ -750,6 +904,7 @@ $('sheetBox').addEventListener('click', async (e) => {
 });
 
 setTab('chat');
+$('loginForm').querySelector('.mark').outerHTML = clawd('wave');
 // With a saved password the page opens straight away (from the last view)
 // and catches up; only a wrong password brings the sign-in box back.
 if (pw) {
