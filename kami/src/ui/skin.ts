@@ -1,4 +1,4 @@
-import type { BoardSkin } from '../../../src/components/Board';
+import type { BoardSkin } from '../../../src/components/boardSkin';
 
 /**
  * Kiai's kaya board: a top-down render of masame kaya and slate and clamshell stone sprites,
@@ -11,4 +11,15 @@ export const KIAI_SKIN: BoardSkin = {
   black: [0, 1, 2, 3].map((i) => `${ART}/b${i}.webp`),
   white: [0, 1, 2, 3, 4, 5].map((i) => `${ART}/w${i}.webp`),
   shadow: `${ART}/shadow.webp`,
+};
+
+/**
+ * The book diagram: a flat printed position on washi, as in a Go book. Plain black discs and
+ * outlined white ones, no shadows, no wood.
+ */
+export const BOOK_SKIN: BoardSkin = {
+  wood: '/kiai/washi.webp',
+  black: ['/kiai/book/b.svg'],
+  white: ['/kiai/book/w.svg'],
+  shadow: '/kiai/book/none.svg',
 };

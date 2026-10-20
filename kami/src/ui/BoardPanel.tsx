@@ -16,7 +16,8 @@ import { splitRich } from '../lib/terms';
 import { Icon } from './Icon';
 import { Performance } from './Performance';
 import { Popover } from './Popover';
-import { KIAI_SKIN } from './skin';
+import { BOOK_SKIN, KIAI_SKIN } from './skin';
+import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Term } from './Term';
@@ -94,12 +95,19 @@ interface Props {
 }
 
 const TABS = [
-  { id: 'trend', label: 'Trend', icon: 'trend' },
-  { id: 'blunder', label: 'Blunders', icon: 'blunder' },
-  { id: 'performance', label: 'Performance', icon: 'performance' },
+  { id: 'trend', label: 'Win chance', icon: 'trend' },
+  { id: 'blunder', label: 'Mistakes', icon: 'blunder' },
+  { id: 'performance', label: 'Strength', icon: 'performance' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 const SIZES = [19, 13, 9];
+/** The board choices, also in Settings › Board (lib/settings.ts `board.style`). */
+const BOARD_STYLES = [
+  { id: 'kaya', label: 'Kaya' },
+  { id: 'shinkaya', label: 'Light wood' },
+  { id: 'dark', label: 'Dark wood' },
+  { id: 'book', label: 'Book' },
+] as const;
 
 /**
  * The largest square that fits the element after `reserve` px of rows above and below it,
@@ -134,8 +142,8 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
 
 /**
  * The board column: the players along the top with the gear, a thin eval bar, the board as
- * big as the column allows (it grows when the column is dragged wider), and one row with the
- * step buttons and the Trend / Blunders / Performance graphs. Everything else (best moves,
+ * big as the column allows (it grows when the column is dragged wider), the move slider, the
+ * step buttons, and the game's graphs (Win chance, Mistakes, Strength). Everything else (best moves,
  * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
 export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings }: Props) {
@@ -151,8 +159,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const bestCount = useSetting<number>('board.bestCount');
   const territoryOn = useSetting<boolean>('board.territory');
   const coords = useSetting<boolean>('board.coords');
-  const want3d = useSetting<boolean>('board.3d') && HAS_GL;
-  const tiltIdle = useSetting<boolean>('board.tilt');
+  const style = useSetting<string>('board.style');
+  const book = style === 'book';
+  const want3d = useSetting<boolean>('board.3d') && HAS_GL && !book;
+  const angled = useSetting<boolean>('board.tilt');
   const file = useRef<HTMLInputElement>(null);
 
   const n = board.moves.length;
@@ -316,19 +326,22 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       onPlay={(l) => play(l)}
       marks={view.marks}
       candidates={candidates}
+      candStyle="plain"
       onCandidateHover={onCandidateHover}
       onCandidateClick={(l) => play(l, true)}
       variation={variation}
       ownership={ownership}
       coords={coords}
-      skin={KIAI_SKIN}
+      skin={book ? BOOK_SKIN : KIAI_SKIN}
+      detail={book ? 'lite' : undefined}
+      className={book ? 'book' : undefined}
       ariaLabel={ariaLabel}
     />
   );
   const caps = view.captures;
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
-  const keyOn = !preview && want3d && !!candidates?.length;
-  const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 26 : 0);
+  const keyOn = !preview && !!candidates?.length;
+  const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 44 : 0);
   // A cropped board keeps its own shape inside the square.
   const aspect = crop ? cropAspect(crop, coords) : 1;
   const boxW = Math.round(aspect >= 1 ? side : side * aspect);
@@ -341,7 +354,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const shown = withStones && !preview ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
-  const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'B' : 'W'}+${Math.abs(lead).toFixed(1)}`;
+  const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'Black' : 'White'} +${Math.abs(lead).toFixed(1)}`;
 
   const player = (c: 1 | 2) => (
     <span className={`pl${toPlay === c && !preview ? ' turn' : ''}`} title={toPlay === c ? `${c === 1 ? board.black || 'Black' : board.white || 'White'} to play` : undefined}>
@@ -410,6 +423,23 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 <Switch on={bestOn} onChange={(v) => setSetting('board.best', v)} label="Best moves" icon="target" />
                 <Switch on={territoryOn} onChange={(v) => setSetting('board.territory', v)} label="Territory" icon="territory" />
                 <Switch on={coords} onChange={(v) => setSetting('board.coords', v)} label="Coordinates" icon="board" />
+                <hr />
+                <div className="pop-sub">Board</div>
+                <div className="board-styles" role="radiogroup" aria-label="Board">
+                  {BOARD_STYLES.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={style === b.id}
+                      className={style === b.id ? 'on' : ''}
+                      onClick={() => setSetting('board.style', b.id)}
+                    >
+                      <i className={`swatch ${b.id}`} aria-hidden="true" />
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
                 <hr />
                 <button
                   type="button"
@@ -506,12 +536,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
           }
         >
-          <span className="ev-n">{shown ? `${(bWin * 100).toFixed(1)}%` : 'Black'}</span>
+          <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
             <span className="ev-fill" style={{ width: `${(bWin * 100).toFixed(1)}%` }} />
             <span className="ev-mid" />
           </span>
-          <span className="ev-n">{shown ? `${((1 - bWin) * 100).toFixed(1)}%` : 'White'}</span>
+          <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
           {pending && status.state === 'ready' && <span className="ev-dot" aria-label="KataGo is reading" />}
         </div>
@@ -536,7 +566,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   variation={variation}
                   ownership={ownership}
                   coords={coords}
-                  idleTiltMs={tiltIdle && !preview ? 15000 : 0}
+                  tilt={angled ? 24 : 0}
+                  wood={(style === 'shinkaya' || style === 'dark' ? style : 'kaya') as BoardWood}
                   ariaLabel={ariaLabel}
                 />
               </Suspense>
@@ -546,7 +577,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </div>
           {keyOn && (
             <p className="bp-key">
-              <i aria-hidden="true" /> {toPlay === 1 ? 'Black' : 'White'}’s win rate there · visits below · ring: share of KataGo’s search
+              {book ? (
+                <>
+                  Numbers on the board: KataGo’s best moves (best underlined). Each: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                </>
+              ) : (
+                <>
+                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                </>
+              )}
             </p>
           )}
           {preview && (
@@ -572,45 +611,61 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
       {!preview && (
         <div className="bp-foot">
-          <div className="bp-scrub" title={moveLine}>
-            <input
-              type="range"
-              className="scrub"
-              min={0}
-              max={Math.max(n, 1)}
-              step={1}
-              value={board.cursor}
-              disabled={!n}
-              onChange={(e) => go(Number(e.target.value))}
-              aria-label="Move"
-              aria-valuetext={moveLine}
-              style={{ '--pct': `${n ? (100 * board.cursor) / n : 0}%`, '--tick': `${n > 10 ? (1000 / n).toFixed(3) : 100}%` } as React.CSSProperties}
-            />
+          <div className="bp-nav" role="group" aria-label="Step through the game">
+            <button type="button" className="step-btn" aria-label="First move" title="First move (Home)" disabled={!board.cursor} onClick={() => go(0)}>
+              <Icon name="first" size={20} />
+            </button>
+            <button type="button" className="step-btn" aria-label="Back one move" title="Back one move (←)" disabled={!board.cursor} onClick={() => go(board.cursor - 1)}>
+              <Icon name="prev" size={20} />
+            </button>
+            <div className="bp-scrub" title={moveLine}>
+              <input
+                type="range"
+                className="scrub"
+                min={0}
+                max={Math.max(n, 1)}
+                step={1}
+                value={board.cursor}
+                disabled={!n}
+                onChange={(e) => go(Number(e.target.value))}
+                aria-label="Move"
+                aria-valuetext={moveLine}
+                style={{ '--pct': `${n ? (100 * board.cursor) / n : 0}%`, '--tick': `${n > 10 ? (1000 / n).toFixed(3) : 100}%` } as React.CSSProperties}
+              />
+            </div>
+            <button type="button" className="step-btn" aria-label="Forward one move" title="Forward one move (→)" disabled={board.cursor >= n} onClick={() => go(board.cursor + 1)}>
+              <Icon name="next" size={20} />
+            </button>
+            <button type="button" className="step-btn" aria-label="Last move" title="Last move (End)" disabled={board.cursor >= n} onClick={() => go(n)}>
+              <Icon name="last" size={20} />
+            </button>
+          </div>
+          <div className="bp-row">
             <span className="bp-count">
               <span className="mv">Move</span>
               {board.cursor}
               {n > 0 && <span className="of"> / {n}</span>}
             </span>
+            {n > 0 && (
+              <div className="bp-tabs" role="tablist" aria-label="Game graphs">
+                {TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-label={t.label}
+                    aria-selected={tab === t.id}
+                    className={tab === t.id ? 'on' : ''}
+                    title={tab === t.id ? `Close ${t.label}` : t.label}
+                    onClick={() => setTab(tab === t.id ? null : t.id)}
+                  >
+                    <Icon name={t.icon} size={16} />
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {n > 0 && (
-            <div className="bp-tabs" role="tablist" aria-label="Game graphs">
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-label={t.label}
-                  aria-selected={tab === t.id}
-                  className={tab === t.id ? 'on' : ''}
-                  title={tab === t.id ? `Close ${t.label}` : t.label}
-                  onClick={() => setTab(tab === t.id ? null : t.id)}
-                >
-                  <Icon name={t.icon} size={16} />
-                  <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

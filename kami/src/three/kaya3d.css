@@ -239,11 +239,16 @@
   top: 0;
   box-sizing: border-box;
 }
+/* the last move: a small solid dot (a ring read as a "0" next to the numbered pale stones) */
+.k3-last::before {
+  width: max(5px, calc(var(--cell) * 0.26));
+  height: max(5px, calc(var(--cell) * 0.26));
+}
 .k3-last.on-b::before {
-  border: max(1.5px, calc(var(--cell) * 0.06)) solid #f4f8fb;
+  background: #f4f1ea;
 }
 .k3-last.on-w::before {
-  border: max(1.5px, calc(var(--cell) * 0.06)) solid #12161b;
+  background: #15130f;
 }
 .k3-mark::before {
   width: calc(var(--cell) * 0.7);
@@ -264,9 +269,10 @@
 }
 
 .k3-coord b {
-  font-size: max(10.5px, calc(var(--cell) * 0.4));
+  /* in step with the squares, so a small board's letters never run into each other */
+  font-size: clamp(13px, calc(var(--cell) * 0.82), 19px);
   font-weight: 600;
-  color: var(--ink-3, #5a6878);
+  color: #1d242c;
 }
 
 /* on a phone the app's discs drop their visits; a tag's coordinate stays */
