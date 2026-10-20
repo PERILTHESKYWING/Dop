@@ -52,6 +52,7 @@ import {
   SpriteMaterial,
   ShadowMaterial,
   SRGBColorSpace,
+  CanvasTexture,
   Texture,
   TextureLoader,
   TubeGeometry,
@@ -83,6 +84,53 @@ const ART = '/kiai/3d';
 
 export type Loc = number;
 export type StoneColor = 1 | 2;
+/** The wood: honey kaya like XIAO's reference board, pale shin-kaya, or deep aged wood. */
+export type BoardWood = 'kaya' | 'shinkaya' | 'dark';
+const WOOD: Record<BoardWood, { prefix: string; tint: number; lines: number }> = {
+  kaya: { prefix: '', tint: 0xccad8f, lines: 0x1a120c },
+  shinkaya: { prefix: 'shinkaya-', tint: 0xfffae0, lines: 0x221a12 },
+  dark: { prefix: 'dark-', tint: 0xf2f2f2, lines: 0x0d0805 },
+};
+
+/**
+ * A translucent stone with an optional number printed on it, the way Go books mark a line of
+ * play or a choice of moves: KataGo's candidates (the win chance on each) and a variation (the
+ * order of the moves). No glow, no rings: the number is drawn on the stone's face, so it leans
+ * and shades with the board.
+ */
+export interface PaleMark {
+  loc: Loc;
+  color: StoneColor;
+  text?: string;
+  /** How solid the stone is, 0..1. */
+  alpha: number;
+  /** A cream stone with a dark number whatever the colour (KataGo's choices, not a real stone). */
+  cream?: boolean;
+}
+
+/** Printed numbers, one canvas each, kept for the page's life (a few dozen at most). */
+const numberTex = new Map<string, Texture>();
+let numberFontReady: Promise<void> | null = null;
+function numberTexture(text: string, ink: string): Texture {
+  const key = `${text}|${ink}`;
+  let t = numberTex.get(key);
+  if (t) return t;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = ink;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  // as big as the stone allows: a number should read at a glance even on a small board
+  const px = text.length >= 3 ? 76 : text.length === 2 ? 112 : 118;
+  g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
+  g.fillText(text, 64, 71, 118);
+  t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 4;
+  numberTex.set(key, t);
+  return t;
+}
 
 export interface CandGlow {
   loc: Loc;
@@ -118,6 +166,9 @@ export interface KayaOptions {
   size: number;
   /** Board thickness in metres (a table board is 0.06; floor boards up to 0.18). */
   thickness?: number;
+  wood?: BoardWood;
+  /** A faint ring spreads from each stone set down (the landing). Off in the app. */
+  ripples?: boolean;
   bowls?: boolean;
   /** Catch the set's shadows on an invisible table (when drawn over a photographed table). */
   shadowCatcher?: boolean;
@@ -125,6 +176,10 @@ export interface KayaOptions {
   sun?: { elev: number; azim: number };
   toneMapping?: 'agx' | 'aces';
   exposure?: number;
+  /** How much the sky lights and reflects in the set (0.85 by default). */
+  envIntensity?: number;
+  /** The sun's strength (2.6 by default). */
+  sunStrength?: number;
   /** Lower pixel ratio and shadow map, for phones and thumbnails. */
   lite?: boolean;
   /** Size of the light effects (halos, ripples, arcs); above 1 for a board seen from afar. */
@@ -496,6 +551,8 @@ export class KayaView {
   private candGroup = new Group();
   private ownMesh: InstancedMesh[] = [];
   private varGroup = new Group();
+  private paleGroup = new Group();
+  private paleMarks: PaleMark[] | null = null;
   private beam: Mesh<CylinderGeometry, MeshBasicMaterial> | null = null;
   private beamLoc: Loc = -1;
   private cands = new Map<Loc, CandFx>();
@@ -507,6 +564,7 @@ export class KayaView {
   private fx: number;
   private under: Mesh<PlaneGeometry, MeshBasicMaterial> | null = null;
   readonly pillarH: number;
+  private ripples: boolean;
   /** Keep drawing for the pulses and motes (at most ~45 frames a second) while on screen. */
   private ambient = false;
   private lastDraw = 0;
@@ -537,12 +595,12 @@ export class KayaView {
     const pm = new PMREMGenerator(this.renderer);
     const sky = skyTexture(sunDir.elev, sunDir.azim);
     this.scene.environment = pm.fromEquirectangular(sky).texture;
-    this.scene.environmentIntensity = 0.85;
+    this.scene.environmentIntensity = o.envIntensity ?? 0.85;
     sky.dispose();
     pm.dispose();
 
     const se = MathUtils.degToRad(sunDir.elev), sa = MathUtils.degToRad(sunDir.azim);
-    this.sunLight = new DirectionalLight(0xfff3e4, 2.6);
+    this.sunLight = new DirectionalLight(0xfff3e4, o.sunStrength ?? 2.6);
     this.sunLight.position.set(Math.cos(se) * Math.cos(sa), Math.sin(se), -Math.cos(se) * Math.sin(sa)).multiplyScalar(2);
     this.sunLight.castShadow = true;
     const sh = this.sunLight.shadow;
@@ -569,7 +627,9 @@ export class KayaView {
       2: new MeshPhysicalMaterial({ color: 0xf2f7fa, roughness: 0.22, clearcoat: 0.6, transparent: true, opacity: 0.85, emissive: new Color(0x1f8fbf), emissiveIntensity: 0.22 }),
     };
     this.stoneMesh = { 1: this.instStones(1), 2: this.instStones(2) };
-    this.buildBoard(o.shadowCatcher ?? false);
+    this.ripples = o.ripples ?? true;
+    this.buildBoard(o.shadowCatcher ?? false, WOOD[o.wood ?? 'kaya']);
+    this.set.add(this.paleGroup);
     if (o.bowls) this.buildBowls();
     if (o.stage === 'void') this.buildVoid();
     this.set.add(this.glow);
@@ -598,22 +658,22 @@ export class KayaView {
     return out.set((x - (n - 1) / 2) * SX, this.BT + lift, (y - (n - 1) / 2) * SY);
   }
 
-  private buildBoard(catcher: boolean) {
+  private buildBoard(catcher: boolean, wood: (typeof WOOD)[BoardWood]) {
     const n = this.size;
     const W = (n - 1) * SX + 2 * MX, L = (n - 1) * SY + 2 * MY, T = this.BT;
     const g = new RoundedBoxGeometry(W, T, L, 4, 0.0036);
     // the top texture is cut to this board's size from a 19x19 board's top
     const fx = W / 0.424, fy = L / 0.454;
-    const top = tex('kaya-top.webp', true, `n${n}`);
+    const top = tex(`${wood.prefix}kaya-top.webp`, true, `n${n}`);
     top.repeat.set(fx, fy);
     top.offset.set((1 - fx) / 2, (1 - fy) / 2);
     const bump = tex('kaya-bump.webp', false, `n${n}`);
     bump.repeat.copy(top.repeat);
     bump.offset.copy(top.offset);
-    // a satin finish: enough gloss for a soft glint, little enough that a bright sky doesn't veil the grain
-    const topMat = new MeshPhysicalMaterial({ map: top, color: 0xf8d0a8, bumpMap: bump, bumpScale: 0.45, roughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.42, specularIntensity: 0.38 });
-    const front = new MeshPhysicalMaterial({ map: tex('kaya-front.webp'), roughness: 0.66, specularIntensity: 0.3 });
-    const side = new MeshPhysicalMaterial({ map: tex('kaya-side.webp'), roughness: 0.66, specularIntensity: 0.3 });
+    // an oiled, almost matte finish, as on the reference board: a bright sky must not veil the wood's colour
+    const topMat = new MeshPhysicalMaterial({ map: top, color: wood.tint, bumpMap: bump, bumpScale: 0.35, roughness: 0.62, clearcoat: 0.05, clearcoatRoughness: 0.5, specularIntensity: 0.18 });
+    const front = new MeshPhysicalMaterial({ map: tex(`${wood.prefix}kaya-front.webp`), roughness: 0.66, specularIntensity: 0.3 });
+    const side = new MeshPhysicalMaterial({ map: tex(`${wood.prefix}kaya-side.webp`), roughness: 0.66, specularIntensity: 0.3 });
     const under = new MeshPhysicalMaterial({ color: 0x6b4120, roughness: 0.9 });
     // BoxGeometry groups: +x, -x, +y, -y, +z, -z
     this.board = new Mesh(g, [side, side, topMat, under, front, front]);
@@ -654,7 +714,7 @@ export class KayaView {
     lg.computeVertexNormals();
     const nrm = lg.getAttribute('normal') as BufferAttribute;
     for (let i = 0; i < nrm.count; i++) nrm.setXYZ(i, 0, 1, 0);
-    const lm = new MeshPhysicalMaterial({ color: 0x1a120c, roughness: 0.62, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide });
+    const lm = new MeshPhysicalMaterial({ color: wood.lines, roughness: 0.62, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide });
     this.lines = new Mesh(lg, lm);
     this.lines.position.y = T + 0.00004;
     this.lines.receiveShadow = true;
@@ -778,7 +838,7 @@ export class KayaView {
     if (animate && added.length <= 2 && added.length + removed.length <= 40) {
       for (const l of added) {
         this.animateDrop(l, this.stoneAt[l] as StoneColor);
-        window.setTimeout(() => !this.disposed && this.ripple(l, 0xd8f4ff, 1.8, 750, 0.45), 210);
+        if (this.ripples) window.setTimeout(() => !this.disposed && this.ripple(l, 0xd8f4ff, 1.8, 750, 0.45), 210);
       }
       for (const r of removed) this.animateCapture(r.loc, r.c);
     }
@@ -1451,6 +1511,61 @@ export class KayaView {
     this.invalidate();
   }
 
+  /**
+   * Translucent stones with numbers on their faces (see PaleMark). Replaces what was shown;
+   * null clears. If the site's font has not loaded yet, they are drawn again once it has.
+   */
+  setPale(marks: PaleMark[] | null) {
+    for (const o of [...this.paleGroup.children]) {
+      this.paleGroup.remove(o);
+      const m = o as Mesh;
+      if (m.geometry && m.geometry !== this.stoneGeo[1] && m.geometry !== this.stoneGeo[2]) m.geometry.dispose();
+      (m.material as Material).dispose();
+    }
+    this.paleMarks = marks;
+    if (marks?.length && typeof document !== 'undefined' && document.fonts && !numberFontReady) {
+      numberFontReady = document.fonts.load('800 64px "Alegreya Sans"').then(
+        () => {
+          numberTex.forEach((t) => t.dispose());
+          numberTex.clear();
+          if (!this.disposed && this.paleMarks) this.setPale(this.paleMarks);
+        },
+        () => undefined,
+      );
+    }
+    const seen = new Set<Loc>();
+    for (const m of marks ?? []) {
+      if (m.loc < 0 || seen.has(m.loc)) continue;
+      seen.add(m.loc);
+      // a mark on a point that already has a stone (a line that recaptures) sits on top of it
+      const over = this.stoneAt[m.loc] ? 0.0095 : 0;
+      const black = m.color === 1 && !m.cream;
+      const mat = new MeshPhysicalMaterial({
+        color: black ? 0x101113 : m.cream ? 0xf7f0e3 : 0xf4eadb,
+        roughness: 0.32,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.2,
+        transparent: true,
+        opacity: m.alpha,
+        depthWrite: m.alpha > 0.8,
+      });
+      const stone = new Mesh(this.stoneGeo[m.color], mat);
+      stone.applyMatrix4(this.stoneMatrix(m.loc, m.color, over));
+      stone.renderOrder = 4;
+      this.paleGroup.add(stone);
+      if (!m.text) continue;
+      const d = (m.color === 1 ? STONE_B : STONE_W).d * 0.96;
+      const face = new Mesh(
+        new PlaneGeometry(d, d).rotateX(-Math.PI / 2),
+        new MeshBasicMaterial({ map: numberTexture(m.text, black ? '#f3eee4' : '#17140f'), transparent: true, depthWrite: false, toneMapped: false }),
+      );
+      face.position.copy(this.pointAt(m.loc, over + (m.color === 1 ? STONE_B : STONE_W).t + 0.0003));
+      face.renderOrder = 5;
+      this.paleGroup.add(face);
+    }
+    this.invalidate();
+  }
+
   /** Pulsing rings on a few points (the move a question is about). */
   setHighlights(locs: Loc[], color = 0xffffff) {
     for (const p of this.pulses.filter((x) => x.mesh.userData.hl)) {
@@ -1556,7 +1671,8 @@ export class KayaView {
       if (v.shift) this.camera.setViewOffset(this.w, this.h, -v.shift * this.w, 0, this.w, this.h);
       return { pos, quat: new Quaternion().setFromRotationMatrix(m), fov };
     }
-    // straight down, fitted to the board (or a crop of it) plus a margin for the coordinates
+    // straight down (or leaning back by `tilt` degrees, so the board's front edge shows as it does
+    // on a table), fitted to the board or a crop of it plus a margin for the coordinates
     const fov = 20;
     const crop = v.crop ?? { x0: 0, y0: 0, x1: n - 1, y1: n - 1 };
     const pad = v.pad ?? 0;
@@ -1566,12 +1682,42 @@ export class KayaView {
     const hw = ((crop.x1 - crop.x0) / 2) * SX + (whole ? MX : SX * 0.7) + pad * SX;
     const hh = ((crop.y1 - crop.y0) / 2) * SY + (whole ? MY : SY * 0.7) + pad * SY;
     const t = Math.tan(MathUtils.degToRad(fov) / 2);
-    const dist = Math.max(hh / t, hw / (t * aspect)) + this.BT * 0;
     const tilt = MathUtils.degToRad(v.tilt ?? 0);
-    const tgt = new Vector3(cx, this.BT, cz);
-    const pos = new Vector3(cx, this.BT + dist * Math.cos(tilt), cz + dist * Math.sin(tilt));
-    const m = new Matrix4().lookAt(pos, tgt, new Vector3(0, 0, -1));
-    return { pos, quat: new Quaternion().setFromRotationMatrix(m), fov };
+    const look = (dist: number, shiftZ: number) => {
+      const tgt = new Vector3(cx, this.BT, cz + shiftZ);
+      const pos = new Vector3(cx, this.BT + dist * Math.cos(tilt), cz + shiftZ + dist * Math.sin(tilt));
+      const m = new Matrix4().lookAt(pos, tgt, new Vector3(0, 0, -1));
+      return { pos, quat: new Quaternion().setFromRotationMatrix(m), fov };
+    };
+    let dist = Math.max(hh / t, hw / (t * aspect));
+    if (!tilt) return look(dist, 0);
+    // leaning: project the corners (with the front face for a whole board), then rescale and recentre
+    const pts = [
+      new Vector3(cx - hw, this.BT, cz - hh), new Vector3(cx + hw, this.BT, cz - hh),
+      new Vector3(cx - hw, this.BT, cz + hh), new Vector3(cx + hw, this.BT, cz + hh),
+    ];
+    if (whole) pts.push(new Vector3(cx - hw, 0, cz + hh), new Vector3(cx + hw, 0, cz + hh));
+    const cam = this.camera.clone();
+    cam.aspect = aspect;
+    cam.fov = fov;
+    let shift = 0;
+    for (let i = 0; i < 3; i++) {
+      const c = look(dist, shift);
+      cam.position.copy(c.pos);
+      cam.quaternion.copy(c.quat);
+      cam.updateMatrixWorld();
+      cam.updateProjectionMatrix();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of pts) {
+        const q = p.clone().project(cam);
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+      }
+      const span = Math.max((x1 - x0) / 2, (y1 - y0) / 2);
+      dist *= span;
+      // move the aim so the board sits in the middle of the frame (y is up on screen, z toward the viewer)
+      shift -= ((y0 + y1) / 2) * hh * 1.1;
+    }
+    return look(dist, shift);
   }
 
   // ---------------------------------------------------------------- picking and projecting

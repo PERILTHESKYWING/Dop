@@ -1,15 +1,14 @@
 /**
- * The app's board in 3D: KayaView seen from straight above (so a tap lands exactly where it
- * looks), with the same props as the flat Board. Words and numbers (winrates, move numbers,
- * coordinates, marks) are HTML laid over the canvas at each point's projected position, so
- * they stay sharp. After a while without the pointer, the board leans back a little; it
- * straightens when the pointer comes back.
+ * The app's board in 3D: KayaView seen from a little in front, as a board on a table looks
+ * (or straight down), with the same props as the flat Board. Taps are ray-cast onto the board,
+ * so they land on the point under the finger at any angle. Words and numbers (winrates, move
+ * numbers, coordinates, marks) are HTML laid over the canvas at each point's projected
+ * position, so they stay sharp. Nothing pulses or ripples.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CandidateMark, Mark } from '../../../src/components/Board';
-import { shortCount } from '../../../src/components/Board';
 import { PASS, type Color, type Loc, type Move } from '../../../src/lib/go/types';
-import { KayaView, type StoneColor } from './kaya';
+import { KayaView, type BoardWood, type PaleMark, type StoneColor } from './kaya';
 import './kaya3d.css';
 
 export interface Kaya3DProps {
@@ -26,13 +25,21 @@ export interface Kaya3DProps {
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   variation?: Move[] | null;
-  /** Lean back after this long without the pointer (0 = never). */
-  idleTiltMs?: number;
+  /** Degrees the view leans back from straight down (0 = straight down). */
+  tilt?: number;
+  wood?: BoardWood;
   ariaLabel?: string;
 }
 
 const COLS = 'ABCDEFGHJKLMNOPQRSTUVWXYZ';
+/** A win chance as a whole number out of 100. */
+const winText = (w: number) => {
+  const p = w * 100;
+  return p >= 99.5 ? '100' : p < 0.5 ? '0' : p.toFixed(0);
+};
 const STONE_TOP = 0.0088;
+/** The board's thickness in metres (KayaView's default). */
+const BOARD_T = 0.06;
 
 interface Label {
   key: string;
@@ -51,7 +58,8 @@ export default function Kaya3D(p: Kaya3DProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const layer = useRef<HTMLDivElement>(null);
   const viewRef = useRef<KayaView | null>(null);
-  const [ready, setReady] = useState(false);
+  // bumped each time a view is made (board size or wood changed), so everything is set on the new one
+  const [ready, setReady] = useState(0);
   const lite = useRef(false);
   const size = p.size;
 
@@ -59,12 +67,14 @@ export default function Kaya3D(p: Kaya3DProps) {
   useEffect(() => {
     const c = canvas.current!;
     lite.current = window.matchMedia('(pointer: coarse)').matches;
-    const v = new KayaView({ canvas: c, size, toneMapping: 'aces', exposure: 0.9, lite: lite.current });
+    const v = new KayaView({ canvas: c, size, toneMapping: 'aces', exposure: 0.9, lite: lite.current, wood: p.wood ?? 'kaya', ripples: false, sun: { elev: 36, azim: 150 }, sunStrength: 3.4, envIntensity: 0.5 });
     viewRef.current = v;
+    // development builds only: the view, for checking marks from the console or a test browser
+    if (import.meta.env.DEV) (window as unknown as { __kaya3d?: KayaView }).__kaya3d = v;
     const ro = new ResizeObserver(() => v.setSize(c.clientWidth, c.clientHeight));
     ro.observe(c);
     v.setSize(c.clientWidth, c.clientHeight);
-    setReady(true);
+    setReady((r) => r + 1);
     const vis = new IntersectionObserver(([e]) => v.setActive(e.isIntersecting));
     vis.observe(c);
     return () => {
@@ -72,59 +82,47 @@ export default function Kaya3D(p: Kaya3DProps) {
       vis.disconnect();
       v.dispose();
       viewRef.current = null;
-      setReady(false);
     };
-  }, [size]);
-
-  // straight down, fitted to the board or its crop, leaving room for the coordinates
-  const cropKey = p.crop ? `${p.crop.x0},${p.crop.y0},${p.crop.x1},${p.crop.y1}` : '';
-  const [tilted, setTilted] = useState(false);
-  useEffect(() => {
-    viewRef.current?.setView({ kind: 'top', crop: p.crop ?? null, pad: p.coords ? 0.75 : 0.1, tilt: tilted ? 22 : 0 }, tilted ? 1600 : 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, cropKey, p.coords, tilted]);
+  }, [size, p.wood]);
 
-  // lean back when left alone; come back upright as soon as the pointer returns
-  const idle = p.idleTiltMs ?? 0;
+  // fitted to the board or its crop, leaving room for the coordinates; a crop is always seen straight down
+  const cropKey = p.crop ? `${p.crop.x0},${p.crop.y0},${p.crop.x1},${p.crop.y1}` : '';
+  const tilt = p.crop ? 0 : (p.tilt ?? 0);
   useEffect(() => {
-    if (!idle || !ready) return;
-    const el = wrap.current!;
-    let timer = 0;
-    const arm = () => {
-      window.clearTimeout(timer);
-      setTilted(false);
-      timer = window.setTimeout(() => setTilted(true), idle);
-    };
-    arm();
-    el.addEventListener('pointerenter', arm);
-    el.addEventListener('pointermove', arm);
-    el.addEventListener('pointerdown', arm);
-    return () => {
-      window.clearTimeout(timer);
-      el.removeEventListener('pointerenter', arm);
-      el.removeEventListener('pointermove', arm);
-      el.removeEventListener('pointerdown', arm);
-    };
-  }, [idle, ready]);
+    viewRef.current?.setView({ kind: 'top', crop: p.crop ?? null, pad: p.coords ? 0.95 : 0.1, tilt }, 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cropKey, p.coords, tilt]);
 
   useEffect(() => {
     viewRef.current?.setStones(p.stones);
   }, [ready, p.stones]);
 
-  const candKey = (p.candidates ?? []).map((c) => c.loc).join(',');
-  const lastCand = useRef('');
+  // KataGo's best moves as pale cream stones, each with its win chance printed on it in dark ink
+  // (see-through, and numbered, so they never pass for real stones); a line of play (hovering a
+  // move) as numbered stones of each colour. Nothing glows or pulses.
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
-    const fresh = candKey !== lastCand.current && lastCand.current === '';
-    lastCand.current = candKey;
-    const shown = p.variation?.length ? null : (p.candidates ?? null);
-    v.setCandidates(shown, fresh);
-    // a new read lights up the grid; on a computer the best move keeps pulsing while it shows
-    if (fresh && shown?.length) v.ping(shown.find((c) => c.rank === 0)?.loc ?? null, 1300, true);
-    v.setAmbient(!!shown?.length && !lite.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, p.candidates, p.variation]);
+    if (p.variation?.length) {
+      const seen = new Set<Loc>();
+      const marks: PaleMark[] = [];
+      p.variation.forEach((m, i) => {
+        if (m.loc === PASS || seen.has(m.loc)) return;
+        seen.add(m.loc);
+        marks.push({ loc: m.loc, color: m.color as StoneColor, text: String(i + 1), alpha: 0.88 });
+      });
+      v.setPale(marks);
+      return;
+    }
+    const side = (p.toPlay ?? 1) as StoneColor;
+    const light = p.wood === 'shinkaya';
+    const marks = (p.candidates ?? [])
+      .filter((c) => c.loc !== PASS && !p.stones[c.loc])
+      // on the pale shin-kaya a see-through cream stone would vanish, so it is nearly solid there
+      .map((c) => ({ loc: c.loc, color: side, text: winText(c.winrate), alpha: light ? (c.rank === 0 ? 0.97 : 0.9) : c.rank === 0 ? 0.86 : 0.72, cream: true }));
+    v.setPale(marks.length ? marks : null);
+  }, [ready, p.candidates, p.variation, p.toPlay, p.stones, p.wood]);
 
   const hadOwn = useRef(false);
   useEffect(() => {
@@ -134,30 +132,12 @@ export default function Kaya3D(p: Kaya3DProps) {
     hadOwn.current = !!p.ownership;
   }, [ready, p.ownership, p.stones]);
 
-  useEffect(() => {
-    viewRef.current?.setVariation(p.variation?.filter((m) => m.loc !== PASS).map((m) => ({ loc: m.loc, color: m.color as StoneColor })) ?? null, 0);
-  }, [ready, p.variation]);
 
   // ------------------------------------------------------------- labels over the canvas
 
   const labels = useMemo(() => {
     const out: Label[] = [];
     const st = p.stones;
-    if (p.variation?.length) {
-      const seen = new Set<Loc>();
-      const last = p.variation.length - 1;
-      p.variation.forEach((m, i) => {
-        if (m.loc === PASS || seen.has(m.loc)) return;
-        seen.add(m.loc);
-        out.push({ key: `v${m.loc}`, loc: m.loc, lift: st[m.loc] ? STONE_TOP + 0.0095 : STONE_TOP + 0.0012, cls: `k3-var ${m.color === 1 ? 'b' : 'w'}${i === last ? ' cur' : ''}`, text: String(i + 1) });
-      });
-    } else if (p.candidates?.length) {
-      for (const c of p.candidates) {
-        if (c.loc === PASS || st[c.loc]) continue;
-        const wr = c.winrate * 100;
-        out.push({ key: `c${c.loc}`, loc: c.loc, lift: 0.0004, cls: `k3-cand${c.rank === 0 ? ' best' : ''}`, text: wr >= 99.5 ? '100' : wr < 0.5 ? '0' : wr.toFixed(0), sub: shortCount(c.visits) });
-      }
-    }
     if (p.lastMove != null && p.lastMove !== PASS && st[p.lastMove] && !p.variation?.length) out.push({ key: `last${p.lastMove}`, loc: p.lastMove, lift: STONE_TOP, cls: `k3-last ${st[p.lastMove] === 1 ? 'on-b' : 'on-w'}` });
     for (const [k, m] of (p.marks ?? []).entries()) {
       if (m.loc === PASS || m.loc == null) continue;
@@ -166,9 +146,11 @@ export default function Kaya3D(p: Kaya3DProps) {
     if (p.coords) {
       const c = p.crop ?? { x0: 0, y0: 0, x1: size - 1, y1: size - 1 };
       const whole = !p.crop;
-      const off = whole ? 1.05 : 0.95;
+      const off = whole ? 1.22 : 0.95;
+      // seen at an angle, the bottom letters sit on the table just in front of the board, below its front face
+      const front = whole && tilt > 0 ? -BOARD_T : 0;
       for (let x = c.x0; x <= c.x1; x++) {
-        out.push({ key: `cx${x}`, loc: c.y1 * size + x, lift: 0, cls: 'k3-coord', text: COLS[x], dy: off });
+        out.push({ key: `cx${x}`, loc: c.y1 * size + x, lift: front, cls: 'k3-coord', text: COLS[x], dy: front ? 1.3 : off });
         out.push({ key: `cxt${x}`, loc: c.y0 * size + x, lift: 0, cls: 'k3-coord', text: COLS[x], dy: -off });
       }
       for (let y = c.y0; y <= c.y1; y++) {
@@ -177,7 +159,7 @@ export default function Kaya3D(p: Kaya3DProps) {
       }
     }
     return out;
-  }, [p.stones, p.variation, p.candidates, p.lastMove, p.marks, p.coords, p.crop, size]);
+  }, [p.stones, p.variation, p.candidates, p.lastMove, p.marks, p.coords, p.crop, size, tilt]);
 
   // place them after every frame the view draws (the camera may be easing)
   useEffect(() => {

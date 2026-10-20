@@ -3,6 +3,7 @@ import { BadgeShape } from './MoveBadge';
 import type { MoveClass } from '../lib/coach/classify';
 import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
+import type { BoardSkin } from './boardSkin';
 
 export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var' | 'next';
 
@@ -54,6 +55,11 @@ export interface BoardProps {
   animate?: boolean;
   /** Candidate moves with their numbers (live analysis). */
   candidates?: CandidateMark[] | null;
+  /**
+   * How candidates look: 'heat' (default) coloured discs with win rate, visits and lead;
+   * 'plain' a printed circle with just the win chance, the way a Go book marks choices.
+   */
+  candStyle?: 'heat' | 'plain';
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -64,17 +70,7 @@ export interface BoardProps {
   skin?: BoardSkin;
 }
 
-/**
- * Rendered board art: a top-down wood image and stone sprites. Stone sprites are square, the
- * stone filling 1/1.25 of the width (black's diameter); the shadow sprite is twice as wide and
- * already offset by the light. Several sprites per colour are spread over the board by point.
- */
-export interface BoardSkin {
-  wood: string;
-  black: string[];
-  white: string[];
-  shadow: string;
-}
+export type { BoardSkin };
 /** Sprite widths in board units: the stone sprite and its shadow. */
 const SKIN_STONE = 2 * 0.483 * 1.25;
 const SKIN_SHADOW = SKIN_STONE * 2;
@@ -697,7 +693,8 @@ function BoardImpl(p: BoardProps) {
 
   // Candidate discs (Lizzie style), under the marks. Best move cyan; the others coloured by how much worse they are.
   const unitPx = px ? px / (cropped ? crop.x1 - crop.x0 + 2 * g.m : g.W) : 40;
-  const compact = unitPx < 27;
+  const plain = p.candStyle === 'plain';
+  const compact = plain || unitPx < 27;
   const candEls = (p.candidates ?? [])
     .filter((c) => c.loc !== PASS && !board[c.loc] && inWin(c.loc % size, Math.floor(c.loc / size)))
     .sort((a, b) => b.rank - a.rank)
@@ -708,10 +705,10 @@ function BoardImpl(p: BoardProps) {
       return (
         <g
           key={`c${c.loc}`}
-          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}`}
-          style={{ opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}`}
+          style={plain ? undefined : { opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
         >
-          <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
           {compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
               {Math.round(wr)}

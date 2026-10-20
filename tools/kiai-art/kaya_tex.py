@@ -3,7 +3,9 @@ of the grain, the bowls' mulberry, and the clamshell stripes of white stones. Al
 (numpy), so nothing is downloaded. The top's straight masame grain runs along the board's
 length, as on XIAO's reference board: honey to amber bands, fine dark latewood lines that fade
 in and out, and long fibres.
-Usage: python kaya_tex.py OUT_DIR [SEED]"""
+Styles (the app's board choice): kaya (honey, like XIAO's reference board; also writes the bump,
+bowls and shells), shinkaya (pale spruce, the common club board), dark (deep, aged wood).
+Usage: python kaya_tex.py OUT_DIR [SEED] [STYLE]"""
 import os
 import sys
 import numpy as np
@@ -11,6 +13,8 @@ from PIL import Image
 
 OUT = sys.argv[1]
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 11
+STYLE = sys.argv[3] if len(sys.argv) > 3 else 'kaya'
+PREFIX = '' if STYLE == 'kaya' else f'{STYLE}-'
 os.makedirs(OUT, exist_ok=True)
 BW, BL = 0.424, 0.454
 W = 2048
@@ -94,11 +98,18 @@ fib = noise2(H, W, 520, 9, rng, slope=0.2)
 # broad tone drift across the board (no two boards are even)
 tone = noise2(H, W, 2.2, 1.6, rng, slope=1.5)
 
-KAYA = [(0.0, (216, 150, 80)), (0.35, (204, 137, 67)), (0.7, (190, 123, 55)), (1.0, (172, 106, 44))]
-col = ramp(B, KAYA)
-col *= (1 + 0.06 * fib[..., None]) * (1 + 0.08 * tone[..., None])
-late = srgb((150, 86, 36))
-col = col * (1 - 0.42 * L[..., None]) + late * (0.42 * L[..., None]) * 0.85
+# Each style: colour ramp across the growth bands, latewood colour and how strongly it shows.
+# kaya is matched to the reference board (top about rgb 164/100/44 in its light): honey, quiet grain.
+STYLES = {
+    'kaya': ([(0.0, (232, 174, 106)), (0.35, (220, 160, 92)), (0.7, (205, 144, 77)), (1.0, (188, 126, 62))], (152, 90, 40), 0.34),
+    'shinkaya': ([(0.0, (240, 214, 162)), (0.4, (234, 204, 150)), (0.75, (226, 194, 138)), (1.0, (216, 182, 124))], (186, 142, 84), 0.3),
+    'dark': ([(0.0, (150, 94, 52)), (0.35, (138, 84, 45)), (0.7, (124, 74, 38)), (1.0, (110, 64, 32))], (78, 44, 22), 0.32),
+}
+ramp_stops, late_rgb, late_k = STYLES[STYLE]
+col = ramp(B, ramp_stops)
+col *= (1 + 0.045 * fib[..., None]) * (1 + 0.06 * tone[..., None])
+late = srgb(late_rgb)
+col = col * (1 - late_k * L[..., None]) + late * (late_k * L[..., None])
 top = np.clip(col, 0, 1)
 
 # bump: latewood sits a hair lower, fibres give a fine tooth
@@ -111,8 +122,9 @@ def save(arr, name, q=90):
     return im
 
 
-save(top, 'kaya-top.webp', 88)
-save(np.clip(bump, 0, 1), 'kaya-bump.webp', 85)
+save(top, f'{PREFIX}kaya-top.webp', 88)
+if STYLE == 'kaya':
+    save(np.clip(bump, 0, 1), 'kaya-bump.webp', 85)
 print('top mean rgb', (top.reshape(-1, 3).mean(0) * 255).round(1), 'size', top.shape)
 
 # front and back faces: the same columns as the top's near edge, running down the thickness
@@ -120,12 +132,14 @@ FH = 384
 front = np.repeat(top[-1:, :, :], FH, axis=0)
 ff = noise2(FH, W, 520, 4, rng, slope=0.2)
 front = front * (0.66 + 0.035 * ff[..., None])  # end grain drinks the light: darker than the top
-save(front, 'kaya-front.webp', 88)
+save(front, f'{PREFIX}kaya-front.webp', 88)
 
 # long sides: grain along the length (rows of the top's colour field turned on their side)
 side_cols = top[:, W // 2 - FH // 2: W // 2 + FH // 2, :]  # H x FH
 side = np.transpose(side_cols, (1, 0, 2)) * 0.74
-save(side, 'kaya-side.webp', 88)
+save(side, f'{PREFIX}kaya-side.webp', 88)
+if STYLE != 'kaya':
+    sys.exit(0)
 
 # bowls: turned mulberry, dark brown like the reference's, rings running round the bowl
 rng2 = np.random.default_rng(SEED + 1)

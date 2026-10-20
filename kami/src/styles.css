@@ -394,7 +394,7 @@ kbd {
 }
 .pop-head {
   padding: 6px 10px 6px;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1501,19 +1501,12 @@ kbd {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: pulse 1.2s ease-in-out infinite;
 }
 .engine-chip.failed {
   color: var(--danger);
 }
 .engine-chip.failed .dot {
   background: var(--danger);
-  animation: none;
-}
-@keyframes pulse {
-  50% {
-    opacity: 0.25;
-  }
 }
 .bp-players {
   flex: 1;
@@ -1574,22 +1567,18 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 18px;
-  font-size: 12px;
+  height: 20px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
   transition: opacity 0.2s;
 }
-.bp-eval.empty,
 .bp-eval.stale {
   opacity: 0.55;
 }
-/* before any read the bar is an empty dashed track, not a half-filled one that looks like a result */
-.bp-eval.empty .ev-track {
-  background: transparent;
-  box-shadow: none;
-  outline: 1px dashed rgba(11, 15, 20, 0.35);
-  outline-offset: -1px;
+/* before any read there is nothing to show: the bar keeps its place but stays hidden */
+.bp-eval.empty {
+  visibility: hidden;
 }
 .bp-eval.empty .ev-fill,
 .bp-eval.empty .ev-mid {
@@ -1598,6 +1587,7 @@ kbd {
 .ev-n {
   flex: none;
   min-width: 42px;
+  white-space: nowrap;
 }
 .ev-n:last-of-type {
   text-align: right;
@@ -1630,6 +1620,7 @@ kbd {
 .ev-lead {
   flex: none;
   min-width: 52px;
+  white-space: nowrap;
   text-align: right;
   font-weight: 600;
   color: var(--ink);
@@ -1640,7 +1631,6 @@ kbd {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  animation: pulse 1.2s ease-in-out infinite;
 }
 .bp-body {
   flex: 1 1 0;
@@ -1692,30 +1682,126 @@ kbd {
   gap: 7px;
   margin: 0;
   max-width: 100%;
-  font-size: 12.5px;
+  font-size: 15px;
+  line-height: 1.3;
   color: var(--ink-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-wrap: pretty;
 }
+/* the key's sample: a pale stone on wood, or the book's printed circle */
 .bp-key i {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  background: #c4e6f6;
-  box-shadow: inset 0 0 0 2px #2eb4ee;
+  background: #f2eadc;
+  box-shadow: inset 0 0 0 1.5px #b9773d, inset 0 0 0 9px rgba(185, 119, 61, 0.18);
+}
+.bp-key i.ring {
+  background: #fbf8f1;
+  box-shadow: inset 0 0 0 1.5px #1b1714;
+}
+/* the last move on the flat boards: a small solid dot, no glow (a ring read as a "0") */
+.board-panel svg.board .bd-last-glow {
+  display: none;
+}
+.board-panel svg.board .bd-last-ring {
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scale(0.7);
+}
+.board-panel svg.board .bd-last.on-b .bd-last-ring {
+  fill: #f4f1ea;
+}
+.board-panel svg.board .bd-last.on-w .bd-last-ring {
+  fill: #15130f;
+}
+/* candidates on the flat boards: a printed circle with the win chance in it */
+.board-panel svg.board .cand.plain .cand-disc {
+  stroke: #1b1714;
+  stroke-width: 0.045;
+}
+.board-panel svg.board .cand-best.plain .cand-disc {
+  stroke-width: 0.1;
+}
+.board-panel svg.board .cand.plain text {
+  fill: #1b1714;
+}
+.board-panel svg.board .cand.plain .cand-wr {
+  font-size: 0.5px;
+  font-weight: 800;
+  letter-spacing: -0.02px;
+}
+/* in the book a choice is printed the way books print letters on empty points: the number on
+   the point with the lines cleared behind it (a circle would read as a numbered white stone) */
+.board-panel svg.board.book .cand.plain .cand-disc {
+  fill: #f0ebe0;
+  stroke: none;
+}
+.board-panel svg.board.book .cand.plain .cand-wr {
+  font-size: 0.74px;
+  font-weight: 500;
+}
+.board-panel svg.board.book .cand-best.plain .cand-wr {
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 0.05px;
+  text-underline-offset: 0.06px;
 }
 .bp-foot {
   flex: none;
   background: color-mix(in srgb, var(--card) 78%, transparent);
   border-radius: 12px;
+  padding: 2px 6px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  container-type: inline-size;
+}
+/* first row: first, back, the slider, forward, last (also Home, ←, →, End) */
+.bp-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.bp-nav .bp-scrub {
   padding: 0 6px;
+}
+/* second row: where you are in the game, and the game's graphs */
+.bp-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  container-type: inline-size;
+  min-height: 34px;
+}
+.bp-row .bp-count {
+  padding-left: 8px;
+  text-align: left;
+  min-width: 0;
+}
+@container (max-width: 400px) {
+  .step-btn {
+    width: 32px;
+  }
+}
+.step-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--ink);
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.step-btn:active:not(:disabled) {
+  background: var(--press);
+}
+.step-btn:disabled {
+  color: var(--muted);
+  opacity: 0.6;
 }
 /* The move slider: drag (or click anywhere on it) to go to any move; the count follows. */
 .bp-scrub {
@@ -1794,7 +1880,7 @@ kbd {
   flex: none;
   min-width: 96px;
   text-align: right;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -1812,6 +1898,73 @@ kbd {
 }
 .board-panel svg.board .bd-wood-base {
   fill: #b9773d;
+}
+/* the board choices in the gear menu: a swatch of each wood and its name */
+.pop-sub {
+  padding: 6px 12px 4px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.board-styles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 2px 8px 6px;
+}
+.board-styles button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--ink-2);
+  border: 1px solid transparent;
+}
+.board-styles button:hover {
+  background: var(--hover);
+}
+.board-styles button.on {
+  border-color: var(--line-strong);
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 600;
+}
+.board-styles .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+.swatch.kaya {
+  background: #c27c3c;
+}
+.swatch.shinkaya {
+  background: #e3c99a;
+}
+.swatch.dark {
+  background: #7a4322;
+}
+.swatch.book {
+  background: #f1ebe0;
+}
+/* the book diagram: flat paper, no bevel or rim shading */
+.board-panel svg.board.book .bd-wood-base {
+  fill: #f1ebe0;
+}
+.board-panel svg.board.book .bd-bevel,
+.board-panel svg.board.book .bd-rim,
+.board-panel svg.board.book .bd-lip {
+  display: none;
+}
+.board-panel svg.board.book .bd-grid {
+  stroke: #1b1714;
+}
+.board-panel svg.board.book .bd-coords text {
+  font-size: 0.62px;
+  fill: #1b1714;
+  fill-opacity: 1;
 }
 .bp-count .of {
   color: var(--muted);
@@ -1831,12 +1984,13 @@ kbd {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
+  height: 32px;
   padding: 0 10px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
-  color: var(--muted);
+  white-space: nowrap;
+  color: var(--ink-2);
   transition:
     background-color 0.12s,
     color 0.12s;
@@ -1897,13 +2051,13 @@ kbd {
     max-height: none;
   }
 }
-/* A narrow column: the graph tabs keep their icons only (names in their tooltips). */
-@container (max-width: 590px) {
-  .bp-tabs button span {
-    display: none;
-  }
+/* a narrow column keeps the graph buttons' names and drops their icons */
+@container (max-width: 470px) {
   .bp-tabs button {
-    padding: 0 10px;
+    padding: 0 8px;
+  }
+  .bp-tabs button svg {
+    display: none;
   }
 }
 
@@ -2356,9 +2510,13 @@ kbd {
   }
   .board-panel {
     width: auto;
-    height: var(--board-h, 48dvh);
+    height: var(--board-h, 62dvh);
     padding: 2px 10px 6px;
     gap: 4px;
+  }
+  /* on a phone the empty win-rate bar gives its room to the board */
+  .bp-eval.empty {
+    display: none;
   }
   .splitter {
     width: auto;
