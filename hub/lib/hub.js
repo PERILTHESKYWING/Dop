@@ -301,6 +301,17 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return fireable[0] || null;
   }
 
+  // Like chooseAccount, but when no account has a routine for the wanted
+  // model, use the nearest model some account can start.
+  async function chooseAccountAnyModel(model, opts = {}) {
+    const order = [model, ...(model === 'haiku' ? ['sonnet', 'opus'] : model === 'opus' ? ['sonnet', 'haiku'] : ['opus', 'haiku'])];
+    for (const m of order) {
+      const a = await chooseAccount(m, opts);
+      if (a) return { a, model: m };
+    }
+    return { a: null, model };
+  }
+
   // Hand a thread to an agent: start a cloud session if we can, otherwise
   // leave it queued for an agent that checks in (PC, free-plan chat).
   async function dispatch(t, role = 'worker', extra = {}) {
@@ -323,14 +334,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       return { ok: false, queued: a.name };
     }
     if (a && (a.low || exclude.includes(a.name) || !pickRoutine(a, t.model))) a = null;
-    if (!a) a = await chooseAccount(t.model, { prefer: t.account, exclude, code: t.code !== false });
+    let useModel = t.model;
+    if (!a) ({ a, model: useModel } = await chooseAccountAnyModel(t.model, { prefer: t.account, exclude, code: t.code !== false }));
     if (!a) {
       t.status = 'queued';
       await putThread(t);
       await post({ thread: t.id, from: 'hub', kind: 'alert', text: `Waiting for an agent: no account can start a ${t.model} session right now. A PC or chat agent can pick it up with hub_start.` });
       return { ok: false };
     }
-    const r = await fire(a, t.model, { role, thread: t.id }, role);
+    const r = await fire(a, useModel, { role, thread: t.id }, role);
     if (!r.ok) {
       await post({ thread: t.id, from: 'hub', kind: 'alert', text: `Could not start ${a.name}: ${r.reason}.` });
       return dispatch(t, role, { exclude: [...exclude, a.name] });
@@ -342,7 +354,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     t.sessionUrl = r.url;
     t.fires = (t.fires || 0) + 1;
     await putThread(t);
-    await post({ thread: t.id, from: 'hub', kind: 'start', text: `Started ${a.name} on ${t.model}${role === 'resume' ? ' to continue from the last handover' : ''}.` });
+    await post({ thread: t.id, from: 'hub', kind: 'start', text: `Started ${a.name} on ${useModel}${useModel !== t.model ? ` (no ${t.model} routine)` : ''}${role === 'resume' ? ' to continue from the last handover' : ''}.` });
     return { ok: true, account: a.name };
   }
 
@@ -389,13 +401,13 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       await createThread({ title: text.split('\n')[0].slice(0, 60), brief: text, model: MODELS.includes(model) ? model : 'sonnet', account: acc || '', from: 'hub' });
       return msg;
     }
-    const a = await chooseAccount(s.coordinatorModel, { prefer: s.coordinatorAccount });
+    const { a, model: coordModel } = await chooseAccountAnyModel(s.coordinatorModel, { prefer: s.coordinatorAccount });
     if (!a) {
       await post({ thread: 0, from: 'hub', kind: 'alert', text: 'No account can start the coordinator right now. A PC or chat agent will see this prompt when it calls hub_start.' });
       return msg;
     }
-    const r = await fire(a, s.coordinatorModel, { role: 'coordinator', prompt: msg.id }, 'coordinator');
-    await post({ thread: 0, from: 'hub', kind: r.ok ? 'start' : 'alert', text: r.ok ? `Coordinator started on ${a.name} (${s.coordinatorModel}).` : `Coordinator could not start: ${r.reason}.` });
+    const r = await fire(a, coordModel, { role: 'coordinator', prompt: msg.id }, 'coordinator');
+    await post({ thread: 0, from: 'hub', kind: r.ok ? 'start' : 'alert', text: r.ok ? `Coordinator started on ${a.name} (${coordModel}).` : `Coordinator could not start: ${r.reason}.` });
     return msg;
   }
 

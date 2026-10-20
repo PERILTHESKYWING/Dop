@@ -194,3 +194,18 @@ describe('cloud hub', () => {
     expect(ov.used).toBeLessThan(ov.budget);
   });
 });
+
+describe('cloud hub with a single Opus routine', () => {
+  it('starts the coordinator and threads on Opus when no other model exists', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const before = fires.length;
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Dad', plan: 'pro', routines: [{ model: 'opus', id: 'trig_dad_o', token: 'good-dad' }] });
+    await h.prompt({ text: 'Fix the slider' });
+    expect(fires.length).toBe(before + 1);
+    expect(fires.at(-1)!.routine).toBe('trig_dad_o');
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
+    expect(t).toMatchObject({ account: 'Dad', status: 'working' });
+  });
+});
