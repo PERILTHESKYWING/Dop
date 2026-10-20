@@ -14,13 +14,13 @@ Now open the hub's link and type your password. On your phone, use "Add to Home 
 ## Part 2: add a paid account (Pro or Max)
 1. On the hub page: **Add account**, type a name (like *Main*), choose the plan, **Save**.
 2. Press **Connect** on that account and copy the link.
-3. On claude.ai, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, choose **No sign in**.
+3. On claude.ai, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, leave the OAuth fields empty. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
 4. On claude.ai/code: **Routines** › **New routine**. Pick the Dop repo and a model, turn on the Dop hub connector, add an **API trigger**, and paste the prompt from the Connect screen. Copy the routine's id and token into the hub (**Edit** on that account). Repeat for each model you want on that account.
 
 ## Part 3: add a free helper account (repeat for each one)
 1. On the hub page: **Add account**, type a name (like *Helper1*), choose **free**, **Save**.
 2. Press **Connect** and copy the link.
-3. On claude.ai or the Claude phone app, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, choose **No sign in**.
+3. On claude.ai or the Claude phone app, signed in as that account: **Settings** › **Connectors** › **Add custom connector**. Name it *Dop hub*, paste the link, leave the OAuth fields empty. Use the link from the hub's main address (Vercel › Domains); single-deployment links are locked behind a Vercel login and fail with a sign-in error.
 
 To put a helper to work, open a chat on it and type: **check the Dop hub**. It does one task, then asks the hub for the next.
 
