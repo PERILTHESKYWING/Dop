@@ -10,7 +10,7 @@
   --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
   --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --me: #ebe4d8; --sel: #ebe5da; --chip: #f1ece4;
   --shadow: 0 6px 24px rgba(40, 30, 10, .12);
-  --clay: rgb(215, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
+  --clay: rgb(217, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -93,7 +93,9 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 
 /* Claude-style thinking: ✻ spinner, shimmering verb, elapsed time (frames, verbs and colours from Claude Code) */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--clay); min-width: 0; }
-.spin { display: inline-block; width: 1.1em; text-align: center; font-weight: 700; color: var(--clay); flex: none; }
+.spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--clay); flex: none; vertical-align: -0.15em; }
+.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--clay); vertical-align: -0.15em; }
+.spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking .verb { font-weight: 600; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
@@ -436,10 +438,18 @@ const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
 // ---------- thinking and Clawd ----------
 // Spinner frames, verbs and colours are Claude Code's own (read from its CLI).
-const SPIN = ['·', '✢', '✳', '✶', '✻', '✽'];
+// Drawn as SVG, not text: phones turn ✳ and friends into emoji and grey them.
+// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot].
+const petals = (n, len, w, dot) => `<svg viewBox="0 0 24 24" aria-hidden="true">${Array.from({ length: n }, (_, i) => `<ellipse cx="12" cy="${12 - len / 2}" rx="${w}" ry="${len / 2}" transform="rotate(${(i * 360) / n} 12 12)"/>`).join('')}${dot ? `<circle cx="12" cy="12" r="${dot}"/>` : ''}</svg>`;
+const SPIN = [petals(0, 0, 0, 2.2), petals(4, 9, 2.2, 1.6), petals(8, 10, 1, 1.4), petals(6, 10, 2.4, 2), petals(8, 10, 1.9, 0), petals(8, 11, 2.6, 1.8)];
 const SPIN_LOOP = [...SPIN, ...SPIN.slice().reverse()];
+let spinI = 0;
+const spin = () => `<span class="spin">${SPIN_LOOP[spinI]}</span>`;
 const VERBS = ['Accomplishing', 'Architecting', 'Baking', 'Beboppin\'', 'Brewing', 'Calculating', 'Canoodling', 'Cerebrating', 'Churning', 'Clauding', 'Cogitating', 'Combobulating', 'Concocting', 'Contemplating', 'Cooking', 'Crafting', 'Crunching', 'Deciphering', 'Deliberating', 'Doodling', 'Elucidating', 'Envisioning', 'Fermenting', 'Finagling', 'Forging', 'Frolicking', 'Generating', 'Germinating', 'Hatching', 'Herding', 'Honking', 'Ideating', 'Imagining', 'Incubating', 'Inferring', 'Kneading', 'Manifesting', 'Marinating', 'Meandering', 'Moseying', 'Mulling', 'Noodling', 'Orchestrating', 'Percolating', 'Philosophizing', 'Pondering', 'Pontificating', 'Puttering', 'Puzzling', 'Reticulating', 'Ruminating', 'Scampering', 'Schlepping', 'Simmering', 'Spelunking', 'Stewing', 'Synthesizing', 'Thinking', 'Tinkering', 'Transmogrifying', 'Unfurling', 'Vibing', 'Whirring', 'Wibbling', 'Working', 'Wrangling', 'Zigzagging'];
-const verbFor = (key) => { let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return VERBS[h % VERBS.length]; };
+// Each line starts on its own verb and moves to a new one every few seconds.
+const VERB_MS = 3000;
+const verbSeed = (key) => { let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % VERBS.length; };
+const verbAt = (seed) => VERBS[(seed + Math.floor(Date.now() / VERB_MS) * 17) % VERBS.length];
 const span = (ms) => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor(sec / 60) % 60}m`; };
 // Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks.
 function clawd(cls = '') {
@@ -448,7 +458,7 @@ function clawd(cls = '') {
 // One live line per agent at work: the text stays fixed so the feed only
 // redraws on news; the spinner and clock tick in place.
 function thinkingLine(who, since, key) {
-  return `<div class="thinking">${clawd('s busy')}<span class="spin">✻</span><span class="verb">${esc(verbFor(key))}…</span><span class="tmeta">(<span data-since="${since}"></span> · ${esc(who)})</span></div>`;
+  return `<div class="thinking">${clawd('s busy')}${spin()}<span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(<span data-since="${since}"></span> · ${esc(who)})</span></div>`;
 }
 // Who is working in this view right now.
 function liveLines(t, msgs) {
@@ -464,11 +474,15 @@ function liveLines(t, msgs) {
   for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`));
   return out.join('');
 }
-let spinI = 0;
+let verbStep = Math.floor(Date.now() / VERB_MS);
 setInterval(() => {
   if (document.hidden) return;
   spinI = (spinI + 1) % SPIN_LOOP.length;
-  for (const el of document.querySelectorAll('.spin')) el.textContent = SPIN_LOOP[spinI];
+  for (const el of document.querySelectorAll('.spin')) el.innerHTML = SPIN_LOOP[spinI];
+  if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
+    verbStep = Math.floor(Date.now() / VERB_MS);
+    for (const el of document.querySelectorAll('[data-verb]')) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+  }
   for (const el of document.querySelectorAll('[data-since]')) el.textContent = span(Date.now() - Number(el.dataset.since));
 }, 120);
 // Agents' thinking notes: hidden, folded (default) or open, and per account.
@@ -495,7 +509,7 @@ function threadRow(t) {
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
   return `<button class="trow st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}">
     <span class="ttl">${esc(t.title)}</span>
-    <span class="tsub">${avList(threadAccounts(t))}${t.status === 'working' && !t.archived ? '<span class="spin">✻</span>' : ''}<span class="stx">${esc(st)}</span><span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></span>
+    <span class="tsub">${avList(threadAccounts(t))}${t.status === 'working' && !t.archived ? spin() : ''}<span class="stx">${esc(st)}</span><span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></span>
   </button>`;
 }
 function renderSide() {
@@ -554,14 +568,14 @@ function renderHead(t) {
   const back = '<button class="btn small back" id="back" type="button">Threads</button>';
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide">✻ </span>Thinking</button>`;
+    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>`;
     return;
   }
   $('head').innerHTML = `${back}<h2 title="${esc(t.title)}">${esc(t.title)}</h2><span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : STATUS[t.status])}</span>
     ${t.sessionUrl ? `<a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : t.status === 'done' ? '' : '<button type="button" class="btn small" data-act="done">Mark done</button>'}
-    <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide">✻ </span>Thinking</button>
+    <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
     <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>`;
 }
 function renderFeed() {
@@ -730,7 +744,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? '<span class="spin">✻</span>' : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? spin() : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
