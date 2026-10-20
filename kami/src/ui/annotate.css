@@ -190,8 +190,43 @@
 }
 .notes-verdicts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+.notes-verdicts .btn {
+  white-space: normal;
+  text-align: left;
+  height: auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  justify-content: flex-start;
+}
+.notes-legend {
+  margin: 0;
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.notes-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  vertical-align: -1px;
+}
+.lg-played::before {
+  color: var(--you);
+}
+.lg-kata::before {
+  color: var(--kata);
+  background: var(--kata);
+}
+.lg-pro::before {
+  color: var(--doppel);
 }
 .notes-verdicts small,
 .notes-tags small {
@@ -250,4 +285,7 @@
     border-left: 0;
     border-top: 1px solid var(--line);
   }
+}
+.notes-verdicts small {
+  white-space: nowrap;
 }

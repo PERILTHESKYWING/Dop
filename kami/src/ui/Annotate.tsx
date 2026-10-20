@@ -202,6 +202,8 @@ export default function Annotate() {
       if (typing(e)) return;
       const v = VERDICTS.find((x) => x.key === e.key);
       if (v) {
+        // Without this the key would also land in the reason box once it has focus.
+        e.preventDefault();
         update({ verdict: v.id });
         if (v.id !== 'skip') reasonRef.current?.focus();
         return;
@@ -280,7 +282,7 @@ export default function Annotate() {
     const best = moment?.best ? gtpToLoc(moment.best, board.size) : null;
     if (best !== null && best !== PASS && !after) marks.push({ loc: best, kind: 'best', label: 'K' });
     const better = note?.better ? gtpToLoc(note.better, board.size) : null;
-    if (better !== null && better !== PASS && better !== best && !after) marks.push({ loc: better, kind: 'you', label: 'P' });
+    if (better !== null && better !== PASS && better !== best && !after) marks.push({ loc: better, kind: 'doppel', label: 'P' });
     const last = upTo > 0 ? board.moves[upTo - 1].loc : null;
     return { stones: b.stones, marks, last: last === PASS ? null : last };
   }, [board, sel, after, moment, note]);
@@ -350,6 +352,9 @@ export default function Annotate() {
           {board && view ? (
             <>
               <Board size={board.size} stones={view.stones} lastMove={view.last} marks={view.marks} coords skin={KIAI_SKIN} animate={false} onPlay={after ? undefined : (l) => update({ better: locToGtp(l, board.size) })} ariaLabel="Click a point to set the better move" />
+              <p className="notes-legend">
+                <span className="lg-played">Played</span> <span className="lg-kata">K KataGo</span> <span className="lg-pro">P Your move</span>
+              </p>
               <div className="notes-strip" aria-label="Moments in this game">
                 {queue.map((q) => {
                   const nn = gameId ? notes.get(noteId(gameId, q)) : undefined;
