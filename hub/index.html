@@ -327,7 +327,7 @@ async function openSheet(kind, name) {
   if (kind === 'logout') { try { localStorage.removeItem('hubpw'); } catch {} pw = ''; return showLogin(); }
   if (kind === 'connect') {
     const k = await api(`connect&account=${encodeURIComponent(name)}`);
-    const url = `${location.origin}/api/mcp?account=${encodeURIComponent(k.name)}&key=${encodeURIComponent(k.key)}`;
+    const url = `${location.origin}/api/c/${encodeURIComponent(k.name)}/${encodeURIComponent(k.key)}`;
     const free = S.accounts.find((a) => a.name === name)?.plan === 'free';
     html = `<h3>Connect ${esc(name)}</h3>
       <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
