@@ -329,6 +329,20 @@ describe('cloud hub: usage per account', () => {
     expect(h.publicAccount(await h.account('Free1')).usage).toMatchObject({ five_hour_pct: 20, seven_day_pct: null, source: 'manual' });
     usageReply = null;
   });
+  it('keeps thinking notes for the page: no state change, not in agents\' context or hub_wait', async () => {
+    const t = await hub.createThread({ title: 'Think test', brief: 'Try thinking notes', model: 'sonnet' });
+    const before = (await hub.thread(t.id)).status;
+    const r = await tool('A', 'hub_post', { thread: t.id, kind: 'thinking', text: 'Debounce beats throttle here' });
+    const id = Number(/#(\d+)/.exec(r)![1]);
+    const msg = (await hub.feed()).find((m: any) => m.id === id);
+    expect(msg.kind).toBe('thinking');
+    expect((await hub.thread(t.id)).status).toBe(before);
+    expect(await tool('B', 'hub_wait', { thread: t.id, after: id - 1, wait_s: 0 })).toBe('No new messages.');
+    const brief = await tool('B', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: t.id }) });
+    expect(brief).not.toContain('Debounce beats throttle');
+    expect(brief).toContain('kind "thinking"');
+    expect((await hub.thread(t.id)).startedAt).toBe(clock);
+  });
 });
 
 describe('cloud hub: usage-left threshold and team threads', () => {

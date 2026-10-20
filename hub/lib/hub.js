@@ -800,13 +800,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function threadText(t, limit = 40) {
-    const msgs = (await feed(1500)).filter((m) => m.thread === t.id).slice(-limit);
+    // Thinking notes are for XIAO's page, not other agents' context.
+    const msgs = (await feed(1500)).filter((m) => m.thread === t.id && m.kind !== 'thinking').slice(-limit);
     const parts = Object.keys(t.crew || {}).filter((n) => t.crew[n].role === 'member' && t.crew[n].checkpoint);
     const memberHandovers = parts.map((n) => `Member ${n}${t.crew[n].done ? ' (part done)' : t.crew[n].gone ? ' (stopped)' : ''}: ${checkpointText(t.crew[n].checkpoint)}`);
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in XIAO's Dop hub (several Claude accounts working as one team on the Dop repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop.`;
+  const RULES = `Rules: you are one agent in XIAO's Dop hub (several Claude accounts working as one team on the Dop repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (XIAO can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
@@ -838,7 +839,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       if (p.role === 'member') {
         if (t.status === 'done' || t.archived) return `Thread #${t.id} is finished. Nothing to do.`;
         t.crew ||= {};
-        t.crew[agent.name] = { ...(t.crew[agent.name] || {}), role: 'member', at: now(), gone: false, done: false };
+        t.crew[agent.name] = { ...(t.crew[agent.name] || {}), role: 'member', at: now(), startedAt: now(), gone: false, done: false };
         await putThread(t);
         return `You are working on thread #${t.id} as ${agent.name}, a team member.\n${THINK_LINE[thinkingOf(t.thinking)]}\n\n${await threadText(t)}\n\n${teamText(t, agent.name, clean(p.replaces, 24))}\n\n${RULES}`;
       }
@@ -848,6 +849,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       t.account = agent.name;
       t.status = 'working';
       t.lastAgentAt = now();
+      t.startedAt = now();
       await putThread(t);
       const role = p.role === 'answer' ? 'Answer the open question addressed to this thread (see messages), then stop.' : p.role === 'resume' ? 'The previous agent stopped. Continue from the last handover; check its branch first.' : 'Do the work in the brief.';
       const more = agent.plan === 'free' ? '\n\nWhen this thread is done, call hub_start again (no payload) for the next piece of work.' : '';
@@ -922,11 +924,18 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function agentPost(agent, { thread: tid, text, kind = 'note', reply_to, to = '' }) {
-    const allowed = ['note', 'progress', 'question', 'answer', 'done'];
+    const allowed = ['note', 'progress', 'question', 'answer', 'thinking', 'done'];
     kind = allowed.includes(kind) ? kind : 'note';
     tid = Number(tid) || 0;
     const t = tid ? await thread(tid) : null;
     if (tid && !t) throw new Error('No such thread.');
+    // A thinking note only shows the agent is alive; it never changes the thread's state.
+    if (kind === 'thinking') {
+      const msg = await post({ thread: tid, from: agent.name, kind, text: clean(text, 1200) });
+      if (t) { seen(t, agent.name); await putThread(t); }
+      await touchAccount(agent.name);
+      return `Posted #${msg.id}.`;
+    }
     const member = t && isMember(t, agent.name);
     // A member's "done" finishes its part; only the lead closes the thread.
     if (member && kind === 'done') {
