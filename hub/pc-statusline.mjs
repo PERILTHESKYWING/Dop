@@ -27,16 +27,21 @@ let lastSent = 0;
 try {
   lastSent = Number(readFileSync(mark, 'utf8')) || 0;
 } catch {}
-if (url && pct >= 85 && Date.now() - lastSent > 30 * 60_000) {
+const low = pct >= 85;
+// Share the numbers every 10 minutes so the hub page shows them, and at once
+// (at most every 30 minutes) when a limit passes 85%.
+const due = low ? Date.now() - lastSent > 30 * 60_000 : Date.now() - lastSent > 10 * 60_000;
+if (url && (typeof five === 'number' || typeof week === 'number') && due) {
+  const args = { state: low ? 'low' : 'report', five_hour_pct: five, seven_day_pct: week, five_hour_resets: input.rate_limits?.five_hour?.resets_at, seven_day_resets: input.rate_limits?.seven_day?.resets_at };
   try {
     await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'hub_usage', arguments: { state: 'low', percent: Math.round(pct) } } }),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'hub_usage', arguments: args } }),
       signal: AbortSignal.timeout(1500),
     });
     writeFileSync(mark, String(Date.now()));
-    parts.push('hub told');
+    if (low) parts.push('hub told');
   } catch {}
 }
 console.log(parts.join(' · '));

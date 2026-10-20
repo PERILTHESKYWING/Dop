@@ -27,7 +27,7 @@ export function toolsFor(hub) {
             type: 'array',
             items: {
               type: 'object',
-              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, code: { type: 'boolean' }, account: str, thread_id: num },
+              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'max'] }, code: { type: 'boolean' }, account: str, thread_id: num },
               required: ['brief'],
             },
           },
@@ -41,7 +41,7 @@ export function toolsFor(hub) {
       description: 'Coordinator: open a thread for one piece of work and start an agent on it. model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
       inputSchema: {
         type: 'object',
-        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, account: str, code: { type: 'boolean' } },
+        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'max'] }, account: str, code: { type: 'boolean' } },
         required: ['title', 'brief'],
       },
       run: async (a, x) => {
@@ -117,11 +117,17 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_usage',
-      description: 'Report your account\'s usage: state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset. Optional percent.',
-      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok'] }, percent: num, note: str }, required: ['state'] },
+      description: 'Report your account\'s usage: state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset, "report" to just share numbers. Optional percent (5-hour), five_hour_pct, seven_day_pct.',
+      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok', 'report'] }, percent: num, five_hour_pct: num, seven_day_pct: num, five_hour_resets: str, seven_day_resets: str, note: str }, required: ['state'] },
       run: async (a, x) => {
-        if (typeof x.percent === 'number') await hub.touchAccount(a.name, { usage: { five_hour_pct: x.percent, at: Date.now() } });
-        await hub.setLow(a.name, x.state === 'low', x.note || (typeof x.percent === 'number' ? `${x.percent}% used` : ''));
+        const five = typeof x.five_hour_pct === 'number' ? x.five_hour_pct : typeof x.percent === 'number' ? x.percent : null;
+        const week = typeof x.seven_day_pct === 'number' ? x.seven_day_pct : null;
+        if (five != null || week != null) {
+          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: Date.now(), source: 'pc' };
+          await hub.touchAccount(a.name, { usage, usageErr: '' });
+        }
+        if (x.state === 'report') return 'Thanks.';
+        await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
     },

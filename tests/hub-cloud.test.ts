@@ -4,14 +4,20 @@ import { beforeAll, describe, expect, it } from 'vitest';
 // Plain JS modules (the hub deploys without a build step).
 const lib = (p: string) => import(/* @vite-ignore */ `../hub/lib/${p}` as string) as Promise<any>;
 
-type Fire = { routine: string; token: string; payload: any };
+type Fire = { routine: string; token: string; payload: any; text: string };
 const fires: Fire[] = [];
 let clock = Date.parse('2026-10-20T09:00:00Z');
+let usageReply: any = null;
 const fakeFetch = async (url: string, init: any) => {
+  if (url.endsWith('/api/oauth/usage')) {
+    if (!usageReply) throw new Error('offline');
+    return new Response(JSON.stringify(usageReply), { status: String(init.headers.authorization).includes('good') ? 200 : 401 });
+  }
   const m = /routines\/([^/]+)\/fire/.exec(url);
   if (!m) throw new Error('unexpected fetch ' + url);
   if (!String(init.headers.authorization).includes('good')) return new Response('{"error":"bad"}', { status: 401 });
-  fires.push({ routine: m[1], token: init.headers.authorization, payload: JSON.parse(JSON.parse(init.body).text) });
+  const text = JSON.parse(init.body).text as string;
+  fires.push({ routine: m[1], token: init.headers.authorization, payload: JSON.parse(text.slice(text.indexOf('{'))), text });
   return new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_url: `https://claude.ai/code/session_${fires.length}` }), { status: 200 });
 };
 
@@ -208,5 +214,61 @@ describe('cloud hub with a single Opus routine', () => {
     const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
     expect(t).toMatchObject({ account: 'Dad', status: 'working' });
     expect((await h.connLog())[0]).toMatchObject({ http: 'START', keyOk: true });
+  });
+});
+
+describe('cloud hub: thinking level and chosen accounts', () => {
+  it('keeps XIAO\'s picks on the coordinator\'s threads and only uses the chosen accounts', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_m_o', token: 'good-m' }, { model: 'haiku', id: 'trig_m_h', token: 'good-mh' }] });
+    await h.upsertAccount({ name: 'Second', plan: 'pro', routines: [{ model: 'opus', id: 'trig_s_o', token: 'good-s' }] });
+    const msg = await h.prompt({ text: 'Make the board faster', thinking: 'max', accounts: ['Second'] });
+    expect(msg.meta).toMatchObject({ thinking: 'max', accounts: ['Second'] });
+    // Coordinator runs on a chosen account (falls back to its Opus routine).
+    expect(fires.at(-1)!.routine).toBe('trig_s_o');
+    expect(fires.at(-1)!.text.startsWith('{')).toBe(true); // coordinator gets no thinking keyword
+    const agent = await h.account('Main');
+    expect(await h.start(agent, JSON.stringify(fires.at(-1)!.payload))).toContain('XIAO picked: thinking max; accounts Second');
+    await h.route(agent, { prompt_id: msg.id, summary: 'One thread', threads: [{ title: 'Faster board', brief: 'x', model: 'opus', account: 'Main' }] });
+    const t = (await h.threads()).find((x: any) => x.title === 'Faster board');
+    expect(t).toMatchObject({ thinking: 'max', accounts: ['Second'], account: 'Second', status: 'working' });
+    expect(fires.at(-1)!.routine).toBe('trig_s_o');
+    expect(fires.at(-1)!.text.startsWith('ultrathink\n')).toBe(true);
+    expect(await h.start(agent, JSON.stringify(fires.at(-1)!.payload))).toContain('Thinking: Max');
+  });
+
+  it('lets a thread change its thinking level and accounts', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'sonnet', id: 'trig_m', token: 'good-m' }] });
+    await h.upsertAccount({ name: 'Helper', plan: 'free' });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet', thinking: 'low', accounts: ['Main', 'Helper'] });
+    expect(t).toMatchObject({ account: 'Main', thinking: 'low' });
+    expect(fires.at(-1)!.text.startsWith('{')).toBe(true);
+    const u = await h.updateThread(t.id, { thinking: 'high', accounts: ['Helper'] });
+    expect(u).toMatchObject({ thinking: 'high', accounts: ['Helper'] });
+  });
+});
+
+describe('cloud hub: usage per account', () => {
+  it('reads 5-hour and weekly use from Claude and marks an account low at 85%', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_u', token: 'good-u' }] });
+    await h.upsertAccount({ name: 'Bad', plan: 'pro', routines: [{ model: 'opus', id: 'trig_b', token: 'nope' }] });
+    await h.upsertAccount({ name: 'Free1', plan: 'free' });
+    usageReply = { five_hour: { utilization: 91, resets_at: '2026-10-20T15:00:00Z' }, seven_day: { utilization: 40, resets_at: '2026-10-24T00:00:00Z' } };
+    await h.refreshUsage({ force: true });
+    const main = h.publicAccount(await h.account('Main'));
+    expect(main.usage).toMatchObject({ five_hour_pct: 91, seven_day_pct: 40, source: 'claude', five_hour_resets: '2026-10-20T15:00:00Z' });
+    expect(main.low).toBe(true);
+    expect(h.publicAccount(await h.account('Bad')).usageErr).toContain('401');
+    await h.setUsage('Free1', { five_hour_pct: '20', seven_day_pct: '' });
+    expect(h.publicAccount(await h.account('Free1')).usage).toMatchObject({ five_hour_pct: 20, seven_day_pct: null, source: 'manual' });
+    usageReply = null;
   });
 });
