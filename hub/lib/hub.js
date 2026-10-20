@@ -19,7 +19,7 @@ const THINK_LINE = {
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
 // seq counts messages; rev counts thread and account changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn' };
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 // A thread whose agent has said nothing for this long is treated as stopped.
@@ -701,10 +701,27 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     await store.multi([['HDEL', K.threads, String(tid)], ...mine.map((x) => ['LREM', K.feed, 0, x]), ['INCR', K.rev]]);
   }
 
+  // Removes one message. Its id is kept on a short list so pages that already
+  // hold it drop it on their next refresh, and a deleted coordinator reply
+  // still counts its prompt as handled (so the prompt is not routed again).
+  async function deleteMessage(id) {
+    const mid = Number(id);
+    const raw = (await store.cmd('LRANGE', K.feed, 0, -1)).find((x) => parse(x)?.id === mid);
+    if (!raw) return false;
+    const m = parse(raw);
+    await store.multi([
+      ['LREM', K.feed, 0, raw],
+      ['RPUSH', K.deleted, json({ id: mid, kind: m.kind, replyTo: m.replyTo ?? null })],
+      ['LTRIM', K.deleted, -500, -1],
+      ['INCR', K.rev],
+    ]);
+    return true;
+  }
+
   // Everything the page shows, read in one round trip. With since, only
   // messages newer than that id come back.
   async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev] = await store.multi([
+    const [th, ac, fd, st, fi, tok, seq, rev, del] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
@@ -713,6 +730,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       ['GET', `hub:tok:${Math.floor(now() / FIVE_H)}`],
       ['GET', K.seq],
       ['GET', K.rev],
+      ['LRANGE', K.deleted, -200, -1],
     ]);
     const t = now();
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
@@ -735,6 +753,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       threads: ths,
       accounts: Object.values(hashToObj(ac)).map((a) => publicAccount(a, ths)),
       messages,
+      deleted: (del || []).map((x) => parse(x)?.id).filter(Boolean),
       settings: s,
       overhead: { used, budget: s.overheadTokens, traffic: Number(tok || 0), coordinatorSessions, fires: fires.length, over: used >= s.overheadTokens },
     };
@@ -868,8 +887,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function pendingPrompts() {
-    const msgs = await feed(1500);
-    const handled = new Set(msgs.filter((m) => m.kind === 'routed').map((m) => m.replyTo));
+    const [msgs, gone] = await Promise.all([feed(1500), store.cmd('LRANGE', K.deleted, 0, -1)]);
+    const routed = [...msgs, ...gone.map((x) => parse(x)).filter(Boolean)].filter((m) => m.kind === 'routed');
+    const handled = new Set(routed.map((m) => m.replyTo));
     return msgs.filter((m) => m.thread === 0 && m.from === 'XIAO' && m.kind === 'prompt' && !handled.has(m.id)).slice(-5);
   }
 
@@ -1001,7 +1021,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   return {
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
-    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, snapshot, sweep, dispatch,
+    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, dispatch,
     start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again.
     version: async () => {

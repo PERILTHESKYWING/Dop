@@ -273,6 +273,32 @@ describe('cloud hub: thinking level and chosen accounts', () => {
     expect(fires.at(-1)!.text.startsWith('think harder\n{')).toBe(true);
   });
 
+  it('deletes one message, tells pages that hold it, and never re-routes its prompt', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
+    const keep = await h.post({ thread: t.id, from: 'XIAO', kind: 'prompt', text: 'keep me' });
+    const drop = await h.post({ thread: t.id, from: 'XIAO', kind: 'prompt', text: 'drop me' });
+    const ask = await h.post({ thread: 0, from: 'XIAO', kind: 'prompt', text: 'route me once' });
+    const routed = await h.post({ thread: 0, from: 'hub', kind: 'routed', replyTo: ask.id, text: 'One thread (#9)' });
+    const before = await h.snapshot();
+    expect(await h.deleteMessage(drop.id)).toBe(true);
+    expect(await h.deleteMessage(drop.id)).toBe(false);
+    expect(await h.deleteMessage(routed.id)).toBe(true);
+    const feed = await h.feed();
+    expect(feed.map((m: any) => m.id)).toContain(keep.id);
+    expect(feed.map((m: any) => m.id)).not.toContain(drop.id);
+    const after = await h.snapshot({ since: keep.id });
+    expect(after.seq).not.toBe(before.seq);
+    expect(after.deleted).toEqual([drop.id, routed.id]);
+    // The coordinator's reply is gone, but its prompt still counts as handled.
+    expect(await h.start({ name: 'Main', plan: 'max' }, '')).not.toContain('route me once');
+    const p = (op: string, body: any) => pageApi({ hub: h, password: PW, method: 'POST', query: { op }, body, headers: { 'x-hub-password': PW } });
+    expect((await p('message-delete', { id: keep.id })).status).toBe(200);
+    expect((await p('message-delete', { id: keep.id })).status).toBe(404);
+  });
+
   it('archives, restores and deletes threads, and the page reads only what is new', async () => {
     const { createHub } = await lib('hub.js');
     const { memoryStore } = await lib('store.js');
