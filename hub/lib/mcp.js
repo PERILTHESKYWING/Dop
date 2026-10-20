@@ -27,7 +27,7 @@ export function toolsFor(hub) {
             type: 'array',
             items: {
               type: 'object',
-              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'max'] }, code: { type: 'boolean' }, account: str, thread_id: num },
+              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, code: { type: 'boolean' }, account: str, thread_id: num },
               required: ['brief'],
             },
           },
@@ -41,7 +41,7 @@ export function toolsFor(hub) {
       description: 'Coordinator: open a thread for one piece of work and start an agent on it. model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
       inputSchema: {
         type: 'object',
-        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'max'] }, account: str, code: { type: 'boolean' } },
+        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, code: { type: 'boolean' } },
         required: ['title', 'brief'],
       },
       run: async (a, x) => {

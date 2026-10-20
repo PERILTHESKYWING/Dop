@@ -58,6 +58,13 @@ export function memoryStore() {
     },
     RPUSH: (k, ...v) => list(k).push(...v),
     LLEN: (k) => list(k).length,
+    LREM: (k, n, v) => {
+      // Only n = 0 (remove every copy) is used.
+      const arr = list(k);
+      const before = arr.length;
+      kv.set(k, arr.filter((x) => x !== v));
+      return before - kv.get(k).length;
+    },
     LRANGE: (k, a, b) => {
       const arr = list(k);
       const s = Math.max(0, idx(arr, Number(a)));

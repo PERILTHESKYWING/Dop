@@ -20,16 +20,17 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   const given = headers['x-hub-password'] || '';
   if (!given || !safeEqual(given, password)) return { status: 401, body: { error: 'Wrong password.' } };
   const op = query.op || '';
-  if (method === 'GET' && op === 'seq') return { status: 200, body: { seq: await hub.nextSeq() } };
+  if (method === 'GET' && op === 'seq') return { status: 200, body: { seq: await hub.version() } };
   if (method === 'GET' && op === 'state') {
-    await hub.sweep();
-    await hub.refreshUsage({ force: query.usage === 'now' });
+    const t0 = Date.now();
+    const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600 });
+    return { status: 200, body: { ...body, ms: Date.now() - t0 } };
+  }
+  // Reading usage from Claude can take seconds, so the page asks for it on its own.
+  if (method === 'GET' && op === 'usage') {
+    await hub.refreshUsage({ force: query.force === '1' });
     const threads = await hub.threads();
-    const accounts = Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads));
-    return {
-      status: 200,
-      body: { seq: await hub.nextSeq(), threads, accounts, messages: await hub.feed(Number(query.limit) || 600), settings: await hub.settings(), overhead: await hub.overhead() },
-    };
+    return { status: 200, body: { accounts: Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads)) } };
   }
   if (method === 'GET' && op === 'connect') {
     // The connector link for one account, shown once on the page when asked.
@@ -45,6 +46,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (op === 'account-newkey') return { status: 200, body: await hub.newKey(String(body.name)) };
     if (op === 'account-low') return { status: 200, body: hub.publicAccount(await hub.setLow(String(body.name), !!body.low, body.note)) };
     if (op === 'thread') return { status: 200, body: await hub.updateThread(Number(body.id), body) };
+    if (op === 'thread-delete') return (await hub.deleteThread(Number(body.id))), { status: 200, body: { ok: true } };
     if (op === 'retry') {
       const t = await hub.thread(Number(body.id));
       if (!t) return { status: 404, body: { error: 'No such thread.' } };
@@ -93,6 +95,9 @@ export async function mcpApi({ hub, method, query, body, headers }) {
   // Opening the link in a browser shows whether it works.
   if (method === 'GET') return { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
   if (!agent) return fail(bad);
+  try {
+    await hub.markConnected(agent);
+  } catch {}
   const reply = await handleMcp(hub, agent, body);
   return reply ? { status: 200, body: reply } : { status: 202, body: null };
 }
