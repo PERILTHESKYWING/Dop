@@ -54,7 +54,9 @@ describe('cloud hub', () => {
   });
 
   it('rejects a wrong connector key', async () => {
-    expect((await mcp('A', 'tools/list', {}, 'wrong')).status).toBe(401);
+    expect((await mcp('A', 'tools/list', {}, 'wrong')).status).toBe(403); // never 401: claude.ai would try OAuth
+    const ok = await mcpApi({ hub, method: 'GET', query: { account: 'A', key: keys.A }, body: {}, headers: {} });
+    expect(ok.body.ok).toBe(true);
   });
 
   it('starts the coordinator for a prompt, which opens threads on the right accounts and models', async () => {

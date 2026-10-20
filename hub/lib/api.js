@@ -59,8 +59,12 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
 //   https://<hub>/api/mcp?account=<name>&key=<key>
 // or as the header  Authorization: Bearer <name>:<key>
 export async function mcpApi({ hub, method, query, body, headers }) {
-  if (method === 'GET' || method === 'DELETE') return { status: 405, body: { error: 'Use POST.' } };
-  if (!hub) return { status: 500, body: { error: SETUP_HELP } };
+  // claude.ai treats a 401 as "this server needs OAuth sign-in" and fails to
+  // register, so link problems answer 403 with a readable reason instead.
+  const fail = (message) => ({ status: 403, body: { jsonrpc: '2.0', id: body?.id ?? null, error: { code: -32001, message } } });
+  if (method === 'DELETE') return { status: 405, body: { error: 'Use POST.' } };
+  if (method === 'GET' && String(headers.accept || '').includes('text/event-stream')) return { status: 405, body: { error: 'Use POST.' } };
+  if (!hub) return method === 'GET' ? { status: 200, body: { ok: false, problem: SETUP_HELP } } : fail(SETUP_HELP);
   let name = query.account;
   let key = query.key;
   const auth = headers.authorization || '';
@@ -71,7 +75,10 @@ export async function mcpApi({ hub, method, query, body, headers }) {
     key = raw.slice(i + 1);
   }
   const agent = await hub.authAgent(name, key);
-  if (!agent) return { status: 401, body: { jsonrpc: '2.0', id: body?.id ?? null, error: { code: -32001, message: 'Unknown account or key. Copy the link again from the hub page.' } } };
+  const bad = 'Unknown account or key. Copy the link again from the hub page.';
+  // Opening the link in a browser shows whether it works.
+  if (method === 'GET') return { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
+  if (!agent) return fail(bad);
   const reply = await handleMcp(hub, agent, body);
   return reply ? { status: 200, body: reply } : { status: 202, body: null };
 }
