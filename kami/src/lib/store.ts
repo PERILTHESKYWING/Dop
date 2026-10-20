@@ -1,6 +1,7 @@
 /** Conversations, kept in this browser: IndexedDB, or localStorage when IndexedDB is blocked. */
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Explanation, ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import type { LevelId } from './levels';
 import { emptyBoard, type BoardState } from './position';
 import type { Expansion, PickId, Writing } from './writer';
 
@@ -17,6 +18,8 @@ export interface ChatMessage {
   at: number;
   pick?: PickId;
   thinking?: ThinkingLevel;
+  /** The thinking level picked (since 2026-10-20); older answers have only pick and thinking. */
+  level?: LevelId;
   answer?: Answer;
 }
 

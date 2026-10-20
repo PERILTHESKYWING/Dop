@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { ThinkingLevel } from '../../../src/lib/coach/explain/types';
+import { DEFAULT_LEVEL, levelById, type Level, type LevelId } from '../lib/levels';
 import { useSetting } from '../lib/settings';
-import type { PickId, Tier } from '../lib/writer';
 import { Icon } from './Icon';
-
-const LEVELS: { id: ThinkingLevel; name: string; blurb: string }[] = [
-  { id: 'off', name: 'Off', blurb: 'Explains right away. Fastest.' },
-  { id: 'low', name: 'Low', blurb: 'Thinks a little first.' },
-  { id: 'medium', name: 'Medium', blurb: 'Thinks a bit longer first.' },
-  { id: 'high', name: 'High', blurb: 'Thinks the longest first. Slowest.' },
-];
+import { LevelName } from './UltraGo';
 
 /** A button with a small menu that opens above it. */
 function Menu({ label, children, className }: { label: ReactNode; children: (close: () => void) => ReactNode; className?: string }) {
@@ -46,17 +39,15 @@ function Menu({ label, children, className }: { label: ReactNode; children: (clo
 interface Props {
   value: string;
   onChange: (v: string) => void;
-  tiers: Tier[];
-  tier: Tier;
-  onPick: (id: PickId) => void;
-  thinking: ThinkingLevel;
-  onThinking: (t: ThinkingLevel) => void;
+  levels: Level[];
+  level: LevelId;
+  onLevel: (id: LevelId) => void;
   running: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
 }
 
-export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThinking, running, onSend, onStop }: Props) {
+export function Composer({ value, onChange, levels, level, onLevel, running, onSend, onStop }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const enterSends = useSetting<boolean>('chat.enterSends');
   useEffect(() => {
@@ -94,62 +85,35 @@ export function Composer({ value, onChange, tiers, tier, onPick, thinking, onThi
       />
       <div className="composer-row">
         <Menu
-          className="pick-menu"
+          className={`think-menu${level === 'ultrago' ? ' ultra' : ''}`}
           label={
             <>
-              Depth: {tier.name}
+              Thinking: <LevelName level={levelById(level)} />
             </>
           }
         >
           {(close) => [
-            <div key="head" className="menu-head">Depth: how long KataGo reads the board</div>,
-            ...tiers.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={t.id === tier.id}
-                className="menu-item"
-                onClick={() => {
-                  onPick(t.id);
-                  close();
-                }}
-              >
-                <span className="mi-main">
-                  <span className="mi-name">
-                    {t.name}
-                    {t.id === 'tesuji' && <span className="mi-tag">Recommended</span>}
-                  </span>
-                  <span className="mi-blurb">{t.blurb}</span>
-                </span>
-                {t.id === tier.id && <Icon name="check" size={16} />}
-              </button>
-            )),
-          ]}
-        </Menu>
-        <Menu className="think-menu" label={<>Thinking: {LEVELS.find((l) => l.id === thinking)?.name}</>}>
-          {(close) => [
-            <div key="head" className="menu-head">Thinking: how long Kiai thinks before explaining</div>,
-            ...LEVELS.map((l) => (
+            <div key="head" className="menu-head">Thinking: how long Kiai reads before it answers</div>,
+            ...levels.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 role="menuitemradio"
-                aria-checked={l.id === thinking}
-                className="menu-item"
+                aria-checked={l.id === level}
+                className={`menu-item${l.id === 'ultrago' ? ' ultra' : ''}`}
                 onClick={() => {
-                  onThinking(l.id);
+                  onLevel(l.id);
                   close();
                 }}
               >
                 <span className="mi-main">
                   <span className="mi-name">
-                    {l.name}
-                    {l.id === 'medium' && <span className="mi-tag">Recommended</span>}
+                    <LevelName level={l} />
+                    {l.id === DEFAULT_LEVEL && <span className="mi-tag">Recommended</span>}
                   </span>
                   <span className="mi-blurb">{l.blurb}</span>
                 </span>
-                {l.id === thinking && <Icon name="check" size={16} />}
+                {l.id === level && <Icon name="check" size={16} />}
               </button>
             )),
           ]}

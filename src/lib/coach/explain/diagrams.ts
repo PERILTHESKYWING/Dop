@@ -32,7 +32,7 @@ const SAME_FIGHT = 4;
 /** Default diagram reads per model and thinking level (null: no diagram). */
 export function illustrateDefaults(model: ModelId, thinking: ThinkingLevel): IllustrateOptions | null {
   if (model === 'hane' || thinking === 'off' || thinking === 'low') return null;
-  const deep = model === 'myoshu' || thinking === 'high';
+  const deep = model === 'myoshu' || thinking === 'high' || thinking === 'xhigh' || thinking === 'max';
   return { ...ILLUSTRATE_DEFAULTS, firstVisits: deep ? 80 : 48, visits: deep ? 240 : 160, maxMs: deep ? 14_000 : 9_000 };
 }
 

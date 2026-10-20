@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { checkAnswer } from '../../src/lib/coach/answerCheck';
 import { explain } from '../../src/lib/coach/explain';
 import { findConcepts } from '../../src/lib/coach/library';
-import type { ThinkingLevel, ThoughtStep } from '../../src/lib/coach/explain/types';
+import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { answerQuestion, untilAborted } from './lib/answer';
 import { getProber } from './lib/engine';
@@ -10,7 +10,7 @@ import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './li
 import { localAvailable, localWrite } from './lib/local';
 import { boardFromSgf, emptyBoard, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
-import { pickById, picks, type PickId } from './lib/writer';
+import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
 import { BoardPanel, type Preview } from './ui/BoardPanel';
 import { Composer } from './ui/Composer';
 import { Icon } from './ui/Icon';
@@ -37,8 +37,6 @@ function lsSet(k: string, v: string) {
   }
 }
 
-const THINKING: ThinkingLevel[] = ['off', 'low', 'medium', 'high'];
-
 /** The server said it has no key: skip the call and use engine text. */
 const noLlm: CallLlm = async () => {
   throw new LlmUnavailable('not configured');
@@ -48,15 +46,12 @@ export function App() {
   const [convs, setConvs] = useState<Conversation[]>(() => [newConversation()]);
   const [currentId, setCurrentId] = useState<string>(() => convs[0].id);
   const withLocal = useMemo(localAvailable, []);
-  const tiers = useMemo(() => picks(withLocal), [withLocal]);
-  const [pick, setPickState] = useState<PickId>(() => {
-    const saved = lsGet('kami.pick') as PickId | null;
-    return saved && tiers.some((t) => t.id === saved) ? saved : 'tesuji';
+  const levels = useMemo(() => levelList(withLocal), [withLocal]);
+  const [level, setLevelState] = useState<LevelId>(() => {
+    const saved = (lsGet('kiai.level') as LevelId | null) ?? levelFromOld(lsGet('kami.pick'), lsGet('kami.thinking'));
+    return saved && levels.some((l) => l.id === saved) ? saved : DEFAULT_LEVEL;
   });
-  const [thinking, setThinkingState] = useState<ThinkingLevel>(() => {
-    const saved = lsGet('kami.thinking') as ThinkingLevel | null;
-    return saved && THINKING.includes(saved) ? saved : pickById(pick).defaultThinking;
-  });
+  const { pick, thinking } = levelById(level);
   const [running, setRunning] = useState<Running | null>(null);
   const [hover, setHover] = useState<Preview | null>(null);
   const [pinned, setPinned] = useState<Preview | null>(null);
@@ -138,16 +133,9 @@ export function App() {
 
   const setBoard = useCallback((b: BoardState) => update(current.id, (c) => ({ ...c, board: b }), false), [current.id, update]);
 
-  const setPick = (id: PickId) => {
-    setPickState(id);
-    lsSet('kami.pick', id);
-    const t = pickById(id).defaultThinking;
-    setThinkingState(t);
-    lsSet('kami.thinking', t);
-  };
-  const setThinking = (t: ThinkingLevel) => {
-    setThinkingState(t);
-    lsSet('kami.thinking', t);
+  const setLevel = (id: LevelId) => {
+    setLevelState(id);
+    lsSet('kiai.level', id);
   };
 
   const loadSgfText = (text: string) => {
@@ -231,7 +219,7 @@ export function App() {
     }
     setDraft('');
     const user: ChatMessage = { id: newId(), role: 'user', text, at: Date.now() };
-    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking };
+    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({ ...c, title: c.messages.length ? c.title : titleFrom(text), messages: [...c.messages, user, kami] }));
     void run(current.id, kami.id, text, current.board);
   };
@@ -245,7 +233,7 @@ export function App() {
     if (i < 0) return;
     const text = (newText ?? msgs[i].text).trim();
     if (!text) return;
-    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking };
+    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({
       ...c,
       title: i === 0 && newText ? titleFrom(text) : c.title,
@@ -302,7 +290,6 @@ export function App() {
   };
 
   const listed = convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated);
-  const tier = pickById(pick);
 
   return (
     <div className={`kami-app${drawer ? ' drawer-open' : ''}${boardHidden ? ' board-hidden' : ''}${folded ? ' side-folded' : ''} font-${answerFont}`}>
@@ -359,11 +346,9 @@ export function App() {
           <Composer
             value={draft}
             onChange={setDraft}
-            tiers={tiers}
-            tier={tier}
-            onPick={setPick}
-            thinking={thinking}
-            onThinking={setThinking}
+            levels={levels}
+            level={level}
+            onLevel={setLevel}
             running={!!running}
             onSend={send}
             onStop={stop}
