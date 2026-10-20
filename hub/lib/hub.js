@@ -288,6 +288,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   // leave it queued for an agent that checks in (PC, free-plan chat).
   async function dispatch(t, role = 'worker', extra = {}) {
     const exclude = extra.exclude || [];
+    // Free helper accounts take no-code work first, saving the paid accounts.
+    if (!t.account && t.code === false && role === 'worker') {
+      const ths = await threads();
+      const load = (n) => ths.filter((x) => x.account === n && ['queued', 'working'].includes(x.status)).length;
+      const helpers = Object.values(await accounts()).filter((x) => x.plan === 'free' && !x.low && !exclude.includes(x.name));
+      helpers.sort((x, y) => load(x.name) - load(y.name));
+      if (helpers[0]) t.account = helpers[0].name;
+    }
     let a = t.account ? await account(t.account) : null;
     // Chosen on purpose for an account the hub can't start (free plan, PC):
     // keep it there until that account checks in.
@@ -449,7 +457,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       t.lastAgentAt = now();
       await putThread(t);
       const role = p.role === 'answer' ? 'Answer the open question addressed to this thread (see messages), then stop.' : p.role === 'resume' ? 'The previous agent stopped. Continue from the last handover; check its branch first.' : 'Do the work in the brief.';
-      return `You are working on thread #${t.id} as ${agent.name}. ${role}\n\n${await threadText(t)}\n\n${RULES}`;
+      const more = agent.plan === 'free' ? '\n\nWhen this thread is done, call hub_start again (no payload) for the next piece of work.' : '';
+      return `You are working on thread #${t.id} as ${agent.name}. ${role}\n\n${await threadText(t)}\n\n${RULES}${more}`;
     }
     // No payload: an agent checking in (PC agent, or a chat on any plan).
     const pending = await pendingPrompts();
@@ -471,7 +480,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return [
       `You are the coordinator of XIAO's Dop hub. Be brief: you are the hub's overhead, so spend as few tokens as you can and do not do the work yourself.`,
       `For each prompt below make ONE hub_route call (prompt_id, summary, threads) and then stop. Split a prompt into several threads only when parts can run in parallel or need different models; most prompts are one thread. Each thread: title (a few words), brief (XIAO's words plus anything from the overview it needs), model, code, account (usually empty). To continue an open thread instead, give its id as thread_id with the new brief. summary: one short line for XIAO.`,
-      `Models: opus = hard or design work, sonnet = normal coding, haiku = small edits, lookups, checks. code=false for tasks that need no repo (questions, research, review of text); those can go to free-plan accounts. Leave account empty to let the hub choose.`,
+      `Models: opus = hard or design work, sonnet = normal coding, haiku = small edits, lookups, checks. code=false for tasks that need no repo (questions, research, writing, reviewing text); the hub gives those to free helper accounts first. Leave account empty to let the hub choose.`,
       `Prompts:\n${prompts.map(msgLine).join('\n') || 'none (nothing to do)'}`,
       await overview(),
     ].join('\n\n');

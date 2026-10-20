@@ -146,6 +146,17 @@ describe('cloud hub', () => {
     expect(c.account).not.toBe('Phone');
   });
 
+  it('hands no-code work to free helper accounts first, spread across them', async () => {
+    await page('account', { name: 'Helper2', plan: 'free' });
+    keys.Helper2 = (await page('connect&account=Helper2')).body.key;
+    const before = fires.length;
+    const a = await hub.createThread({ title: 'Research 1', brief: 'x', model: 'sonnet', code: false });
+    const b = await hub.createThread({ title: 'Research 2', brief: 'x', model: 'sonnet', code: false });
+    expect(fires.length).toBe(before); // no paid session started
+    expect([a.account, b.account].sort()).toEqual(['Helper2', 'Phone'].sort());
+    expect(await tool('Helper2', 'hub_start')).toContain('call hub_start again');
+  });
+
   it('skips the coordinator when the overhead budget is used up', async () => {
     await page('settings', { overheadTokens: 0 });
     const n = (await hub.threads()).length;
