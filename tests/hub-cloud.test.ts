@@ -262,6 +262,52 @@ describe('cloud hub: thinking level and chosen accounts', () => {
     const u = await h.updateThread(t.id, { thinking: 'high', accounts: ['Helper'] });
     expect(u).toMatchObject({ thinking: 'high', accounts: ['Helper'] });
   });
+
+  it('uses Claude\'s five effort levels, xhigh as "think harder"', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'sonnet', id: 'trig_x', token: 'good-x' }] });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet', thinking: 'xhigh' });
+    expect(t.thinking).toBe('xhigh');
+    expect(fires.at(-1)!.text.startsWith('think harder\n{')).toBe(true);
+  });
+
+  it('archives, restores and deletes threads, and the page reads only what is new', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const a = await h.createThread({ title: 'keep', brief: 'a', model: 'sonnet' });
+    const b = await h.createThread({ title: 'gone', brief: 'b', model: 'sonnet' });
+    const first = await h.snapshot();
+    expect(first.full).toBe(true);
+    const last = first.messages.at(-1).id;
+    await h.post({ thread: a.id, from: 'XIAO', kind: 'prompt', text: 'new one' });
+    const next = await h.snapshot({ since: last });
+    expect(next.full).toBe(false);
+    expect(next.messages.map((m: any) => m.text)).toEqual(['new one']);
+    expect(next.seq).not.toBe(first.seq);
+    await h.updateThread(a.id, { archived: true });
+    expect((await h.thread(a.id)).archived).toBe(true);
+    expect(await h.overview()).not.toContain('#' + a.id + ' ');
+    await h.updateThread(a.id, { archived: false });
+    expect(await h.overview()).toContain('#' + a.id + ' ');
+    await h.deleteThread(b.id);
+    expect(await h.thread(b.id)).toBeNull();
+    expect((await h.feed()).some((m: any) => m.thread === b.id)).toBe(false);
+    expect((await h.feed()).some((m: any) => m.thread === a.id)).toBe(true);
+  });
+
+  it('marks an account connected once its link is used', async () => {
+    await page('account', { name: 'Conn', plan: 'free' });
+    const before = (await page('state')).body.accounts.find((x: any) => x.name === 'Conn');
+    expect(before.connected).toBe(false);
+    const key = (await page('connect&account=Conn')).body.key;
+    await mcp('Conn', 'tools/list', {}, key);
+    const after = (await page('state')).body.accounts.find((x: any) => x.name === 'Conn');
+    expect(after.connected).toBe(true);
+    await page('account-remove', { name: 'Conn' });
+  });
 });
 
 describe('cloud hub: usage per account', () => {
@@ -278,6 +324,7 @@ describe('cloud hub: usage per account', () => {
     expect(main.usage).toMatchObject({ five_hour_pct: 91, seven_day_pct: 40, source: 'claude', five_hour_resets: '2026-10-20T15:00:00Z' });
     expect(main.low).toBe(true);
     expect(h.publicAccount(await h.account('Bad')).usageErr).toContain('401');
+    expect((await h.connLog()).some((e: any) => e.http === 'USAGE' && e.account === 'Main' && e.keyOk)).toBe(true);
     await h.setUsage('Free1', { five_hour_pct: '20', seven_day_pct: '' });
     expect(h.publicAccount(await h.account('Free1')).usage).toMatchObject({ five_hour_pct: 20, seven_day_pct: null, source: 'manual' });
     usageReply = null;

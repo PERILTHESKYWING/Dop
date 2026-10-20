@@ -26,9 +26,10 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 
 ## Using it
 - Type a task in **Project chat**. The coordinator opens threads and says where each went, with a card per thread.
-- The buttons under the box pick, for that task: **Model** (Auto lets the coordinator choose), **Thinking** (Low, Medium, High, Max) and **Accounts** (any, or tick one or more; only those accounts work on it). **One thread** skips the coordinator. The picks are remembered on that device.
+- The buttons under the box pick, for that task: **Model** (Auto lets the coordinator choose), **Thinking** (Claude's own levels: Low, Medium, High, xHigh, Max) and **Accounts** (any, or tick one or more; only those accounts work on it). **One thread** skips the coordinator. The picks are remembered on that device.
 - Tasks that need code go to paid accounts and start within seconds. Tasks that don't need code wait for a free helper; open a chat on it and type **check the Dop hub**.
-- In a thread you can reply, change its **Model**, **Thinking** or **Accounts**, or press **Mark done**.
+- In a thread you can reply, change its **Model**, **Thinking** or **Accounts**, or press **Mark done**. The **⋯** menu archives a thread (hidden under **Archived** at the bottom of the list, no new sessions, can be restored) or deletes it with its messages.
+- Each account card says **✓ Connected** once its connector link has been used with the right key, or **Not connected yet**.
 - The **Team** panel shows each account's 5-hour and weekly limits (% used and when each resets), sorted with the freest first. At 85% of either the hub marks it low and moves new work elsewhere; the thread continues from its last handover. **Usage** on a card lets you type the numbers in or mark it **Running low** by hand.
 
 ---
@@ -39,10 +40,11 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **Skills**: skills saved on an account load by themselves in that account's chats and cloud sessions; the repo's `.claude/skills` load in every cloud session. Each account needs its own copies (see `.claude/account-skills/`).
 - **Handover**: agents save what's done, the exact next step and the branch after each milestone. If a working thread goes quiet for 15 minutes, the hub restarts it on another account from that handover (at most once every 30 minutes per thread; it can be turned off in Settings).
 - **Usage** (measured 2026-10-20): one coordinator run on Haiku took 4 turns, 3 to 15k new tokens plus about 180k cached reads, about US$0.004 at API prices. The hub's own messages are about 500 tokens per prompt. The page shows the hub's overhead for the last 5 hours against a budget (default 60k tokens, set in Settings); over budget, prompts skip the coordinator. Anthropic doesn't publish the free plan's 5-hour limit as a number, so staying under half of it can't be proven.
-- **Thinking level**: routines have no effort setting the hub can change, so the level goes in as words Claude Code reads: Medium adds "think", High "think hard", Max "ultrathink" at the top of the start message, plus a line in the brief. Not measured yet whether this changes how long the sessions think.
-- **Where usage numbers come from**: every 5 minutes (or **Refresh**) the hub asks Claude's usage endpoint (`api/oauth/usage`, undocumented) with the account's routine token. If Claude refuses that token the card says so; then type the numbers in from claude.ai › Settings › Usage, or let a PC agent's status line (`hub/pc-statusline.mjs`) report them every 10 minutes. Free plans have no routine token, so they need one of those two.
+- **Thinking level**: routines have no effort setting the hub can change, so the level goes in as words Claude Code reads at the top of the start message: Medium "think", High "think hard", xHigh "think harder", Max "ultrathink", plus a line in the brief. Not measured yet whether this changes how long the sessions think.
+- **Where usage numbers come from**: every 5 minutes (or **Refresh**) the hub asks Claude's usage endpoint (`api/oauth/usage`, undocumented) with the account's routine token. If Claude refuses that token the card shows Claude's reason and Settings › Connection log gets a USAGE line; then type the numbers in from claude.ai › Settings › Usage, or let a PC agent's status line (`hub/pc-statusline.mjs`) report them every 10 minutes. Free plans have no routine token, so they need one of those two.
 - **Saving usage**: turn on **One thread** under the box for simple tasks.
 - **PC agents (optional)**: `claude mcp add --transport http dop-hub "<link>"`. Set `HUB_MCP_URL` to the link and use `hub/pc-statusline.mjs` as the status line to report low usage automatically.
-- **Storage**: the page checks for news every 4 seconds while it's open, and waiting agents check every 3 seconds, well inside Upstash's free allowance.
+- **Speed**: one page refresh is one store round trip (measured with 80 ms per trip: 82 ms, was 1,535 ms and 25 trips), the page only fetches messages it doesn't have, opens from its last view on reload, and shows your message before the hub answers. Settings › Speed shows the last refresh time.
+- **Storage**: the page checks for news every 3 seconds while it's open, and waiting agents check every 3 seconds, well inside Upstash's free allowance.
 - **PC-only version**: `tools/hub/` (see `hub.md`) still works offline.
 - Code: `hub/`. Tests: `tests/hub-cloud.test.ts`.

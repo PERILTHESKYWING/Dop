@@ -8,15 +8,18 @@ export const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 // Thinking level per thread. Routines have no effort setting the hub can
 // change, so the level travels as words Claude Code reads: a keyword at the
 // top of the session's first message, and a line in the brief.
-export const THINKING = ['low', 'medium', 'high', 'max'];
-const THINK_WORD = { low: '', medium: 'think', high: 'think hard', max: 'ultrathink' };
+// The levels and names are Claude's own effort levels.
+export const THINKING = ['low', 'medium', 'high', 'xhigh', 'max'];
+const THINK_WORD = { low: '', medium: 'think', high: 'think hard', xhigh: 'think harder', max: 'ultrathink' };
 const THINK_LINE = {
   low: 'Thinking: Low. Work quickly and keep your reasoning short.',
   medium: 'Thinking: Medium. Think before each step.',
   high: 'Thinking: High. Think hard before each important step and check your work.',
+  xhigh: 'Thinking: xHigh. Think harder: reason carefully before every step, weigh alternatives and check your work.',
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
-const K = { seq: 'hub:seq', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn' };
+// seq counts messages; rev counts thread and account changes. The page polls both.
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 // A thread whose agent has said nothing for this long is treated as stopped.
@@ -90,8 +93,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   async function account(name) {
     return parse(await store.cmd('HGET', K.accounts, name));
   }
-  async function putAccount(a) {
-    await store.cmd('HSET', K.accounts, a.name, json(a));
+  async function putAccount(a, { quiet = false } = {}) {
+    await store.multi([['HSET', K.accounts, a.name, json(a)], ...(quiet ? [] : [['INCR', K.rev]])]);
     return a;
   }
 
@@ -145,6 +148,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       usageErr: a.usageErr || '',
       lastSeen: a.lastSeen || 0,
       online: t - (a.lastSeen || 0) < ACTIVE_MS,
+      connected: !!(a.connectedAt || a.lastSeen),
       models: [...new Set((a.routines || []).map((r) => r.model))],
       routines: (a.routines || []).map((r) => ({ model: r.model, id: r.id, hasToken: !!r.token })),
       working: threads.filter((th) => th.account === a.name && th.status === 'working').length,
@@ -161,9 +165,19 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   async function touchAccount(name, patch = {}) {
     const a = await account(name);
     if (!a) return null;
+    // A plain "still here" doesn't need the page to refresh.
+    const quiet = !Object.keys(patch).length && now() - (a.lastSeen || 0) < 60_000;
     Object.assign(a, patch, { lastSeen: now() });
+    a.connectedAt ||= now();
     await applyUsage(a);
-    return putAccount(a);
+    return putAccount(a, { quiet });
+  }
+
+  // First call with the right key: the connector on claude.ai works.
+  async function markConnected(a) {
+    if (a.connectedAt) return;
+    a.connectedAt = now();
+    await putAccount(a);
   }
 
   // Marks an account low at 85% of either limit and clears it under 70%.
@@ -201,7 +215,10 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
         headers: { authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20', 'anthropic-version': '2023-06-01' },
         signal: AbortSignal.timeout(4000),
       });
-      if (!res.ok) return { error: `Claude answered ${res.status}` };
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        return { error: `Claude answered ${res.status}${e?.error?.message ? ': ' + clean(e.error.message, 140) : ''}` };
+      }
       const b = await res.json();
       const five = pctOf(b.five_hour);
       const week = pctOf(b.seven_day);
@@ -222,6 +239,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     }
   }
   async function refreshUsage({ force = false } = {}) {
+    // Connectors added before the hub tracked connections show up in the log.
+    const seen = new Map((await connLog()).filter((e) => e.keyOk && e.account && e.http === 'POST').map((e) => [e.account, e.at]));
+    for (const a of Object.values(await accounts())) if (!a.connectedAt && seen.has(a.name)) await putAccount({ ...a, connectedAt: seen.get(a.name) });
     const all = Object.values(await accounts()).filter((a) => (a.routines || []).some((r) => r.token));
     const due = all.filter((a) => force || now() - (a.usageTriedAt || 0) > USAGE_EVERY_MS);
     // Claim the slot first so overlapping page polls don't all ask Claude.
@@ -238,6 +258,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
           await applyUsage(a);
         } else a.usageErr = got.error;
         await putAccount(a);
+        try {
+          await logConn({ http: 'USAGE', account: a.name, keyOk: !!got.usage, via: got.usage ? `5h ${got.usage.five_hour_pct}%, week ${got.usage.seven_day_pct}%` : got.error });
+        } catch {}
       }),
     );
   }
@@ -296,7 +319,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
   async function putThread(t) {
     t.updatedAt = now();
-    await store.cmd('HSET', K.threads, String(t.id), json(t));
+    await store.multi([['HSET', K.threads, String(t.id), json(t)], ['INCR', K.rev]]);
     return t;
   }
 
@@ -356,6 +379,17 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return rs.find((r) => r.model === model) || null;
   }
 
+  // Claude's subscription rate-limit headers, if a reply carries them.
+  function usageFromHeaders(h) {
+    const get = (k) => h?.get?.(`anthropic-ratelimit-unified-${k}`);
+    const pct = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v) <= 1 ? Number(v) * 100 : Number(v)));
+    const when = (v) => (v && Number.isFinite(Number(v)) ? new Date(Number(v) * 1000).toISOString() : null);
+    const five = pct(get('5h-utilization'));
+    const week = pct(get('7d-utilization'));
+    if (five == null && week == null) return null;
+    return { five_hour_pct: five, five_hour_resets: when(get('5h-reset')), seven_day_pct: week, seven_day_resets: when(get('7d-reset')), at: now(), source: 'claude' };
+  }
+
   async function fire(a, model, payload, role, thinking = 'low') {
     const out = await fireOnce(a, model, payload, role, thinking);
     try {
@@ -391,6 +425,12 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     const fresh = await account(a.name);
     const fr = (fresh.routines || []).find((x) => x.id === r.id);
     if (fr) fr.fires = [...(fr.fires || []).filter((f) => now() - f < 3600_000), now()];
+    const fromHeaders = usageFromHeaders(res.headers);
+    if (fromHeaders) {
+      fresh.usage = fromHeaders;
+      fresh.usageErr = '';
+      await applyUsage(fresh);
+    }
     await putAccount(fresh);
     await store.multi([
       ['RPUSH', K.fires, json({ at: now(), account: a.name, model, role })],
@@ -431,7 +471,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     // Free helper accounts take no-code work first, saving the paid accounts.
     if (!t.account && t.code === false && role === 'worker') {
       const ths = await threads();
-      const load = (n) => ths.filter((x) => x.account === n && ['queued', 'working'].includes(x.status)).length;
+      const load = (n) => ths.filter((x) => x.account === n && !x.archived && ['queued', 'working'].includes(x.status)).length;
       const only = t.accounts || [];
       const helpers = Object.values(await accounts()).filter((x) => x.plan === 'free' && !x.low && !exclude.includes(x.name) && (!only.length || only.includes(x.name)));
       helpers.sort((x, y) => load(x.name) - load(y.name));
@@ -508,6 +548,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       if (THINKING.includes(thinking)) t.thinking = thinking;
       if (Array.isArray(only)) t.accounts = cleanList(only);
       const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text });
+      t.archived = false;
       if (t.status === 'done' || t.status === 'waiting' || t.status === 'stalled' || t.status === 'queued') t.status = 'new';
       await putThread(t);
       // A running agent sees it with hub_wait; otherwise start one.
@@ -549,8 +590,57 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       if (t.accounts.length && t.account && !t.accounts.includes(t.account) && t.status !== 'working') t.account = '';
     }
     if (['done', 'new'].includes(patch.status)) t.status = patch.status;
+    // Archived threads leave the lists and get no new sessions until restored.
+    if (typeof patch.archived === 'boolean') t.archived = patch.archived;
     if (typeof patch.title === 'string' && patch.title.trim()) t.title = clean(patch.title, 80);
     return putThread(t);
+  }
+
+  // Removes a thread and its messages for good. A session still working on it
+  // gets "No such thread" on its next hub call and stops.
+  async function deleteThread(id) {
+    const tid = Number(id);
+    const mine = (await store.cmd('LRANGE', K.feed, 0, -1)).filter((x) => parse(x)?.thread === tid);
+    await store.multi([['HDEL', K.threads, String(tid)], ...mine.map((x) => ['LREM', K.feed, 0, x]), ['INCR', K.rev]]);
+  }
+
+  // Everything the page shows, read in one round trip. With since, only
+  // messages newer than that id come back.
+  async function snapshot({ since = 0, limit = 600 } = {}) {
+    const [th, ac, fd, st, fi, tok, seq, rev] = await store.multi([
+      ['HGETALL', K.threads],
+      ['HGETALL', K.accounts],
+      ['LRANGE', K.feed, since ? -150 : -limit, -1],
+      ['GET', K.settings],
+      ['LRANGE', K.fires, 0, -1],
+      ['GET', `hub:tok:${Math.floor(now() / FIVE_H)}`],
+      ['GET', K.seq],
+      ['GET', K.rev],
+    ]);
+    const t = now();
+    const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
+    // A stopped agent is noticed here; only then is a second read needed.
+    if (ths.some((x) => x.status === 'working' && !x.archived && t - (x.lastAgentAt || 0) >= STALL_MS)) {
+      await sweep();
+      return snapshot({ since, limit });
+    }
+    let messages = (fd || []).map((x) => parse(x)).filter(Boolean);
+    // Too far behind for the short read: send the full window instead.
+    if (since && (fd || []).length >= 150 && messages[0]?.id > since) return snapshot({ limit });
+    if (since) messages = messages.filter((m) => m.id > since);
+    const s = { ...DEFAULT_SETTINGS, ...parse(st, {}) };
+    const fires = (fi || []).map((x) => parse(x)).filter((f) => f && t - f.at < FIVE_H);
+    const coordinatorSessions = fires.filter((f) => f.role === 'coordinator').length;
+    const used = Number(tok || 0) + coordinatorSessions * s.coordinatorSessionTokens;
+    return {
+      seq: `${Number(seq || 0)}.${Number(rev || 0)}`,
+      full: !since,
+      threads: ths,
+      accounts: Object.values(hashToObj(ac)).map((a) => publicAccount(a, ths)),
+      messages,
+      settings: s,
+      overhead: { used, budget: s.overheadTokens, traffic: Number(tok || 0), coordinatorSessions, fires: fires.length, over: used >= s.overheadTokens },
+    };
   }
 
   // ---------- noticing stopped agents ----------
@@ -558,7 +648,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     const t = now();
     const s = await settings();
     for (const th of await threads()) {
-      if (th.status !== 'working' || t - (th.lastAgentAt || 0) < STALL_MS) continue;
+      if (th.status !== 'working' || th.archived || t - (th.lastAgentAt || 0) < STALL_MS) continue;
       th.status = 'stalled';
       await putThread(th);
       const mins = Math.round((t - (th.lastAgentAt || t)) / 60_000);
@@ -584,7 +674,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
 
   async function overview() {
     const ths = await threads();
-    const open = ths.filter((t) => t.status !== 'done');
+    const open = ths.filter((t) => t.status !== 'done' && !t.archived);
     const accs = Object.values(await accounts()).map((a) => publicAccount(a, ths));
     return [
       'Accounts: ' + (accs.map((a) => `${a.name} (${a.plan}${a.low ? ', LOW' : ''}${a.models.length ? `, ${a.models.join('/')}` : ', no routines'})`).join('; ') || 'none'),
@@ -626,7 +716,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     if (pending.length && agent.plan !== 'free') return coordinatorBrief(pending, await settings());
     const ths = await threads();
     const canCode = agent.plan !== 'free';
-    const mine = ths.find((t) => ['queued', 'stalled', 'new'].includes(t.status) && (t.account === agent.name || !t.account) && (canCode || t.code === false));
+    const mine = ths.find((t) => !t.archived && ['queued', 'stalled', 'new'].includes(t.status) && (t.account === agent.name || !t.account) && (canCode || t.code === false));
     if (mine) return start(agent, json({ role: mine.status === 'stalled' ? 'resume' : 'worker', thread: mine.id }));
     return `No work waiting for ${agent.name}.\n\n${await overview()}`;
   }
@@ -648,7 +738,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       `You are the coordinator of XIAO's Dop hub. Be brief: you are the hub's overhead, so spend as few tokens as you can and do not do the work yourself.`,
       `For each prompt below make ONE hub_route call (prompt_id, summary, threads) and then stop. Split a prompt into several threads only when parts can run in parallel or need different models; most prompts are one thread. Each thread: title (a few words), brief (XIAO's words plus anything from the overview it needs), model, code, account (usually empty). To continue an open thread instead, give its id as thread_id with the new brief. summary: one short line for XIAO.`,
       `Models: opus = hard or design work, sonnet = normal coding, haiku = small edits, lookups, checks. code=false for tasks that need no repo (questions, research, writing, reviewing text); the hub gives those to free helper accounts first. Leave account empty to let the hub choose.`,
-      `If XIAO picked a model, thinking level or accounts for a prompt (shown after it), the hub applies them to its threads, so you don't need to. Otherwise choose thinking per thread: low for small tasks, medium normally, high or max for hard ones.`,
+      `If XIAO picked a model, thinking level or accounts for a prompt (shown after it), the hub applies them to its threads, so you don't need to. Otherwise choose thinking per thread: low for small tasks, medium normally, high, xhigh or max for hard ones.`,
       `Prompts:\n${prompts.map(promptLine).join('\n') || 'none (nothing to do)'}`,
       await overview(),
     ].join('\n\n');
@@ -745,9 +835,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   return {
-    settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, setLow, refreshUsage, setUsage,
+    settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
-    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, sweep, dispatch,
+    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, snapshot, sweep, dispatch,
     start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
+    // What the page compares to know whether to fetch again.
+    version: async () => {
+      const [seq, rev] = await store.multi([['GET', K.seq], ['GET', K.rev]]);
+      return `${Number(seq || 0)}.${Number(rev || 0)}`;
+    },
   };
 }
