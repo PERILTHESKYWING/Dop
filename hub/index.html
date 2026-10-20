@@ -332,7 +332,7 @@ async function openSheet(kind, name) {
     html = `<h3>Connect ${esc(name)}</h3>
       <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
       <code class="copyline">${esc(url)}</code><button class="btn small" data-copy="${esc(url)}">Copy link</button>
-      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link, choose <i>No sign in</i>.</p>
+      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link, leave the OAuth fields empty.</p>
       ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the Dop hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the Dop repo and a model, turn on the Dop hub connector, add an API trigger, and paste this prompt:</p>
       <code class="copyline">${esc(ROUTINE_PROMPT)}</code><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button>
       <p><b>Step 4.</b> Press Edit on this account here and paste the routine's id and token. Repeat steps 3 and 4 for each model you want.</p>`}
