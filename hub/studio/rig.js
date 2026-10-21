@@ -31,10 +31,12 @@ export const FACE = {
   shock: { brow: -2, browY: -0.14, eyes: 'shock', mouth: 'square', talk: ['square', 'o'] },
   cat: { brow: -3, browY: -0.02, eyes: 'lidded', mouth: 'cat', talk: ['cat', 'open'], tilt: 3 },
   joy: { brow: -8, browY: -0.05, eyes: 'happy', mouth: 'grin', talk: ['grin', 'open'], fx: 'blush' },
-  shy: { brow: 10, browY: -0.02, eyes: 'lidded', mouth: 'wavy', talk: ['wavy', 'open'], tilt: 5, gaze: [-0.9, 0.3], fx: 'blush', blush: 1.6 },
+  shy: { brow: 10, browY: -0.02, eyes: 'closed', mouth: 'smile', talk: ['smile', 'open'], tilt: 5, fx: 'blush', blush: 1.6 },
   // Ref expressions: the zigzag-teeth yell and the wobbly flustered grin.
   yell: { brow: 12, browY: -0.02, eyes: 'lidded', mouth: 'zigzag', talk: ['zigzag', 'wide'], tilt: 3, fx: 'blush' },
-  flustered: { brow: 10, browY: -0.05, eyes: 'open', mouth: 'wobble', talk: ['wobble', 'open'], fx: 'sweat' },
+  nervous: { brow: 10, browY: -0.05, eyes: 'open', mouth: 'wobble', talk: ['wobble', 'open'], fx: 'sweat', tilt: 3 },
+  teary: { brow: 16, browY: -0.06, eyes: 'teary', mouth: 'cat', talk: ['cat', 'open'], tilt: 4, fx: 'blush' },
+  wink: { brow: -6, browY: -0.04, eyes: 'wink', mouth: 'tongue', talk: ['tongue', 'grin'], tilt: 5 },
   panic: { brow: 14, browY: -0.1, eyes: 'spiral', mouth: 'wavy', talk: ['wide', 'wavy'], fx: 'sweat' },
 };
 
@@ -299,13 +301,14 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       }
 
     // Eyes: a white with lids, an iris clipped by the lids, a catch light.
-    const kind = p.eyes || face.eyes;
-    const blink = p.blink && kind !== 'wide';
+    const kind0 = p.eyes || face.eyes;
+    const blink = p.blink && kind0 !== 'wide' && kind0 !== 'teary';
     const irisC = ch.eyeColor || (ch.hair2 && big ? mix(ch.hair2, '#3b2a1c', 0.25) : mix(ch.hair, '#3b2a1c', 0.55));
     for (const sx of [-1, 1]) {
       const ex = sx * gap;
       const vis = seen(ex, ey);
       if (vis < 0.08) continue;
+      const kind = kind0 === 'wink' ? (sx > 0 ? 'happy' : 'open') : kind0;
       const ew = big ? 0.2 : 0.165;
       const eh = big ? 0.25 : ch.eyes === 'oval' ? 0.17 : 0.14;
       const at = (pts) => F(pts.map(([a, b]) => [ex + a, ey + b]));
@@ -337,7 +340,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         pen.stroke('eye' + sx, curve(at([[-ew, eh * 0.35], [0, -eh * 0.65], [ew, eh * 0.35]]), 4), { width: line * 0.95 });
         continue;
       }
-      let open = { wide: 1.25, lidded: 0.5, sad: 0.85, angry: 0.78 }[kind] ?? 1;
+      let open = { wide: 1.25, teary: 1.2, lidded: 0.5, sad: 0.85, angry: 0.78 }[kind] ?? 1;
       if (ch.eyes === 'sleepy') open = Math.min(open, 0.62);
       // Lid slant: + lowers the inner corner (angry), - the outer (sad).
       const slant = kind === 'angry' ? 0.55 : kind === 'sad' ? -0.5 : 0;
@@ -371,7 +374,12 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       // Big eyes: the top of the iris in the lid's shadow, a ringed edge.
       if (big) pen.fill('irisTop' + sx, at(ellipse(gx, gy - ir * 0.45, ir * 0.74, ir * 0.55, { n: 22 }).map(clampLid)), mix(irisC, ink, 0.5), { slip: 0 });
       pen.fill('pupil' + sx, at(ellipse(gx, gy, ir * (big ? 0.34 : 0.45), ir * 0.5, { n: 20 }).map(clampLid)), ink, { slip: 0 });
-      if (big) pen.stroke('irisRim' + sx, at(irisPts), { width: line * 0.45, closed: true });
+      if (big) pen.stroke('irisRim' + sx, at(irisPts), { width: line * 0.45, closed: true, color: kind === 'teary' ? '#e8708a' : undefined });
+      if (kind === 'teary') {
+        // Glossy, welling eyes: a pink lower rim, a wet line under the iris, a second big highlight.
+        pen.stroke('wet' + sx, at(lower.slice(2, -2).map(([a, b]) => [a, b - eh * 0.1])), { width: line * 0.7, color: '#e8708a' });
+        pen.fill('welling' + sx, at(lower.slice(3, -3).map(([a, b]) => [a, b - eh * 0.04]).concat(lower.slice(3, -3).reverse().map(([a, b]) => [a, b - eh * 0.34]))), '#bfe6f7', { slip: 0, alpha: 0.7 });
+      }
       const hl = clampLid([gx - ir * 0.35, gy - ir * 0.4]);
       const [hx, hy] = onFace(ex + hl[0], ey + hl[1]);
       pen.dot('glint' + sx, hx, hy, ir * r * (big ? 0.3 : 0.24) * Math.max(0.5, vis), '#ffffff');
@@ -424,6 +432,9 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
           // The ref's shock mouth: a white block with a tooth line.
           pen.shape('mouth', at(loop([[-w * 0.22, -0.04], [w * 0.22, -0.04], [w * 0.2, 0.13], [-w * 0.2, 0.13]], 3)), '#fffdfa', { width: line * 0.9, slip: 0.1 });
           pen.stroke('teeth', at([[-w * 0.2, 0.045], [w * 0.2, 0.045]]), { width: line * 0.4 });
+        } else if (m === 'tongue') {
+          pen.stroke('mouth', curve(at([[-w * 0.4, -0.01], [0, 0.07], [w * 0.4, -0.01]]), 4), lw);
+          pen.shape('tongue', at(loop([[-w * 0.1, 0.05], [w * 0.1, 0.05], [w * 0.1, 0.15], [0, 0.2], [-w * 0.1, 0.15]], 3)), '#e87a86', { width: line * 0.7, slip: 0.1 });
         } else if (m === 'zigzag') {
           // Gritted zigzag teeth in an angular open mouth (the ref's "three days" yell).
           const z = [];
