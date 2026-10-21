@@ -129,8 +129,47 @@ function pan(pen, id, x, y, k, m, st) {
   pen.shape(id + 'core', flame(x + 8 * k, 100, '#ffe08a', 0), '#ffe08a');
 }
 
+// A shrimp standing up straight like a person ("after" the posture fix): tall segmented
+// body, tail fan as feet, head with eye and feelers on top, one little arm on the hip.
+function shrimpUp(pen, id, x, y, k, m, st) {
+  const n = 7; // spine points, bottom (tail) to top (head)
+  const spine = [];
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    spine.push([x + Math.sin(u * Math.PI) * 6 * k, y + 120 * k - u * 230 * k]);
+  }
+  const half = (u) => (24 + 22 * Math.sin(Math.min(1, u * 1.15) * Math.PI * 0.9)) * k; // thin tail, full chest
+  const L = spine.map(([sx, sy], i) => [sx - half(i / (n - 1)), sy]);
+  const R = spine.map(([sx, sy], i) => [sx + half(i / (n - 1)), sy]);
+  const top = spine[n - 1];
+  const body = curve([...L, [top[0] - 30 * k, top[1] - 34 * k], [top[0], top[1] - 52 * k], [top[0] + 30 * k, top[1] - 34 * k], ...R.reverse()], 4);
+  // tail fan under it: two lobes splayed like feet
+  const [bx, by] = spine[0];
+  for (const s2 of [-1, 1]) pen.shape(id + 'tf' + s2, loop([[bx, by - 4 * k], [bx + s2 * 58 * k, by + 20 * k], [bx + s2 * 46 * k, by + 38 * k], [bx + s2 * 8 * k, by + 22 * k]], 4), '#f08a77');
+  pen.shape(id + 'sh', [...body, body[0]], '#f5a58f');
+  for (let i = 1; i < n - 2; i++) {
+    const [sx, sy] = spine[i];
+    const h = half(i / (n - 1));
+    pen.stroke(id + 'sg' + i, curve([[sx - h * 0.92, sy], [sx, sy + 7 * k], [sx + h * 0.92, sy]], 4), { width: st.line * 0.55 });
+  }
+  // little legs down the front (her left), the arm on the hip (right)
+  for (let i = 1; i < 4; i++) {
+    const [sx, sy] = spine[i];
+    pen.stroke(id + 'lg' + i, [[sx - half(i / (n - 1)) + 4 * k, sy - 10 * k], [sx - half(i / (n - 1)) - 16 * k, sy - 2 * k]], { width: st.line * 0.55, round: true });
+  }
+  const [cx, cy] = spine[3];
+  const h3 = half(3 / (n - 1));
+  pen.stroke(id + 'arm', [[cx + h3 - 4 * k, cy - 40 * k], [cx + h3 + 30 * k, cy - 16 * k], [cx + h3 - 2 * k, cy + 6 * k]], { width: st.line * 0.75, round: true });
+  // head: eye and two feelers sweeping up and back
+  pen.dot(id + 'eye', top[0] - 10 * k, top[1] - 18 * k, 7 * k);
+  pen.stroke(id + 'f1', curve([[top[0] - 6 * k, top[1] - 48 * k], [top[0] - 30 * k, top[1] - 110 * k], [top[0] + 20 * k, top[1] - 150 * k]], 5), { width: st.line * 0.6 });
+  pen.stroke(id + 'f2', curve([[top[0] + 6 * k, top[1] - 48 * k], [top[0] + 10 * k, top[1] - 100 * k], [top[0] + 60 * k, top[1] - 124 * k]], 5), { width: st.line * 0.6 });
+}
+
 // A cartoon shrimp curled in a C: thick body in segments, tail fan, legs, feelers, eye.
+// text "after": it stands up straight instead.
 function shrimp(pen, id, x, y, k, m, st) {
+  if (m.text === 'after') return shrimpUp(pen, id, x, y, k, m, st);
   const c = [x, y];
   const ring = (rOut, rIn, a0, a1, n = 14) => {
     const out = [];
@@ -247,7 +286,38 @@ function speed(pen, id, x, y, k, m, st, t) {
   }
 }
 
-const GAGS = { board, card, phone, pan, shrimp, peek, speed };
+// A desk across the whole frame in front of her: one hand-drawn edge line (curling up at
+// the right end), the pale top below it, a drawing tablet lying flat at x with a stylus,
+// and with text "phone" a phone lying at the left. y = the desk edge.
+function desk(pen, id, x, y, k, m, st) {
+  const W = 1600;
+  const H = 900;
+  const edge = curve([[-30, y + 6], [W * 0.3, y - 4], [W * 0.65, y + 2], [W - 70, y - 6], [W - 22, y - 30], [W + 10, y - 60]], 6);
+  pen.fill(id + 'top', [...edge, [W + 30, H + 30], [-30, H + 30], edge[0]], mix(st.paper, '#ffffff', 0.55), { slip: 0.15 });
+  pen.stroke(id + 'edge', edge, { width: st.line * 0.9 });
+  // tablet: a dark slab in perspective (far edge narrower), screen inset, thin side edge
+  const ty = y + Math.max(60, (H - y) * 0.42);
+  const wf = 205 * k; // half width at the far edge
+  const wn = 240 * k; // half width at the near edge
+  const d = 62 * k; // half depth on screen
+  const slab = [[x - wf, ty - d], [x + wf, ty - d], [x + wn, ty + d], [x - wn, ty + d], [x - wf, ty - d]];
+  pen.fill(id + 'side', [[x - wn, ty + d], [x + wn, ty + d], [x + wn - 3 * k, ty + d + 12 * k], [x - wn + 3 * k, ty + d + 12 * k], [x - wn, ty + d]], '#22252d', { slip: 0 });
+  pen.shape(id + 'tb', slab, '#3b3f4a');
+  const f = 0.86;
+  pen.fill(id + 'scr', [[x - wf * f, ty - d * 0.78], [x + wf * f, ty - d * 0.78], [x + wn * f, ty + d * 0.78], [x - wn * f, ty + d * 0.78], [x - wf * f, ty - d * 0.78]], '#4b505d', { slip: 0.1 });
+  // stylus lying on it at a slant, thin, with a lighter tip
+  pen.stroke(id + 'sty', [[x + 40 * k, ty + d * 0.55], [x + 230 * k, ty - d * 0.2]], { width: st.line * 0.9, round: true });
+  pen.stroke(id + 'nib', [[x + 40 * k, ty + d * 0.55], [x + 58 * k, ty + d * 0.48]], { width: st.line * 0.9, color: '#c9ced8', round: true });
+  if (m.text === 'phone') {
+    const px = 0.2 * W;
+    const py = ty + 10 * k;
+    const ph = [[px - 34 * k, py - 30 * k], [px + 30 * k, py - 34 * k], [px + 42 * k, py + 34 * k], [px - 30 * k, py + 40 * k], [px - 34 * k, py - 30 * k]];
+    pen.shape(id + 'ph', ph, '#2f323b');
+    pen.fill(id + 'phs', [[px - 26 * k, py - 22 * k], [px + 22 * k, py - 26 * k], [px + 32 * k, py + 26 * k], [px - 22 * k, py + 31 * k], [px - 26 * k, py - 22 * k]], '#454a57', { slip: 0 });
+  }
+}
+
+const GAGS = { board, card, phone, pan, shrimp, peek, speed, desk };
 export const GAG_KINDS = Object.keys(GAGS);
 // Props (drawn in the scene background, static): the same drawers, at stage coordinates.
 const PROP_DRAWERS = { sign: board, dropdown: card, phone, pan, shrimp, thumb, tablet, mascot, photo };
@@ -277,14 +347,13 @@ export function drawMarks(ops, marks, t, st, W, H) {
       const size = (sfx ? 96 : 40) * k;
       const text = sfx ? m.text.toUpperCase() : m.text;
       if (sfx) {
-        for (let d = 0; d < 8; d++) {
-          const ang = (d * Math.PI) / 4;
-          pen.text(text, x + Math.cos(ang) * 5 * k + jit(), y + Math.sin(ang) * 5 * k + jit(), size, { weight: 700, color: st.ink });
-        }
-        pen.text(text, x + jit(), y + jit(), size, { weight: 700, color: mix(st.paper, '#ffffff', 0.5) });
+        // f2 writes it by hand: thin ink letters (no outline, not bold), wide apart, on a
+        // baseline tipped -4 degrees. One op for the whole word; painters that know
+        // rotate / spacing tip it and space the letters.
+        pen.ops.push({ text, x: x + jit(), y: y + jit(), size, fill: st.ink, align: 'center', rotate: -4, spacing: size * 0.14 });
       } else pen.text(text, x + jit(), y + jit(), size);
       if (m.to) {
-        const halfW = (text.length * size * 0.24) | 0;
+        const halfW = (text.length * size * (sfx ? 0.31 : 0.24)) | 0;
         const [tx, ty] = [m.to[0] * W, m.to[1] * H];
         const start = [x + Math.sign(tx - x || 1) * (halfW + 10), y - size * 0.3 + (ty > y ? size * 0.6 : 0)];
         arrow(pen, id, start, [tx, ty], k, st);

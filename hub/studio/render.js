@@ -10,6 +10,8 @@ export const H = 900;
 export const GROUND = 774;
 const HORIZON = 640;
 export const FONT = '"Patrick Hand", "Comic Neue", "Comic Sans MS", "Chalkboard SE", cursive';
+// The subtitle face: a clean geometric sans, as in the reference vlogs.
+export const SANS = '"Montserrat", "Nunito", "Helvetica Neue", Arial, sans-serif';
 
 // ---------- time ----------
 export function timeline(p) {
@@ -275,10 +277,10 @@ function caption(ops, text, st) {
   const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
   if (st.capPos === 'top') {
-    // Subtitle style: plain outlined text at the top centre, no box.
+    // Subtitle style (f2): black bold sans with a thin white edge at the top centre, no box.
     const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
-    const white = mix(st.paper, '#ffffff', 0.9);
-    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: '#000000', weight: 700 }));
+    const sz = size * 0.86;
+    lines.forEach((l, i) => pen.text(l, W / 2, 16 + sz * 0.95 + i * sz * 1.2, sz, { color: '#111111', outline: '#ffffff', ow: 0.12, weight: 700, sans: true }));
     return;
   }
   const h = lines.length * size * 1.15 + 22;
@@ -382,16 +384,26 @@ export function paintOps(ctx, ops) {
   for (const o of ops) {
     if (o.text != null) {
       ctx.fillStyle = o.fill;
-      ctx.font = `${o.weight || 400} ${o.size}px ${FONT}`;
+      ctx.font = `${o.weight || 400} ${o.size}px ${o.sans ? SANS : FONT}`;
       ctx.textAlign = o.align || 'center';
       ctx.textBaseline = 'alphabetic';
+      // Hand-lettered words (sfx) lean a little and sit wider apart.
+      const turned = o.rotate || o.spacing;
+      if (turned) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.rotate(((o.rotate || 0) * Math.PI) / 180);
+        ctx.translate(-o.x, -o.y);
+        if (o.spacing && 'letterSpacing' in ctx) ctx.letterSpacing = `${o.spacing}px`;
+      }
       if (o.outline) {
         ctx.lineJoin = 'round';
-        ctx.lineWidth = o.size * 0.18;
+        ctx.lineWidth = o.size * (o.ow || 0.18);
         ctx.strokeStyle = o.outline;
         ctx.strokeText(o.text, o.x, o.y);
       }
       ctx.fillText(o.text, o.x, o.y);
+      if (turned) ctx.restore();
       continue;
     }
     ctx.globalAlpha = o.alpha ?? 1;
@@ -467,7 +479,7 @@ function svgOps(ops) {
   return ops
     .map((o) => {
       if (o.text != null)
-        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * 0.18}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * (o.ow || 0.18)}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${o.sans ? SANS : FONT}'${o.rotate ? ` transform="rotate(${o.rotate} ${o.x} ${o.y})"` : ''}${o.spacing ? ` letter-spacing="${o.spacing}"` : ''}>${esc(o.text)}</text>`;
       const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
       if (!o.clip) return path;
       const id = `cl${clipN++}`;

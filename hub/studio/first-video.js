@@ -41,7 +41,7 @@ export const FIRST_VIDEO = {
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
-      camera: CLOSE(0.47), marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.8, y: 0.28 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
+      camera: CLOSE(0.47), marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.86, y: 0.2 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
     shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
@@ -105,7 +105,7 @@ export const FIRST_VIDEO = {
     // 0:51.5 "Footage of last night": dusk violet, collapsed, RAHHH.
     shot('last-night', 2, 'and crashed out in the middle of the night,', nami(0.55, [{ t: 0, move: 'slump', face: 'panic' }]), {
       bg: { kind: 'plain', color: '#6f6886' }, camera: CHEST(0.55),
-      marks: [{ kind: 'sfx', text: 'RAHHH!!!', x: 0.3, y: 0.3, t: 0.1 }, { kind: 'label', text: '*Footage of last night', x: 0.74, y: 0.62, t: 0.4 }],
+      marks: [{ kind: 'sfx', text: 'RAHHH!!!', x: 0.3, y: 0.3, t: 0.1 }, { kind: 'label', text: '*Footage of last night', x: 0.84, y: 0.8, t: 0.4 }],
     }),
     // 0:53.5 Back home, nervous grin, front on.
     shot('fine', 0.6, 'but I am totally fine now!', nami(0.5, [{ t: 0, move: 'idle', face: 'nervous' }]), { camera: BUST(0.5) }),

@@ -435,10 +435,10 @@ describe('studio gag marks (f2)', () => {
       expect(f.overlay.length).toBeGreaterThan(3);
     }
   });
-  it('draws the top caption with a black outline', () => {
+  it('draws the top caption as black sans with a white edge (f2)', () => {
     const p = project({ style: { ...S.SAMPLE_PROJECT.style, capPos: 'top' }, scenes: [{ id: 'c', duration: 2, narration: 'Hi', actors: [] }] });
     const f = R.renderFrame(p, 0, 1);
-    expect(f.overlay.some((o: any) => o.text === 'Hi' && o.outline === '#000000')).toBe(true);
+    expect(f.overlay.some((o: any) => o.text === 'Hi' && o.fill === '#111111' && o.outline === '#ffffff' && o.sans)).toBe(true);
   });
 });
 
