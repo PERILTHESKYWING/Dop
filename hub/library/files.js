@@ -206,6 +206,77 @@ function plan(file) {
   return { file, name: cleanName(file.name), type, kind, keepBody, notes };
 }
 
+// ---------- uploading (also used by the chat box in hub/index.html) ----------
+async function send(api, op, body, tries = 3) {
+  for (let n = 1; ; n++) {
+    try {
+      return await api(op, body);
+    } catch (e) {
+      if (n >= tries || /password|full|limit|too big|not allowed/i.test(e.message)) throw e;
+      await sleep(n * 1500);
+    }
+  }
+}
+
+// One picked file (from plan) into the library: agent copies first, then the
+// original in chunks. report(step, 0-1). Returns { id, warn }.
+async function upload(api, p, meta, report) {
+  let extra = {};
+  if (p.kind === 'image') {
+    report('Making a copy for agents', 0);
+    extra = await imageView(p.file);
+  } else if (p.kind === 'video') {
+    try {
+      extra = await videoFrames(p.file, (s) => report(s, 0));
+    } catch (e) {
+      if (!p.keepBody) throw new Error(`${p.name}: too big to keep and ${e.message}`);
+      extra = { warn: `${e.message}, so agents only get the file` };
+    }
+  }
+  const chunks = p.keepBody ? Math.ceil(p.file.size / RAW_CHUNK) : 0;
+  const parts = [];
+  if (extra.view) parts.push({ part: 'view', i: 0, data: extra.view });
+  if (extra.sheet) parts.push({ part: 'sheet', i: 0, data: extra.sheet });
+  (extra.frames || []).forEach((data, i) => parts.push({ part: 'frame', i, data }));
+  const weight = parts.reduce((s, x) => s + x.data.length, 0) + Math.ceil((p.file.size * 4) / 3) * (p.keepBody ? 1 : 0) || 1;
+  let sent = 0;
+  const { id } = await send(api, 'lib-put', { name: p.name, type: p.type, size: p.file.size, ...meta, chunks });
+  try {
+    for (const x of parts) {
+      await send(api, 'lib-chunk', { id, ...x });
+      sent += x.data.length;
+      report('Uploading', sent / weight);
+    }
+    let next = 0;
+    const worker = async () => {
+      while (next < chunks) {
+        const i = next++;
+        const data = await b64(p.file.slice(i * RAW_CHUNK, (i + 1) * RAW_CHUNK));
+        await send(api, 'lib-chunk', { id, part: 'body', i, data });
+        sent += data.length;
+        report('Uploading', sent / weight);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(POOL, chunks) }, worker));
+    await send(api, 'lib-done', { id, ...(extra.frameTimes ? { frameTimes: extra.frameTimes } : {}) });
+  } catch (e) {
+    await api('lib-delete', { id }).catch(() => {});
+    throw e;
+  }
+  return { id, warn: extra.warn || '' };
+}
+
+// For the chat box: check one file against the limits before it uploads.
+const MAX_ITEM = 24 * 1024 * 1024;
+export function checkFile(file) {
+  const p = plan(file);
+  if (!file.size) return { p, error: 'empty file' };
+  if (p.kind !== 'video' && file.size > MAX_ITEM) return { p, error: `${size(file.size)}; the limit is ${size(MAX_ITEM)} a file` };
+  return { p, error: '' };
+}
+export const uploadFile = (api, p, meta, report = () => {}) => upload(api, p, meta, report);
+export { size as sizeText };
+
 // ---------- page ----------
 const CSS = `
 .lf-drop { padding: 18px; border: 2px dashed var(--line); text-align: center; transition: border-color .15s, background .15s; }
@@ -388,66 +459,11 @@ export function mount(el, ctx) {
   q('cancel').onclick = () => { S.picked = []; renderStage(false); };
 
   // ---------- uploading ----------
-  async function send(op, body, tries = 3) {
-    for (let n = 1; ; n++) {
-      try {
-        return await api(op, body);
-      } catch (e) {
-        if (n >= tries || /password|full|limit|too big|not allowed/i.test(e.message)) throw e;
-        await sleep(n * 1500);
-      }
-    }
-  }
   const progress = (text, frac) => {
     q('ptext').textContent = text;
     if (frac != null) q('pbar').style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
   };
-
-  async function uploadOne(p, meta, report) {
-    let extra = {};
-    if (p.kind === 'image') {
-      report('Making a copy for agents', 0);
-      extra = await imageView(p.file);
-    } else if (p.kind === 'video') {
-      try {
-        extra = await videoFrames(p.file, (s) => report(s, 0));
-      } catch (e) {
-        if (!p.keepBody) throw new Error(`${p.name}: too big to keep and ${e.message}`);
-        extra = { warn: `${e.message}, so agents only get the file` };
-      }
-    }
-    const chunks = p.keepBody ? Math.ceil(p.file.size / RAW_CHUNK) : 0;
-    const parts = [];
-    if (extra.view) parts.push({ part: 'view', i: 0, data: extra.view });
-    if (extra.sheet) parts.push({ part: 'sheet', i: 0, data: extra.sheet });
-    (extra.frames || []).forEach((data, i) => parts.push({ part: 'frame', i, data }));
-    const weight = parts.reduce((s, x) => s + x.data.length, 0) + Math.ceil((p.file.size * 4) / 3) * (p.keepBody ? 1 : 0) || 1;
-    let sent = 0;
-    const { id } = await send('lib-put', { name: p.name, type: p.type, size: p.file.size, ...meta, chunks });
-    try {
-      for (const x of parts) {
-        await send('lib-chunk', { id, ...x });
-        sent += x.data.length;
-        report('Uploading', sent / weight);
-      }
-      let next = 0;
-      const worker = async () => {
-        while (next < chunks) {
-          const i = next++;
-          const data = await b64(p.file.slice(i * RAW_CHUNK, (i + 1) * RAW_CHUNK));
-          await send('lib-chunk', { id, part: 'body', i, data });
-          sent += data.length;
-          report('Uploading', sent / weight);
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(POOL, chunks) }, worker));
-      await send('lib-done', { id, ...(extra.frameTimes ? { frameTimes: extra.frameTimes } : {}) });
-    } catch (e) {
-      await api('lib-delete', { id }).catch(() => {});
-      throw e;
-    }
-    return extra.warn || '';
-  }
+  const uploadOne = (p, meta, report) => upload(api, p, meta, report);
 
   q('up').onclick = async () => {
     if (S.busy || !S.picked.length) return;
@@ -462,7 +478,7 @@ export function mount(el, ctx) {
       const p = list[k];
       const head = `${list.length > 1 ? `File ${k + 1} of ${list.length} · ` : ''}${p.name}`;
       try {
-        const w = await uploadOne(p, meta, (step, frac) => progress(`${head} · ${step}${frac ? ` ${Math.round(frac * 100)}%` : '…'}`, (k + frac) / list.length));
+        const { warn: w } = await uploadOne(p, meta, (step, frac) => progress(`${head} · ${step}${frac ? ` ${Math.round(frac * 100)}%` : '…'}`, (k + frac) / list.length));
         if (w) warns.push(`${p.name}: ${w}`);
         S.picked.splice(S.picked.indexOf(p), 1);
       } catch (e) {

@@ -288,6 +288,32 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .send:hover:not(:disabled) { filter: brightness(1.08); }
 .send:active:not(:disabled) { transform: scale(.94); }
 .send:disabled { opacity: .45; cursor: default; }
+/* files in the chat box: + button, chips above the text, chips on messages */
+.attach { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); display: grid; place-items: center; flex: none; padding: 0; cursor: pointer; }
+.attach:hover { background: var(--sel); border-color: var(--faint); }
+.attach svg { width: 18px; height: 18px; }
+.cbox.over { border-color: var(--green); border-style: dashed; }
+.att { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.att-msg { font-size: 13px; font-weight: 600; color: var(--red); margin: -2px 0 6px; }
+.att-msg.info { color: var(--soft); }
+.fchip { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 240px; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 13px; line-height: 1.25; color: inherit; text-align: left; overflow: hidden; }
+button.fchip { cursor: pointer; font: inherit; font-size: 13px; }
+button.fchip:hover { border-color: var(--faint); }
+.fchip .th { width: 36px; height: 36px; border-radius: 7px; background: var(--chip); flex: none; display: grid; place-items: center; overflow: hidden; font: 700 10px/1 ui-monospace, Menlo, monospace; color: var(--soft); }
+.fchip .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fchip .nm { min-width: 0; display: grid; }
+.fchip .nm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fchip .nm small { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fchip.err { border-color: var(--red); }
+.fchip.err small { color: var(--red); }
+.fchip .x { border: 0; background: none; color: var(--soft); width: 26px; height: 26px; border-radius: 6px; flex: none; font-size: 15px; cursor: pointer; padding: 0; }
+.fchip .x:hover { background: var(--sel); color: var(--ink); }
+.fchip .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--green); transition: width .2s; }
+.mfiles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.row.me .mfiles { justify-content: flex-end; }
+.row.me .fchip { background: var(--panel); }
+.fview { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto; border-radius: 10px; border: 1px solid var(--line); background: var(--chip); }
+@media (pointer: coarse), (max-width: 860px) { .attach { width: 44px; height: 44px; } .fchip .x { width: 36px; height: 36px; } }
 
 /* popover menus */
 .pop { position: fixed; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; width: 300px; max-width: calc(100vw - 24px); max-height: 60vh; overflow-y: auto; }
@@ -401,6 +427,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .walls button[aria-pressed="true"] i { border-color: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
 .sect { font-size: 13px; font-weight: 700; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
 .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.acts a.btn { color: inherit; text-decoration: none; }
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tabs { display: none; }
 
@@ -453,8 +480,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     <header class="head" id="head"></header>
     <div class="feed" id="feed"></div>
     <form class="compose" id="compose">
-      <div class="cbox">
+      <div class="cbox" id="cbox">
+        <div class="att hidden" id="att"></div>
+        <div class="att-msg hidden" id="attMsg" role="status"></div>
         <textarea id="text" rows="1" placeholder="What should the team do?"></textarea>
+        <input type="file" id="fileIn" multiple hidden>
         <div class="tools" id="tools"></div>
       </div>
     </form>
@@ -682,7 +712,7 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
-  $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + last.text.split('\n')[0].slice(0, 60)) : 'Start here'}</span></span></button>`
+  $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
     + groups.filter((g) => g[1].length).map((g) => `<div class="group">${g[0]} · ${g[1].length}</div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${showArchived ? '▾' : '▸'} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   const need = live.filter((t) => t.status === 'waiting').length;
@@ -716,11 +746,11 @@ async function copyToClipboard(text) {
 }
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
-  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}"><div class="text">${linkify(m.text)}</div>${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
+  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
   if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}">${esc(m.text)} · ${clock(m.at)}</div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div></div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}</div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
     return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd>${linkify(get('Done'))}</dd><dt>Next</dt><dd>${linkify(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
@@ -863,11 +893,124 @@ function renderFeed() {
       <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; hydrateImgs(feed); }
+  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; hydrateImgs(feed); hydrateThumbs(feed); }
   if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
   feed.dataset.sel = String(sel);
   renderTools(t);
 }
+
+// ---------- files in the chat box ----------
+// Picked, dropped or pasted files go into the Library at once (library/files.js
+// does the chunks, picture copies and video frames), so Send only has to wait
+// for uploads still running. The message keeps their library ids.
+let filesMod = null;
+const loadFiles = () => (filesMod ||= import('./library/files.js').catch((e) => { filesMod = null; throw e; }));
+const att = {}; // per view (sel): [{ key, name, kind, size, status: up|ok|err, pct, id, url, error, job }]
+let attKey = 0;
+const attOf = (k) => (att[k] ||= []);
+const fsize = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+const extTag = (name) => ((/\.([A-Za-z0-9]{1,5})$/.exec(name || '')?.[1]) || 'file').toUpperCase();
+const MAX_ATT = 10;
+function attNote(msg, info) { const el = $('attMsg'); el.textContent = msg; el.classList.toggle('hidden', !msg); el.classList.toggle('info', !!info); }
+async function addFiles(fileList) {
+  const files = [...fileList].filter(Boolean);
+  if (!files.length) return;
+  const k = sel, list = attOf(k);
+  attNote('');
+  if (list.length + files.length > MAX_ATT) { attNote(`Up to ${MAX_ATT} files a message.`); files.length = Math.max(0, MAX_ATT - list.length); }
+  let mod;
+  try { mod = await loadFiles(); } catch { return attNote('Could not load the uploader. Check the connection and try again.'); }
+  for (const file of files) {
+    const { p, error } = mod.checkFile(file);
+    const f = { key: ++attKey, name: p.name, kind: p.kind, size: file.size, status: error ? 'err' : 'up', pct: 0, error: error || '', url: p.kind === 'image' ? URL.createObjectURL(file) : '' };
+    list.push(f);
+    if (error) continue;
+    f.job = mod.uploadFile(api, p, { note: 'Sent in the hub chat' }, (step, frac) => { f.pct = frac || 0; renderAtt(); })
+      .then((r) => { f.id = r.id; f.status = 'ok'; if (r.warn) f.error = r.warn; })
+      .catch((e) => { f.status = 'err'; f.error = e.message === 'auth' ? 'sign in again' : e.message; })
+      .finally(renderAtt);
+  }
+  renderAtt();
+}
+function attChip(f) {
+  const th = f.url ? `<img alt="" src="${esc(f.url)}">` : esc(extTag(f.name));
+  const sub = f.status === 'up' ? `Uploading ${Math.round(f.pct * 100)}%` : f.status === 'err' ? `Not uploaded: ${f.error}` : fsize(f.size);
+  return `<span class="fchip ${f.status === 'err' ? 'err' : ''}" title="${esc(f.name)}${f.error ? ` · ${esc(f.error)}` : ''}"><span class="th">${th}</span><span class="nm"><b>${esc(f.name)}</b><small>${esc(sub)}</small></span><button type="button" class="x" data-unatt="${f.key}" aria-label="Remove ${esc(f.name)}">×</button>${f.status === 'up' ? `<span class="bar" style="width:${Math.round(f.pct * 100)}%"></span>` : ''}</span>`;
+}
+function renderAtt() {
+  const list = attOf(sel), el = $('att');
+  el.classList.toggle('hidden', !list.length);
+  const html = list.map(attChip).join('');
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+}
+function removeAtt(key) {
+  const list = attOf(sel), i = list.findIndex((f) => f.key === key);
+  if (i < 0) return;
+  const [f] = list.splice(i, 1);
+  // A file removed before Send leaves the library too (it was only for this message).
+  const drop = () => f.id && api('lib-delete', { id: f.id }).catch(() => {});
+  if (f.status === 'up') f.job?.then(drop); else drop();
+  if (!list.some((x) => x.status === 'err')) attNote('');
+  renderAtt();
+}
+// Chips on a sent message: tap opens the picture, or downloads the file.
+const THUMBS = new Map();
+function filesOf(meta) {
+  const files = meta && Array.isArray(meta.files) ? meta.files : [];
+  if (!files.length) return '';
+  return `<div class="mfiles">${files.map((f) => {
+    const src = f.local || THUMBS.get(f.id);
+    const th = f.kind === 'image' || f.thumb ? `<img alt="" data-fthumb="${esc(f.id)}" data-part="${esc(f.thumb || '')}" ${src ? `src="${esc(src)}"` : ''}>` : esc(extTag(f.name));
+    return `<button type="button" class="fchip" data-fopen="${esc(f.id)}" title="${esc(f.name)}"><span class="th">${th}</span><span class="nm"><b>${esc(f.name)}</b><small>${esc(fsize(f.size || 0))}</small></span></button>`;
+  }).join('')}</div>`;
+}
+function hydrateThumbs(root) {
+  for (const el of root.querySelectorAll('img[data-fthumb]:not([src])')) {
+    const id = el.dataset.fthumb, part = el.dataset.part;
+    if (!part) continue;
+    const [p, i] = part.split(':');
+    api(`lib-raw&id=${encodeURIComponent(id)}&part=${p}&i=${Number(i) || 0}`).then((r) => {
+      const src = `data:${r.type || 'image/jpeg'};base64,${r.data}`; THUMBS.set(id, src);
+      for (const e of document.querySelectorAll('img[data-fthumb]')) if (e.dataset.fthumb === id) e.src = src;
+    }).catch(() => {});
+  }
+}
+async function openFile(id) {
+  const f = S.messages.flatMap((m) => m.meta?.files || []).find((x) => x.id === id);
+  if (!f) return;
+  const box = $('sheetBox');
+  const big = f.kind === 'image' && (f.thumb || f.local);
+  box.innerHTML = `<h3 style="overflow-wrap:anywhere">${esc(f.name)}</h3><p>${esc(fsize(f.size || 0))} · in the Library as ${esc(f.id)}. Agents read it with lib_get.</p>${big ? `<img class="fview" alt="${esc(f.name)}" src="${esc(f.local || THUMBS.get(f.id) || '')}">` : ''}
+    <div class="acts">${f.noBody ? '' : `<button class="btn primary" data-fdl="${esc(f.id)}">Download</button>`}<a class="btn" href="/library.html#files">Library</a><button class="btn" data-close>Close</button></div>`;
+  $('sheet').classList.remove('hidden');
+  const img = box.querySelector('.fview');
+  if (img) img.onerror = () => img.remove();
+  if (img && !f.local && f.thumb) { const [p, i] = f.thumb.split(':'); api(`lib-raw&id=${encodeURIComponent(f.id)}&part=${p}&i=${Number(i) || 0}`).then((r) => { img.src = `data:${r.type || 'image/jpeg'};base64,${r.data}`; }).catch(() => img.remove()); }
+}
+// The original, put back together from its chunks, saved by the browser.
+async function downloadFile(id, btn) {
+  const f = S.messages.flatMap((m) => m.meta?.files || []).find((x) => x.id === id);
+  btn.disabled = true;
+  try {
+    const first = await api(`lib-raw&id=${encodeURIComponent(id)}&part=body&i=0`);
+    const parts = [first.data];
+    for (let i = 1; i < (first.chunks || 1); i++) { btn.textContent = `Download ${Math.round((i / first.chunks) * 100)}%`; parts.push((await api(`lib-raw&id=${encodeURIComponent(id)}&part=body&i=${i}`)).data); }
+    const blobs = await Promise.all(parts.map(async (d) => (await fetch(`data:application/octet-stream;base64,${d}`)).blob()));
+    const url = URL.createObjectURL(new Blob(blobs, { type: first.type || 'application/octet-stream' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: f?.name || id });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    btn.textContent = 'Download';
+  } catch (e) { btn.textContent = e.message === 'Not stored.' || e.message === 'No such file.' ? 'Not in the Library any more' : 'Download failed'; }
+  btn.disabled = false;
+}
+$('fileIn').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+$('att').addEventListener('click', (e) => { const x = e.target.closest('[data-unatt]'); if (x) removeAtt(Number(x.dataset.unatt)); });
+const cbox = $('cbox');
+cbox.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); cbox.classList.add('over'); } });
+cbox.addEventListener('dragleave', (e) => { if (!cbox.contains(e.relatedTarget)) cbox.classList.remove('over'); });
+cbox.addEventListener('drop', (e) => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); cbox.classList.remove('over'); addFiles(e.dataTransfer.files); });
+$('text').addEventListener('paste', (e) => { const files = [...(e.clipboardData?.files || [])]; if (files.length) { e.preventDefault(); addFiles(files); } });
 
 // ---------- composer ----------
 function curPicks(t) { return t ? { model: t.model, thinking: t.thinking || 'medium', accounts: t.accounts?.length ? t.accounts : t.account ? [t.account] : [], team: t.team || 1 } : { ...opts, team: opts.team || 1 }; }
@@ -875,6 +1018,7 @@ function acctChip(list) { return list.length ? `${avList(list)}${esc(list.length
 function renderTools(t) {
   const p = curPicks(t);
   $('tools').innerHTML = `
+    <button type="button" class="attach" data-attach title="Add files (or drop or paste them here)" aria-label="Add files"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
     <button type="button" class="chip" data-pop="model">${p.model ? MODEL_NAME[p.model] : 'Auto<span class="wide"> model</span>'}<span class="caret">▼</span></button>
     <button type="button" class="chip" data-pop="thinking">${meter(p.thinking)}${THINK_NAME[p.thinking]}<span class="wide"> thinking</span><span class="caret">▼</span></button>
     <button type="button" class="chip" data-pop="accounts">${acctChip(p.accounts)}<span class="caret">▼</span></button>
@@ -883,6 +1027,7 @@ function renderTools(t) {
     <button class="send" type="submit" aria-label="Send" id="sendBtn">↑</button>`;
   $('text').placeholder = t ? `Reply in ${t.title}` : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?';
   if (document.activeElement !== $('text')) { $('text').value = drafts[sel] || ''; grow(); }
+  renderAtt();
 }
 function grow() { const ta = $('text'); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, window.innerHeight * 0.4) + 'px'; }
 
@@ -1092,6 +1237,8 @@ document.addEventListener('click', async (e) => {
     return renderFeed();
   }
   const ag = e.target.closest('[data-ask-go]'); if (ag) return askSend(Number(ag.dataset.askGo));
+  if (e.target.closest('[data-attach]')) return $('fileIn').click();
+  const fo = e.target.closest('[data-fopen]'); if (fo) return openFile(fo.dataset.fopen);
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
@@ -1148,17 +1295,32 @@ $('feed').addEventListener('pointercancel', endDrag);
 $('feed').addEventListener('input', (e) => { const o = e.target.closest?.('[data-ask-other]'); if (o) { const [id, qi] = o.dataset.askOther.split(':').map(Number); askSel[id][qi].other = o.value; } });
 $('text').addEventListener('input', () => { drafts[sel] = $('text').value; grow(); });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); $('compose').requestSubmit(); } });
+let sendingNow = false;
 $('compose').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const text = $('text').value.trim(); if (!text) return;
-  $('text').value = ''; drafts[sel] = ''; grow();
-  const from = sel, picks = { model: opts.model || undefined, thinking: opts.thinking, accounts: opts.accounts, team: opts.team || 1 };
-  const body = sel > 0 ? { text, thread: sel } : sel === NEW_CHAT ? { text, chat: true, ...picks } : { text, thread: 0, direct: opts.direct, ...picks };
+  if (sendingNow) return;
+  const from = sel, list = attOf(sel);
+  if (!$('text').value.trim() && !list.length) return;
+  // Files upload as soon as they are picked; Send waits for any still going.
+  if (list.some((f) => f.status === 'up')) {
+    sendingNow = true; attNote('Uploading… sends when done.', true);
+    await Promise.all(list.map((f) => f.job));
+    sendingNow = false; attNote('');
+    if (sel !== from) return;
+  }
+  if (list.some((f) => f.status === 'err')) return attNote('A file did not upload. Remove it (×) and add it again, then send.');
+  const text = $('text').value.trim();
+  if (!text && !list.length) return;
+  const files = list.map((f) => ({ id: f.id, name: f.name, kind: f.kind, size: f.size, local: f.url || '' }));
+  $('text').value = ''; drafts[sel] = ''; grow(); att[sel] = []; renderAtt();
+  const picks = { model: opts.model || undefined, thinking: opts.thinking, accounts: opts.accounts, team: opts.team || 1 };
+  const ids = files.map((f) => f.id);
+  const body = sel > 0 ? { text, thread: sel, files: ids } : sel === NEW_CHAT ? { text, chat: true, files: ids, ...picks } : { text, thread: 0, direct: opts.direct, files: ids, ...picks };
   // Show it straight away; starting the agents happens while it says Sending.
-  S.messages.push({ id: `tmp${++tmp}`, at: Date.now(), thread: sel, from: 'XIAO', kind: 'prompt', text, meta: sel > 0 ? null : body, pending: true });
+  S.messages.push({ id: `tmp${++tmp}`, at: Date.now(), thread: sel, from: 'XIAO', kind: 'prompt', text, meta: { ...(sel > 0 ? {} : body), files }, pending: true });
   renderFeed(); toBottom();
   let made = null;
-  try { made = await api('prompt', body); } catch (err) { if (err.message !== 'auth') { alert(err.message); $('text').value = text; } }
+  try { made = await api('prompt', body); } catch (err) { if (err.message !== 'auth') { alert(err.message); $('text').value = text; att[from] = list; renderAtt(); } }
   S.messages = S.messages.filter((m) => !m.pending);
   // A new chat opens its thread once the hub has made it (unless XIAO already moved on).
   if (from === NEW_CHAT && made?.thread) { await load(false).catch(() => {}); if (sel === NEW_CHAT) openThread(made.thread); return; }
@@ -1262,6 +1424,7 @@ function routineRow(r) {
 $('sheetBox').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) return closeSheet();
+  const fd = t.closest('[data-fdl]'); if (fd) return downloadFile(fd.dataset.fdl, fd);
   const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); $('sheetBox').innerHTML = lookHtml(); return; }
   if (t.closest('[data-copy]')) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy it'; } return; }
   if (t.closest('[data-test]')) {

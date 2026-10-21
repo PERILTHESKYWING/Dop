@@ -3,7 +3,7 @@
 // short serverless calls, so there are no timers: stale work is noticed
 // whenever the page or an agent next talks to the hub.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { libSummary } from './library.js';
+import { libSummary, chatFiles, attachFiles, filesLine } from './library.js';
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 // Thinking level per thread. Routines have no effort setting the hub can
@@ -673,7 +673,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return started;
   }
 
-  async function createThread({ title, brief, account: acc = '', accounts: only = [], model = 'sonnet', thinking = 'medium', team = 1, code = true, from = 'coordinator', parent = null }) {
+  async function createThread({ title, brief, account: acc = '', accounts: only = [], model = 'sonnet', thinking = 'medium', team = 1, code = true, from = 'coordinator', parent = null, files = [] }) {
     only = await liveList(only);
     if (acc && !(await account(acc))) acc = '';
     if (only.length === 1 && !acc) acc = only[0];
@@ -694,19 +694,24 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       parent,
     };
     await putThread(t);
-    await post({ thread: t.id, from, kind: 'brief', text: t.brief || t.title });
+    // Files sent with the prompt: pointed at this thread (its agents' start text lists them) and shown on the brief.
+    if (files.length) await attachFiles(store, files.map((f) => f.id), t.id);
+    await post({ thread: t.id, from, kind: 'brief', text: t.brief || (files.length ? '' : t.title), meta: files.length ? { files } : null });
     await dispatch(t);
     return thread(t.id);
   }
 
   // ---------- XIAO's prompts ----------
-  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false, chat = false, replyTo = null }) {
+  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false, chat = false, replyTo = null, files: fileIds = [] }) {
     text = clean(text, 20_000);
-    if (!text) throw new Error('Empty prompt.');
+    // Library files sent in the chat box (uploaded first by the page); a message may be files only.
+    const files = await chatFiles(store, fileIds, { strict: true });
+    if (!text && !files.length) throw new Error('Empty prompt.');
+    const title = (text.split('\n')[0] || files.map((f) => f.name).join(', ')).slice(0, 60);
     // New chat: a clean thread that goes straight to one agent. Nothing is posted in Project chat
     // and no coordinator runs; the first message is the brief, shown as XIAO's own words.
     if (chat && !tid) {
-      const t = await createThread({ title: text.split('\n')[0].slice(0, 60), brief: text, model: MODELS.includes(model) ? model : 'sonnet', thinking, team: teamOf(team, 1), accounts: only, account: acc || '', from: 'XIAO' });
+      const t = await createThread({ title, brief: text, model: MODELS.includes(model) ? model : 'sonnet', thinking, team: teamOf(team, 1), accounts: only, account: acc || '', from: 'XIAO', files });
       return { thread: t.id };
     }
     if (tid) {
@@ -717,7 +722,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       if (THINKING.includes(thinking)) t.thinking = thinking;
       if (Array.isArray(only)) t.accounts = cleanList(only);
       if (team != null) t.team = teamOf(team, t.team);
-      const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text, replyTo });
+      if (files.length) await attachFiles(store, files.map((f) => f.id), t.id);
+      const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text, replyTo, meta: files.length ? { files } : null });
       t.archived = false;
       if (t.status === 'done' || t.status === 'waiting' || t.status === 'stalled' || t.status === 'queued') t.status = 'new';
       await putThread(t);
@@ -727,13 +733,13 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       return msg;
     }
     // What XIAO picked in the composer; the coordinator's threads keep it.
-    const meta = { model: MODELS.includes(model) ? model : '', thinking: thinkingOf(thinking), accounts: await liveList(only), team: teamOf(team, 0) };
+    const meta = { model: MODELS.includes(model) ? model : '', thinking: thinkingOf(thinking), accounts: await liveList(only), team: teamOf(team, 0), ...(files.length ? { files } : {}) };
     const msg = await post({ thread: 0, from: 'XIAO', kind: 'prompt', text, meta });
     const s = await settings();
     const ov = await overhead();
     if (ov.over || direct) {
       if (!direct) await post({ thread: 0, from: 'hub', kind: 'alert', text: 'Hub overhead budget for this 5 hours is used up, so this prompt skips the coordinator and becomes one thread.' });
-      const t = await createThread({ title: text.split('\n')[0].slice(0, 60), brief: text, model: meta.model || 'sonnet', thinking: meta.thinking, team: meta.team || 1, accounts: meta.accounts, account: acc || '', from: 'hub' });
+      const t = await createThread({ title, brief: text, model: meta.model || 'sonnet', thinking: meta.thinking, team: meta.team || 1, accounts: meta.accounts, account: acc || '', from: 'hub', files });
       // Mark the prompt handled so a coordinator never picks it up again.
       await post({ thread: 0, from: 'hub', kind: 'routed', replyTo: msg.id, text: `One thread (#${t.id})` });
       return msg;
@@ -881,7 +887,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return `#${t.id} [${t.status}] ${t.title} (${t.account || 'unassigned'}${crew.length ? ` + ${crew.join(', ')}` : ''}, ${t.model}, thinking ${thinkingOf(t.thinking)}${teamOf(t.team) > 1 ? `, team of ${teamOf(t.team)}` : ''}${t.code === false ? ', chat' : ''})`;
   }
   function msgLine(m) {
-    return `#${m.id} ${m.from}${m.to ? ` → ${m.to}` : ''} ${m.kind}${m.replyTo ? ` re #${m.replyTo}` : ''}: ${m.text}`;
+    const files = filesLine(m.meta?.files);
+    return `#${m.id} ${m.from}${m.to ? ` → ${m.to}` : ''} ${m.kind}${m.replyTo ? ` re #${m.replyTo}` : ''}: ${m.text}${files ? `${m.text ? '\n' : ''}${files}` : ''}`;
   }
   function checkpointText(c) {
     return c ? `Last handover (${new Date(c.at).toISOString()} by ${c.by}):\nDone: ${c.done}\nNext: ${c.next}${c.branch ? `\nBranch: ${c.branch}` : ''}` : 'No handover yet.';
@@ -979,7 +986,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   function promptLine(m) {
     const x = m.meta || {};
     const picks = [x.model && `model ${x.model}`, x.thinking && x.thinking !== 'medium' && `thinking ${x.thinking}`, x.accounts?.length && `accounts ${x.accounts.join(', ')}`, x.team && `team of ${x.team}`].filter(Boolean);
-    return msgLine(m) + (picks.length ? `\n  (${owner} picked: ${picks.join('; ')})` : '');
+    return msgLine(m) + (picks.length ? `\n  (${owner} picked: ${picks.join('; ')})` : '') + (x.files?.length ? '\n  (the hub attaches these files to every thread you open for it; no need to read them)' : '');
   }
 
   async function coordinatorBrief(prompts, s) {
@@ -998,11 +1005,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const out = [];
     const meta = (await feed(1500)).find((m) => m.id === Number(prompt_id))?.meta || {};
     const picked = await liveList(meta.accounts);
+    // Files XIAO sent with the prompt go to every thread made from it.
+    const files = Array.isArray(meta.files) ? meta.files : [];
     for (const x of list.slice(0, 8)) {
       if (x.thread_id) {
         const t = await thread(x.thread_id);
         if (!t) continue;
-        await post({ thread: t.id, from: agent.name, kind: 'brief', text: x.brief || '' });
+        if (files.length) await attachFiles(store, files.map((f) => f.id), t.id);
+        await post({ thread: t.id, from: agent.name, kind: 'brief', text: x.brief || '', meta: files.length ? { files } : null });
         if (!(t.status === 'working' && now() - (t.lastAgentAt || 0) < ACTIVE_MS)) await dispatch(t);
         out.push(`#${t.id} ${t.title} (continued)`);
       } else {
@@ -1014,6 +1024,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
           accounts: picked,
           account: picked.length && !picked.includes(x.account) ? '' : x.account,
           from: agent.name,
+          files,
         });
         out.push(`#${t.id} ${t.title}: ${t.status}${t.account ? ` on ${t.account}` : ''}`);
       }
@@ -1068,8 +1079,12 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     else t.checkpoint = cp;
     seen(t, agent.name);
     await putThread(t);
+    // Files XIAO sent since this agent's last handover, so a busy agent still looks at them.
+    const recent = (await feed(400)).filter((m) => m.thread === t.id);
+    const since = recent.filter((m) => m.kind === 'handover' && m.from === agent.name).at(-1)?.id || 0;
+    const sent = recent.filter((m) => m.from === 'XIAO' && m.meta?.files?.length && m.id > since).slice(-3);
     await post({ thread: t.id, from: agent.name, kind: 'handover', text: `Done: ${cp.done}\nNext: ${cp.next}${cp.branch ? `\nBranch: ${cp.branch}` : ''}` });
-    return `Handover saved.${(await usageDue(agent.name)) ? ` Usage is due: ${PROBE}` : ''}`;
+    return `Handover saved.${sent.length ? `\nNew from ${owner}:\n${sent.map(msgLine).join('\n')}` : ''}${(await usageDue(agent.name)) ? ` Usage is due: ${PROBE}` : ''}`;
   }
 
   // Ask another thread (or XIAO). If nobody is running on the target thread,
