@@ -13,15 +13,19 @@ Hand-drawn style story animations, directed by your Claude accounts, inside the 
 
 ## How it looks hand-made
 - Characters are drawn by code from a short cast spec (hair style and colour, clothes, build, glasses, freckles...), so a character is the same drawing in every shot. No image generator, so no drifting faces.
+- Characters are solids in 3D, not stacked flat shapes (rebuilt in thread #363): a skeleton turns (body yaw, chest twist, head yaw / pitch / roll) and is seen by a camera that looks down a little with slight perspective, so hems, belts, collars and soles curve, the near foot sits lower, and turned parts foreshorten. The torso is one outline taken around turning rings (neck, shoulders, chest, waist, hips); arms and legs are one bending outline each with muscle on the right side (biceps, calf), folding into overlapping segments at sharp bends; hands have a thumb and grips (relaxed, open, fist, point); shoes have a heel, toe box and sole line. The head is a skull and jaw; eyes (white, iris, catch light, lids that carry the feeling), brows, nose and mouth sit on its surface, so they slide, squash and hide as it turns; ears go behind or in front; hair has a real hairline and fills the skull's rim over the top. Parts are painted back to front by depth, so a hand can come in front of the face.
+- Light comes from the upper left: every part gets a form shadow (two bands) and a rim light, the chin shades the neck, and one soft shadow falls on the floor. The **Shading** knob (Look tab, style `shade`) sets how strong it is.
+- Acting: each move is key poses eased on the drawing clock; the face sets a body posture (sad slumps, angry leans in with fists, smug leans back hand on hip...), tempo and gesture size; beats blend 0.3 s from the last pose; head and forearms lag 0.1 s; breathing and weight settles while standing.
 - Every line is a filled pen ribbon that swells, thins and tapers; it wanders a little off the true shape; closed shapes start at a seam and overshoot it.
 - Colour fills are a separate, rougher shape that slips off the outline (like a print or a quick colour pass).
 - Poses are held for `hold` frames (on twos by default at 12 fps). Each new drawing re-seeds part of the line noise ("boil"), cycling three variants as traced frames do, so even a held pose shimmers.
-- 14 reusable moves (idle, talk, walk, wave, nod, shake, shrug, point, jump, think, facepalm, cheer, cry, laugh), each 2-6 drawings with anticipation and a held end pose; 8 faces (eyebrows carry most of it); mouths flap irregularly while talking; blinks.
+- 23 reusable moves (idle, talk, walk, wave, nod, shake, shrug, point, jump, think, facepalm, cheer, cry, laugh, sigh, stomp, gasp, fidget, crossarms, hips, bow, slump, lookaround), each a few key poses with anticipation and a held end pose; 8 faces (brows and lids carry most of it, the body the rest); mouths flap irregularly while talking; blinks.
 - Paper grain on top, simple wobbly backgrounds (8 kinds) and props (10 kinds), speech bubbles with tails, caption banner.
 
 ## Parts
 - `hub/studio/schema.js`: the project format. `validateProject` never throws: it fills defaults (your default look as the base style), clamps numbers, drops unknown values and lists what it changed; only a project with no cast or no scenes is refused. `lintProject` finds craft problems (bubbles too short to read, actors overlapping, speech without talk, look-alike cast, sample too long). `schemaText()` is the format in six lines for agents.
-- `hub/studio/draw.js` (pen, wobble, boil, fills), `rig.js` (body, face, hair, extras), `moves.js` (the moves), `render.js` (timeline, backgrounds, bubbles, captions, camera, canvas and SVG painters). Pure JS, no DOM except the canvas painter, so the tests render frames in Node.
+- `hub/studio/draw.js` (pen, wobble, boil, fills, `form` = shaded solid, `shade` = clipped shadow), `skel.js` (3D skeleton from a pose, projection), `body.js` (torso, limbs, hands, shoes), `rig.js` (head, face, hair, extras, depth order, ground shadow), `acting.js` (posture per face, easing, blends, breathing) and `moves.js` (the moves), `render.js` (timeline, backgrounds, bubbles, captions, camera, canvas and SVG painters with clip support). Pure JS, no DOM except the canvas painter, so the tests render frames in Node.
+- Pose fields (what a move sets, all optional; angles in degrees, distances as a share of height): `yaw` (body turn, 0 faces the camera, 90 profile, default 25), `headYaw/headPitch/headRoll`, `spine` (+ bends forward), `spineSide`, `twist`, `slump` (-1 proud .. 1 slumped), `shrug`, `weight` (-1 back foot .. 1 near foot: hips shift and drop), `pelvis [dx, dy]`, `squash`, `lift`, `armF/armB [raise, forward, elbow]` or `handF/handB [x, y, z(, 'head')]` hand targets (with `handFw/handBw` blending), `gripF/gripB`, `footF/footB [dx, up, dz]`, `stance`, `toe`, `breath`, `hairSwing`, plus the face fields. F is the near arm/foot. Moves written for the old flat rig (F/B angles, reach, lean, bob, tilt, nod, look) still work.
 - `hub/studio.html`: the page. Polls `studio-get` every 3 s with `since=rev&seen=<newest note time>` (answers `{same:true}` while nothing changed: one or two store reads).
 - `hub/lib/studio.js`: store, page API, MCP tools, the team brief (`studioBrief`).
 
@@ -46,11 +50,12 @@ The PC must be on at that time.
 
 ## Limits (honest)
 - Video has no sound (browser recording of the canvas only). Voice preview uses the device's speech voice.
-- One body plan (front-facing with a 3/4 face turn); no side or back views, no hands with fingers, no lip sync to audio.
+- One body plan, dressed by the cast spec (T-shirt, trousers, shoes); no skirts, coats or props held in hands yet. Turns work from front to profile; a full back view works but nobody has tuned it. Hands are mitten-like with a thumb, no separate fingers. No lip sync to audio.
+- Rendering is about 8 ms a frame in Node (the old flat rig was 3 ms); fine for 12 fps playback.
 - The contact sheet needs the page open; agents cannot see drawings otherwise.
 - Not measured yet: how many revisions a story takes, and usage per story.
 
-Tests: `tests/hub-studio.test.ts` (backend, nightly), `tests/studio-render.test.ts` (renderer).
+Tests: `tests/hub-studio.test.ts` (backend, nightly, refs), `tests/studio-render.test.ts` (renderer, shading, 3D skeleton), `tests/studio-acting.test.ts` (acting).
 
 ## References (do / don't) for the character look
 XIAO teaches the look with pictures and videos: **DO** = copy this, **DON'T** = avoid this. They are studio-wide (every story), not per project.
