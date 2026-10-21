@@ -31,16 +31,30 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
-.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; }
+/* Buttons match the hub's .btn: 8 px radius, 600 weight, flat. 44 px tall so they are easy to tap.
+   One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: background-color .15s, border-color .15s; }
 .btn:hover { background: var(--sel); }
-.btn.go { background: var(--green); color: var(--on-green); border-color: transparent; font-weight: 600; }
-.btn.go:hover { filter: brightness(1.08); }
-.btn:disabled { opacity: .5; cursor: default; }
+.btn:active { transform: translateY(1px); }
+.btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
+.btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
+.btn.ok { color: var(--green); border-color: var(--green); }
+.btn.danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.btn.danger:hover { background: color-mix(in srgb, var(--red) 10%, var(--panel)); }
 .btn.quiet { border-color: transparent; background: transparent; }
-.top { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.btn.quiet:hover { background: var(--sel); }
+.btn:disabled, .btn[aria-busy="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+.btn:disabled:hover { background: var(--panel); }
+.btn.go:disabled:hover { background: var(--green); }
+.btn.seg[aria-pressed="true"] { background: var(--sel); border-color: var(--ink); }
+.btn.seg[aria-pressed="true"]::before { content: "✓"; }
+.btn .ic { font-size: 14px; line-height: 1; }
+.top { display: flex; align-items: center; gap: 10px; padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
 .top h1 { font: 400 26px/1 "Patrick Hand", cursive; margin: 0; white-space: nowrap; }
-.top .back { text-decoration: none; color: var(--soft); font-size: 14px; white-space: nowrap; }
-.top select { min-width: 0; flex: 1; max-width: 340px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 8px; min-height: 38px; }
+.top .back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; margin-left: -6px; text-decoration: none; color: var(--soft); font-size: 15px; font-weight: 600; white-space: nowrap; border-radius: 8px; }
+.top .back:hover { color: var(--ink); background: var(--sel); }
+.top select { min-width: 0; flex: 1; max-width: 340px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px; min-height: 44px; }
 .spacer { flex: 1; }
 .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
 @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); padding: 10px 16px 24px; gap: 12px; } .top h1 { font-size: 22px; } }
@@ -54,17 +68,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .flash { animation: flash 1.6s ease-out; }
 @keyframes flash { 0% { box-shadow: 0 0 0 4px var(--green); } 100% { box-shadow: var(--shadow); } }
 .controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
-.controls input[type=range] { flex: 1; min-width: 120px; accent-color: var(--green); }
+.controls .bar { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+.controls input[type=range] { flex: 1; min-width: 100px; height: 44px; margin: 0; accent-color: var(--green); }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; }
 .time { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 13px; min-width: 76px; text-align: right; }
-.play { width: 44px; min-width: 44px; font-size: 16px; }
+.play { width: 48px; min-width: 48px; padding: 0; font-size: 16px; }
 .scenes { display: flex; gap: 6px; padding: 0 12px 12px; overflow-x: auto; scrollbar-width: thin; }
-.scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 99px; padding: 4px 11px; font-size: 13px; cursor: pointer; min-height: 32px; }
+.scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
+.scenes button:hover { border-color: var(--soft); }
 .scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
-.dot.live { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
-.dot.busy { background: var(--amber); animation: pulse 1.2s infinite; }
-@keyframes pulse { 50% { opacity: .35; } }
+.dot.live { background: var(--green); }
+.dot.busy { background: var(--amber); }
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs button { flex: 1; border: 0; background: none; padding: 11px 6px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; }
@@ -73,7 +89,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pane.on { display: block; }
 textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; resize: vertical; min-height: 92px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; }
+.row .lbl { font-size: 14px; color: var(--soft); margin-right: 2px; }
+.split { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; min-height: 44px; }
 .check input { width: 18px; height: 18px; accent-color: var(--green); }
 .hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
 .notes { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
@@ -90,9 +108,11 @@ dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--p
 dialog::backdrop { background: rgba(0, 0, 0, .35); }
 dialog h2 { margin: 0 0 6px; font: 400 26px/1.1 "Patrick Hand", cursive; }
 dialog label { display: block; font-size: 14px; color: var(--soft); margin: 10px 0 4px; }
-dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px; min-height: 40px; }
+dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px; min-height: 44px; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.x { width: 44px; min-width: 44px; padding: 0; font-size: 18px; }
 .login { max-width: 360px; margin: 18vh auto 0; padding: 22px; text-align: center; }
-.login input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; margin: 12px 0; min-height: 42px; }
+.login input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px; margin: 12px 0; min-height: 44px; }
 .err { color: var(--red); font-size: 14px; min-height: 1.2em; }
 .toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; z-index: 20; max-width: calc(100vw - 32px); }
 .toast:empty { display: none; }
@@ -101,13 +121,15 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 .refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 12px; }
 .ref { border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 13px; position: relative; }
 .ref.do { border-color: var(--green); }
-.ref.dont { border-color: #c0392b; }
+.ref.dont { border-color: var(--red); }
 .ref img { width: 100%; display: block; border-radius: 6px; margin-bottom: 4px; }
 .ref b { display: block; }
-.ref button { position: absolute; top: 4px; right: 4px; min-height: 28px; padding: 0 8px; }
-#refs input[type=text], .pane[data-pane="refs"] input[type=text] { width: 100%; margin: 8px 0 0; }
+.ref .btn.danger { width: 100%; margin-top: 6px; }
+.pane[data-pane="refs"] input[type=text] { width: 100%; margin: 8px 0 0; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px; min-height: 44px; }
 .pane[data-pane="refs"] textarea { margin-top: 8px; }
-.pane[data-pane="refs"] input[type=file] { margin: 10px 0 0; max-width: 100%; }
+.pane[data-pane="refs"] input[type=file] { margin: 10px 0 0; max-width: 100%; font-size: 14px; color: var(--soft); }
+input[type=file]::file-selector-button { font: inherit; font-weight: 600; color: var(--ink); border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 0 14px; min-height: 44px; margin-right: 10px; cursor: pointer; }
+input[type=file]::file-selector-button:hover { background: var(--sel); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
@@ -116,18 +138,22 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
   <header class="top">
     <a class="back" href="/" title="Back to the hub">‹ Hub</a>
     <h1>Storytime studio</h1>
-    <select id="pick" aria-label="Story"></select>
-    <button class="btn go" id="newBtn" type="button">+ New story</button>
+    <select id="pick" aria-label="Story" title="Pick a story"></select>
+    <button class="btn go" id="newBtn" type="button"><span class="ic" aria-hidden="true">+</span>New story</button>
   </header>
   <div class="wrap">
     <section class="card stage" aria-label="Preview">
       <div class="screen" id="screen"><canvas id="cv" aria-label="Animation preview" role="img"></canvas><span class="badge" id="badge"></span></div>
       <div class="controls">
-        <button class="btn play" id="playBtn" type="button" aria-label="Play">▶</button>
-        <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Time">
-        <span class="time" id="time">0.0 / 0.0 s</span>
-        <button class="btn" id="voiceBtn" type="button" aria-pressed="false" title="Read narration and lines aloud while playing (your device's voice; not in the saved video)">Voice off</button>
-        <button class="btn" id="exportBtn" type="button" title="Record the video in this browser">Save video</button>
+        <div class="bar">
+          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)">▶</button>
+          <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Time">
+          <span class="time" id="time">0.0 / 0.0 s</span>
+        </div>
+        <div class="group">
+          <button class="btn seg" id="voiceBtn" type="button" aria-pressed="false" title="Read narration and lines aloud while playing (your device's voice; not in the saved video)">Read aloud</button>
+          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><span class="ic" aria-hidden="true">⤓</span>Save video</button>
+        </div>
       </div>
       <div class="scenes" id="scenes"></div>
       <div class="status"><span class="dot" id="liveDot"></span><span id="statusText" style="flex:1;min-width:0">Loading…</span></div>
@@ -147,29 +173,36 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
           <textarea id="fbText" placeholder="Tell the team what to change, in your own words. e.g. &quot;Leo should look more annoyed, and hold the point longer.&quot;"></textarea>
           <label class="check"><input type="checkbox" id="fbRule"> Make this a rule for every story</label>
           <div class="row">
-            <button class="btn go" id="fbSend" type="button">Send to the team</button>
-            <span class="spacer"></span>
-            <button class="btn" id="rateGood" type="button" title="This revision is good">👍</button>
-            <button class="btn" id="rateBad" type="button" title="Not there yet">👎</button>
+            <button class="btn go" id="fbSend" type="button">Send feedback</button>
           </div>
-          <div class="row"><button class="btn" id="fullBtn" type="button" hidden>Sample approved: make the full video</button></div>
           <p class="hint" id="fbHint">The team revises and the new version appears here by itself.</p>
+          <div class="split">
+            <div class="row" role="group" aria-label="Rate this version">
+              <span class="lbl">This version:</span>
+              <button class="btn" id="rateGood" type="button" title="This version works"><span class="ic" aria-hidden="true">👍</span>Good</button>
+              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><span class="ic" aria-hidden="true">👎</span>Not yet</button>
+            </div>
+          </div>
+          <div class="split" id="fullBox" hidden>
+            <p class="hint">Happy with the sample? The team keeps the characters and moves and makes the whole story.</p>
+            <div class="row"><button class="btn go" id="fullBtn" type="button">Approve sample</button></div>
+          </div>
         </div>
         <div class="pane" data-pane="notes"><div class="notes" id="notes"></div></div>
         <div class="pane" data-pane="cast"><canvas class="castcv" id="castCv"></canvas><p class="hint">The model sheet: every shot is drawn from these same characters.</p></div>
         <div class="pane" data-pane="style">
           <div id="sliders"></div>
+          <label class="check" style="margin-top:6px"><input type="checkbox" id="styleDefault"> Also make it my default for new stories</label>
           <div class="row">
-            <button class="btn" id="styleReset" type="button">Reset</button>
-            <button class="btn go" id="styleSend" type="button">Ask the team to use this</button>
+            <button class="btn go" id="styleSend" type="button">Send look to team</button>
+            <button class="btn" id="styleReset" type="button">Undo changes</button>
           </div>
-          <label class="check" style="margin-top:10px"><input type="checkbox" id="styleDefault"> Also make it my default for new stories</label>
           <p class="hint">Changes preview here at once. Higher hold = choppier, more hand-made. Boil = lines that shimmer between drawings.</p>
         </div>
         <div class="pane" data-pane="refs">
-          <div class="row" role="group" aria-label="Kind">
-            <button class="btn go" id="refDo" type="button" aria-pressed="true">✓ DO this</button>
-            <button class="btn" id="refDont" type="button" aria-pressed="false">✗ DON'T</button>
+          <div class="row" role="group" aria-label="Kind" style="margin-top:0">
+            <button class="btn seg" id="refDo" type="button" aria-pressed="true" title="The team copies this">DO: copy</button>
+            <button class="btn seg" id="refDont" type="button" aria-pressed="false" title="The team avoids this">DON'T: avoid</button>
           </div>
           <input type="file" id="refFile" accept="image/*,video/*" multiple aria-label="Pictures or a video">
           <input type="text" id="refTitle" maxlength="80" placeholder="Title, e.g. weight on one leg" aria-label="Title">
@@ -192,13 +225,13 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 
 <div id="loginBox" class="card login" hidden>
   <h1 style="font:400 30px/1.1 'Patrick Hand',cursive;margin:0">Storytime studio</h1>
-  <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" style="width:100%">Open</button></form>
+  <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" type="submit" style="width:100%">Open studio</button></form>
   <div class="err" id="loginErr"></div>
 </div>
 
 <dialog id="newDlg">
   <form method="dialog" id="newForm">
-    <h2>New story</h2>
+    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close">✕</button></div>
     <p class="hint" style="margin-top:0">Your Claude team writes a short sample first. You review it, give feedback, then ask for the full video.</p>
     <label for="newIdea">What's the story?</label>
     <textarea id="newIdea" required placeholder="e.g. The time my little brother convinced me our cat could talk."></textarea>
@@ -218,7 +251,7 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
     <div class="err" id="newErr"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="btn" value="cancel" formnovalidate>Cancel</button>
-      <button class="btn go" id="newGo" value="ok">Start</button>
+      <button class="btn go" id="newGo" value="ok">Start story</button>
     </div>
   </form>
 </dialog>
@@ -235,6 +268,20 @@ const ls = {
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : new Date(t).toLocaleDateString(); };
+// Run an action with its button shown as busy (disabled, "Sending…"), then put it back.
+async function busy(btn, label, fn) {
+  if (btn.getAttribute('aria-busy') === 'true') return;
+  const html = btn.innerHTML;
+  btn.setAttribute('aria-busy', 'true'); btn.disabled = true; btn.textContent = label;
+  try { return await fn(); } finally { btn.innerHTML = html; btn.removeAttribute('aria-busy'); btn.disabled = false; updateButtons(); }
+}
+// Disabled buttons say why in their title (shown on hover and read by screen readers).
+function setOff(btn, why, base) {
+  btn.dataset.title ??= btn.title || base || '';
+  if (btn.getAttribute('aria-busy') === 'true') return;
+  btn.disabled = !!why;
+  btn.title = why || btn.dataset.title;
+}
 let toastTimer = 0;
 const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($('toast').textContent = ''), 3200); };
 
@@ -310,6 +357,7 @@ function setPlaying(on) {
   playAt = performance.now();
   $('playBtn').textContent = on ? '❚❚' : '▶';
   $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play');
+  $('playBtn').title = on ? 'Pause (space)' : 'Play (space)';
   if (!on) { speech.cancel(); spoken.clear(); }
 }
 let scrubbing = false;
@@ -348,7 +396,7 @@ new ResizeObserver(() => { sizeCanvas(); draw(true); }).observe(cv);
 const speech = window.speechSynthesis || { speak() {}, cancel() {} };
 const spoken = new Set();
 let voiceOn = ls.get('studio-voice') === '1';
-function setVoice(on) { voiceOn = on; ls.set('studio-voice', on ? '1' : '0'); $('voiceBtn').textContent = on ? 'Voice on' : 'Voice off'; $('voiceBtn').setAttribute('aria-pressed', String(on)); if (!on) speech.cancel(); }
+function setVoice(on) { voiceOn = on; ls.set('studio-voice', on ? '1' : '0'); $('voiceBtn').setAttribute('aria-pressed', String(on)); if (!on) speech.cancel(); }
 $('voiceBtn').onclick = () => setVoice(!voiceOn);
 setVoice(voiceOn);
 function say(text, pitch = 1, rate = 1) {
@@ -472,13 +520,23 @@ function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
   $('badge').textContent = S.demo ? (S.id ? 'Demo while your team draws the sample…' : 'Demo story') : '';
-  $('fullBtn').hidden = !(m && m.rev > 0 && m.stage === 'sample');
+  $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
+  updateButtons();
   if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one; this demo shows the drawing style.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
   const what = S.waiting ? ' · the team is working on it…' : ' · live';
   $('statusText').innerHTML = `${by}${what} · <a href="/" title="Open the hub">thread #${m.thread}</a>${m.stage === 'full' ? ' · full video' : ' · sample'}`;
+}
+function updateButtons() {
+  const noStory = !S.id ? 'Start a story first' : '';
+  const noDraw = noStory || (!S.meta?.rev ? 'Nothing to rate yet: wait for the first drawing' : '');
+  setOff($('fbSend'), noStory, 'Send this to the director and critic');
+  setOff($('rateGood'), noDraw);
+  setOff($('rateBad'), noDraw);
+  $('fbHint').textContent = noStory ? 'Start a story with “New story” first; then feedback goes to its team.' : 'The team revises and the new version appears here by itself.';
+  lookButtons();
 }
 function renderNotes() {
   const items = [
@@ -500,24 +558,28 @@ $('fbSend').onclick = async () => {
   const text = $('fbText').value.trim();
   if (!text) return $('fbText').focus();
   if (!S.id) return toast('Start a story first.');
-  $('fbSend').disabled = true;
-  try {
-    await api('studio-feedback', { id: S.id, text, rule: $('fbRule').checked });
-    $('fbText').value = ''; $('fbRule').checked = false;
-    toast('Sent. The team is revising.');
-    S.rev = -1; await refresh(true);
-    loadRules();
-  } catch (e) { toast(e.message); }
-  $('fbSend').disabled = false;
+  await busy($('fbSend'), 'Sending…', async () => {
+    try {
+      await api('studio-feedback', { id: S.id, text, rule: $('fbRule').checked });
+      $('fbText').value = ''; $('fbRule').checked = false;
+      toast('Sent. The team is revising.');
+      S.rev = -1; await refresh(true);
+      loadRules();
+    } catch (e) { toast(e.message); }
+  });
 };
 for (const [id, good] of [['rateGood', true], ['rateBad', false]])
   $(id).onclick = async () => {
     if (!S.id || !S.meta?.rev) return toast('Nothing to rate yet.');
-    try { await api('studio-rate', { id: S.id, rev: S.meta.rev, good, note: $('fbText').value.trim() }); toast(good ? 'Noted: this one works.' : 'Noted: not there yet.'); S.rev = -1; refresh(true); } catch (e) { toast(e.message); }
+    await busy($(id), 'Saving…', async () => {
+      try { await api('studio-rate', { id: S.id, rev: S.meta.rev, good, note: $('fbText').value.trim() }); toast(good ? 'Noted: this one works.' : 'Noted: not there yet.'); S.rev = -1; refresh(true); } catch (e) { toast(e.message); }
+    });
   };
 $('fullBtn').onclick = async () => {
   if (!confirm('Approve this sample and ask the team for the full video?')) return;
-  try { await api('studio-full', { id: S.id }); toast('The team is making the full video.'); S.rev = -1; refresh(true); } catch (e) { toast(e.message); }
+  await busy($('fullBtn'), 'Sending…', async () => {
+    try { await api('studio-full', { id: S.id }); toast('The team is making the full video.'); S.rev = -1; await refresh(true); } catch (e) { toast(e.message); }
+  });
 };
 
 // ---------- look sliders ----------
@@ -529,6 +591,7 @@ function buildSliders() {
     const v = P.style[k];
     return `<label class="slider"><span>${label}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${step}" value="${v}"><output>${+Number(v).toFixed(2)}</output></label>`;
   }).join('');
+  lookButtons();
 }
 $('sliders').oninput = (e) => {
   const k = e.target.dataset.k;
@@ -536,18 +599,27 @@ $('sliders').oninput = (e) => {
   S.styleOver[k] = Number(e.target.value);
   e.target.nextElementSibling.textContent = +Number(e.target.value).toFixed(2);
   applyStyle(); bgCache.clear(); drawCast(); draw(true);
+  lookButtons();
 };
-$('styleReset').onclick = () => { S.styleOver = {}; applyStyle(); buildSliders(); bgCache.clear(); drawCast(); draw(true); };
+function lookButtons() {
+  const why = Object.keys(S.styleOver).length ? '' : 'Move a slider first';
+  setOff($('styleSend'), why, 'Ask the team to draw with this look');
+  setOff($('styleReset'), why, 'Put the sliders back to this story\'s look');
+}
+$('styleReset').onclick = () => { S.styleOver = {}; applyStyle(); buildSliders(); bgCache.clear(); drawCast(); draw(true); lookButtons(); };
 $('styleSend').onclick = async () => {
   const keys = Object.keys(S.styleOver);
   if (!keys.length) return toast('Move a slider first.');
   const style = Object.fromEntries(keys.map((k) => [k, P.style[k]]));
-  try {
-    if ($('styleDefault').checked) await api('studio-rules', { style });
-    if (S.id) await api('studio-feedback', { id: S.id, text: `Use this look: style ${JSON.stringify(style)}.`, rule: false });
-    toast(S.id ? 'Sent to the team.' : 'Saved as your default.');
-    loadRules();
-  } catch (e) { toast(e.message); }
+  if (!S.id && !$('styleDefault').checked) return toast('No story yet: tick “make it my default” to save this look.');
+  await busy($('styleSend'), 'Sending…', async () => {
+    try {
+      if ($('styleDefault').checked) await api('studio-rules', { style });
+      if (S.id) await api('studio-feedback', { id: S.id, text: `Use this look: style ${JSON.stringify(style)}.`, rule: false });
+      toast(S.id ? 'Sent to the team.' : 'Saved as your default.');
+      loadRules();
+    } catch (e) { toast(e.message); }
+  });
 };
 
 // ---------- references (do / don't) ----------
@@ -555,8 +627,8 @@ let refKind = 'do';
 const refImgCache = {};
 function setRefKind(k) {
   refKind = k;
-  $('refDo').setAttribute('aria-pressed', String(k === 'do')); $('refDo').classList.toggle('go', k === 'do');
-  $('refDont').setAttribute('aria-pressed', String(k === 'dont')); $('refDont').classList.toggle('go', k === 'dont');
+  $('refDo').setAttribute('aria-pressed', String(k === 'do'));
+  $('refDont').setAttribute('aria-pressed', String(k === 'dont'));
 }
 $('refDo').onclick = () => setRefKind('do');
 $('refDont').onclick = () => setRefKind('dont');
@@ -597,7 +669,7 @@ async function loadRefs() {
     const { refs } = await api('studio-refs');
     const box = $('refList');
     if (!refs.length) { box.innerHTML = '<p class="empty">No references yet. Add pictures of what you want (DO) and what you hate (DON\'T).</p>'; return; }
-    box.innerHTML = refs.slice().reverse().map((r) => `<div class="ref ${r.kind}" data-id="${r.id}"><button class="btn" data-del="${r.id}" type="button" aria-label="Delete reference">✕</button>${r.images.length ? `<img alt="" data-ref="${r.id}">` : ''}<b>${r.kind === 'do' ? '✓' : '✗'} ${esc(r.title)}</b>${esc(r.note)}${r.url ? `<br><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a>` : ''}${r.tags.length ? `<br><small>${esc(r.tags.join(', '))}</small>` : ''}</div>`).join('');
+    box.innerHTML = refs.slice().reverse().map((r) => `<div class="ref ${r.kind}" data-id="${r.id}">${r.images.length ? `<img alt="" data-ref="${r.id}">` : ''}<b>${r.kind === 'do' ? 'DO' : "DON'T"}: ${esc(r.title)}</b>${esc(r.note)}${r.url ? `<br><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a>` : ''}${r.tags.length ? `<br><small>${esc(r.tags.join(', '))}</small>` : ''}<button class="btn danger" data-del="${r.id}" type="button" title="Delete this reference for good">Delete</button></div>`).join('');
     for (const im of box.querySelectorAll('img[data-ref]')) {
       const id = im.dataset.ref;
       try { refImgCache[id] ||= await api('studio-ref', null, `&id=${id}&n=0`); im.src = `data:${refImgCache[id].mime};base64,${refImgCache[id].data}`; } catch {}
@@ -605,13 +677,15 @@ async function loadRefs() {
   } catch {}
 }
 $('refList').onclick = async (e) => {
-  const id = e.target.dataset && e.target.dataset.del;
-  if (!id || !confirm('Delete this reference?')) return;
-  try { await api('studio-ref-del', { id }); delete refImgCache[id]; loadRefs(); } catch (er) { toast(er.message); }
+  const b = e.target.closest('[data-del]');
+  const id = b && b.dataset.del;
+  if (!id || !confirm('Delete this reference? This cannot be undone.')) return;
+  await busy(b, 'Deleting…', async () => {
+    try { await api('studio-ref-del', { id }); delete refImgCache[id]; await loadRefs(); } catch (er) { toast(er.message); }
+  });
 };
-$('refAdd').onclick = async () => {
+$('refAdd').onclick = () => busy($('refAdd'), 'Adding…', async () => {
   const files = [...$('refFile').files];
-  const btn = $('refAdd'); btn.disabled = true; btn.textContent = 'Adding…';
   try {
     let images = [], type = 'image';
     const vid = files.find((f) => f.type.startsWith('video/'));
@@ -626,8 +700,7 @@ $('refAdd').onclick = async () => {
     toast('Reference added.');
     loadRefs();
   } catch (e) { toast(e.message); }
-  btn.disabled = false; btn.textContent = 'Add reference';
-};
+});
 
 // ---------- tabs ----------
 document.querySelector('.tabs').onclick = (e) => {
@@ -647,7 +720,7 @@ $('newForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const idea = $('newIdea').value.trim();
   if (!idea) return ($('newErr').textContent = 'Say what the story is about.');
-  $('newGo').disabled = true;
+  $('newGo').disabled = true; $('newGo').textContent = 'Starting…';
   try {
     const r = await api('studio-new', { idea, title: $('newTitle').value.trim(), team: Number($('newTeam').value), model: $('newModel').value });
     $('newDlg').close();
@@ -656,7 +729,7 @@ $('newForm').addEventListener('submit', async (e) => {
     await loadList(); await refresh(true);
     toast(`Started: thread #${r.thread}. The sample appears here when it's drawn.`);
   } catch (err) { $('newErr').textContent = err.message; }
-  $('newGo').disabled = false;
+  $('newGo').disabled = false; $('newGo').textContent = 'Start story';
 });
 
 // ---------- export ----------
@@ -667,7 +740,7 @@ $('exportBtn').onclick = async () => {
   const out = $('exportOut');
   const btn = $('exportBtn');
   setPlaying(false);
-  btn.disabled = true;
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Recording…';
   out.hidden = false;
   const fps = P.style.fps;
   const c = document.createElement('canvas');
@@ -703,7 +776,7 @@ $('exportBtn').onclick = async () => {
   const name = `${(P.title || 'story').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'story'}.${ext}`;
   const url = URL.createObjectURL(blob);
   out.innerHTML = `Video ready: <a href="${url}" download="${name}">${esc(name)}</a> (${(blob.size / 1048576).toFixed(1)} MB, captions, no sound; add a voice in any editor).`;
-  btn.disabled = false;
+  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = '<span class="ic" aria-hidden="true">⤓</span>Save video';
 };
 
 // ---------- start ----------
