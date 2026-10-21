@@ -3,6 +3,7 @@
 // short serverless calls, so there are no timers: stale work is noticed
 // whenever the page or an agent next talks to the hub.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { libSummary } from './library.js';
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 // Thinking level per thread. Routines have no effort setting the hub can
@@ -836,7 +837,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const msgs = (await feed(1500)).filter((m) => m.thread === t.id && m.kind !== 'thinking').slice(-limit);
     const parts = Object.keys(t.crew || {}).filter((n) => t.crew[n].role === 'member' && t.crew[n].checkpoint);
     const memberHandovers = parts.map((n) => `Member ${n}${t.crew[n].done ? ' (part done)' : t.crew[n].gone ? ' (stopped)' : ''}: ${checkpointText(t.crew[n].checkpoint)}`);
-    return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
+    const lib = await libSummary(store, t.id, owner).catch(() => '');
+    return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, ...(lib ? [lib] : []), 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
   const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;

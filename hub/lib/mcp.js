@@ -5,6 +5,7 @@ import { webTools } from './tools-web.js';
 import { fileTools } from './tools-files.js';
 import { skillTools } from './tools-skills.js';
 import { studioTools } from './studio.js';
+import { libraryTools } from './library.js';
 
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -165,6 +166,7 @@ export function toolsFor(hub) {
     ...fileTools(hub),
     ...skillTools(hub),
     ...studioTools(hub),
+    ...libraryTools(hub),
   ];
 }
 

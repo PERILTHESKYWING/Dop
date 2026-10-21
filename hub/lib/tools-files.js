@@ -86,6 +86,9 @@ export function fileTools(hub) {
         const [body, metaS] = await store.multi([['GET', K.body(who, name)], ['HGET', K.index(who), name]]);
         if (body == null) return `No file ${name} in ${who}'s files. See file_list${who === a.name ? '' : `(account: "${who}")`}.`;
         const meta = parse(metaS) || {};
+        // Pictures come back as images, so the agent sees them.
+        if (meta.encoding === 'base64' && /^image\/(png|jpeg|gif|webp)$/.test(meta.type || '') && !x.offset)
+          return { content: [{ type: 'image', data: body, mimeType: meta.type }, { type: 'text', text: `${name} (${kb(meta.size ?? body.length)}, ${meta.type}, by ${who})` }] };
         const from = Math.max(0, Math.floor(Number(x.offset) || 0));
         const len = Math.max(1, Math.min(READ_CHUNK, Math.floor(Number(x.length) || READ_CHUNK)));
         const part = body.slice(from, from + len);
