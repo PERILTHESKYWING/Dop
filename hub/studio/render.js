@@ -82,7 +82,7 @@ const BG = {
 export function renderBackground(p, scene) {
   const st = p.style;
   const ops = [];
-  const pen = new Pen({ style: { ...st, boil: 0, wobble: st.wobble * 0.8 }, seed: hash('bg', scene.id, scene.bg.kind), ops });
+  const pen = new Pen({ style: { ...st, boil: 0, wobble: st.wobble * 0.8 }, seed: hash('bg', scene.id, scene.bg.kind), ops, scale: 1 / Math.pow(scene.camera?.zoom || 1, 0.75) });
   const k = scene.bg.kind;
   const spec = BG[k];
   const wall = scene.bg.color || spec.wall;
@@ -269,7 +269,7 @@ function bubble(pen, text, spot, placed, st) {
 }
 
 function caption(ops, text, st) {
-  const size = 38;
+  const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
   if (st.capPos === 'top') {
     // Subtitle style: plain outlined text at the top centre, no box.
@@ -311,7 +311,11 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   const st = p.style;
   const { drawing, tq } = quantize(st, t);
   const world = [];
-  const pen = new Pen({ style: st, drawing, ops: world });
+  const cam = cameraAt(scene, t);
+  // The camera magnifies the drawing; draw close-ups with a finer pen so the
+  // line on screen stays close to the wide shot's (a bit heavier, as an artist would).
+  const fine = 1 / Math.pow(cam.zoom, 0.75);
+  const pen = new Pen({ style: st, drawing, ops: world, scale: fine });
   const placed = [];
   const states = scene.actors.map((a) => ({ a, s: actorState(scene, a, tq) }));
   const talkers = [];
@@ -321,13 +325,12 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     const beat = s.walking ? s.beat : s.beat.move === 'walk' ? { ...s.beat, move: 'idle' } : s.beat;
     const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking: !!beat.say && beat.move !== 'walk', prev: a.beats[s.beatIndex - 1], time: tq, walking: s.walking });
     const at = { x: s.x * W, ground: GROUND, scale: a.scale, facing: s.facing };
-    drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) }), ch, pose, at);
+    drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) * fine }), ch, pose, at);
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
   const overlay = [];
   if (st.captions && scene.narration) caption(overlay, scene.narration, st);
-  const cam = cameraAt(scene, t);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
