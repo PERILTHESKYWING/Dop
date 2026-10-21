@@ -7,11 +7,11 @@ let devStore = null;
 export function hubFromEnv(env = process.env) {
   const store = storeFromEnv(env) || (env.HUB_DEV_MEMORY === '1' ? (devStore ||= memoryStore()) : null);
   if (!store) return null;
-  return createHub({ store });
+  return createHub({ store, project: env.HUB_PROJECT || 'Dop', owner: env.HUB_OWNER || 'XIAO' });
 }
 
 const SETUP_HELP =
-  'The hub has no storage yet. In Vercel open the dop-hub project, Storage, connect an Upstash Redis store, then redeploy (see docs/handoff/hub-cloud.md).';
+  'The hub has no storage yet. In Vercel open the hub project, Storage, connect an Upstash Redis store, then redeploy (see docs/handoff/hub-cloud.md).';
 
 // The page and its API: XIAO's password.
 export async function pageApi({ hub, password, method, query, body, headers }) {
@@ -24,7 +24,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   if (method === 'GET' && op === 'state') {
     const t0 = Date.now();
     const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600 });
-    return { status: 200, body: { ...body, ms: Date.now() - t0 } };
+    return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, ms: Date.now() - t0 } };
   }
   // Reading usage from Claude can take seconds, so the page asks for it on its own.
   if (method === 'GET' && op === 'usage') {
