@@ -518,14 +518,14 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       if (cap.length > 3) {
         solid(pen, 'hairF', loop(cap.filter((_, i) => i % 2 === 0), 3), ch.hair, { width: line, round: 0.9 });
         // A few strands following the flow from the crown.
-        for (const a of [-40, -8, 26]) {
+        for (const a of fringe ? [-62, -40, -22, -6, 14, 30, 50] : [-40, -8, 26]) {
           const v1 = knot(tab, a) - 0.12;
           const pts3 = [-0.92, (v1 - 0.92) / 2, v1].map((v, i) => {
             const rho = Math.sqrt(Math.max(0.01, 1 - v * v));
             const aa = ((a + (i - 1) * 6) * Math.PI) / 180;
             return { q: add(C, [Math.sin(aa) * rho * hs * 0.99, v * hs, Math.cos(aa) * rho * hs * 0.99]), vis: facingCam([Math.sin(aa) * rho, v, Math.cos(aa) * rho]) };
           });
-          if (pts3.every((q) => q.vis > 0.15)) pen.stroke('strand' + a, curve(pts3.map((q) => HP(q.q)), 5), { width: line * 0.45, color: mix(ch.hair, ink, 0.5) });
+          if (pts3.every((q) => q.vis > 0.15)) pen.stroke('strand' + a, curve(pts3.map((q) => HP(q.q)), 5), { width: line * (fringe ? 0.55 : 0.45), color: fringe ? mix(ch.hair, '#9aa4e0', 0.28) : mix(ch.hair, ink, 0.5) });
         }
       }
       if (fringe) fringeLocks();

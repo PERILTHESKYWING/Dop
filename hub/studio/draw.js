@@ -262,7 +262,7 @@ export class Pen {
     const m = st.misregister * slip * this.scale * (2.2 + st.line * 0.35);
     const dx = Math.cos(a) * m;
     const dy = Math.sin(a) * m;
-    const { pts: p, lens, total } = resample(pts, Math.max(4, total0(pts) / 24));
+    const { pts: p, lens, total } = resample(pts, Math.max(1.5, Math.min(12, total0(pts) / 24)));
     const nrm = normals(p);
     const off = this.wander(id + ':f', total, st.wobble * 0.7 * this.scale, 0.7);
     const out = p.map(([x, y], i) => [x + dx + nrm[i][0] * off(lens[i]), y + dy + nrm[i][1] * off(lens[i])]);
