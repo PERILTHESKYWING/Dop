@@ -579,3 +579,29 @@ describe('cloud hub: removed accounts', () => {
     expect((await h.account('Gone')).key).not.toBe(gone.key);
   });
 });
+
+describe('cloud hub: usage reported by agents', () => {
+  it('takes numbers from hub_usage, asks for them at checkpoints only when due, and keeps the weekly one past 5 hours', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const acc = await h.upsertAccount({ name: 'Probe', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_p', token: 'good-p' }] });
+    const call = async (name: string, args: any) => {
+      const r = await mcpApi({ hub: h, method: 'POST', query: { account: 'Probe', key: acc.key }, body: { jsonrpc: '2.0', id: rpcId++, method: 'tools/call', params: { name, arguments: args } }, headers: {} });
+      return r.body.result.content[0].text as string;
+    };
+    const t = await h.createThread({ title: 'Usage', brief: 'x', account: 'Probe', model: 'sonnet' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    await call('hub_usage', { state: 'report', five_hour_pct: 15, seven_day_pct: 62, seven_day_resets: new Date(clock + 3 * 86400_000).toISOString() });
+    const card = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(card.usage).toMatchObject({ five_hour_pct: 15, seven_day_pct: 62, source: 'agent' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toBe('Handover saved.');
+    clock += 6 * 3600_000;
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    const later = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(later.usage).toMatchObject({ five_hour_pct: null, seven_day_pct: 62 });
+    clock += 3 * 86400_000;
+    await h.touchAccount('Probe');
+    expect((await h.account('Probe')).usage).toBeNull();
+  });
+});

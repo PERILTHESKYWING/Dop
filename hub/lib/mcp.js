@@ -155,7 +155,7 @@ export function toolsFor(hub) {
         // Low/ok first: "ok" forgets the old reading, so fresh numbers go on after it.
         if (x.state !== 'report') await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         if (five != null || week != null) {
-          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: Date.now(), source: x.source === 'pc' ? 'pc' : 'agent' };
+          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: hub.now(), source: x.source === 'pc' ? 'pc' : 'agent' };
           await hub.touchAccount(a.name, { usage, usageErr: '' });
         }
         if (x.state === 'report') return 'Thanks.';

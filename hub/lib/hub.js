@@ -207,6 +207,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     if (s.coordinatorAccount === name) await saveSettings({ coordinatorAccount: '' });
   }
 
+  // Past 5 hours the 5-hour number means nothing; the weekly one still helps
+  // (the page shows its age) until its reset passes.
+  function freshUsage(u) {
+    if (!u || now() - (u.at || now()) <= FIVE_H) return u || null;
+    const reset = Date.parse(u.seven_day_resets || '') || (u.at || 0) + 7 * 24 * 3600_000;
+    return u.seven_day_pct != null && now() < reset ? { ...u, five_hour_pct: null, five_hour_resets: null } : null;
+  }
+
   function publicAccount(a, threads = []) {
     const t = now();
     return {
@@ -215,7 +223,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       plan: a.plan,
       low: !!a.low,
       lowNote: a.lowNote || '',
-      usage: a.usage || null,
+      usage: freshUsage(a.usage),
       usageErr: a.usageErr || '',
       lastSeen: a.lastSeen || 0,
       online: t - (a.lastSeen || 0) < ACTIVE_MS,
@@ -254,7 +262,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // Marks an account low once less than minLeftPct (default 15%) of either
   // limit is left, and clears it once 15 points more are free again.
   async function applyUsage(a, s = null) {
-    if (a.usage && now() - (a.usage.at || now()) > FIVE_H) a.usage = null;
+    a.usage = freshUsage(a.usage);
     if (a.usage) {
       const lowAt = 100 - (s || (await settings())).minLeftPct;
       const pct = usedPct(a) ?? 0;
@@ -267,6 +275,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
         a.lowNote = '';
       }
     }
+  }
+
+  // Agents read their own usage with hub/usage-probe.mjs (in this repo only):
+  // when they start, and after a checkpoint once the last reading is 30 min old.
+  const PROBE = 'run `node hub/usage-probe.mjs` and pass what it prints to hub_usage (state "report"); skip it if it prints an error.';
+  async function usageDue(name) {
+    if (slug !== 'dop') return false;
+    const a = await account(name);
+    return !!a && a.plan !== 'free' && (!a.usage || a.usage.source === 'manual' || now() - (a.usage.at || 0) > 30 * 60_000);
   }
 
   // ---------- usage from Claude ----------
@@ -891,7 +908,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. ${slug === 'dop' ? 'Share your usage at the start and with each checkpoint: run `node hub/usage-probe.mjs` and pass what it prints to hub_usage (state "report"); skip it if it prints an error. ' : ''}Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
+  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. ${slug === 'dop' ? `Share your usage when you start, and again when a hub_checkpoint reply says it is due: ${PROBE} ` : ''}Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
@@ -1050,7 +1067,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     seen(t, agent.name);
     await putThread(t);
     await post({ thread: t.id, from: agent.name, kind: 'handover', text: `Done: ${cp.done}\nNext: ${cp.next}${cp.branch ? `\nBranch: ${cp.branch}` : ''}` });
-    return 'Handover saved.';
+    return `Handover saved.${(await usageDue(agent.name)) ? ` Usage is due: ${PROBE}` : ''}`;
   }
 
   // Ask another thread (or XIAO). If nobody is running on the target thread,
