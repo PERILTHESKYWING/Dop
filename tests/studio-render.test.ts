@@ -382,6 +382,9 @@ describe('studio female lead options (refs f1/f2)', () => {
     const shirt = ops.findIndex((o) => o.fill === '#3a2a2a');
     expect(tips).toBeGreaterThan(-1);
     expect(tips).toBeLessThan(shirt);
+    // Ombre paint is always clipped to a hair fill (no loose shards), in any pose.
+    for (const pose of [{ yaw: 0 }, { yaw: 30, headPitch: -35, hairSwing: 1 }, { yaw: 60, spine: 20, slump: 1, hairSwing: -1 }])
+      expect((await draw(lead(), pose)).filter((o) => o.fill === '#c0507a').every((o) => o.clip)).toBe(true);
     // Without hair2 there is no ombre colour anywhere.
     expect((await draw(lead({ hair2: undefined }))).some((o) => o.fill === '#c0507a')).toBe(false);
   });

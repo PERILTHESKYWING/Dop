@@ -301,6 +301,7 @@ export class Pen {
       }
     }
     this.stroke(id, pts, { ...opts, closed: true });
+    return slipped; // the fill as drawn, to clip extra paint to
   }
 
   // A shadow shape confined to another shape: head on neck, arm across the torso.
