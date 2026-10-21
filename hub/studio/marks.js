@@ -56,12 +56,11 @@ const rrect = (x0, y0, x1, y1, r) => {
 };
 const RED = '#d9453d';
 
-// Sign on a post with a big red cross scribbled over its text ("1000 Followers").
+// A white card with a goal written on it ("1000 Follower"); cross:true scribbles a red X
+// over its first character only, as f2 strikes the 1.
 function board(pen, id, x, y, k, m, st, t) {
   const w = 270 * k;
   const h = 120 * k;
-  const post = rect(x - 9 * k, y + h / 2, x + 9 * k, y + h / 2 + 150 * k);
-  pen.shape(id + 'post', post, '#9a7652');
   const face = rrect(x - w, y - h / 2, x + w, y + h / 2, 12 * k);
   pen.shape(id + 'b', face, '#ffffff');
   const lines = (m.text || '').split('|');
@@ -71,8 +70,11 @@ function board(pen, id, x, y, k, m, st, t) {
   const u1 = Math.min(1, Math.max(0, (t - (m.t || 0) - 0.35) / 0.12));
   const u2 = Math.min(1, Math.max(0, (t - (m.t || 0) - 0.5) / 0.12));
   const seg = (a, b, u) => [a, [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]];
-  if (crossed && u1 > 0) pen.stroke(id + 'x1', seg([x - w * 0.9, y - h * 0.4], [x + w * 0.9, y + h * 0.4], u1), { width: st.line * 2.2 * k, color: RED, round: true });
-  if (crossed && u2 > 0) pen.stroke(id + 'x2', seg([x - w * 0.9, y + h * 0.4], [x + w * 0.9, y - h * 0.4], u2), { width: st.line * 2.2 * k, color: RED, round: true });
+  const cw = 0.5 * 44 * k; // about one character of the hand font
+  const cx = x - (lines[0].length * cw) / 2 + cw / 2;
+  const r = 0.75 * cw;
+  if (crossed && u1 > 0) pen.stroke(id + 'x1', seg([cx - r, y - r * 1.3], [cx + r, y + r * 1.3], u1), { width: st.line * 1.6 * k, color: RED, round: true });
+  if (crossed && u2 > 0) pen.stroke(id + 'x2', seg([cx - r, y + r * 1.3], [cx + r, y - r * 1.3], u2), { width: st.line * 1.6 * k, color: RED, round: true });
 }
 
 // Meme card with a title and a dropdown that is open: options below, the last one highlighted.
@@ -207,7 +209,7 @@ function shrimp(pen, id, x, y, k, m, st) {
     const a = A0 + 0.25 + i * 0.28;
     pen.stroke(id + 'lg' + i, [[c[0] + Math.cos(a) * 52 * k, c[1] + Math.sin(a) * 47 * k], [c[0] + Math.cos(a) * 30 * k, c[1] + Math.sin(a) * 28 * k + 12 * k]], { width: st.line * 0.55, round: true });
   }
-  if (m.text) pen.text(m.text, x, y + 150 * k, 42 * k);
+  if (m.text && m.text !== 'before') pen.text(m.text, x, y + 150 * k, 42 * k);
 }
 
 // The lead's head peeking up over the bottom edge of the frame: hair crown and two eyes.
@@ -229,12 +231,11 @@ function peek(pen, id, x, y, k, m, st, t) {
 function thumb(pen, id, x, y, k, m, st) {
   const w = 230 * k;
   const h = 130 * k;
-  pen.shape(id + 'fr', rrect(x - w, y - h, x + w, y + h, 10 * k), '#ffe9a8');
+  pen.shape(id + 'fr', rrect(x - w, y - h, x + w, y + h, 10 * k), '#f0559a');
   pen.shape(id + 'face', ellipse(x - 60 * k, y - 10 * k, 62 * k, 66 * k, { n: 14 }), '#f6e0da');
   pen.shape(id + 'hair', loop([[x - 124 * k, y - 10 * k], [x - 110 * k, y - 70 * k], [x - 60 * k, y - 84 * k], [x - 10 * k, y - 66 * k], [x + 2 * k, y - 10 * k], [x - 30 * k, y - 40 * k], [x - 90 * k, y - 40 * k]], 5), '#2b2d57');
   for (const s2 of [-1, 1]) pen.dot(id + 'e' + s2, x - 60 * k + s2 * 24 * k, y - 4 * k, 8 * k);
   pen.stroke(id + 'm', curve([[x - 78 * k, y + 28 * k], [x - 60 * k, y + 40 * k], [x - 42 * k, y + 28 * k]], 4), { width: st.line * 0.7 });
-  pen.fill(id + 'play', [[x + 60 * k, y - 60 * k], [x + 60 * k, y + 0 * k], [x + 114 * k, y - 30 * k], [x + 60 * k, y - 60 * k]], RED, { slip: 0.3 });
   pen.fill(id + 'bar', rect(x - w, y + 70 * k, x + w, y + h), '#2a2340', { slip: 0 });
   pen.text(m.text || 'MY 1ST VIDEO', x, y + 112 * k, 34 * k, { color: '#ffffff', weight: 700 });
 }

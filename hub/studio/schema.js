@@ -155,7 +155,7 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
     const props = (Array.isArray(s.props) ? s.props : [])
       .slice(0, LIMITS.props)
       .filter((p) => p && PROPS.includes(p.kind))
-      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), ...(p.y != null ? { y: clamp(p.y, [0, 1], 0.5) } : {}), scale: clamp(p.scale, [0.5, 1.6], 1), ...(p.cross ? { cross: true } : {}), ...(p.text ? { text: text(p.text, 40) } : {}) }));
+      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), ...(p.y != null ? { y: clamp(p.y, [0, 1], 0.5) } : {}), scale: clamp(p.scale, [0.5, 3], 1), ...(p.cross ? { cross: true } : {}), ...(p.text ? { text: text(p.text, 40) } : {}) }));
     const marks = (Array.isArray(s.marks) ? s.marks : [])
       .filter((m) => m && MARK_KINDS.includes(m.kind) && (TEXT_MARKS.includes(m.kind) && m.kind !== 'shrimp' ? text(m.text, 40) : true))
       .slice(0, LIMITS.marks)

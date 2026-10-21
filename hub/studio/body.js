@@ -442,9 +442,9 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
   for (const s of ['F', 'B']) {
     const A = sk['arm' + s];
     const fore = unit([A.wr[0] - A.el[0], A.wr[1] - A.el[1], A.wr[2] - A.el[2]]);
-    const upR = (t) => (0.036 - 0.01 * t) * H * lim;
+    const upR = (t) => (0.033 - 0.011 * t) * H * lim;
     // The forearm tapers to a slim wrist, narrower than the hand.
-    const foR = (t) => (0.028 - 0.012 * smooth(t)) * H * lim;
+    const foR = (t) => (0.025 - 0.011 * smooth(t)) * H * lim;
     const upB = (t) => 0.2 * bump(t, 0.5, 0.45);
     const foB = (t) => 0.16 * bump(t, 0.25, 0.35);
     const grip = p['grip' + s] || 'relaxed';
@@ -578,7 +578,25 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       return [c[0] + rt[0] * lx + up[0] * ly, c[1] + rt[1] * lx + up[1] * ly];
     });
     const pts = [...corner(1, 1, 0), ...corner(-1, 1, Math.PI / 2), ...corner(-1, -1, Math.PI), ...corner(1, -1, 1.5 * Math.PI)];
-    parts.push({ z: Math.max(...parts.map((q) => q.z)) + 1, draw: () => solid(pen, 'phone', pts, '#2e3150', { width: line * 0.9, round: 0.5 }) });
+    // Fingers curl round its long sides and the thumbs rest on its face near the bottom.
+    const at = (lx, ly) => [c[0] + rt[0] * lx + up[0] * ly, c[1] + rt[1] * lx + up[1] * ly];
+    const rot = Math.atan2(up[1], up[0]);
+    const grips = [];
+    for (const sx of [-1, 1]) {
+      for (const [i, ly] of [-0.3, -0.12, 0.06].entries()) {
+        const q = at(sx * (w / 2 - w * 0.03), ly * h);
+        grips.push(['fg' + sx + i, ellipse(q[0], q[1], w * 0.09, w * 0.14, { rot: rot + Math.PI / 2, n: 12 })]);
+      }
+      const q = at(sx * w * 0.3, -h * 0.36);
+      grips.push(['th' + sx, ellipse(q[0], q[1], w * 0.1, w * 0.2, { rot: rot - sx * 0.5, n: 14 })]);
+    }
+    parts.push({
+      z: Math.max(...parts.map((q) => q.z)) + 1,
+      draw: () => {
+        solid(pen, 'phone', pts, '#2e3150', { width: line * 0.9, round: 0.5 });
+        for (const [id, g] of grips) solid(pen, 'phone' + id, g, skin, { width: line * 0.7, round: 0.8 });
+      },
+    });
   }
 
   return { parts, chestZ, neck: nk.pts, hands };

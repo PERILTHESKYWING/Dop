@@ -37,7 +37,7 @@ export const FIRST_VIDEO = {
     shot('guys-2', 0.3, 'Guys!', nami(0.5, [{ t: 0, move: 'cheek', face: 'worried', quiet: true }]), { camera: BUST(0.47, { zoom: 4.5 }) }),
     // 0:01.4 Points back at her first video's thumbnail, blank shock.
     shot('three-days', 2.9, 'It literally has been three days!', nami(0.64, [{ t: 0, move: 'point', face: 'shock' }], -1), {
-      camera: CHEST(0.58), props: [{ kind: 'thumb', x: 0.22, y: 0.42, scale: 1, text: 'MY 1ST VIDEO' }],
+      camera: CHEST(0.58), props: [{ kind: 'thumb', x: 0.2, y: 0.34, scale: 1, text: 'MY 1ST VIDEO' }],
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
@@ -45,7 +45,7 @@ export const FIRST_VIDEO = {
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
     shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
-      camera: { zoom: 1, x: 0.5, y: 0.5 }, marks: [{ kind: 'board', text: '1000 Followers', x: 0.5, y: 0.22, size: 1.1 }, { kind: 'peek', x: 0.62, y: 0.78, t: 0.3 }, { kind: 'label', text: 'Just woke up', x: 0.84, y: 0.72, to: [0.72, 0.84], t: 0.6 }],
+      camera: { zoom: 1, x: 0.5, y: 0.5 }, marks: [{ kind: 'board', text: '1000 Follower', x: 0.5, y: 0.2, size: 1.6 }, { kind: 'peek', x: 0.62, y: 0.78, t: 0.3 }, { kind: 'label', text: 'Just woke up', x: 0.84, y: 0.72, to: [0.72, 0.84], t: 0.6 }],
     }),
     // 0:08.3 Teary eyes, cat mouth, sweat: "you are scaring me".
     shot('scaring', 3, 'no frr, you guys are so scaring me rn...', nami(0.5, [{ t: 0, move: 'idle', face: 'teary' }]), {
@@ -65,9 +65,9 @@ export const FIRST_VIDEO = {
     shot('side-quest', 3.2, 'when I decided to do this side quest', nami(0.4, [{ t: 0, move: 'slump', face: 'cat' }]), {
       camera: DESK(0.48), marks: [{ kind: 'desk', x: 0.5, y: 0.72, text: 'phone' }, { kind: 'speed', x: 0.5, y: 0.4 }, { kind: 'exclaim', x: 0.18, y: 0.45, t: 0.2 }, { kind: 'label', text: 'message', x: 0.16, y: 0.62, to: [0.2, 0.74], t: 0.5 }],
     }),
-    // 0:19.6 (f2 cuts to a stern mascot here) A serious face, finger on her chin: "my feelings".
-    shot('feelings', 5.5, 'because I wanted to express my feelings, my confusion towards you guys', nami(0.5, [{ t: 0, move: 'chin', face: 'neutral' }]), {
-      camera: CLOSE(0.5), marks: [{ kind: 'label', text: '*very serious', x: 0.8, y: 0.7, t: 1 }],
+    // 0:19.6 f2 cuts to its stern mascot (white blob, pencil) alone on the home colour.
+    shot('feelings', 5.5, 'because I wanted to express my feelings, my confusion towards you guys', [], {
+      camera: { zoom: 1, x: 0.5, y: 0.5 }, props: [{ kind: 'mascot', x: 0.5, y: 0.56, scale: 2.6 }],
     }),
     // 0:25.1 Front bust, nervous grin.
     shot('confused', 1.2, 'because I wanted to express my feelings, my confusion towards you guys', nami(0.5, [{ t: 0, move: 'idle', face: 'nervous' }]), {
@@ -79,16 +79,15 @@ export const FIRST_VIDEO = {
     shot('here', 3.6, 'so here I am!', nami(0.5, [{ t: 0, move: 'jump', face: 'joy' }]), { camera: BUST(0.5), marks: [{ kind: 'sparkle', x: 0.72, y: 0.3, t: 0.3 }] }),
     // 0:30.4 The "Gender" dropdown gag, finger on chin, HEHEHE.
     shot('weird', 3.3, 'Just a weird artist on her art journey', nami(0.7, [{ t: 0, move: 'chin', face: 'cat' }]), {
-      camera: BUST(0.62), marks: [{ kind: 'card', text: 'Gender', x: 0.22, y: 0.45, size: 0.8 }],
-      marks: [{ kind: 'label', text: 'HEHEHE...', x: 0.46, y: 0.62, t: 0.5 }],
+      camera: BUST(0.62), marks: [{ kind: 'card', text: 'Gender|Female|Male|Artist girl', x: 0.2, y: 0.42, size: 0.8 }, { kind: 'label', text: 'HEHEHE...', x: 0.46, y: 0.62, t: 0.5 }],
     }),
     // 0:33.5 Phone in both hands, amazed.
     shot('comments', 3.9, 'and thank you all for the comments and support', nami(0.5, [{ t: 0, move: 'phone', face: 'surprised' }]), {
-      camera: BUST(0.5), marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34, t: 0.4 }],
+      camera: BUST(0.5), marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.86, y: 0.4, t: 0.4 }],
     }),
     // 0:37.4 Same, softer, with an "Aww!" bubble.
     shot('motivation', 2.6, 'it gave me so much motivation', nami(0.5, [{ t: 0, move: 'phone', face: 'shy' }]), {
-      camera: BUST(0.5, { zoom: 4.5 }), marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34 }],
+      camera: BUST(0.5, { zoom: 4.5 }), marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.86, y: 0.4 }],
     }),
     // 0:39.1 The long hold: fist up, eyes squeezed shut.
     shot('cheer', 7.0, 'I even started the next video right away because I was so pumped!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }], -1), {

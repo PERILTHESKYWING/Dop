@@ -88,6 +88,7 @@ export const MOVE_SET = {
     ],
   },
   point: {
+    opensAt: 0.58,
     keys: [
       [0, {}],
       [0.18, { handB: [0.1, 0.1, 0.14], gripB: 'fist', aimB: [0.6, -0.4, 0.6], spine: -3, weight: 0.3 }, 'out'],
