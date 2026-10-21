@@ -9,7 +9,8 @@ export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', '
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic', 'yell', 'nervous', 'teary', 'wink'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
-export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim'];
+export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek'];
+const TEXT_MARKS = ['label', 'sfx', 'board', 'card', 'shrimp'];
 export const BUILDS = ['slim', 'average', 'round', 'petite'];
 export const EYES = ['dot', 'oval', 'sleepy', 'anime'];
 export const JAWS = ['round', 'v'];
@@ -156,11 +157,11 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
       .filter((p) => p && PROPS.includes(p.kind))
       .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), scale: clamp(p.scale, [0.5, 1.6], 1), ...(p.text ? { text: text(p.text, 24) } : {}) }));
     const marks = (Array.isArray(s.marks) ? s.marks : [])
-      .filter((m) => m && MARK_KINDS.includes(m.kind) && (['label', 'sfx'].includes(m.kind) ? text(m.text, 40) : true))
+      .filter((m) => m && MARK_KINDS.includes(m.kind) && (TEXT_MARKS.includes(m.kind) ? text(m.text, 40) : true))
       .slice(0, LIMITS.marks)
       .map((m) => ({
         kind: m.kind,
-        ...(['label', 'sfx'].includes(m.kind) ? { text: text(m.text, 40) } : {}),
+        ...(TEXT_MARKS.includes(m.kind) ? { text: text(m.text, 40) } : {}),
         x: clamp(m.x, [0, 1], 0.5),
         y: clamp(m.y, [0, 1], 0.5),
         ...(Array.isArray(m.to) && m.to.length === 2 && m.to.every((v) => Number.isFinite(Number(v))) ? { to: m.to.map((v) => clamp(v, [0, 1], 0.5)) } : {}),
