@@ -1,14 +1,15 @@
 // Files tab of the hub library: upload images, videos, text and any file so
 // every agent can read them (lib_list / lib_get). Agents can't watch a video
 // or open a huge photo, so the browser makes what they can see before the
-// upload: a 'view' JPEG of big images, and for videos up to 16 still frames
-// plus one contact sheet. Everything goes up in chunks the API accepts.
+// upload: a 'view' JPEG of big images, and for videos up to 48 stills picked
+// around the cuts, contact sheets, and a timeline of motion, cuts and sound
+// (video-scan.js). Everything goes up in chunks the API accepts.
+import { AUDIO_STEP, findCuts, greyDiff, pickTimes, rmsWindows, scanStep, scanTimes, shotsOf, soundHits, tempo } from './video-scan.js';
 const RAW_CHUNK = 675_000; // bytes per chunk = 900,000 base64 characters, the API's limit
 const MAX_B64 = 900_000;
 const VIEW_PX = 1568; // longest side of the copies agents see
 const VIEW_BYTES = 650 * 1024; // images bigger than this get a view copy (and still fit one chunk below it)
 const FRAME_PX = 768;
-const MAX_FRAMES = 16;
 const VIDEO_KEEP = 24 * 1024 * 1024; // longer videos keep their frames only
 const POOL = 3; // body chunks sent at once
 
@@ -115,8 +116,8 @@ function waitFor(el, name, ms) {
   });
 }
 
-// Up to 16 frames spread over the clip, and a contact sheet of all of them with times.
-export function frameTimes(duration, max = MAX_FRAMES) {
+// Kept for old callers: up to 16 frames spread evenly over a clip.
+export function frameTimes(duration, max = 16) {
   if (!(duration > 0)) return [0];
   const n = Math.min(max, Math.max(1, Math.ceil(duration * 2)));
   return Array.from({ length: n }, (_, i) => Math.round(((duration * (i + 0.5)) / n) * 100) / 100);
@@ -133,7 +134,49 @@ export function sheetGrid(n, vw, vh, maxPx = VIEW_PX) {
   }
   return { cols, rows, cw: Math.max(1, cw), ch: Math.max(1, ch) };
 }
+// Frames per contact sheet: 12 keeps each still big enough to read.
+export const SHEET_FRAMES = 12;
+export const sheetGroups = (n) => Array.from({ length: Math.ceil(n / SHEET_FRAMES) }, (_, s) => Array.from({ length: Math.min(SHEET_FRAMES, n - s * SHEET_FRAMES) }, (_, k) => s * SHEET_FRAMES + k));
 
+async function seekTo(v, t) {
+  if (Math.abs(v.currentTime - t) <= 0.001) return;
+  const s = waitFor(v, 'seeked', 15000);
+  v.currentTime = t;
+  await s;
+}
+
+// Sound: decode the track and measure loudness every 50 ms. Null when the
+// clip has no sound or this browser can't decode it.
+async function soundOf(file) {
+  if (file.size > 120 * 1024 * 1024) return { why: 'not measured (file too big to decode in the browser)' };
+  const AC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+  if (!AC) return { why: 'not measured (this browser has no audio decoder)' };
+  try {
+    const ctx = new AC(1, 1, 22050);
+    const bytes = await file.arrayBuffer();
+    const buf = await new Promise((ok, no) => {
+      const p = ctx.decodeAudioData(bytes, ok, no);
+      if (p && p.then) p.then(ok, no);
+    });
+    const n = buf.length, ch = buf.numberOfChannels;
+    const mono = new Float32Array(n);
+    for (let c = 0; c < ch; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < n; i++) mono[i] += d[i] / ch;
+    }
+    const rms = rmsWindows(mono, buf.sampleRate, AUDIO_STEP);
+    if (!(Math.max(0, ...rms) > 1e-4)) return { why: 'silent' };
+    const beat = tempo(rms, AUDIO_STEP);
+    const peak = Math.max(...rms);
+    return { audio: { step: AUDIO_STEP, loud: rms.map((x) => Math.round((x / peak) * 1000) / 1000), hits: soundHits(rms, AUDIO_STEP), bpm: beat.bpm, beat: beat.strength } };
+  } catch {
+    return { why: 'no sound track, or this browser cannot decode it' };
+  }
+}
+
+// What agents get from a video: a scan of motion and cuts, up to 48 stills
+// chosen around the cuts, contact sheets of 12, and the sound's loudness,
+// hits and beat. All measured here, so it costs nothing and needs no key.
 async function videoFrames(file, step) {
   const url = URL.createObjectURL(file);
   const v = document.createElement('video');
@@ -155,39 +198,95 @@ async function videoFrames(file, step) {
     try { await v.play(); v.pause(); } catch {}
     const vw = v.videoWidth, vh = v.videoHeight;
     if (!vw || !vh) throw new Error('this browser cannot show this video');
-    const times = frameTimes(duration);
-    const grid = sheetGrid(times.length, vw, vh);
-    const sheet = document.createElement('canvas');
-    sheet.width = grid.cols * grid.cw;
-    sheet.height = grid.rows * grid.ch;
-    const g = sheet.getContext('2d');
-    g.fillStyle = '#fff';
-    g.fillRect(0, 0, sheet.width, sheet.height);
+
+    // 1. Scan: a tiny grey copy every step finds cuts and how much moves.
+    const scan = scanTimes(duration);
+    const tw = 32, th = Math.max(8, Math.round((32 * vh) / vw));
+    const tc = document.createElement('canvas');
+    tc.width = tw;
+    tc.height = th;
+    const tg = tc.getContext('2d', { willReadFrequently: true });
+    const diffs = [], colors = [];
+    let prev = null;
+    for (let i = 0; i < scan.length; i++) {
+      if (i % 10 === 0) step(`Scanning motion ${Math.round((i / scan.length) * 100)}%`);
+      await seekTo(v, Math.min(scan[i], Math.max(0, duration - 0.05)));
+      tg.drawImage(v, 0, 0, tw, th);
+      const px = tg.getImageData(0, 0, tw, th).data;
+      const grey = new Uint8Array(tw * th);
+      let r = 0, g = 0, b = 0;
+      for (let k = 0, j = 0; k < px.length; k += 4, j++) {
+        grey[j] = (px[k] * 299 + px[k + 1] * 587 + px[k + 2] * 114) / 1000;
+        r += px[k]; g += px[k + 1]; b += px[k + 2];
+      }
+      const n = tw * th;
+      colors.push([r / n, g / n, b / n]);
+      diffs.push(prev ? greyDiff(prev, grey) : 0);
+      prev = grey;
+    }
+    const cuts = duration ? findCuts(scan, diffs) : [];
+    const hex = (c) => `#${c.map((x) => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
+    const shots = shotsOf(duration || 0.01, cuts).map((s) => {
+      const idx = scan.map((t, i) => (t >= s.start && t < s.end ? i : -1)).filter((i) => i >= 0);
+      const use = idx.length ? idx : [0];
+      const avg = [0, 1, 2].map((c) => use.reduce((sum, i) => sum + colors[i][c], 0) / use.length);
+      const inner = use.slice(1).map((i) => diffs[i]);
+      return { ...s, color: hex(avg), light: (avg[0] * 299 + avg[1] * 587 + avg[2] * 114) / 1000 / 255, motion: inner.length ? inner.reduce((a, x) => a + x, 0) / inner.length : 0 };
+    });
+
+    // 2. Stills: the start and end of each shot, its middle, then an even spread.
+    const times = pickTimes(duration, cuts);
+    const starts = new Set(shots.map((s) => times.find((t) => t >= s.start) ?? -1));
     const frames = [];
+    const sheets = [];
+    const groups = sheetGroups(times.length);
+    const g0 = sheetGrid(Math.min(SHEET_FRAMES, times.length), vw, vh);
+    const canvases = groups.map((grp) => {
+      const c = document.createElement('canvas');
+      c.width = g0.cols * g0.cw;
+      c.height = Math.ceil(grp.length / g0.cols) * g0.ch;
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, c.width, c.height);
+      return { c, g };
+    });
     for (let i = 0; i < times.length; i++) {
       step(`Reading frame ${i + 1} of ${times.length}`);
-      const t = Math.min(times[i], Math.max(0, duration - 0.05));
-      if (Math.abs(v.currentTime - t) > 0.001) {
-        const s = waitFor(v, 'seeked', 15000);
-        v.currentTime = t;
-        await s;
-      }
+      await seekTo(v, Math.min(times[i], Math.max(0, duration - 0.05)));
       await new Promise((r) => requestAnimationFrame(() => r()));
       const f = jpegFit(v, vw, vh, FRAME_PX);
       if (!f) throw new Error('could not save a frame');
       frames.push(f);
-      const x = (i % grid.cols) * grid.cw, y = Math.floor(i / grid.cols) * grid.ch;
-      g.drawImage(v, x + 1, y + 1, grid.cw - 2, grid.ch - 2);
-      const label = secs(times[i]);
-      g.font = `600 ${Math.max(12, Math.round(grid.cw / 18))}px system-ui, sans-serif`;
-      const w = g.measureText(label).width + 10, h = Math.max(18, Math.round(grid.cw / 13));
+      const { g } = canvases[Math.floor(i / SHEET_FRAMES)];
+      const k = i % SHEET_FRAMES;
+      const x = (k % g0.cols) * g0.cw, y = Math.floor(k / g0.cols) * g0.ch;
+      g.drawImage(v, x + 1, y + 1, g0.cw - 2, g0.ch - 2);
+      const label = `#${i} ${secs(times[i])}${starts.has(times[i]) && times[i] > 0.2 ? ' new shot' : ''}`;
+      g.font = `600 ${Math.max(12, Math.round(g0.cw / 18))}px system-ui, sans-serif`;
+      const w = g.measureText(label).width + 10, h = Math.max(18, Math.round(g0.cw / 13));
       g.fillStyle = 'rgba(0,0,0,.66)';
       g.fillRect(x + 5, y + 5, w, h);
       g.fillStyle = '#fff';
       g.textBaseline = 'middle';
       g.fillText(label, x + 10, y + 5 + h / 2);
     }
-    return { frames, frameTimes: times, sheet: jpeg(sheet), duration };
+    for (const { c } of canvases) sheets.push(jpeg(c));
+
+    // 3. Sound.
+    step('Measuring the sound');
+    const sound = await soundOf(file);
+    const timeline = {
+      duration,
+      width: vw,
+      height: vh,
+      step: scanStep(duration),
+      motion: diffs.map((d) => Math.round(Math.min(1, d) * 1000) / 1000),
+      cuts,
+      shots,
+      audio: sound.audio || null,
+      noAudio: sound.why || '',
+    };
+    return { frames, frameTimes: times, sheet: sheets[0], sheets, duration, timeline };
   } finally {
     v.removeAttribute('src');
     v.load();
@@ -201,7 +300,7 @@ function plan(file) {
   const kind = kindOf(type);
   const keepBody = kind !== 'video' || file.size <= VIDEO_KEEP;
   const notes = [];
-  if (kind === 'video') notes.push(keepBody ? 'video + 16 frames for agents' : `over ${size(VIDEO_KEEP)}: only still frames are kept`);
+  if (kind === 'video') notes.push(keepBody ? 'video + frames, cuts and sound for agents' : `over ${size(VIDEO_KEEP)}: only still frames are kept`);
   if (kind === 'image' && file.size > VIEW_BYTES) notes.push('a smaller copy is made for agents');
   return { file, name: cleanName(file.name), type, kind, keepBody, notes };
 }
@@ -236,7 +335,7 @@ async function upload(api, p, meta, report) {
   const chunks = p.keepBody ? Math.ceil(p.file.size / RAW_CHUNK) : 0;
   const parts = [];
   if (extra.view) parts.push({ part: 'view', i: 0, data: extra.view });
-  if (extra.sheet) parts.push({ part: 'sheet', i: 0, data: extra.sheet });
+  (extra.sheets || (extra.sheet ? [extra.sheet] : [])).forEach((data, i) => parts.push({ part: 'sheet', i, data }));
   (extra.frames || []).forEach((data, i) => parts.push({ part: 'frame', i, data }));
   const weight = parts.reduce((s, x) => s + x.data.length, 0) + Math.ceil((p.file.size * 4) / 3) * (p.keepBody ? 1 : 0) || 1;
   let sent = 0;
@@ -258,7 +357,7 @@ async function upload(api, p, meta, report) {
       }
     };
     await Promise.all(Array.from({ length: Math.min(POOL, chunks) }, worker));
-    await send(api, 'lib-done', { id, ...(extra.frameTimes ? { frameTimes: extra.frameTimes } : {}) });
+    await send(api, 'lib-done', { id, ...(extra.frameTimes ? { frameTimes: extra.frameTimes } : {}), ...(extra.timeline ? { timeline: extra.timeline } : {}) });
   } catch (e) {
     await api('lib-delete', { id }).catch(() => {});
     throw e;
@@ -352,7 +451,7 @@ export function mount(el, ctx) {
       </div>
       <input type="file" multiple hidden data-in="any">
       <input type="file" multiple hidden accept="image/*,video/*" data-in="media">
-      <p class="hint">Images, videos, text and any other file. Agents see pictures and still frames from videos; videos over ${size(VIDEO_KEEP)} keep the frames only.</p>
+      <p class="hint">Images, videos, text and any other file. Agents see pictures; for a video, stills, cuts and sound, and Gemini can watch it. Videos over ${size(VIDEO_KEEP)} keep the stills only.</p>
     </div>
     <div class="card lf-stage" data-stage hidden>
       <h3 data-count></h3>
