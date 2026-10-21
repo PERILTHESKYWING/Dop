@@ -72,14 +72,15 @@ describe('hub library', () => {
     for (const i of [0, 1, 2]) await page('lib-chunk', { id, part: 'frame', i, data: b64(`frame${i}`) });
     await page('lib-chunk', { id, part: 'sheet', data: b64('sheet') });
     const done = await page('lib-done', { id, frameTimes: [0, 1.25, 2.5] });
-    expect(done.body).toMatchObject({ frames: 3, hasSheet: true, frameTimes: [0, 1.3, 2.5] });
+    expect(done.body).toMatchObject({ frames: 3, hasSheet: true, sheets: 1, frameTimes: [0, 1.25, 2.5] });
     const sheet = await tool('lib_get', { id });
     expect(sheet.content[0].data).toBe(b64('sheet'));
-    expect(sheet.content[1].text).toContain('Frames 0-2');
+    expect(sheet.content[1].text).toContain('Stills #0-2');
+    expect(sheet.content[1].text).toContain('No measured timeline');
     const f = await tool('lib_get', { id, frame: 2 });
     expect(f.content[0].data).toBe(b64('frame2'));
-    expect(f.content[1].text).toContain('at 2.5 s');
-    expect(await tool('lib_get', { id, frame: 9 })).toContain('No frame 9');
+    expect(f.content[1].text).toContain('at 0:02.5');
+    expect(await tool('lib_get', { id, frame: 9 })).toContain('No still 9');
   });
 
   it('keeps only frames of a video over the size limit', async () => {

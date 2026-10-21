@@ -4,11 +4,15 @@
 // chunks (a Vercel function takes at most 4.5 MB a request). For pictures it
 // also sends a small 'view' copy, and for videos a few frames plus one
 // contact 'sheet', because agents can look at images but cannot watch video.
+import { cleanTimeline, clock, timelineText } from '../library/video-scan.js';
+import { geminiWatch, KEY_HELP, watchHeader, watchKey, watchModels, watchPrompt, youtubeUrl } from './watch.js';
 const CHUNK = 900_000; // base64 characters per stored piece (one Upstash request stays under 1 MB)
 const MAX_ITEM = 24 * 1024 * 1024; // bytes of one original file
 const MAX_LIB = 120 * 1024 * 1024; // stored characters in all, under half of the free 256 MB
 const MAX_ITEMS = 500;
-const MAX_FRAMES = 16;
+const MAX_FRAMES = 48;
+const MAX_SHEETS = 4;
+const MAX_TIMELINE = 200_000; // characters of a video's measured timeline
 const READ_CHUNK = 100_000; // characters of text per lib_get
 const STALE_MS = 60 * 60 * 1000; // an upload not finished in an hour is dropped
 const K = {
@@ -20,6 +24,7 @@ const K = {
   repos: 'hub:repos',
 };
 const PARTS = ['body', 'view', 'sheet', 'frame'];
+// Text pieces the server writes itself: 'timeline' (numbers from the page) and 'watch' (Gemini's notes).
 const TEXT_EXT = /\.(md|markdown|txt|text|sgf|csv|tsv|json|jsonl|ya?ml|toml|ini|js|mjs|cjs|ts|tsx|jsx|py|sh|html?|css|svg|xml|log|srt|vtt)$/i;
 
 const kb = (n) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
@@ -70,13 +75,16 @@ export function publicItem(m) {
     hasBody: !!m.hasBody,
     hasView: !!m.hasView,
     hasSheet: !!m.hasSheet,
+    sheets: m.sheets || (m.hasSheet ? 1 : 0),
+    hasTimeline: !!m.hasTimeline,
+    watched: !!m.watched,
     status: m.status,
     at: m.at,
   };
 }
 
 function itemLine(m) {
-  const extra = [m.kind === 'video' && m.frames ? `${m.frames} frames${m.hasBody ? '' : ', video not kept'}` : '', m.tags?.length ? m.tags.join(', ') : '', m.threads?.length ? m.threads.map((n) => `#${n}`).join(' ') : ''].filter(Boolean);
+  const extra = [m.kind === 'video' && m.frames ? `${m.frames} stills${m.hasTimeline ? ', cuts and sound timeline' : ''}${m.watched ? ', Gemini notes' : ''}${m.hasBody ? '' : ', video not kept'}` : '', m.tags?.length ? m.tags.join(', ') : '', m.threads?.length ? m.threads.map((n) => `#${n}`).join(' ') : ''].filter(Boolean);
   return `${m.id} ${m.kind} "${m.name}" ${kb(m.size || 0)}${extra.length ? ` [${extra.join('; ')}]` : ''}${m.note ? ` — ${m.note}` : ''}`;
 }
 
@@ -176,7 +184,26 @@ export function createLibrary(hub) {
     for (let i = 0; i < flat.length; i += 2) out[flat[i]] = Number(flat[i + 1]) || 0;
     return out;
   }
-  const pieceKey = (part, i) => (part === 'body' || part === 'frame' ? `${part}:${i}` : part);
+  const pieceKey = (part, i) => (part === 'body' || part === 'frame' ? `${part}:${i}` : part === 'sheet' && i > 0 ? `sheet:${i}` : part);
+
+  // A text piece the server writes (timeline, watch notes), counted in the library size.
+  async function putText(m, p, text) {
+    const old = Number(await store.cmd('HGET', K.got(m.id), p)) || 0;
+    const total = Number((await store.cmd('GET', K.bytes)) || 0);
+    if (total - old + text.length > MAX_LIB) throw new Error(`the library is full (${kb(MAX_LIB)}); delete some files first`);
+    await store.multi([['SET', K.part(m.id, p), text], ['HSET', K.got(m.id), p, text.length], ['INCRBY', K.bytes, text.length - old], ['HSET', K.got(`${m.id}:type`), p, 'text/plain']]);
+  }
+  async function getText(m, p) {
+    return (await store.cmd('GET', K.part(m.id, p))) ?? null;
+  }
+  async function timelineOf(m) {
+    if (!m.hasTimeline) return null;
+    try {
+      return cleanTimeline(JSON.parse((await getText(m, 'timeline')) || 'null'));
+    } catch {
+      return null;
+    }
+  }
 
   async function remove(id) {
     const pieces = await got(id);
@@ -218,6 +245,7 @@ export function createLibrary(hub) {
     const i = Math.floor(Number(body.i) || 0);
     if (part === 'body' && (i < 0 || i >= m.chunks)) throw new Error(`body piece ${i} is outside 0-${m.chunks - 1}`);
     if (part === 'frame' && (i < 0 || i >= MAX_FRAMES)) throw new Error(`frame must be 0-${MAX_FRAMES - 1}`);
+    if (part === 'sheet' && (i < 0 || i >= MAX_SHEETS)) throw new Error(`sheet must be 0-${MAX_SHEETS - 1}`);
     if (part !== 'body' && !['image', 'video'].includes(m.kind)) throw new Error(`${part} is only for pictures and videos`);
     const data = String(body.data || '');
     if (!data || data.length > CHUNK) throw new Error(`data must be 1-${CHUNK} base64 characters`);
@@ -249,10 +277,20 @@ export function createLibrary(hub) {
     m.hasBody = m.chunks > 0;
     m.hasView = !!pieces.view;
     m.hasSheet = !!pieces.sheet;
+    m.sheets = m.hasSheet ? 1 + Object.keys(pieces).filter((p) => /^sheet:\d+$/.test(p)).length : 0;
     m.frames = frames;
-    m.frameTimes = (Array.isArray(body.frameTimes) ? body.frameTimes : []).slice(0, frames).map((s) => Math.round(Number(s) * 10) / 10 || 0);
-    m.stored = Object.values(pieces).reduce((s, n) => s + n, 0);
+    m.frameTimes = (Array.isArray(body.frameTimes) ? body.frameTimes : []).slice(0, frames).map((s) => Math.round(Number(s) * 100) / 100 || 0);
     if (!m.hasBody && !frames && !m.hasView) throw new Error('nothing was uploaded');
+    const timeline = m.kind === 'video' ? cleanTimeline(body.timeline) : null;
+    if (timeline) {
+      const text = JSON.stringify(timeline);
+      if (text.length <= MAX_TIMELINE) {
+        await putText(m, 'timeline', text);
+        pieces.timeline = text.length;
+        m.hasTimeline = true;
+      }
+    }
+    m.stored = Object.values(pieces).reduce((s, n) => s + n, 0);
     m.status = 'ready';
     m.at = now();
     await save(m);
@@ -327,6 +365,101 @@ export function createLibrary(hub) {
   const str = { type: 'string' };
   const num = { type: 'number' };
   const img = (p) => ({ type: 'image', data: p.data, mimeType: p.type });
+  // A video for an agent: the stills it asked for, the measured timeline and
+  // Gemini's saved notes, so one call gives as much as a still-only reader can get.
+  async function videoView(m, head, x) {
+    const times = m.frameTimes || [];
+    const at = (i) => (times[i] != null ? ` at ${clock(times[i])}` : '');
+    const sheets = m.sheets || (m.hasSheet ? 1 : 0);
+    const content = [];
+    const notes = [head];
+    if (x.frame != null) {
+      const i = Math.floor(Number(x.frame) || 0);
+      const p = i >= 0 && i < m.frames ? await piece(m, 'frame', i) : null;
+      return p ? { content: [img(p), { type: 'text', text: `${head}\nStill #${i}${at(i)} of ${m.frames}.` }] } : `${head}\nNo still ${i}; this video has stills 0-${m.frames - 1}.`;
+    }
+    if (x.from != null || x.to != null) {
+      const a = Number(x.from) || 0, b = x.to != null ? Number(x.to) : Infinity;
+      const pick = times.map((t, i) => (t >= a && t <= b ? i : -1)).filter((i) => i >= 0).slice(0, 8);
+      for (const i of pick) {
+        const p = await piece(m, 'frame', i);
+        if (p) content.push(img(p), { type: 'text', text: `Still #${i}${at(i)}` });
+      }
+      if (!content.length) return `${head}\nNo stills between ${clock(a)} and ${Number.isFinite(b) ? clock(b) : 'the end'}. Stills are at ${times.map(clock).join(', ')}.`;
+      return { content: [...content, { type: 'text', text: `${head}\n${pick.length} still(s) between ${clock(a)} and ${Number.isFinite(b) ? clock(b) : 'the end'} (8 at most a call).` }] };
+    }
+    const which = x.sheet != null ? [Math.floor(Number(x.sheet) || 0)].filter((n) => n >= 0 && n < sheets) : Array.from({ length: sheets }, (_, n) => n);
+    for (const n of which) {
+      const p = await piece(m, 'sheet', n);
+      if (p) content.push(img(p));
+    }
+    if (!content.length && m.frames) {
+      const p = await piece(m, 'frame', 0);
+      if (p) content.push(img(p));
+    }
+    if (sheets) notes.push(`${which.length === sheets ? `${sheets} contact sheet(s)` : `Sheet ${which[0]} of 0-${sheets - 1}`}: stills left to right, top to bottom, each labelled #n and its time; "new shot" marks the first still after a cut.`);
+    if (m.frames) notes.push(`Stills #0-${m.frames - 1} at ${times.map(clock).join(', ')}. lib_get(id: "${m.id}", frame: n) shows one at full size; from/to shows a span.`);
+    const tl = await timelineOf(m);
+    notes.push(tl ? timelineText(tl) : 'No measured timeline (uploaded before the hub measured cuts and sound; upload again to get one).');
+    const w = m.watched ? await getText(m, 'watch') : null;
+    if (w) {
+      try {
+        const r = JSON.parse(w);
+        notes.push(`${watchHeader(r, true)}\n${r.text}`);
+      } catch {}
+    } else notes.push(m.hasBody ? `Not watched yet: lib_watch(id: "${m.id}") has Gemini watch it with sound and saves its notes here.` : 'The original video was too big to keep, so Gemini cannot watch it; only the stills and timeline are here.');
+    return content.length ? { content: [...content, { type: 'text', text: notes.join('\n\n') }] } : notes.join('\n\n');
+  }
+
+  async function bodyBytes(m) {
+    const bufs = [];
+    for (let i = 0; i < m.chunks; i++) {
+      const p = await piece(m, 'body', i);
+      if (!p) throw new Error(`video piece ${i} is missing; upload it again`);
+      bufs.push(Buffer.from(p.data, 'base64'));
+    }
+    return Buffer.concat(bufs);
+  }
+
+  // Gemini watches the video with sound. The default breakdown is saved, so
+  // later calls (from any account) cost nothing; a custom question is a new call.
+  async function watch(x) {
+    const env = hub.env || process.env;
+    const key = watchKey(env);
+    const fetchImpl = hub.fetch || fetch;
+    const ask = String(x.ask || '').trim();
+    const yt = youtubeUrl(x.url);
+    if (x.url && !yt) return 'url must be a public YouTube link (youtube.com/watch?v=…, youtu.be/…, or /shorts/…). For any other video, XIAO uploads it to the Library, then use its id.';
+    if (yt) {
+      if (!key) return KEY_HELP;
+      const r = await geminiWatch({ key, models: watchModels(env), video: { uri: yt }, prompt: watchPrompt({ name: yt, ask }), fetchImpl });
+      return r.ok ? `${watchHeader(r, false)}\n\n${r.text}` : `Gemini could not watch it: ${r.error}`;
+    }
+    const m = await find(x.id);
+    if (!m || m.status !== 'ready') return `No library file "${x.id}". See lib_list.`;
+    if (m.kind !== 'video') return `${m.id} is not a video (${m.kind}); use lib_get.`;
+    if (!ask && m.watched && !x.fresh) {
+      const w = await getText(m, 'watch');
+      if (w) {
+        const r = JSON.parse(w);
+        return `${itemLine(m)}\n${watchHeader(r, true)}\n\n${r.text}`;
+      }
+    }
+    if (!m.hasBody) return `${itemLine(m)}\nThe original was over ${kb(MAX_ITEM)} so only stills were kept; Gemini can't watch it. Use lib_get, or ask ${owner} for a shorter clip.`;
+    if (!key) return KEY_HELP;
+    const tl = await timelineOf(m);
+    const bytes = await bodyBytes(m);
+    const r = await geminiWatch({ key, models: watchModels(env), video: { bytes, type: m.type === 'video/quicktime' ? 'video/mov' : m.type, name: m.name }, duration: tl?.duration || 0, prompt: watchPrompt({ name: m.name, note: m.note, timeline: tl ? timelineText(tl) : '', ask }), fetchImpl });
+    if (!r.ok) return `${itemLine(m)}\nGemini could not watch it: ${r.error}\nThe stills and measured timeline are still in lib_get.`;
+    const saved = { text: r.text, model: r.model, fps: r.fps, at: now(), ...(ask ? { ask } : {}) };
+    if (!ask) {
+      await putText(m, 'watch', JSON.stringify(saved));
+      m.watched = true;
+      await save(m);
+    }
+    return `${itemLine(m)}\n${watchHeader(saved, false)}${ask ? `\nQuestion: ${ask}` : ' Saved: lib_get shows it from now on.'}\n\n${r.text}`;
+  }
+
   const tools = [
     {
       name: 'lib_list',
@@ -343,8 +476,8 @@ export function createLibrary(hub) {
     },
     {
       name: 'lib_get',
-      description: 'Read one library file by id (like "f3") or name. A picture comes back as an image. A video comes back as a contact sheet of its frames (frame: n for one frame at full size). Text comes back as text (use offset for long files). Other files: their details only.',
-      inputSchema: { type: 'object', properties: { id: str, frame: num, offset: num } },
+      description: 'Read one library file by id (like "f3") or name. A picture comes back as an image. A video comes back as contact sheets of up to 48 stills picked around its cuts, plus a timeline measured by code (cuts, shots, motion, loudness, sound hits, beat) and Gemini\'s saved notes if lib_watch ran; frame: n for one still at full size, sheet: n for one sheet, from/to (seconds) for the stills in that span. Text comes back as text (use offset for long files). Other files: their details only.',
+      inputSchema: { type: 'object', properties: { id: str, frame: num, sheet: num, from: num, to: num, offset: num } },
       run: async (a, x) => {
         const m = await find(x.id);
         if (!m || m.status !== 'ready') return `No library file "${x.id}". See lib_list.`;
@@ -354,19 +487,7 @@ export function createLibrary(hub) {
           if (!p) return `${head}\nThis picture is too big or in a format agents cannot open (HEIC, BMP…), and has no small copy; ask ${owner} to upload it again from the hub page.`;
           return { content: [img(p), { type: 'text', text: head }] };
         }
-        if (m.kind === 'video') {
-          const times = m.frameTimes || [];
-          const at = (i) => (times[i] != null ? ` at ${times[i]} s` : '');
-          if (x.frame != null) {
-            const i = Math.floor(Number(x.frame) || 0);
-            const p = i >= 0 && i < m.frames ? await piece(m, 'frame', i) : null;
-            return p ? { content: [img(p), { type: 'text', text: `${head}\nFrame ${i}${at(i)} of ${m.frames}.` }] } : `${head}\nNo frame ${i}; this video has frames 0-${m.frames - 1}.`;
-          }
-          const list = m.frames ? `Frames 0-${m.frames - 1}${times.length ? ` at ${times.join(', ')} s` : ''}; lib_get(id: "${m.id}", frame: n) shows one at full size.` : 'No frames were saved.';
-          const p = m.hasSheet ? await piece(m, 'sheet') : m.frames ? await piece(m, 'frame', 0) : null;
-          const what = m.hasSheet ? 'Contact sheet of the frames, left to right, top to bottom.' : p ? 'Frame 0 (no contact sheet saved).' : '';
-          return p ? { content: [img(p), { type: 'text', text: `${head}\n${what} ${list}` }] } : `${head}\n${list}`;
-        }
+        if (m.kind === 'video') return videoView(m, head, x);
         if (m.kind === 'text') {
           const text = await bodyText(m);
           const from = Math.max(0, Math.floor(Number(x.offset) || 0));
@@ -375,6 +496,18 @@ export function createLibrary(hub) {
           return `${head}\n${from || end < text.length ? `Characters ${from}-${end} of ${text.length}${end < text.length ? `; ask again with offset: ${end} for the rest` : ''}:\n` : ''}${part}`;
         }
         return `${head}\n${m.type} file; agents cannot open this kind here. ${owner} can download it from the Library page.`;
+      },
+    },
+    {
+      name: 'lib_watch',
+      description: 'Have Gemini watch a library video (id) or a public YouTube link (url) WITH its sound and get a timed breakdown: shots, how things move and ease, text on screen, colours, music and sound effects and what lands on them, why it feels high quality, and a timeline to rebuild it on the web. Use this for any reference video: lib_get alone only shows stills. The default breakdown is saved, so asking again is free; ask: a specific question (a new Gemini call, not saved); fresh: true to redo the saved one. Takes up to a minute.',
+      inputSchema: { type: 'object', properties: { id: str, url: str, ask: str, fresh: { type: 'boolean' } } },
+      run: async (a, x) => {
+        try {
+          return await watch(x);
+        } catch (e) {
+          return `lib_watch failed: ${e.message}`;
+        }
       },
     },
   ];
