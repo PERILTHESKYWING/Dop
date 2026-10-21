@@ -133,17 +133,17 @@ export function webTools(f = fetch) {
     },
     {
       name: 'image_gen',
-      description: 'Make an image from a text prompt (free, via Pollinations, no key). Returns the picture. Optional width/height (256-1024, default 768), seed.',
-      inputSchema: { type: 'object', properties: { prompt: str, width: num, height: num, seed: num }, required: ['prompt'] },
+      description: 'Make an image from a text prompt (free, via Pollinations, no key). Returns the picture. Optional width/height (256-1024, default 768), seed, model (default flux).',
+      inputSchema: { type: 'object', properties: { prompt: str, width: num, height: num, seed: num, model: str }, required: ['prompt'] },
       run: async (_a, x) => {
         const dim = (v) => Math.max(256, Math.min(1024, Math.round(Number(v) || 768)));
         const seed = Number.isFinite(Number(x.seed)) && x.seed !== undefined ? `&seed=${Math.floor(Number(x.seed))}` : '';
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(x.prompt).slice(0, 1000))}?width=${dim(x.width)}&height=${dim(x.height)}&nologo=true${seed}`;
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(x.prompt).slice(0, 1000))}?width=${dim(x.width)}&height=${dim(x.height)}&nologo=true&enhance=true&model=${encodeURIComponent(String(x.model || 'flux').slice(0, 30))}${seed}`;
         const res = await get(f, url);
         const type = String(res.headers.get('content-type') || '');
         if (!res.ok || !/^image\//i.test(type)) return `Image service said HTTP ${res.status} (${type || 'no type'}). Try again in a minute.`;
         const buf = Buffer.from(new Uint8Array(await res.arrayBuffer()));
-        return { content: [{ type: 'image', data: buf.toString('base64'), mimeType: type.split(';')[0] }, { type: 'text', text: `Image for: ${x.prompt}\n${url}` }] };
+        return { content: [{ type: 'image', data: buf.toString('base64'), mimeType: type.split(';')[0] }, { type: 'text', text: `Image for: ${x.prompt}` }] };
       },
     },
   ];
