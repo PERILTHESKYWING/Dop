@@ -4,6 +4,7 @@ import { handleMcp } from './mcp.js';
 import { readImage } from './tools-files.js';
 import { studioOf } from './studio.js';
 import { libraryOf } from './library.js';
+import { skillsOf } from './tools-skills.js';
 import { memoryStore, storeFromEnv } from './store.js';
 
 let devStore = null;
@@ -49,8 +50,8 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (!a) return { status: 404, body: { error: 'No such account.' } };
     return { status: 200, body: { name: a.name, key: a.key } };
   }
-  if (op.startsWith('lib-')) {
-    const out = await libraryOf(hub).pageOp(method, op, query, body);
+  if (op.startsWith('lib-') || op.startsWith('skill-')) {
+    const out = await (op.startsWith('lib-') ? libraryOf(hub) : skillsOf(hub)).pageOp(method, op, query, body);
     if (out) return out;
   }
   if (op.startsWith('studio-')) {

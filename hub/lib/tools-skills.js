@@ -100,7 +100,7 @@ export function skillsOf(hub) {
     if (!op.startsWith('skill-')) return null;
     try {
       if (method === 'GET' && op === 'skill-list') return { status: 200, body: { skills: await list() } };
-      if (method === 'POST' && op === 'skill-save') return { status: 200, body: await put(body?.name, body?.content, 'XIAO') };
+      if (method === 'POST' && op === 'skill-save') return { status: 200, body: await put(body?.name, body?.content, hub.owner || 'XIAO') };
       if (method === 'POST' && op === 'skill-delete') return { status: 200, body: await remove(body?.name) };
     } catch (e) {
       return { status: 400, body: { error: e.message } };
