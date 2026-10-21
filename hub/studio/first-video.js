@@ -24,7 +24,7 @@ export const FIRST_VIDEO = {
   cast: {
     nami: {
       name: 'Nami', height: 1, headSize: 1.2, build: 'petite',
-      skin: '#f6e0da', hair: '#2b2d57', hair2: '#3fb8b0', eyeColor: '#2a9d9a',
+      skin: '#f6e0da', hair: '#2b2d57', hair2: '#2c8f97', eyeColor: '#2a9d9a',
       top: '#3b3040', bottom: '#3a3f55', shoes: '#2a2340',
       hairStyle: 'shag', eyes: 'anime', jaw: 'v', topStyle: 'sleeveless', bottomStyle: 'skirt',
       extras: ['lashes', 'blush', 'blushlines', 'ahoge'],
