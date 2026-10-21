@@ -9,8 +9,8 @@ export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', '
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic', 'yell', 'nervous', 'teary', 'wink'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
-export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek', 'speed', 'desk'];
-const TEXT_MARKS = ['label', 'sfx', 'board', 'card', 'shrimp'];
+export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek', 'speed', 'desk', 'bubble', 'star', 'shades'];
+const TEXT_MARKS = ['label', 'sfx', 'board', 'card', 'shrimp', 'bubble'];
 export const BUILDS = ['slim', 'average', 'round', 'petite'];
 export const EYES = ['dot', 'oval', 'sleepy', 'anime'];
 export const JAWS = ['round', 'v'];
@@ -18,7 +18,7 @@ export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
 export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
 export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge', 'sweat'];
 export const CAP_POS = ['bottom', 'top']; // top = outlined subtitle line at top centre
-export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box', 'thumb', 'tablet', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp'];
+export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box', 'thumb', 'tablet', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp', 'stove'];
 
 // How the drawing looks. Agents may tune these; XIAO's rules set the defaults.
 export const STYLE_RANGES = {
