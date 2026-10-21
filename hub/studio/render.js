@@ -101,7 +101,7 @@ export function renderBackground(p, scene) {
   if (spec.floor) {
     pen.fill('floor', rect(-20, horizon, W + 20, H + 20), scene.bg.color && k === 'plain' ? mix(wall, st.ink, 0.1) : spec.floor, { slip: 0 });
     pen.stroke('horizon', [[-10, horizon], [W * 0.5, horizon + 2], [W + 10, horizon - 1]], thin);
-  } else pen.stroke('horizon', [[W * 0.06, GROUND + 8], [W * 0.94, GROUND + 6]], { ...thin, taper: 1 });
+  } else if (!st.faceCam) pen.stroke('horizon', [[W * 0.06, GROUND + 8], [W * 0.94, GROUND + 6]], { ...thin, taper: 1 }); // a vlog's plain backdrop has no floor line (f2)
 
   const r = rng(hash('bgdots', scene.id));
   if (k === 'room' || k === 'bedroom') {
@@ -277,10 +277,11 @@ function caption(ops, text, st) {
   const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
   if (st.capPos === 'top') {
-    // Subtitle style (f2): black bold sans with a thin white edge at the top centre, no box.
+    // Subtitle style (f2): black bold sans with a thin white edge at the top centre, no box,
+    // in a fixed band (baseline at 8% of the frame); the shots keep her hair below it.
     const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
     const sz = size * 0.86;
-    lines.forEach((l, i) => pen.text(l, W / 2, 16 + sz * 0.95 + i * sz * 1.2, sz, { color: '#111111', outline: '#ffffff', ow: 0.12, weight: 700, sans: true }));
+    lines.forEach((l, i) => pen.text(l, W / 2, 30 + sz * 0.95 + i * sz * 1.2, sz, { color: '#111111', outline: '#ffffff', ow: 0.12, weight: 700, sans: true }));
     return;
   }
   const h = lines.length * size * 1.15 + 22;
