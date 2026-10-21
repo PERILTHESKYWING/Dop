@@ -271,6 +271,13 @@ function bubble(pen, text, spot, placed, st) {
 function caption(ops, text, st) {
   const size = 38;
   const lines = wrap(text, 58).slice(0, 3);
+  if (st.capPos === 'top') {
+    // Subtitle style: plain outlined text at the top centre, no box.
+    const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
+    const white = mix(st.paper, '#ffffff', 0.9);
+    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: st.ink, weight: 700 }));
+    return;
+  }
   const h = lines.length * size * 1.15 + 22;
   const y0 = H - h - 14;
   const w = Math.min(W - 120, Math.max(...lines.map((l) => l.length)) * size * 0.46 + 70);
@@ -286,6 +293,15 @@ function roundRect(x0, y0, w, h, r) {
   const c = (cx, cy, a0) => ellipse(cx, cy, r, r, { from: a0, to: a0 + Math.PI / 2, n: 5 });
   const pts = [...c(x0 + w - r, y0 + r, -Math.PI / 2), ...c(x0 + w - r, y0 + h - r, 0), ...c(x0 + r, y0 + h - r, Math.PI / 2), ...c(x0 + r, y0 + r, Math.PI)];
   return [...pts, pts[0]];
+}
+
+// The camera at local time t: fixed, or eased (smoothstep) from camera to camera.to over the scene.
+export function cameraAt(scene, t) {
+  const c = scene.camera;
+  if (!c.to) return c;
+  const u = Math.min(1, Math.max(0, t / scene.duration));
+  const e = u * u * (3 - 2 * u);
+  return { zoom: c.zoom + (c.to.zoom - c.zoom) * e, x: c.x + (c.to.x - c.x) * e, y: c.y + (c.to.y - c.y) * e };
 }
 
 // ---------- one frame ----------
@@ -311,9 +327,10 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
   const overlay = [];
   if (st.captions && scene.narration) caption(overlay, scene.narration, st);
-  const z = scene.camera.zoom;
-  const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, scene.camera.x * W));
-  const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, scene.camera.y * H));
+  const cam = cameraAt(scene, t);
+  const z = cam.zoom;
+  const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
+  const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
   const camera = { zoom: z, tx: W / 2 - fx * z, ty: H / 2 - fy * z };
   return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, overlay, camera, paper: st.paper, grain: st.grain };
 }
@@ -351,6 +368,12 @@ export function paintOps(ctx, ops) {
       ctx.font = `${o.weight || 400} ${o.size}px ${FONT}`;
       ctx.textAlign = o.align || 'center';
       ctx.textBaseline = 'alphabetic';
+      if (o.outline) {
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = o.size * 0.18;
+        ctx.strokeStyle = o.outline;
+        ctx.strokeText(o.text, o.x, o.y);
+      }
       ctx.fillText(o.text, o.x, o.y);
       continue;
     }
@@ -422,7 +445,7 @@ function svgOps(ops) {
   return ops
     .map((o) => {
       if (o.text != null)
-        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}" text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * 0.18}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
       const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
       if (!o.clip) return path;
       const id = `cl${clipN++}`;

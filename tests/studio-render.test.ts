@@ -152,6 +152,51 @@ describe('studio renderer', () => {
   });
 });
 
+describe('studio camera, captions and fill', () => {
+  const cam = (camera: any) => project({ scenes: [{ id: 'x', duration: 4, camera, actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0 }] }] }] });
+
+  it('allows a bust close-up and clamps beyond 3.5', () => {
+    expect(cam({ zoom: 3 }).scenes[0].camera.zoom).toBe(3);
+    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(3.5);
+    expect(cam({}).scenes[0].camera).toEqual({ zoom: 1, x: 0.5, y: 0.6 });
+  });
+
+  it('eases a push-in over the scene', () => {
+    const p = cam({ zoom: 1, x: 0.5, y: 0.5, to: { zoom: 3, x: 0.4, y: 0.4 } });
+    const z = (t: number) => R.renderFrame(p, 0, t, { withBg: false }).camera.zoom;
+    expect(z(0)).toBe(1);
+    expect(z(2)).toBeCloseTo(2, 5);
+    expect(z(3.99)).toBeGreaterThan(2.9);
+    expect(z(1)).toBeLessThan(1.6); // slow start (smoothstep), not linear
+    const fixed = R.renderFrame(cam({ zoom: 2 }), 0, 3, { withBg: false }).camera;
+    expect(fixed.zoom).toBe(2);
+  });
+
+  it('puts the subtitle at the top, outlined, with capPos top', () => {
+    const scene = { id: 'x', duration: 4, narration: 'Guys!', actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0 }] }] };
+    const bottom = R.renderFrame(project({ scenes: [scene] }), 0, 1).overlay.find((o: any) => o.text);
+    const top = R.renderFrame(project({ style: { capPos: 'top' }, scenes: [scene] }), 0, 1).overlay.find((o: any) => o.text);
+    expect(bottom.y).toBeGreaterThan(R.H / 2);
+    expect(top.y).toBeLessThan(120);
+    expect(top.outline).toBeTruthy();
+    expect(bottom.outline).toBeUndefined();
+    expect(S.normalizeStyle({ capPos: 'left' }).capPos).toBe('bottom');
+  });
+
+  it('fill 0 gives line art only; defaults are unchanged', async () => {
+    const D = await lib('draw.js');
+    const fillOf = (style: any) => {
+      const ops: any[] = [];
+      new D.Pen({ style: { ...S.DEFAULT_STYLE, ...style }, drawing: 0, seed: 1, ops }).fill('f', [[0, 0], [100, 0], [100, 100], [0, 100]], '#e07a5f');
+      return ops[0].fill;
+    };
+    expect(fillOf({})).toBe('#e07a5f');
+    expect(fillOf({ fill: 0 })).toBe(S.DEFAULT_STYLE.paper);
+    expect(S.normalizeStyle({ fill: 7 }).fill).toBe(1);
+    expect(S.normalizeStyle({}).fill).toBe(1);
+  });
+});
+
 describe('studio 3D characters', () => {
   const H = 390;
   const mia = () => S.validateProject(S.SAMPLE_PROJECT).project.cast.mia;
