@@ -228,7 +228,8 @@ export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, t
   // Hair follows through after the upper body moves, and streams back on a walk.
   const d = (k, f) => ((pose[k] || 0) - (late[k] || 0)) * f;
   pose.hairSwing = clamp(d('spine', 0.05) + d('spineSide', 0.06) + d('headRoll', 0.04) + d('twist', 0.04) + d('weight', 0.8) - (walking || name === 'walk' ? 0.3 : 0), -1, 1);
-  if (move.settle) {
+  // A vlog holds its drawing (f2: 24 of 30 shots never change): no weight settles.
+  if (move.settle && !faceCam) {
     const st = settle(time, seed);
     pose.weight = (pose.weight || 0) + st.weight;
     pose.headYaw = (pose.headYaw || 0) + st.headYaw;
