@@ -5,7 +5,7 @@
 // every shot) and a list of scenes. Each scene places actors and gives each
 // one beats: at time t, do this move with this face (and maybe say a line).
 
-export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh'];
+export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround'];
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald'];
@@ -23,8 +23,9 @@ export const STYLE_RANGES = {
   line: [2, 9], // ink width (px at 1600 wide)
   grain: [0, 1], // paper texture
   misregister: [0, 1], // colour fills slipping off the outlines
+  shade: [0, 1], // how strongly the 3D shading (form shadow, rim light) shows
 };
-export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, paper: '#f7f1e3', ink: '#2a2420', captions: true };
+export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, paper: '#f7f1e3', ink: '#2a2420', captions: true };
 
 const LIMITS = { scenes: 40, actors: 4, beats: 24, props: 6, cast: 6, say: 140, narration: 300, title: 80, idea: 2000, duration: [1, 30] };
 const SAMPLE_MAX_SECONDS = 25;

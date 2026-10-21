@@ -181,3 +181,71 @@ describe('nightly script', () => {
     expect(asked).toBe(1);
   });
 });
+
+describe('studio references (do / don\'t)', () => {
+  const JPG = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(40, 2)]).toString('base64');
+  const PNGURL = 'data:image/png;base64,' + PNG;
+
+  it('is empty at first and tells agents not to invent a look', async () => {
+    expect((await get('studio-refs')).body.refs).toEqual([]);
+    expect(await tool('studio_refs')).toContain('No references yet');
+  });
+
+  it('adds do and dont references with pictures, rejects junk', async () => {
+    const a = await post('studio-ref-add', { kind: 'do', title: 'Weight shift', note: 'Hip drops on one side', tags: 'Body, hips!', images: [PNGURL] });
+    expect(a.status).toBe(200);
+    const b = await post('studio-ref-add', { kind: 'dont', type: 'video', title: 'Stacked shapes', note: 'Looks like circles glued together', images: [JPG, JPG] });
+    expect(b.status).toBe(200);
+    expect((await post('studio-ref-add', { kind: 'maybe', note: 'x' })).status).toBe(400);
+    expect((await post('studio-ref-add', { kind: 'do' })).status).toBe(400);
+    expect((await post('studio-ref-add', { kind: 'do', images: ['data:image/png;base64,' + Buffer.from('hello').toString('base64')] })).status).toBe(400);
+    expect((await post('studio-ref-add', { kind: 'do', images: [PNGURL, PNGURL, PNGURL, PNGURL, PNGURL] })).status).toBe(400);
+    expect((await post('studio-ref-add', { kind: 'do', url: 'javascript:alert(1)' })).status).toBe(400);
+    const big = 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(160 * 1024)]).toString('base64');
+    expect((await post('studio-ref-add', { kind: 'do', images: [big] })).status).toBe(400);
+    const refs = (await get('studio-refs')).body.refs;
+    expect(refs.map((r: any) => r.kind)).toEqual(['do', 'dont']);
+    expect(refs[0].tags).toEqual(['body', 'hips']);
+    expect(refs[1].type).toBe('video');
+    expect(refs[1].images).toEqual(['jpeg', 'jpeg']);
+    const img = (await get('studio-ref', { id: refs[0].id, n: 0 })).body;
+    expect(img.mime).toBe('image/png');
+    expect(img.data).toBe(PNG);
+    expect((await get('studio-ref', { id: refs[0].id, n: 3 })).status).toBe(400);
+  });
+
+  it('studio_refs returns the list with images; the brief and studio_get point at it', async () => {
+    const out = await tool('studio_refs');
+    expect(out.content[0].text).toContain('DO #1 "Weight shift"');
+    expect(out.content[0].text).toContain("DON'T #2");
+    expect(out.content.filter((c: any) => c.type === 'image')).toHaveLength(3);
+    const only = await tool('studio_refs', { kind: 'dont' });
+    expect(only.content.filter((c: any) => c.type === 'image')).toHaveLength(2);
+    const r = await post('studio-new', { idea: 'refs story' });
+    const sid = r.body.id;
+    expect((await hub.thread(r.body.thread)).brief).toContain('studio_refs');
+    await tool('studio_put', { id: sid, project: SAMPLE });
+    expect(JSON.parse(await tool('studio_get', { id: sid })).refs[0]).toContain('DO #1');
+  });
+
+  it('lists Library files tagged studio as references for lib_get', async () => {
+    const put = (m: any) => hub.store.cmd('HSET', 'hub:lib:items', m.id, JSON.stringify({ status: 'ready', kind: 'video', at: 1, ...m }));
+    await put({ id: 'f9', name: 'slump.mp4', note: 'whole body sags when sad', tags: ['studio', 'dont', 'body'] });
+    await put({ id: 'f10', name: 'cat.png', note: 'not for the studio', tags: ['cats'] });
+    const out = await tool('studio_refs', { kind: 'dont' });
+    expect(out.content[0].text).toContain('DON\'T library file "slump.mp4" (video; body): whole body sags when sad. Open with lib_get(id: "f9").');
+    expect(out.content[0].text).not.toContain('cat.png');
+    expect((await tool('studio_refs', { kind: 'do' })).content[0].text).not.toContain('slump.mp4');
+    await hub.store.cmd('HDEL', 'hub:lib:items', 'f9', 'f10');
+  });
+
+  it('deletes a reference with its pictures and keeps only the newest 60', async () => {
+    expect((await post('studio-ref-del', { id: 'r1' })).status).toBe(200);
+    expect((await get('studio-ref', { id: 'r1', n: 0 })).status).toBe(400);
+    expect((await post('studio-ref-del', { id: 'r1' })).status).toBe(400);
+    for (let i = 0; i < 61; i++) await studio.refAdd({ kind: 'do', note: `n${i}` });
+    const refs = (await get('studio-refs')).body.refs;
+    expect(refs).toHaveLength(60);
+    expect(refs[59].note).toBe('n60');
+  });
+});

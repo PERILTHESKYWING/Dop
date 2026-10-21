@@ -95,7 +95,7 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(30);
+    expect(list.body.result.tools.length).toBe(31);
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');

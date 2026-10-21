@@ -98,6 +98,16 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 .toast:empty { display: none; }
 .export { font-size: 13.5px; color: var(--soft); }
 .export a { color: var(--green); font-weight: 600; }
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 12px; }
+.ref { border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 13px; position: relative; }
+.ref.do { border-color: var(--green); }
+.ref.dont { border-color: #c0392b; }
+.ref img { width: 100%; display: block; border-radius: 6px; margin-bottom: 4px; }
+.ref b { display: block; }
+.ref button { position: absolute; top: 4px; right: 4px; min-height: 28px; padding: 0 8px; }
+#refs input[type=text], .pane[data-pane="refs"] input[type=text] { width: 100%; margin: 8px 0 0; }
+.pane[data-pane="refs"] textarea { margin-top: 8px; }
+.pane[data-pane="refs"] input[type=file] { margin: 10px 0 0; max-width: 100%; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
@@ -130,6 +140,7 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
           <button role="tab" aria-selected="false" data-tab="notes">Team</button>
           <button role="tab" aria-selected="false" data-tab="cast">Cast</button>
           <button role="tab" aria-selected="false" data-tab="style">Look</button>
+          <button role="tab" aria-selected="false" data-tab="refs">Refs</button>
           <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
         </div>
         <div class="pane on" data-pane="fb">
@@ -154,6 +165,21 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
           </div>
           <label class="check" style="margin-top:10px"><input type="checkbox" id="styleDefault"> Also make it my default for new stories</label>
           <p class="hint">Changes preview here at once. Higher hold = choppier, more hand-made. Boil = lines that shimmer between drawings.</p>
+        </div>
+        <div class="pane" data-pane="refs">
+          <div class="row" role="group" aria-label="Kind">
+            <button class="btn go" id="refDo" type="button" aria-pressed="true">✓ DO this</button>
+            <button class="btn" id="refDont" type="button" aria-pressed="false">✗ DON'T</button>
+          </div>
+          <input type="file" id="refFile" accept="image/*,video/*" multiple aria-label="Pictures or a video">
+          <input type="text" id="refTitle" maxlength="80" placeholder="Title, e.g. weight on one leg" aria-label="Title">
+          <textarea id="refNote" placeholder="What to copy or avoid, in your own words. e.g. &quot;Shoulders drop and head hangs when sad, not just the eyes.&quot;" aria-label="Note"></textarea>
+          <input type="text" id="refLink" placeholder="Link to a video or page (optional)" aria-label="Link">
+          <input type="text" id="refTags" placeholder="Tags: body, hands, face, motion" aria-label="Tags">
+          <label class="check"><input type="checkbox" id="refTell" checked> Tell the team to re-read them</label>
+          <div class="row"><button class="btn go" id="refAdd" type="button">Add reference</button></div>
+          <div class="refs" id="refList"></div>
+          <p class="hint">The director follows every DO and avoids every DON'T; the critic compares each sheet to them. Pictures are shrunk here; a video becomes 4 frames. Longer videos: upload them in the hub's <a href="/library.html">Library</a> with the tags <b>studio</b> and <b>do</b> or <b>dont</b> (it keeps 16 frames); the team reads those too.</p>
         </div>
         <div class="pane" data-pane="rules">
           <pre class="rules" id="rulesText">…</pre>
@@ -495,7 +521,7 @@ $('fullBtn').onclick = async () => {
 };
 
 // ---------- look sliders ----------
-const KNOBS = { fps: 'Frames/s', hold: 'Hold', boil: 'Boil', wobble: 'Wobble', line: 'Line', grain: 'Paper', misregister: 'Colour slip' };
+const KNOBS = { fps: 'Frames/s', hold: 'Hold', boil: 'Boil', wobble: 'Wobble', line: 'Line', grain: 'Paper', misregister: 'Colour slip', shade: 'Shading' };
 function buildSliders() {
   $('sliders').innerHTML = Object.entries(KNOBS).map(([k, label]) => {
     const [lo, hi] = STYLE_RANGES[k];
@@ -524,6 +550,85 @@ $('styleSend').onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 
+// ---------- references (do / don't) ----------
+let refKind = 'do';
+const refImgCache = {};
+function setRefKind(k) {
+  refKind = k;
+  $('refDo').setAttribute('aria-pressed', String(k === 'do')); $('refDo').classList.toggle('go', k === 'do');
+  $('refDont').setAttribute('aria-pressed', String(k === 'dont')); $('refDont').classList.toggle('go', k === 'dont');
+}
+$('refDo').onclick = () => setRefKind('do');
+$('refDont').onclick = () => setRefKind('dont');
+// Shrink a picture (or video frame) to a JPEG under the server's 150 KB limit.
+function shrink(src, w, h) {
+  let scale = Math.min(1, 800 / Math.max(w, h)), q = 0.82, url = '';
+  for (let i = 0; i < 6; i++) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    url = c.toDataURL('image/jpeg', q);
+    if (url.length * 0.75 < 140 * 1024) break;
+    scale *= 0.8; q = Math.max(0.5, q - 0.08);
+  }
+  return url;
+}
+const readImage = (file) => new Promise((ok, no) => {
+  const u = URL.createObjectURL(file), im = new Image();
+  im.onload = () => { const d = shrink(im, im.naturalWidth, im.naturalHeight); URL.revokeObjectURL(u); ok(d); };
+  im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Could not read that picture.')); };
+  im.src = u;
+});
+const readVideo = (file) => new Promise((ok, no) => {
+  const u = URL.createObjectURL(file), v = document.createElement('video');
+  v.muted = true; v.preload = 'auto'; v.playsInline = true;
+  const frames = [];
+  v.onerror = () => { URL.revokeObjectURL(u); no(new Error('This browser could not open that video. Add a link instead.')); };
+  v.onloadedmetadata = () => {
+    const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1, n = 4; let i = 0;
+    const next = () => { if (i >= n) { URL.revokeObjectURL(u); return ok(frames); } v.currentTime = Math.min(dur - 0.05, dur * (i + 0.5) / n); };
+    v.onseeked = () => { frames.push(shrink(v, v.videoWidth, v.videoHeight)); i++; next(); };
+    next();
+  };
+  v.src = u;
+});
+async function loadRefs() {
+  try {
+    const { refs } = await api('studio-refs');
+    const box = $('refList');
+    if (!refs.length) { box.innerHTML = '<p class="empty">No references yet. Add pictures of what you want (DO) and what you hate (DON\'T).</p>'; return; }
+    box.innerHTML = refs.slice().reverse().map((r) => `<div class="ref ${r.kind}" data-id="${r.id}"><button class="btn" data-del="${r.id}" type="button" aria-label="Delete reference">✕</button>${r.images.length ? `<img alt="" data-ref="${r.id}">` : ''}<b>${r.kind === 'do' ? '✓' : '✗'} ${esc(r.title)}</b>${esc(r.note)}${r.url ? `<br><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a>` : ''}${r.tags.length ? `<br><small>${esc(r.tags.join(', '))}</small>` : ''}</div>`).join('');
+    for (const im of box.querySelectorAll('img[data-ref]')) {
+      const id = im.dataset.ref;
+      try { refImgCache[id] ||= await api('studio-ref', null, `&id=${id}&n=0`); im.src = `data:${refImgCache[id].mime};base64,${refImgCache[id].data}`; } catch {}
+    }
+  } catch {}
+}
+$('refList').onclick = async (e) => {
+  const id = e.target.dataset && e.target.dataset.del;
+  if (!id || !confirm('Delete this reference?')) return;
+  try { await api('studio-ref-del', { id }); delete refImgCache[id]; loadRefs(); } catch (er) { toast(er.message); }
+};
+$('refAdd').onclick = async () => {
+  const files = [...$('refFile').files];
+  const btn = $('refAdd'); btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    let images = [], type = 'image';
+    const vid = files.find((f) => f.type.startsWith('video/'));
+    if (vid) { type = 'video'; images = await readVideo(vid); }
+    else for (const f of files.slice(0, 4)) images.push(await readImage(f));
+    if (files.length > 4 && !vid) toast('Only the first 4 pictures were used; add the rest as another reference.');
+    await api('studio-ref-add', { kind: refKind, type, title: $('refTitle').value, note: $('refNote').value, url: $('refLink').value, tags: $('refTags').value, images });
+    if ($('refTell').checked && S.id && S.meta && S.meta.rev) {
+      try { await api('studio-feedback', { id: S.id, text: `References changed: a new ${refKind === 'do' ? 'DO' : "DON'T"} was added. Call studio_refs again and apply it.` }); } catch {}
+    }
+    for (const x of ['refFile', 'refTitle', 'refNote', 'refLink', 'refTags']) $(x).value = '';
+    toast('Reference added.');
+    loadRefs();
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = 'Add reference';
+};
+
 // ---------- tabs ----------
 document.querySelector('.tabs').onclick = (e) => {
   const b = e.target.closest('button');
@@ -532,6 +637,7 @@ document.querySelector('.tabs').onclick = (e) => {
   for (const p of document.querySelectorAll('.pane')) p.classList.toggle('on', p.dataset.pane === b.dataset.tab);
   if (b.dataset.tab === 'cast') drawCast();
   if (b.dataset.tab === 'rules') loadRules();
+  if (b.dataset.tab === 'refs') loadRefs();
 };
 
 // ---------- new story ----------

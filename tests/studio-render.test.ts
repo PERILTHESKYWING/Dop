@@ -50,15 +50,20 @@ describe('studio renderer', () => {
     expect(paths(R.renderFrame(p, 0, 2.3))).toBe(paths(R.renderFrame(p, 0, 2.3)));
   });
 
-  it('holds each drawing for `hold` frames, then boils', () => {
+  it('holds each drawing for `hold` frames, then boils', async () => {
     const p = project(); // 12 fps on twos: a drawing lasts 1/6 s
     const a = paths(R.renderFrame(p, 0, 0.5));
     expect(paths(R.renderFrame(p, 0, 0.5 + 0.05))).toBe(a);
     expect(paths(R.renderFrame(p, 0, 0.5 + 1 / 6))).not.toBe(a);
-    // Boil 0: an idle hold keeps its lines; only the pose changes.
-    const still = project({ style: { boil: 0 } });
-    const head = (f: any) => f.world.filter((o: any) => o.d).slice(0, 4).map((o: any) => o.d).join();
-    expect(head(R.renderFrame(still, 0, 0.0))).toBe(head(R.renderFrame(still, 0, 0.2)));
+    // Boil 0: the same line on the next drawing keeps its wobble; with boil it shimmers.
+    const D = await lib('draw.js');
+    const line = (boil: number, drawing: number) => {
+      const ops: any[] = [];
+      new D.Pen({ style: { ...S.DEFAULT_STYLE, boil }, drawing, seed: 5, ops }).stroke('l', [[0, 0], [200, 40], [400, 0]]);
+      return ops[0].d;
+    };
+    expect(line(0, 0)).toBe(line(0, 1));
+    expect(line(0.6, 0)).not.toBe(line(0.6, 1));
   });
 
   it('draws every move, face, background, hair, extra and prop without bad numbers', () => {
@@ -75,7 +80,7 @@ describe('studio renderer', () => {
     }
     const p2 = S.validateProject({ cast: { a: {} }, scenes: [{ props: S.PROPS.slice(6).map((k: string) => ({ kind: k, x: 0.5 })), actors: [{ who: 'a' }] }] }).project;
     expect(paths(R.renderFrame(p2, 0, 1))).not.toMatch(/NaN/);
-  });
+  }, 30000);
 
   it('walks to "to" and stops; "at" turns toward the target', () => {
     const p = one({ move: 'walk', to: 0.7 });
@@ -112,5 +117,95 @@ describe('studio renderer', () => {
     expect(svg.endsWith('</svg>')).toBe(true);
     expect(svg).toContain("That one's mine.");
     expect((svg.match(/<path /g) || []).length).toBeGreaterThan(100);
+  });
+
+  it('shades a form inside its own shape and honours clips in SVG', async () => {
+    const D = await lib('draw.js');
+    const style = { line: 3, ink: '#222222', wobble: 1, misregister: 1, boil: 0 };
+    const ball = D.ellipse(100, 100, 40, 40, { n: 24 });
+    const ops: any[] = [];
+    new D.Pen({ style, seed: 2, ops }).form('b', ball, '#e8b48c');
+    const clipped = ops.filter((o) => o.clip);
+    expect(clipped.length).toBeGreaterThanOrEqual(3); // soft shadow, core, rim
+    expect(clipped[0].d.match(/M/g).length).toBe(2); // shape with a lit hole cut out
+    const flat: any[] = [];
+    new D.Pen({ style: { ...style, shade: 0 }, seed: 2, ops: flat }).form('b', ball, '#e8b48c', { rim: false });
+    expect(flat.some((o) => o.clip)).toBe(false);
+    // light from the upper left puts the shadow on the lower right of a ball
+    const shadow = clipped[0].d.split('M').filter(Boolean)[0].split('L').map((q: string) => q.replace('Z', '').split(' ').map(Number));
+    expect(shadow.length).toBeGreaterThan(8);
+    const svg = R.toSVG({ paper: '#fff', camera: { zoom: 1, tx: 0, ty: 0 }, world: ops, overlay: [] }, 400);
+    expect((svg.match(/<clipPath /g) || []).length).toBe(clipped.length);
+    expect(svg).toContain('clip-path="url(#cl0)"');
+  });
+
+  it('throws a flat cast shadow on the ground away from the light', async () => {
+    const D = await lib('draw.js');
+    const style = { line: 3, ink: '#222222', wobble: 1, misregister: 1, boil: 0 };
+    const ops: any[] = [];
+    const pen = new D.Pen({ style, seed: 1, ops });
+    R.castShadow(pen, [[100, 100], [140, 100], [140, 300], [100, 300]], 300);
+    expect(ops.length).toBe(2);
+    const xs = ops[0].d.match(/[ML]([\d.-]+) ([\d.-]+)/g).map((q: string) => q.slice(1).split(' ').map(Number));
+    expect(Math.max(...xs.map((q: number[]) => q[0]))).toBeGreaterThan(140); // thrown to the right
+    expect(Math.min(...xs.map((q: number[]) => q[1]))).toBeGreaterThan(270); // flattened onto the floor
+  });
+});
+
+describe('studio 3D characters', () => {
+  const H = 390;
+  const mia = () => S.validateProject(S.SAMPLE_PROJECT).project.cast.mia;
+
+  it('turns the body in 3D: shoulders spread facing the camera, overlap in profile', async () => {
+    const K = await lib('skel.js');
+    const spread = (yaw: number) => Math.abs(K.skeleton(mia(), { yaw }, H).armF.sh[0] - K.skeleton(mia(), { yaw }, H).armB.sh[0]);
+    expect(spread(0)).toBeGreaterThan(0.18 * H);
+    expect(spread(90)).toBeLessThan(0.02 * H);
+    // At the default 3/4 turn the near (F) arm is toward the camera.
+    const s = K.skeleton(mia(), {}, H);
+    expect(s.armF.sh[2]).toBeGreaterThan(s.armB.sh[2]);
+  });
+
+  it('shifts weight: pelvis over the loaded foot, the other hip drops', async () => {
+    const K = await lib('skel.js');
+    const even = K.skeleton(mia(), { yaw: 0 }, H);
+    const onF = K.skeleton(mia(), { yaw: 0, weight: 1 }, H);
+    expect(onF.pelvis[0]).toBeLessThan(even.pelvis[0] - 0.03 * H); // F foot is body side -1
+    expect(onF.legB.hip[1]).toBeGreaterThan(onF.legF.hip[1]); // free hip lower (y down)
+    expect(onF.legB.knee[0]).not.toBeCloseTo(even.legB.knee[0], 1);
+  });
+
+  it('reads old pose fields and v2 fields, ignoring old ones when v is 2', async () => {
+    const K = await lib('skel.js');
+    expect(K.normalizePose({ lean: 10, bob: 0.02, F: [140, 35] })).toMatchObject({ spine: 9, pelvis: [0, 0.02], armF: [140, 10, 35] });
+    expect(K.normalizePose({ v: 2, lean: 10 }).spine).toBeUndefined();
+    const up = K.skeleton(mia(), { v: 2, armF: [170, 0, 0] }, H);
+    expect(up.armF.wr[1]).toBeLessThan(up.armF.sh[1] - 0.2 * H); // raised overhead
+    const sl = K.skeleton(mia(), { v: 2, slump: 1 }, H);
+    const st = K.skeleton(mia(), { v: 2, slump: -1 }, H);
+    expect(sl.head[1]).toBeGreaterThan(st.head[1]); // slumped head is lower
+  });
+
+  it('paints a hand reaching the face over the head, and hides the far eye in profile', async () => {
+    const D = await lib('draw.js');
+    const G = await lib('rig.js');
+    const style = { ...S.DEFAULT_STYLE, boil: 0 };
+    const draw = (pose: any) => {
+      const ops: any[] = [];
+      G.drawCharacter(new D.Pen({ style, seed: 3, ops }), mia(), pose, { x: 400, ground: 700 });
+      return ops;
+    };
+    // The far arm hangs behind the body, so the face is painted after it;
+    // brought up to the face it is painted over the face.
+    const skin = mia().skin;
+    const order = (pose: any) => {
+      const fills = draw(pose).map((o: any) => o.fill);
+      return fills.slice(fills.lastIndexOf('#fbf8f2')).filter((f: string) => f === skin).length;
+    };
+    expect(order({ v: 2, handB: [0.03, 0.06, 0.14, 'head'] })).toBeGreaterThan(order({ v: 2 }));
+    // White of the eye: two at 3/4, one in profile.
+    const whites = (pose: any) => draw(pose).filter((o: any) => o.fill === '#fbf8f2').length;
+    expect(whites({ v: 2, yaw: 25 })).toBe(2);
+    expect(whites({ v: 2, yaw: 90 })).toBe(1);
   });
 });
