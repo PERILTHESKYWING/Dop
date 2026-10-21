@@ -38,6 +38,9 @@ createServer((req, res) => {
     if (p === '/api/hub') return hubApi(req, res);
     if (p === '/api/mcp') return mcpApi(req, res);
     if (p.startsWith('/api/c/')) return pathApi(req, res);
+    // The icons sit next to index.html, as Vercel serves them.
+    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml' }[p];
+    if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.end(readFileSync(path.join(here, 'index.html')));
   });

@@ -289,6 +289,22 @@ describe('cloud hub: thinking level and chosen accounts', () => {
     expect(u).toMatchObject({ thinking: 'high', accounts: ['Helper'] });
   });
 
+  it('starts a New chat as its own thread, with no coordinator and nothing in Project chat', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_c', token: 'good-c' }] });
+    const fired = fires.length;
+    const r = await h.prompt({ text: 'Why is the board slow?\nDetails here', chat: true, model: 'opus', thinking: 'high' });
+    const t = (await h.threads()).find((x: any) => x.id === r.thread);
+    expect(t).toMatchObject({ title: 'Why is the board slow?', model: 'opus', thinking: 'high', account: 'Main', status: 'working' });
+    expect(fires.length).toBe(fired + 1);
+    expect(fires.at(-1)!.payload).toMatchObject({ role: 'worker', thread: r.thread });
+    const feed = await h.feed();
+    expect(feed.filter((m: any) => m.thread === 0)).toEqual([]);
+    expect(feed.find((m: any) => m.thread === r.thread)).toMatchObject({ from: 'XIAO', kind: 'brief', text: 'Why is the board slow?\nDetails here' });
+  });
+
   it('uses Claude\'s five effort levels, xhigh as "think harder"', async () => {
     const { createHub } = await lib('hub.js');
     const { memoryStore } = await lib('store.js');
