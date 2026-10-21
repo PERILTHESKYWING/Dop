@@ -5,7 +5,7 @@
 .lp {
   --lp-w: min(1200px, calc(100% - 48px));
   --lp-accent: var(--accent-ink, #d0602f);
-  --lp-raise: 0 1px 1px rgba(40, 20, 5, 0.05), 0 22px 50px -18px rgba(60, 25, 5, 0.35), 0 50px 110px -50px rgba(120, 40, 10, 0.4);
+  --lp-raise: var(--glass-shadow);
   position: relative;
   z-index: 1;
   height: 100%;
@@ -101,7 +101,7 @@
   height: 16px;
 }
 
-/* theme swatches (top bar) and theme art (both previews share the .sw-<id> paintings) */
+/* theme swatches (top bar) and theme previews (both use the flat .sw-<id> colours in scenery.css) */
 .lp-swatches {
   display: flex;
   gap: 6px;
@@ -126,41 +126,6 @@
     0 0 0 2px var(--glass-2),
     0 0 0 4px var(--accent, #f0673f);
 }
-.sw-sunrise {
-  --sw:
-    radial-gradient(circle at 34% 58%, #fff4c9 0 6%, rgba(255, 214, 130, 0.9) 12%, transparent 34%),
-    linear-gradient(180deg, #5b4a93 0%, #c25f7c 30%, #f39060 52%, #ffd27c 60%, #a4cf5f 64%, #4d963c 82%, #2e722c 100%);
-  background: var(--sw);
-}
-.sw-sakura {
-  --sw:
-    radial-gradient(circle at 24% 34%, #fff 0 2.5%, transparent 3.5%),
-    radial-gradient(circle at 68% 24%, #ffe3ef 0 3%, transparent 4%),
-    radial-gradient(circle at 56% 58%, #ffd1e3 0 2.5%, transparent 3.5%),
-    radial-gradient(circle at 84% 46%, #fff0f5 0 2%, transparent 3%),
-    radial-gradient(ellipse 70% 40% at 30% 105%, #8a5a86, transparent 70%),
-    linear-gradient(180deg, #54447f 0%, #a06fa8 38%, #ef9fbd 66%, #ffd6c8 100%);
-  background: var(--sw);
-}
-.sw-mist {
-  --sw:
-    radial-gradient(ellipse 80% 22% at 50% 70%, rgba(250, 251, 250, 0.95), transparent 70%),
-    radial-gradient(ellipse 60% 55% at 22% 100%, #6c7f8b, transparent 72%),
-    radial-gradient(ellipse 55% 60% at 78% 100%, #85959f, transparent 72%),
-    linear-gradient(180deg, #c9d4da 0%, #eef1ef 60%, #d6dcdc 100%);
-  background: var(--sw);
-}
-.sw-aurora {
-  --sw:
-    radial-gradient(circle at 18% 20%, #fff 0 1.5%, transparent 2%),
-    radial-gradient(circle at 76% 14%, #fff 0 1.5%, transparent 2%),
-    radial-gradient(ellipse at 40% 34%, rgba(90, 255, 180, 0.8), transparent 45%),
-    radial-gradient(ellipse at 72% 30%, rgba(160, 110, 255, 0.7), transparent 42%),
-    linear-gradient(170deg, transparent 62%, #dfe8f5 62.5%, #a9b8cf 78%, #1c2442 79%),
-    linear-gradient(180deg, #070b1d 0%, #111a3d 55%, #1c2a52 100%);
-  background: var(--sw);
-}
-
 /* ------------------------------------------------ hero */
 .lp-hero {
   position: relative;
@@ -179,36 +144,6 @@
   display: grid;
   gap: 18px;
   justify-items: start;
-}
-/* A soft frosted halo behind words that sit on the painting, so they read over any part of it:
-   a feathered rectangle behind the hero's text block, a soft ellipse behind section headings. */
-.lp-halo {
-  position: relative;
-  isolation: isolate;
-}
-.lp-head.lp-halo::before,
-.lp-final.lp-halo::before {
-  inset: -36px -140px;
-  -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 55%, transparent 100%);
-}
-.lp-final.lp-halo::before {
-  inset: 0 -60px;
-}
-.lp-halo::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: -44px -64px;
-  background: color-mix(in srgb, var(--glass-2) 58%, transparent);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  /* a feathered rectangle: two soft-edged bands, intersected */
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 64px, #000 calc(100% - 64px), transparent), linear-gradient(180deg, transparent, #000 44px, #000 calc(100% - 44px), transparent);
-  -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(90deg, transparent, #000 64px, #000 calc(100% - 64px), transparent), linear-gradient(180deg, transparent, #000 44px, #000 calc(100% - 44px), transparent);
-  mask-composite: intersect;
-  pointer-events: none;
 }
 .lp-hero-text > * {
   animation: lp-rise 0.9s var(--ease) both;
@@ -241,13 +176,9 @@
 .lp-kicker {
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--lp-accent);
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--glass-2) 85%, transparent);
-  border: 1px solid var(--glass-edge);
+  color: var(--muted);
 }
 .lp-title {
   font-family: var(--display);
@@ -270,10 +201,6 @@
 .lp-tagline em {
   font-style: normal;
   color: var(--fill);
-}
-/* The blossom painting is busy and pink: a firmer halo, and a deeper pink for the accent word. */
-[data-theme='sakura'] .lp-halo::before {
-  background: color-mix(in srgb, var(--glass-2) 76%, transparent);
 }
 .lp-promise {
   font-size: 16px;
@@ -363,7 +290,6 @@
 /* the live board */
 .lp-stage {
   position: relative;
-  perspective: 1600px;
   animation: lp-stage-in 1.1s 0.15s var(--ease) both;
 }
 .lp-board-card {
@@ -376,13 +302,7 @@
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--glass-edge);
-  box-shadow: var(--lp-raise);
-  transform: rotateY(-7deg) rotateX(3deg);
-  transform-origin: 60% 50%;
-  transition: transform 0.9s var(--ease);
-}
-.lp-stage:hover .lp-board-card {
-  transform: none;
+  box-shadow: var(--glass-shadow);
 }
 .lp-board-head {
   display: flex;
@@ -1049,24 +969,10 @@
 }
 .lp-theme-art {
   position: relative;
-  aspect-ratio: 16 / 9;
-  background-size: cover;
-  background-position: center;
-  border-radius: 10px;
+  aspect-ratio: 5 / 2;
+  border-radius: 8px;
   margin-bottom: 8px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-}
-.lp-theme-art.sw-sunrise {
-  background: url('/art/sunrise/thumb.webp') center / cover no-repeat, var(--sw);
-}
-.lp-theme-art.sw-sakura {
-  background: url('/art/sakura/thumb.webp') center / cover no-repeat, var(--sw);
-}
-.lp-theme-art.sw-mist {
-  background: url('/art/mist/thumb.webp') center / cover no-repeat, var(--sw);
-}
-.lp-theme-art.sw-aurora {
-  background: url('/art/aurora/thumb.webp') center / cover no-repeat, var(--sw);
 }
 .lp-theme-check {
   position: absolute;
@@ -1363,18 +1269,6 @@
 @media (max-width: 640px) {
   .lp {
     --lp-w: calc(100% - 24px);
-  }
-  .lp-halo::before,
-  .lp-head.lp-halo::before {
-    inset: -28px -12px;
-  }
-  /* Narrow screens: the text runs edge to edge, so feather the halo less at the sides. */
-  .lp-hero-text.lp-halo::before {
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent), linear-gradient(180deg, transparent, #000 36px, #000 calc(100% - 36px), transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent), linear-gradient(180deg, transparent, #000 36px, #000 calc(100% - 36px), transparent);
-  }
-  .lp-final.lp-halo::before {
-    inset: 0 -12px;
   }
   .lp-top {
     top: 8px;

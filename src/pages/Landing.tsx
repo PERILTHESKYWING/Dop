@@ -583,7 +583,7 @@ export function Landing() {
       </header>
 
       <section className="lp-hero">
-        <div className="lp-hero-text lp-halo">
+        <div className="lp-hero-text">
           <div className="lp-hero-brand">
             <BrandMark className="brand-mark lp-mark" />
             <span className="lp-kicker">Go training</span>
@@ -627,7 +627,7 @@ export function Landing() {
       </section>
 
       <section className="lp-section" id="features">
-        <div className="lp-head lp-halo">
+        <div className="lp-head">
           <div className="lp-eyebrow-lg reveal">Features</div>
           <h2 className="reveal">Built from your own games.</h2>
         </div>
@@ -678,7 +678,7 @@ export function Landing() {
       </section>
 
       <section className="lp-section" id="how">
-        <div className="lp-head lp-halo">
+        <div className="lp-head">
           <div className="lp-eyebrow-lg reveal">How</div>
           <h2 className="reveal">SGFs in, training plan out.</h2>
         </div>
@@ -697,7 +697,7 @@ export function Landing() {
       </section>
 
       <section className="lp-section">
-        <div className="lp-head lp-halo">
+        <div className="lp-head">
           <div className="lp-eyebrow-lg reveal">Theme</div>
           <h2 className="reveal">Pick a backdrop.</h2>
         </div>
@@ -729,7 +729,7 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="lp-final lp-halo">
+      <section className="lp-final">
         <BrandMark className="brand-mark lp-final-mark" />
         <h2 className="reveal">Start with your games.</h2>
         <div className="lp-cta center reveal">

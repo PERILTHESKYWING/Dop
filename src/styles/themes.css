@@ -2,22 +2,21 @@
  * data-theme on <html> and on .app (App.tsx); `sunrise` is the :root default. Keep the token names:
  * other stylesheets use them, and every page must stay readable in the dark `aurora` theme. */
 
-/* ------------------------------------------------ sakura dusk: plum ink, blossom-pink accent */
+/* ------------------------------------------------ clay (id sakura): plum ink, rose accent */
 :root[data-theme='sakura'],
 [data-theme='sakura'] {
   --fill: #c8457b;
   --fill-edge: #93305a;
   --fill-ink: #fff;
-  --button-base: rgba(130, 60, 100, 0.3);
   --ink: #2e1f2c;
   --ink-2: #5e4459;
   --muted: #8e7489;
   --line: rgba(130, 70, 110, 0.14);
   --line-2: rgba(130, 70, 110, 0.26);
-  --glass: rgba(255, 248, 251, 0.74);
-  --glass-2: rgba(255, 251, 253, 0.9);
-  --glass-edge: rgba(255, 255, 255, 0.82);
-  --glass-shadow: 0 1px 1px rgba(80, 20, 60, 0.04), 0 12px 32px -10px rgba(90, 30, 70, 0.2), 0 30px 70px -30px rgba(120, 40, 90, 0.22);
+  --glass: #fbf5f2;
+  --glass-2: #fffbf9;
+  --glass-edge: rgba(90, 40, 50, 0.13);
+  --glass-shadow: 0 1px 2px rgba(90, 40, 50, 0.05);
   --accent: #e2588a;
   --accent-ink: #c2457a;
   --accent-rgb: 242 122 160;
@@ -37,25 +36,24 @@
   --drop-over: rgba(255, 240, 246, 0.85);
   --graph-ink: #3a2334;
   --graph-area: rgba(58, 35, 52, 0.1);
-  --page-bg: #e8c3d3;
+  --page-bg: #e8d6cf;
 }
 
-/* ------------------------------------------------ misty peaks: slate ink, dawn-blue accent */
+/* ------------------------------------------------ slate (id mist): slate ink, ink-blue accent */
 :root[data-theme='mist'],
 [data-theme='mist'] {
   --fill: #3f58a6;
   --fill-edge: #2b3e7a;
   --fill-ink: #fff;
-  --button-base: rgba(40, 56, 90, 0.28);
   --ink: #1c2433;
   --ink-2: #445066;
   --muted: #6f7a8e;
   --line: rgba(40, 56, 90, 0.13);
   --line-2: rgba(40, 56, 90, 0.24);
-  --glass: rgba(246, 248, 252, 0.74);
-  --glass-2: rgba(250, 251, 254, 0.9);
-  --glass-edge: rgba(255, 255, 255, 0.8);
-  --glass-shadow: 0 1px 1px rgba(20, 30, 60, 0.04), 0 12px 32px -10px rgba(20, 34, 70, 0.2), 0 30px 70px -30px rgba(30, 44, 90, 0.22);
+  --glass: #f6f8fa;
+  --glass-2: #fcfdfe;
+  --glass-edge: rgba(30, 44, 70, 0.13);
+  --glass-shadow: 0 1px 2px rgba(30, 44, 70, 0.05);
   --accent: #4f68b6;
   --accent-ink: #3c55a2;
   --accent-rgb: 90 108 180;
@@ -75,27 +73,27 @@
   --drop-over: rgba(240, 244, 252, 0.88);
   --graph-ink: #1f2838;
   --graph-area: rgba(31, 40, 56, 0.1);
-  --page-bg: #c9d0de;
+  --page-bg: #d9dfe5;
 }
 
-/* ------------------------------------------------ aurora night: dark glass, light text */
+
+/* ------------------------------------------------ ink (id aurora): near-black, light text */
 :root[data-theme='aurora'],
 [data-theme='aurora'] {
   --fill: #36cdb2;
   --fill-edge: #1d8a77;
   --fill-ink: #04221c;
-  --button-base: rgba(0, 0, 0, 0.45);
   color-scheme: dark;
-  --ink: #eaf0fa;
-  --ink-2: #bcc7da;
-  --muted: #8b99b1;
-  --line: rgba(160, 190, 240, 0.13);
-  --line-2: rgba(160, 190, 240, 0.24);
-  --glass: rgba(12, 18, 34, 0.64);
-  --glass-2: rgba(16, 24, 44, 0.88);
-  --glass-edge: rgba(150, 190, 255, 0.15);
-  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 12px 32px -10px rgba(0, 0, 0, 0.5), 0 30px 70px -30px rgba(0, 20, 40, 0.6);
-  --blur: saturate(140%) blur(22px);
+  --ink: #ececea;
+  --ink-2: #c2c4c8;
+  --muted: #8d9198;
+  --line: rgba(210, 215, 225, 0.12);
+  --line-2: rgba(210, 215, 225, 0.22);
+  --glass: #1c2027;
+  --glass-2: #232831;
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --blur: none;
   --you: #ffa94d;
   --you-soft: rgba(255, 169, 77, 0.16);
   --kata: #3fd8bf;
@@ -121,32 +119,32 @@
   --accent-end-rgb: 116 87 232;
   --on-accent-shadow: rgba(5, 30, 50, 0.45);
   --selection: rgba(82, 224, 198, 0.3);
-  --row-hover: rgba(120, 200, 255, 0.08);
+  --row-hover: rgba(210, 215, 225, 0.06);
   --row-selected: rgba(82, 224, 198, 0.1);
-  --surface-rgb: 42 56 88;
-  --glass-rgb: 14 21 38;
-  --tint-rgb: 160 190 240;
-  --button-bg: #2a3a5e;
-  --button-edge: rgba(150, 190, 255, 0.2);
+  --surface-rgb: 48 53 62;
+  --glass-rgb: 28 32 39;
+  --tint-rgb: 205 210 220;
+  --button-bg: #2a2f38;
+  --button-edge: rgba(210, 215, 225, 0.16);
   --button-hi: rgba(255, 255, 255, 0.08);
   --dash-edge: rgba(120, 200, 230, 0.3);
   --drop-edge: rgba(110, 220, 210, 0.4);
-  --drop-over: rgba(30, 48, 76, 0.85);
+  --drop-over: #252a33;
   --graph-ink: #d4e3f7;
   --graph-area: rgba(200, 225, 255, 0.12);
-  --page-bg: #070b18;
+  --page-bg: #15181d;
 }
-/* Accent-coloured shadows follow each theme's accent. */
+/* No coloured glows: shadows stay neutral in every theme. */
 :root[data-theme='sakura'],
 [data-theme='sakura'],
 :root[data-theme='mist'],
 [data-theme='mist'],
 :root[data-theme='aurora'],
 [data-theme='aurora'] {
-  --glow-nav: rgb(var(--accent-glow-rgb) / 0.35);
-  --glow-panel: rgb(var(--accent-glow-rgb) / 0.3);
-  --glow-btn: rgb(var(--accent-glow-rgb) / 0.45);
-  --glow-pulse: rgb(var(--accent-rgb) / 0.85);
+  --glow-nav: transparent;
+  --glow-panel: transparent;
+  --glow-btn: transparent;
+  --glow-pulse: rgb(var(--accent-rgb) / 0.5);
 }
 /* The board is kaya wood in every theme: its marks keep the colours they were drawn for. */
 [data-theme='aurora'] svg.board {
@@ -180,7 +178,7 @@
   align-content: start;
   gap: 3px;
   padding: 6px 6px 10px;
-  border-radius: 16px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: rgb(var(--surface-rgb) / 0.5);
   color: inherit;
@@ -188,42 +186,24 @@
   text-align: left;
   cursor: pointer;
   transition:
-    transform 0.25s var(--ease),
-    box-shadow 0.25s var(--ease),
     border-color 0.2s,
     background 0.2s;
 }
 .theme-card:hover {
-  transform: translateY(-2px);
-  background: rgb(var(--surface-rgb) / 0.8);
-  box-shadow: 0 12px 24px -14px rgb(var(--accent-glow-rgb) / 0.5);
+  border-color: var(--line-2);
 }
 .theme-card.on {
-  border-color: rgb(var(--accent-rgb) / 0.75);
-  background: rgb(var(--surface-rgb) / 0.9);
-  box-shadow:
-    0 0 0 2px rgb(var(--accent-rgb) / 0.3),
-    0 12px 26px -14px rgb(var(--accent-end-rgb) / 0.55);
+  border-color: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--fill);
 }
 .theme-thumb {
   position: relative;
   display: block;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 5 / 2;
   margin-bottom: 5px;
-  border-radius: 11px;
+  border-radius: 6px;
   overflow: hidden;
-  background: rgb(var(--tint-rgb) / 0.12);
-  box-shadow: 0 0 0 1px rgb(var(--tint-rgb) / 0.1) inset;
-}
-.theme-thumb img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.7s var(--ease);
-}
-.theme-card:hover .theme-thumb img {
-  transform: scale(1.06);
+  box-shadow: 0 0 0 1px rgb(var(--tint-rgb) / 0.12) inset;
 }
 .theme-check {
   position: absolute;
