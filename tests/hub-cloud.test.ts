@@ -165,6 +165,13 @@ describe('cloud hub', () => {
     expect(brief).toContain('Next: the other half');
   });
 
+  it('tells agents to use the repo skills', async () => {
+    const t = await hub.createThread({ title: 'Skills hint', brief: 'x', model: 'sonnet', account: 'A' });
+    const got = await tool('A', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'member', thread: t.id }) });
+    expect(got).toContain('.claude/skills');
+    expect(got).toContain('dop-verify');
+  });
+
   it('gives chat-only work to a free account that checks in', async () => {
     const t = await hub.createThread({ title: 'Explain ko rules', brief: 'Short answer', model: 'sonnet', account: 'Phone', code: false });
     expect(t).toMatchObject({ account: 'Phone', status: 'queued' }); // free accounts cannot be started remotely
