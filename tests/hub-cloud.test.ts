@@ -95,11 +95,16 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(12);
+    expect(list.body.result.tools.length).toBe(36); // + lib_watch, studio_new, studio_rules, hub_sync, hub_learn
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
     expect(brief).toContain('Fix the move slider');
+    // It splits independent parts into parallel threads, and keeps a single task to one thread.
+    expect(brief).toMatch(/independent/i);
+    expect(brief).toMatch(/parallel/i);
+    expect(brief).toMatch(/(one|single) task[^.]*one thread/i);
+    expect(brief).not.toContain('most prompts are one thread');
     const promptId = Number(/#(\d+) XIAO prompt/.exec(brief)![1]);
 
     const r = await tool('A', 'hub_route', {
@@ -117,6 +122,17 @@ describe('cloud hub', () => {
     expect(routedMsg.replyTo).toBe(promptId);
     // A handled prompt is not offered again.
     expect(await tool('B', 'hub_start')).not.toContain('You are the coordinator');
+  });
+
+  it('shows sub-agents an account deploys itself', async () => {
+    expect(await tool('A', 'hub_agent', { action: 'start', id: 'scan1', title: 'Scan tests', thread: 0 })).toMatch(/running/);
+    await tool('A', 'hub_agent', { action: 'update', id: 'scan1', step: 'reading', pct: 40 });
+    let snap = (await page('state')).body;
+    expect(snap.agents.find((x: any) => x.id === 'scan1')).toMatchObject({ account: 'A', status: 'running', step: 'reading', pct: 40, title: 'Scan tests' });
+    await tool('A', 'hub_agent', { action: 'finish', id: 'scan1' });
+    snap = (await page('state')).body;
+    expect(snap.agents.find((x: any) => x.id === 'scan1')).toMatchObject({ status: 'done', pct: 100 });
+    expect(await tool('A', 'hub_agent', { action: 'update', id: 'nope' })).toMatch(/Unknown agent id/);
   });
 
   it('runs a worker: brief, handover, done', async () => {
@@ -219,6 +235,13 @@ describe('cloud hub', () => {
     expect(brief).toContain('Next: the other half');
   });
 
+  it('tells agents to use the repo skills', async () => {
+    const t = await hub.createThread({ title: 'Skills hint', brief: 'x', model: 'sonnet', account: 'A' });
+    const got = await tool('A', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'member', thread: t.id }) });
+    expect(got).toContain('.claude/skills');
+    expect(got).toContain('dop-verify');
+  });
+
   it('gives chat-only work to a free account that checks in', async () => {
     const t = await hub.createThread({ title: 'Explain ko rules', brief: 'Short answer', model: 'sonnet', account: 'Phone', code: false });
     expect(t).toMatchObject({ account: 'Phone', status: 'queued' }); // free accounts cannot be started remotely
@@ -282,6 +305,25 @@ describe('cloud hub with a single Opus routine', () => {
   });
 });
 
+describe('cloud hub: any project', () => {
+  it('names itself after HUB_PROJECT and HUB_OWNER in what agents and the page read', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const { handleMcp } = await lib('mcp.js');
+    const before = fires.length;
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock, project: 'Garden App', owner: 'Sam' });
+    await h.upsertAccount({ name: 'P', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_p', token: 'good-p' }] });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
+    expect(fires.length).toBe(before + 1);
+    expect(fires.at(-1)!.payload).toMatchObject({ hub: 'garden-app', role: 'worker', thread: t.id });
+    const init = await handleMcp(h, { name: 'P' }, { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    expect(init.result.serverInfo.name).toBe('garden-app-hub');
+    expect(init.result.instructions).toContain("Sam's Garden App hub");
+    const r = await pageApi({ hub: h, password: PW, method: 'GET', query: { op: 'state' }, body: {}, headers: { 'x-hub-password': PW } });
+    expect(r.body).toMatchObject({ project: 'Garden App', owner: 'Sam' });
+  });
+});
+
 describe('cloud hub: thinking level and chosen accounts', () => {
   it('keeps XIAO\'s picks on the coordinator\'s threads and only uses the chosen accounts', async () => {
     const { createHub } = await lib('hub.js');
@@ -317,6 +359,22 @@ describe('cloud hub: thinking level and chosen accounts', () => {
     expect(u).toMatchObject({ thinking: 'high', accounts: ['Helper'] });
   });
 
+  it('starts a New chat as its own thread, with no coordinator and nothing in Project chat', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_c', token: 'good-c' }] });
+    const fired = fires.length;
+    const r = await h.prompt({ text: 'Why is the board slow?\nDetails here', chat: true, model: 'opus', thinking: 'high' });
+    const t = (await h.threads()).find((x: any) => x.id === r.thread);
+    expect(t).toMatchObject({ title: 'Why is the board slow?', model: 'opus', thinking: 'high', account: 'Main', status: 'working' });
+    expect(fires.length).toBe(fired + 1);
+    expect(fires.at(-1)!.payload).toMatchObject({ role: 'worker', thread: r.thread });
+    const feed = await h.feed();
+    expect(feed.filter((m: any) => m.thread === 0)).toEqual([]);
+    expect(feed.find((m: any) => m.thread === r.thread)).toMatchObject({ from: 'XIAO', kind: 'brief', text: 'Why is the board slow?\nDetails here' });
+  });
+
   it('uses Claude\'s five effort levels, xhigh as "think harder"', async () => {
     const { createHub } = await lib('hub.js');
     const { memoryStore } = await lib('store.js');
@@ -325,6 +383,32 @@ describe('cloud hub: thinking level and chosen accounts', () => {
     const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet', thinking: 'xhigh' });
     expect(t.thinking).toBe('xhigh');
     expect(fires.at(-1)!.text.startsWith('think harder\n{')).toBe(true);
+  });
+
+  it('deletes one message, tells pages that hold it, and never re-routes its prompt', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
+    const keep = await h.post({ thread: t.id, from: 'XIAO', kind: 'prompt', text: 'keep me' });
+    const drop = await h.post({ thread: t.id, from: 'XIAO', kind: 'prompt', text: 'drop me' });
+    const ask = await h.post({ thread: 0, from: 'XIAO', kind: 'prompt', text: 'route me once' });
+    const routed = await h.post({ thread: 0, from: 'hub', kind: 'routed', replyTo: ask.id, text: 'One thread (#9)' });
+    const before = await h.snapshot();
+    expect(await h.deleteMessage(drop.id)).toBe(true);
+    expect(await h.deleteMessage(drop.id)).toBe(false);
+    expect(await h.deleteMessage(routed.id)).toBe(true);
+    const feed = await h.feed();
+    expect(feed.map((m: any) => m.id)).toContain(keep.id);
+    expect(feed.map((m: any) => m.id)).not.toContain(drop.id);
+    const after = await h.snapshot({ since: keep.id });
+    expect(after.seq).not.toBe(before.seq);
+    expect(after.deleted).toEqual([drop.id, routed.id]);
+    // The coordinator's reply is gone, but its prompt still counts as handled.
+    expect(await h.start({ name: 'Main', plan: 'max' }, '')).not.toContain('route me once');
+    const p = (op: string, body: any) => pageApi({ hub: h, password: PW, method: 'POST', query: { op }, body, headers: { 'x-hub-password': PW } });
+    expect((await p('message-delete', { id: keep.id })).status).toBe(200);
+    expect((await p('message-delete', { id: keep.id })).status).toBe(404);
   });
 
   it('archives, restores and deletes threads, and the page reads only what is new', async () => {
@@ -382,5 +466,197 @@ describe('cloud hub: usage per account', () => {
     await h.setUsage('Free1', { five_hour_pct: '20', seven_day_pct: '' });
     expect(h.publicAccount(await h.account('Free1')).usage).toMatchObject({ five_hour_pct: 20, seven_day_pct: null, source: 'manual' });
     usageReply = null;
+  });
+  it('keeps thinking notes for the page: no state change, not in agents\' context or hub_wait', async () => {
+    const t = await hub.createThread({ title: 'Think test', brief: 'Try thinking notes', model: 'sonnet' });
+    const before = (await hub.thread(t.id)).status;
+    const r = await tool('A', 'hub_post', { thread: t.id, kind: 'thinking', text: 'Debounce beats throttle here' });
+    const id = Number(/#(\d+)/.exec(r)![1]);
+    const msg = (await hub.feed()).find((m: any) => m.id === id);
+    expect(msg.kind).toBe('thinking');
+    expect((await hub.thread(t.id)).status).toBe(before);
+    await tool('B', 'hub_sync', { thread: t.id }); // a first call also brings the team lessons
+    expect(await tool('B', 'hub_wait', { thread: t.id, after: id - 1, wait_s: 0 })).toBe('No new messages.');
+    const brief = await tool('B', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: t.id }) });
+    expect(brief).not.toContain('Debounce beats throttle');
+    expect(brief).toContain('kind "thinking"');
+    expect((await hub.thread(t.id)).startedAt).toBe(clock);
+  });
+});
+
+describe('cloud hub: usage-left threshold and team threads', () => {
+  let h: any;
+  const fresh = async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    for (const n of ['P1', 'P2', 'P3']) await h.upsertAccount({ name: n, plan: 'max', routines: [{ model: 'sonnet', id: `trig_${n}`, token: `good-${n}` }] });
+  };
+
+  it('only gives new work to accounts with at least the minimum usage left, which XIAO can change', async () => {
+    await fresh();
+    expect((await h.settings()).minLeftPct).toBe(15);
+    await h.setUsage('P1', { five_hour_pct: 70, seven_day_pct: 10 }); // 30% left
+    await h.setUsage('P2', { five_hour_pct: 20, seven_day_pct: 20 });
+    await h.setUsage('P3', { five_hour_pct: 50, seven_day_pct: 50 });
+    expect((await h.account('P1')).low).toBe(false);
+    // Raise the bar to 40% left: P1 (30% left) is now low and gets nothing.
+    await h.saveSettings({ minLeftPct: 40 });
+    expect((await h.account('P1')).low).toBe(true);
+    const a = await h.createThread({ title: 'T1', brief: 'x', model: 'sonnet' });
+    const b = await h.createThread({ title: 'T2', brief: 'x', model: 'sonnet' });
+    expect([a.account, b.account].sort()).toEqual(['P2', 'P3']);
+    // The freest account goes first when loads are equal.
+    expect(a.account).toBe('P2');
+    expect(await h.overview()).toContain('at least 40% usage left');
+    // Lowering it again clears the automatic low mark.
+    await h.saveSettings({ minLeftPct: 5 });
+    expect((await h.account('P1')).low).toBe(false);
+    expect((await h.saveSettings({ minLeftPct: 500 })).minLeftPct).toBe(95);
+  });
+
+  it('runs one thread on several accounts that share messages and hand over per member', async () => {
+    await fresh();
+    const before = fires.length;
+    const t = await h.createThread({ title: 'Big job', brief: 'Split me', model: 'sonnet', team: 3 });
+    const started = fires.slice(before);
+    expect(started.map((f) => f.payload.role)).toEqual(['worker', 'member', 'member']);
+    expect(new Set(started.map((f) => f.routine)).size).toBe(3); // three different accounts
+    const lead = t.account;
+    const [m1, m2] = Object.keys((await h.thread(t.id)).crew);
+    expect([lead, m1, m2].sort()).toEqual(['P1', 'P2', 'P3']);
+
+    const leadBrief = await h.start({ name: lead, plan: 'max' }, JSON.stringify(started[0].payload));
+    expect(leadBrief).toContain('You are the lead');
+    const memberBrief = await h.start({ name: m1, plan: 'max' }, JSON.stringify(started[1].payload));
+    expect(memberBrief).toContain('You are a team member');
+    await h.start({ name: m2, plan: 'max' }, JSON.stringify(started[2].payload));
+
+    // The lead addresses one member; everyone sees it.
+    await h.agentPost({ name: lead }, { thread: t.id, kind: 'progress', text: `Plan: ${m1} does the UI`, to: m1 });
+    expect(h.msgLine((await h.feed()).at(-1))).toContain(`→ ${m1}`);
+    // A member's handover is kept apart from the lead's.
+    await h.checkpoint({ name: m1 }, { thread: t.id, done: 'UI half', next: 'UI rest', branch: 'b/ui' });
+    await h.checkpoint({ name: lead }, { thread: t.id, done: 'core', next: 'merge', branch: 'b/lead' });
+    let th = await h.thread(t.id);
+    expect(th.checkpoint.next).toBe('merge');
+    expect(th.crew[m1].checkpoint.next).toBe('UI rest');
+    // A member's done closes only its part.
+    await h.agentPost({ name: m2 }, { thread: t.id, kind: 'done', text: 'b/docs pushed' });
+    th = await h.thread(t.id);
+    expect(th.status).toBe('working');
+    expect(th.crew[m2].done).toBe(true);
+
+    // m1 goes quiet while the lead keeps talking: its part moves to another account.
+    await h.upsertAccount({ name: 'P4', plan: 'max', routines: [{ model: 'sonnet', id: 'trig_P4', token: 'good-P4' }] });
+    clock += 10 * 60_000;
+    await h.heartbeat(t.id, lead);
+    clock += 6 * 60_000;
+    await h.heartbeat(t.id, lead);
+    await h.sweep();
+    expect(last().payload).toMatchObject({ role: 'member', thread: t.id, replaces: m1 });
+    expect(last().routine).toBe('trig_P4');
+    th = await h.thread(t.id);
+    expect(th.crew[m1].gone).toBe(true);
+    expect(th.status).toBe('working'); // the lead is fine
+    const repl = await h.start({ name: 'P4', plan: 'max' }, JSON.stringify(last().payload));
+    expect(repl).toContain(`You replace ${m1}`);
+    expect(repl).toContain('UI rest');
+
+    // Only the lead closes the thread.
+    await h.agentPost({ name: lead }, { thread: t.id, kind: 'done', text: 'PR ready' });
+    expect((await h.thread(t.id)).status).toBe('done');
+  });
+
+  it('says when fewer accounts can join a team than asked', async () => {
+    await fresh();
+    await h.setUsage('P2', { five_hour_pct: 99 });
+    await h.setUsage('P3', { five_hour_pct: 99 });
+    const t = await h.createThread({ title: 'Wants three', brief: 'x', model: 'sonnet', team: 3 });
+    expect(t.account).toBe('P1');
+    const alert = (await h.feed()).filter((m: any) => m.thread === t.id && m.kind === 'alert').at(-1);
+    expect(alert.text).toContain('2 more accounts wanted');
+  });
+});
+
+describe('cloud hub: usage cards explain why numbers are missing', () => {
+  it('says why when an account has no token, and reads paid accounts without one as an error not silence', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'NoTok', plan: 'pro', routines: [{ model: 'opus', id: 'trig_n' }] });
+    await h.upsertAccount({ name: 'Bare', plan: 'max' });
+    await h.refreshUsage({ force: true });
+    expect(h.publicAccount(await h.account('NoTok')).usageErr).toContain('no routine');
+    expect(h.publicAccount(await h.account('Bare')).usageErr).toContain('no routine');
+  });
+  it('hub_post with wait_s returns teammates\' replies in the same call', async () => {
+    const t = await hub.createThread({ title: 'Post wait', brief: 'Fast comms', model: 'sonnet' });
+    const none = await tool('A', 'hub_post', { thread: t.id, text: 'hello?', wait_s: 0.01 });
+    expect(none).toContain('Posted #');
+    await tool('B', 'hub_post', { thread: t.id, text: 'earlier note' });
+    const first = Number(/#(\d+)/.exec(none)![1]);
+    const both = await tool('A', 'hub_wait', { thread: t.id, after: first, wait_s: 0 });
+    expect(both).toContain('earlier note');
+  });
+});
+
+describe('cloud hub: removed accounts', () => {
+  it('drops a removed account everywhere and never brings it back', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const store = memoryStore();
+    const h = createHub({ store, fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Keep', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_k', token: 'good-k' }] });
+    const gone = await h.upsertAccount({ name: 'Gone', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_g', token: 'good-g' }] });
+    await h.saveSettings({ coordinatorAccount: 'Gone' });
+    const t = await h.createThread({ title: 'Picked', brief: 'x', accounts: ['Gone', 'Keep'], model: 'sonnet' });
+    await h.updateThread(t.id, { status: 'done' });
+    const rev = await h.version();
+    await h.removeAccount('Gone');
+    // Every page refreshes: the change bumps the revision.
+    expect(await h.version()).not.toBe(rev);
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect((await h.snapshot()).accounts.map((a: any) => a.name)).toEqual(['Keep']);
+    expect((await h.thread(t.id)).accounts).toEqual(['Keep']);
+    expect((await h.settings()).coordinatorAccount).toBe('');
+    // A write still in flight (usage read, touch) can't re-create it.
+    await store.cmd('HSET', 'hub:accounts', 'Gone', JSON.stringify(gone));
+    expect(await h.account('Gone')).toBeNull();
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect(await h.touchAccount('Gone')).toBeNull();
+    expect(await h.authAgent('Gone', gone.key)).toBeNull();
+    // Old picks from a page that still lists it fall away.
+    const msg = await h.prompt({ text: 'Do it', accounts: ['Gone'] });
+    expect(msg.meta.accounts).toEqual([]);
+    // Adding the name again is a fresh account.
+    await h.upsertAccount({ name: 'Gone', plan: 'free' });
+    expect((await h.account('Gone')).key).not.toBe(gone.key);
+  });
+});
+
+describe('cloud hub: usage reported by agents', () => {
+  it('takes numbers from hub_usage, asks for them at checkpoints only when due, and keeps the weekly one past 5 hours', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const acc = await h.upsertAccount({ name: 'Probe', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_p', token: 'good-p' }] });
+    const call = async (name: string, args: any) => {
+      const r = await mcpApi({ hub: h, method: 'POST', query: { account: 'Probe', key: acc.key }, body: { jsonrpc: '2.0', id: rpcId++, method: 'tools/call', params: { name, arguments: args } }, headers: {} });
+      return r.body.result.content[0].text as string;
+    };
+    const t = await h.createThread({ title: 'Usage', brief: 'x', account: 'Probe', model: 'sonnet' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    await call('hub_usage', { state: 'report', five_hour_pct: 15, seven_day_pct: 62, seven_day_resets: new Date(clock + 3 * 86400_000).toISOString() });
+    const card = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(card.usage).toMatchObject({ five_hour_pct: 15, seven_day_pct: 62, source: 'agent' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toBe('Handover saved.');
+    clock += 6 * 3600_000;
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    const later = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(later.usage).toMatchObject({ five_hour_pct: null, seven_day_pct: 62 });
+    clock += 3 * 86400_000;
+    await h.touchAccount('Probe');
+    expect((await h.account('Probe')).usage).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - ChatGPT (OpenAI API, `OPENAI_API_KEY`) is a training-only tone reviewer (`scripts/coachlm/tone.py`); the sites never call it.
 - Never commit network weights except the bundled `public/models/g170e-b10c128-*.bin.gz`. Keep `THIRD_PARTY_NOTICES.md` current.
 - Hosting is Vercel Hobby (free) and XIAO finds Vercel setup hard: avoid new config, spell out any step.
+- Vercel Hobby allows about 100 deployments a day across Dop, Kami and the hub, and every push builds all three. Push once per thread when the work is done, never after each edit (details: `hub-cloud.md`).
 - Bump `ENGINE_FILES` whenever `public/engine` changes (Vercel caches /engine for a week).
 - Measure speed/strength claims (scripts/ai-eval.ts, Settings › Benchmark) and report honest numbers.
 - PRs: mark ready (not draft) once built and tested.
@@ -29,6 +30,8 @@ New session? Start with `docs/handoff/START-HERE.md` (state, checklist, next ste
 - `doppel.md` how the copy plays, its mistakes, evolution, measurements
 - `open-items.md` unfinished or unverified things
 - `kami.md` + `kami-*.md` Kami site, explain engine, factory, trainer, library
-- `hub-cloud.md` Dop hub on Vercel (hub/): coordinator, threads, every account and device; `hub.md` the PC-only version (tools/hub/)
+- `studio.md` storytime animation studio in the hub (backend, tools, nightly learning)
+- `hub-cloud.md` Dop hub on Vercel (hub/): coordinator, threads, every account and device; `hub.md` the PC-only version (tools/hub/); `hub-split.md` using the hub for other projects or moving it to its own repo
+- `studio.md` Storytime studio in the hub (hub/studio.html): hand-drawn story animations made by the Claude team, feedback loop, nightly rules job
 - `project-instructions.md` paste-ready project instructions + thread/PR history
 - `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change, and `/clarify`, which asks 5+ questions in one batch before a task) and two hook mods, `lean-tokens` and `dop-guard`, that load on their own (see `.claude/MODS.md`)

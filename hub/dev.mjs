@@ -2,7 +2,7 @@
 // Run the hub on this computer for testing: node hub/dev.mjs  (password: dev)
 // Uses memory storage unless KV_REST_API_URL / KV_REST_API_TOKEN are set.
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,6 +38,15 @@ createServer((req, res) => {
     if (p === '/api/hub') return hubApi(req, res);
     if (p === '/api/mcp') return mcpApi(req, res);
     if (p.startsWith('/api/c/')) return pathApi(req, res);
+    // The icons sit next to index.html, as Vercel serves them.
+    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml' }[p];
+    if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
+    // The studio and library pages and their modules, also plain static files on Vercel.
+    if (p === '/studio.html' || p === '/library.html' || /^\/(studio|library)\/[a-z-]+\.js$/.test(p)) {
+      if (!existsSync(path.join(here, p.slice(1)))) return (res.statusCode = 404), res.end('Not found');
+      res.setHeader('content-type', p.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
+      return res.end(readFileSync(path.join(here, p.slice(1))));
+    }
     res.setHeader('content-type', 'text/html; charset=utf-8');
     res.end(readFileSync(path.join(here, 'index.html')));
   });

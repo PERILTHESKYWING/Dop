@@ -474,8 +474,7 @@ function AppearanceSection() {
             className={`theme-card${theme === t.id ? ' on' : ''}${pending === t.id ? ' busy' : ''}`}
             onClick={() => void pick(t.id)}
           >
-            <span className="theme-thumb">
-              <img src={`/art/${t.id}/thumb.webp`} alt="" width={480} height={270} loading="lazy" decoding="async" />
+            <span className={`theme-thumb sw-${t.id}`}>
               {theme === t.id && (
                 <span className="theme-check">
                   <Icon name="check" />

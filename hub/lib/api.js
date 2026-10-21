@@ -1,17 +1,22 @@
 // Request handling shared by the Vercel functions and the tests.
 import { createHub, safeEqual } from './hub.js';
 import { handleMcp } from './mcp.js';
+import { readImage } from './tools-files.js';
+import { studioOf } from './studio.js';
+import { libraryOf } from './library.js';
+import { skillsOf } from './tools-skills.js';
+import { reposOf } from './tools-repos.js';
 import { memoryStore, storeFromEnv } from './store.js';
 
 let devStore = null;
 export function hubFromEnv(env = process.env) {
   const store = storeFromEnv(env) || (env.HUB_DEV_MEMORY === '1' ? (devStore ||= memoryStore()) : null);
   if (!store) return null;
-  return createHub({ store });
+  return createHub({ store, project: env.HUB_PROJECT || 'Dop', owner: env.HUB_OWNER || 'XIAO' });
 }
 
 const SETUP_HELP =
-  'The hub has no storage yet. In Vercel open the dop-hub project, Storage, connect an Upstash Redis store, then redeploy (see docs/handoff/hub-cloud.md).';
+  'The hub has no storage yet. In Vercel open the hub project, Storage, connect an Upstash Redis store, then redeploy (see docs/handoff/hub-cloud.md).';
 
 // The page and its API: XIAO's password.
 export async function pageApi({ hub, password, method, query, body, headers }) {
@@ -24,7 +29,7 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   if (method === 'GET' && op === 'state') {
     const t0 = Date.now();
     const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600 });
-    return { status: 200, body: { ...body, ms: Date.now() - t0 } };
+    return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, ms: Date.now() - t0 } };
   }
   // Reading usage from Claude can take seconds, so the page asks for it on its own.
   if (method === 'GET' && op === 'usage') {
@@ -32,11 +37,29 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     const threads = await hub.threads();
     return { status: 200, body: { accounts: Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads)) } };
   }
+  if (method === 'GET' && op === 'image') {
+    try {
+      const img = await readImage(hub, query.account, query.name);
+      return img ? { status: 200, body: img } : { status: 404, body: { error: 'No such image.' } };
+    } catch (e) {
+      return { status: 400, body: { error: e.message } };
+    }
+  }
   if (method === 'GET' && op === 'connect') {
     // The connector link for one account, shown once on the page when asked.
     const a = await hub.account(String(query.account || ''));
     if (!a) return { status: 404, body: { error: 'No such account.' } };
     return { status: 200, body: { name: a.name, key: a.key } };
+  }
+  // The Library page's three tabs: files, skills, repos.
+  const tab = op.startsWith('lib-') ? libraryOf(hub) : op.startsWith('skill-') ? skillsOf(hub) : op.startsWith('repo-') ? reposOf(hub) : null;
+  if (tab) {
+    const out = await tab.pageOp(method, op, query, body);
+    if (out) return out;
+  }
+  if (op.startsWith('studio-')) {
+    const out = await studioOf(hub).pageOp(method, op, query, body);
+    if (out) return out;
   }
   if (method !== 'POST') return { status: 404, body: { error: 'Not found.' } };
   try {
@@ -47,6 +70,10 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (op === 'account-low') return { status: 200, body: hub.publicAccount(await hub.setLow(String(body.name), !!body.low, body.note)) };
     if (op === 'thread') return { status: 200, body: await hub.updateThread(Number(body.id), body) };
     if (op === 'thread-delete') return (await hub.deleteThread(Number(body.id))), { status: 200, body: { ok: true } };
+    if (op === 'message-delete') {
+      const ok = await hub.deleteMessage(Number(body.id));
+      return ok ? { status: 200, body: { ok } } : { status: 404, body: { error: 'No such message.' } };
+    }
     if (op === 'retry') {
       const t = await hub.thread(Number(body.id));
       if (!t) return { status: 404, body: { error: 'No such thread.' } };

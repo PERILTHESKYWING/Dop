@@ -1,6 +1,13 @@
 // Remote MCP server (Streamable HTTP, stateless JSON replies) that gives any
 // Claude on any account the hub tools: claude.ai chats (web, desktop, phone),
 // cloud Claude Code sessions and routines, and Claude Code on a PC.
+import { webTools } from './tools-web.js';
+import { fileTools } from './tools-files.js';
+import { skillTools } from './tools-skills.js';
+import { studioTools } from './studio.js';
+import { libraryTools } from './library.js';
+import { repoTools } from './tools-repos.js';
+
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
 // Waiting agents check this often, with one small read (the hub's seq).
 const POLL_MS = 1000;
@@ -21,6 +28,7 @@ const NEWS_ARG = { hub_post: 'thread', hub_checkpoint: 'thread', hub_ask: 'from_
 export function toolsFor(hub) {
   const num = { type: 'number' };
   const str = { type: 'string' };
+  const team = { type: 'number', description: 'Accounts working this thread together (1-4, default 1): a lead plus members sharing its messages and handovers.' };
   return [
     {
       name: 'hub_start',
@@ -41,7 +49,7 @@ export function toolsFor(hub) {
             type: 'array',
             items: {
               type: 'object',
-              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, code: { type: 'boolean' }, account: str, thread_id: num },
+              properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, code: { type: 'boolean' }, account: str, team, thread_id: num },
               required: ['brief'],
             },
           },
@@ -52,10 +60,10 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_create_thread',
-      description: 'Coordinator: open a thread for one piece of work and start an agent on it. model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
+      description: 'Coordinator: open a thread for one piece of work and start an agent on it (team > 1 starts several accounts on it). model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
       inputSchema: {
         type: 'object',
-        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, code: { type: 'boolean' } },
+        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, team, code: { type: 'boolean' } },
         required: ['title', 'brief'],
       },
       run: async (a, x) => {
@@ -71,19 +79,38 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_post',
-      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO), answer (with reply_to), note, done (final result; closes the thread).',
+      description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO, or to a teammate with to), answer (with reply_to), note, thinking (one or two sentences of your reasoning at a key decision; XIAO\'s page shows it only when asked, and other agents don\'t receive it), done (final result; closes the thread, or only your part if you are a team member). to: a teammate\'s account name, to address one teammate (everyone on the thread still sees it).',
       inputSchema: {
         type: 'object',
-        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'done'] }, reply_to: num },
+        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'thinking', 'done'] }, reply_to: num, to: str, wait_s: { type: 'number', description: 'Optional (max 45): after posting, wait this long for teammates\' replies and return them in the same call (saves a hub_wait).' } },
         required: ['thread', 'text'],
       },
-      run: (a, x) => hub.agentPost(a, x),
+      run: async (a, x) => {
+        const res = await hub.agentPost(a, x);
+        const wait = Number(x.wait_s) || 0;
+        if (!wait || x.kind === 'thinking' || x.kind === 'done') return res;
+        const tid = Number(x.thread) || 0;
+        const end = Date.now() + Math.min(WAIT_MAX_S, wait) * 1000;
+        let n = await hub.news(a, tid);
+        while (!n.text && (await nextChange(hub, n.seq, end))) n = await hub.news(a, tid);
+        return n.text ? `${res}\n\n${n.text}` : `${res} No replies yet.`;
+      },
     },
     {
       name: 'hub_checkpoint',
       description: 'Save a handover for your thread: what is done, the exact next step, and the branch. Another account continues from it if you stop.',
       inputSchema: { type: 'object', properties: { thread: num, done: str, next: str, branch: str }, required: ['thread', 'done', 'next'] },
       run: (a, x) => hub.checkpoint(a, x),
+    },
+    {
+      name: 'hub_agent',
+      description: 'Report a sub-agent you deployed yourself (with your own Agent tool) so XIAO\'s page shows its live progress. action "start" (id, title, optional thread), "update" (id, step, pct 0-100, note), "finish" (id, status done or failed, note). Call it when you start one, at each step, and when it ends. Cheap: no model call.',
+      inputSchema: {
+        type: 'object',
+        properties: { action: { type: 'string', enum: ['start', 'update', 'finish'] }, id: str, thread: num, title: str, step: str, pct: num, note: str, status: { type: 'string', enum: ['done', 'failed'] } },
+        required: ['action', 'id'],
+      },
+      run: (a, x) => hub.agentRun(a, x),
     },
     {
       name: 'hub_ask',
@@ -109,19 +136,19 @@ export function toolsFor(hub) {
       inputSchema: { type: 'object', properties: { thread: num }, required: ['thread'] },
       run: async (a, x) => {
         const tid = Number(x.thread) || 0;
-        const [, n] = await Promise.all([tid && hub.heartbeat(tid), hub.news(a, tid)]);
+        const [, n] = await Promise.all([tid && hub.heartbeat(tid, a.name), hub.news(a, tid)]);
         return n.text || 'Nothing new.';
       },
     },
     {
       name: 'hub_wait',
-      description: 'Wait up to wait_s (max 45) for anything new for your thread: questions for you, answers to your questions, new prompts from XIAO, new team lessons. Returns the moment something arrives.',
+      description: 'Wait up to wait_s (max 45) for anything new for your thread: questions for you, answers to your questions, teammates\' posts, new prompts from XIAO, new team lessons. Returns the moment something arrives. "→ <name>" marks a post addressed to that account.',
       inputSchema: { type: 'object', properties: { thread: num, after: num, wait_s: num }, required: ['thread'] },
       run: async (a, x) => {
         const tid = Number(x.thread) || 0;
         const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 20) * 1000;
         // The agent is alive while it waits; marking that first keeps it off the way back.
-        let [, n] = await Promise.all([tid && hub.heartbeat(tid), hub.news(a, tid, { after: x.after })]);
+        let [, n] = await Promise.all([tid && hub.heartbeat(tid, a.name), hub.news(a, tid, { after: x.after })]);
         while (!n.text && (await nextChange(hub, n.seq, end))) n = await hub.news(a, tid);
         return n.text || 'No new messages.';
       },
@@ -147,20 +174,27 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_usage',
-      description: 'Report your account\'s usage: state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset, "report" to just share numbers. Optional percent (5-hour), five_hour_pct, seven_day_pct.',
-      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok', 'report'] }, percent: num, five_hour_pct: num, seven_day_pct: num, five_hour_resets: str, seven_day_resets: str, note: str }, required: ['state'] },
+      description: 'Report your account\'s usage. To read it: run `node hub/usage-probe.mjs` and pass what it prints (five_hour_pct, seven_day_pct, *_resets) with state "report". state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset.',
+      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok', 'report'] }, percent: num, five_hour_pct: num, seven_day_pct: num, five_hour_resets: str, seven_day_resets: str, source: { type: 'string', enum: ['agent', 'pc'] }, note: str }, required: ['state'] },
       run: async (a, x) => {
         const five = typeof x.five_hour_pct === 'number' ? x.five_hour_pct : typeof x.percent === 'number' ? x.percent : null;
         const week = typeof x.seven_day_pct === 'number' ? x.seven_day_pct : null;
+        // Low/ok first: "ok" forgets the old reading, so fresh numbers go on after it.
+        if (x.state !== 'report') await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         if (five != null || week != null) {
-          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: Date.now(), source: 'pc' };
+          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: hub.now(), source: x.source === 'pc' ? 'pc' : 'agent' };
           await hub.touchAccount(a.name, { usage, usageErr: '' });
         }
         if (x.state === 'report') return 'Thanks.';
-        await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
     },
+    ...webTools(fetch, hub),
+    ...fileTools(hub),
+    ...skillTools(hub),
+    ...studioTools(hub),
+    ...libraryTools(hub),
+    ...repoTools(hub),
   ];
 }
 
@@ -178,8 +212,8 @@ export async function handleMcp(hub, agent, body) {
     return ok({
       protocolVersion: params.protocolVersion || '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dop-hub', version: '2.0.0' },
-      instructions: `You are connected to XIAO's Dop hub as account ${agent.name}. Call hub_start first.`,
+      serverInfo: { name: `${hub.project.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-hub`, version: '2.0.0' },
+      instructions: `You are connected to ${hub.owner}'s ${hub.project} hub as account ${agent.name}. Call hub_start first.`,
     });
   }
   if (id === undefined) return null; // notifications
@@ -192,7 +226,14 @@ export async function handleMcp(hub, agent, body) {
     const args = params.arguments || {};
     try {
       await hub.sweep();
-      let text = String(await tool.run(agent, args));
+      const out = await tool.run(agent, args);
+      if (out && typeof out === 'object' && Array.isArray(out.content)) {
+        // Rich result (images). Only the text parts count as hub traffic.
+        const t = out.content.map((c) => c.text || '').join('');
+        await hub.countTraffic(JSON.stringify(args).length + t.length);
+        return ok({ content: out.content });
+      }
+      let text = String(out);
       if (NEWS_ARG[tool.name]) {
         const n = await hub.news(agent, args[NEWS_ARG[tool.name]]);
         if (n.text) text += `\n\n${n.text}`;

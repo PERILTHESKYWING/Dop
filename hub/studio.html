@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ec">
+<title>Storytime studio</title>
+<link rel="icon" href="/logo.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<script>
+try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
+</script>
+<style>
+:root {
+  --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
+  --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --chip: #f1ece4; --sel: #ebe5da;
+  --shadow: 0 6px 24px rgba(40, 30, 10, .12);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
+    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
+  --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+/* Buttons match the hub's .btn: 8 px radius, 600 weight, flat. 44 px tall so they are easy to tap.
+   One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: background-color .15s, border-color .15s; }
+.btn:hover { background: var(--sel); }
+.btn:active { transform: translateY(1px); }
+.btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
+.btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
+.btn.ok { color: var(--green); border-color: var(--green); }
+.btn.danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.btn.danger:hover { background: color-mix(in srgb, var(--red) 10%, var(--panel)); }
+.btn.quiet { border-color: transparent; background: transparent; }
+.btn.quiet:hover { background: var(--sel); }
+.btn:disabled, .btn[aria-busy="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+.btn:disabled:hover { background: var(--panel); }
+.btn.go:disabled:hover { background: var(--green); }
+.btn.seg[aria-pressed="true"] { background: var(--sel); border-color: var(--ink); }
+.btn.seg[aria-pressed="true"]::before { content: "✓"; }
+.btn .ic { font-size: 14px; line-height: 1; }
+.top { display: flex; align-items: center; gap: 10px; padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.top h1 { font: 400 26px/1 "Patrick Hand", cursive; margin: 0; white-space: nowrap; }
+.top .back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; margin-left: -6px; text-decoration: none; color: var(--soft); font-size: 15px; font-weight: 600; white-space: nowrap; border-radius: 8px; }
+.top .back:hover { color: var(--ink); background: var(--sel); }
+.top select { min-width: 0; flex: 1; max-width: 340px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px; min-height: 44px; }
+.spacer { flex: 1; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); padding: 10px 16px 24px; gap: 12px; } .top h1 { font-size: 22px; } }
+@media (max-width: 600px) { .top { flex-wrap: wrap; } .top h1 { flex: 1; } .top select { order: 5; flex-basis: 100%; max-width: none; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+.stage { overflow: hidden; }
+.screen { position: relative; background: #f7f1e3; aspect-ratio: 16 / 9; }
+.screen canvas { display: block; width: 100%; height: 100%; }
+.badge { position: absolute; left: 10px; top: 10px; background: rgba(29, 27, 24, .78); color: #fff; font-size: 12.5px; padding: 4px 9px; border-radius: 99px; pointer-events: none; }
+.badge:empty { display: none; }
+.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 4px var(--green); } 100% { box-shadow: var(--shadow); } }
+.controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+.controls .bar { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+.controls input[type=range] { flex: 1; min-width: 100px; height: 44px; margin: 0; accent-color: var(--green); }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; }
+.time { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 13px; min-width: 76px; text-align: right; }
+.play { width: 48px; min-width: 48px; padding: 0; font-size: 16px; }
+.scenes { display: flex; gap: 6px; padding: 0 12px 12px; overflow-x: auto; scrollbar-width: thin; }
+.scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
+.scenes button:hover { border-color: var(--soft); }
+.scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.live { background: var(--green); }
+.dot.busy { background: var(--amber); }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { flex: 1; border: 0; background: none; padding: 11px 6px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.pane { padding: 14px; display: none; }
+.pane.on { display: block; }
+textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; resize: vertical; min-height: 92px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.row .lbl { font-size: 14px; color: var(--soft); margin-right: 2px; }
+.split { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; min-height: 44px; }
+.check input { width: 18px; height: 18px; accent-color: var(--green); }
+.hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
+.notes { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.note { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 14px; background: var(--bg); overflow-wrap: anywhere; }
+.note.me { background: var(--sel); }
+.note small { display: block; color: var(--faint); font-size: 12px; margin-bottom: 2px; }
+.empty { color: var(--faint); font-size: 14px; }
+.slider { display: grid; grid-template-columns: 92px minmax(0, 1fr) 42px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+.slider input { accent-color: var(--green); width: 100%; }
+.slider output { font-variant-numeric: tabular-nums; color: var(--soft); text-align: right; font-size: 13px; }
+pre.rules { white-space: pre-wrap; font: 13.5px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 0; max-height: 360px; overflow: auto; }
+.castcv { width: 100%; aspect-ratio: 16 / 9; display: block; border-radius: 10px; border: 1px solid var(--line); }
+dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--ink); padding: 18px; width: min(560px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+dialog h2 { margin: 0 0 6px; font: 400 26px/1.1 "Patrick Hand", cursive; }
+dialog label { display: block; font-size: 14px; color: var(--soft); margin: 10px 0 4px; }
+dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px; min-height: 44px; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.x { width: 44px; min-width: 44px; padding: 0; font-size: 18px; }
+.login { max-width: 360px; margin: 18vh auto 0; padding: 22px; text-align: center; }
+.login input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px; margin: 12px 0; min-height: 44px; }
+.err { color: var(--red); font-size: 14px; min-height: 1.2em; }
+.toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; z-index: 20; max-width: calc(100vw - 32px); }
+.toast:empty { display: none; }
+.export { font-size: 13.5px; color: var(--soft); }
+.export a { color: var(--green); font-weight: 600; }
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 12px; }
+.ref { border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 13px; position: relative; }
+.ref.do { border-color: var(--green); }
+.ref.dont { border-color: var(--red); }
+.ref img { width: 100%; display: block; border-radius: 6px; margin-bottom: 4px; }
+.ref b { display: block; }
+.ref .btn.danger { width: 100%; margin-top: 6px; }
+.pane[data-pane="refs"] input[type=text] { width: 100%; margin: 8px 0 0; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px; min-height: 44px; }
+.pane[data-pane="refs"] textarea { margin-top: 8px; }
+.pane[data-pane="refs"] input[type=file] { margin: 10px 0 0; max-width: 100%; font-size: 14px; color: var(--soft); }
+input[type=file]::file-selector-button { font: inherit; font-weight: 600; color: var(--ink); border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 0 14px; min-height: 44px; margin-right: 10px; cursor: pointer; }
+input[type=file]::file-selector-button:hover { background: var(--sel); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div id="app" hidden>
+  <header class="top">
+    <a class="back" href="/" title="Back to the hub">‹ Hub</a>
+    <h1>Storytime studio</h1>
+    <select id="pick" aria-label="Story" title="Pick a story"></select>
+    <button class="btn go" id="newBtn" type="button"><span class="ic" aria-hidden="true">+</span>New story</button>
+  </header>
+  <div class="wrap">
+    <section class="card stage" aria-label="Preview">
+      <div class="screen" id="screen"><canvas id="cv" aria-label="Animation preview" role="img"></canvas><span class="badge" id="badge"></span></div>
+      <div class="controls">
+        <div class="bar">
+          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)">▶</button>
+          <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Time">
+          <span class="time" id="time">0.0 / 0.0 s</span>
+        </div>
+        <div class="group">
+          <button class="btn seg" id="voiceBtn" type="button" aria-pressed="false" title="Read narration and lines aloud while playing (your device's voice; not in the saved video)">Read aloud</button>
+          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><span class="ic" aria-hidden="true">⤓</span>Save video</button>
+        </div>
+      </div>
+      <div class="scenes" id="scenes"></div>
+      <div class="status"><span class="dot" id="liveDot"></span><span id="statusText" style="flex:1;min-width:0">Loading…</span></div>
+      <div class="status export" id="exportOut" hidden></div>
+    </section>
+    <aside class="side">
+      <section class="card">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="fb">Feedback</button>
+          <button role="tab" aria-selected="false" data-tab="notes">Team</button>
+          <button role="tab" aria-selected="false" data-tab="cast">Cast</button>
+          <button role="tab" aria-selected="false" data-tab="style">Look</button>
+          <button role="tab" aria-selected="false" data-tab="refs">Refs</button>
+          <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
+        </div>
+        <div class="pane on" data-pane="fb">
+          <textarea id="fbText" placeholder="Tell the team what to change, in your own words. e.g. &quot;Leo should look more annoyed, and hold the point longer.&quot;"></textarea>
+          <label class="check"><input type="checkbox" id="fbRule"> Make this a rule for every story</label>
+          <div class="row">
+            <button class="btn go" id="fbSend" type="button">Send feedback</button>
+          </div>
+          <p class="hint" id="fbHint">The team revises and the new version appears here by itself.</p>
+          <div class="split">
+            <div class="row" role="group" aria-label="Rate this version">
+              <span class="lbl">This version:</span>
+              <button class="btn" id="rateGood" type="button" title="This version works"><span class="ic" aria-hidden="true">👍</span>Good</button>
+              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><span class="ic" aria-hidden="true">👎</span>Not yet</button>
+            </div>
+          </div>
+          <div class="split" id="fullBox" hidden>
+            <p class="hint">Happy with the sample? The team keeps the characters and moves and makes the whole story.</p>
+            <div class="row"><button class="btn go" id="fullBtn" type="button">Approve sample</button></div>
+          </div>
+        </div>
+        <div class="pane" data-pane="notes"><div class="notes" id="notes"></div></div>
+        <div class="pane" data-pane="cast"><canvas class="castcv" id="castCv"></canvas><p class="hint">The model sheet: every shot is drawn from these same characters.</p></div>
+        <div class="pane" data-pane="style">
+          <div id="sliders"></div>
+          <label class="check" style="margin-top:6px"><input type="checkbox" id="styleDefault"> Also make it my default for new stories</label>
+          <div class="row">
+            <button class="btn go" id="styleSend" type="button">Send look to team</button>
+            <button class="btn" id="styleReset" type="button">Undo changes</button>
+          </div>
+          <p class="hint">Changes preview here at once. Higher hold = choppier, more hand-made. Boil = lines that shimmer between drawings.</p>
+        </div>
+        <div class="pane" data-pane="refs">
+          <div class="row" role="group" aria-label="Kind" style="margin-top:0">
+            <button class="btn seg" id="refDo" type="button" aria-pressed="true" title="The team copies this">DO: copy</button>
+            <button class="btn seg" id="refDont" type="button" aria-pressed="false" title="The team avoids this">DON'T: avoid</button>
+          </div>
+          <input type="file" id="refFile" accept="image/*,video/*" multiple aria-label="Pictures or a video">
+          <input type="text" id="refTitle" maxlength="80" placeholder="Title, e.g. weight on one leg" aria-label="Title">
+          <textarea id="refNote" placeholder="What to copy or avoid, in your own words. e.g. &quot;Shoulders drop and head hangs when sad, not just the eyes.&quot;" aria-label="Note"></textarea>
+          <input type="text" id="refLink" placeholder="Link to a video or page (optional)" aria-label="Link">
+          <input type="text" id="refTags" placeholder="Tags: body, hands, face, motion" aria-label="Tags">
+          <label class="check"><input type="checkbox" id="refTell" checked> Tell the team to re-read them</label>
+          <div class="row"><button class="btn go" id="refAdd" type="button">Add reference</button></div>
+          <div class="refs" id="refList"></div>
+          <p class="hint">The director follows every DO and avoids every DON'T; the critic compares each sheet to them. Pictures are shrunk here; a video becomes 4 frames. Longer videos: upload them in the hub's <a href="/library.html">Library</a> with the tags <b>studio</b> and <b>do</b> or <b>dont</b> (it keeps 16 frames); the team reads those too.</p>
+        </div>
+        <div class="pane" data-pane="rules">
+          <pre class="rules" id="rulesText">…</pre>
+          <p class="hint">Your rules and feedback. A nightly job on your PC folds new feedback into these (one small Claude call, none when nothing is new). See docs/handoff/studio.md.</p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div id="loginBox" class="card login" hidden>
+  <h1 style="font:400 30px/1.1 'Patrick Hand',cursive;margin:0">Storytime studio</h1>
+  <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" type="submit" style="width:100%">Open studio</button></form>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<dialog id="newDlg">
+  <form method="dialog" id="newForm">
+    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close">✕</button></div>
+    <p class="hint" style="margin-top:0">Your Claude team writes a short sample first. You review it, give feedback, then ask for the full video.</p>
+    <label for="newIdea">What's the story?</label>
+    <textarea id="newIdea" required placeholder="e.g. The time my little brother convinced me our cat could talk."></textarea>
+    <label for="newTitle">Title (optional)</label>
+    <input type="text" id="newTitle" maxlength="80">
+    <label for="newTeam">Team</label>
+    <select id="newTeam">
+      <option value="2">Director + critic (2 accounts, better)</option>
+      <option value="1">Director only (1 account, cheaper)</option>
+    </select>
+    <label for="newModel">Model</label>
+    <select id="newModel">
+      <option value="sonnet">Sonnet (recommended)</option>
+      <option value="opus">Opus (slower, uses more)</option>
+      <option value="haiku">Haiku (lightest)</option>
+    </select>
+    <div class="err" id="newErr"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn go" id="newGo" value="ok">Start story</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module">
+import { validateProject, normalizeStyle, SAMPLE_PROJECT, STYLE_RANGES, DEFAULT_STYLE } from './studio/schema.js';
+import { FIRST_VIDEO } from './studio/first-video.js';
+import { renderFrame, renderBackground, renderCastSheet, paint, paintOps, makeGrain, locate, quantize, timeline, totalSeconds, W, H } from './studio/render.js';
+
+const $ = (id) => document.getElementById(id);
+const ls = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : new Date(t).toLocaleDateString(); };
+// Run an action with its button shown as busy (disabled, "Sending…"), then put it back.
+async function busy(btn, label, fn) {
+  if (btn.getAttribute('aria-busy') === 'true') return;
+  const html = btn.innerHTML;
+  btn.setAttribute('aria-busy', 'true'); btn.disabled = true; btn.textContent = label;
+  try { return await fn(); } finally { btn.innerHTML = html; btn.removeAttribute('aria-busy'); btn.disabled = false; updateButtons(); }
+}
+// Disabled buttons say why in their title (shown on hover and read by screen readers).
+function setOff(btn, why, base) {
+  btn.dataset.title ??= btn.title || base || '';
+  if (btn.getAttribute('aria-busy') === 'true') return;
+  btn.disabled = !!why;
+  btn.title = why || btn.dataset.title;
+}
+let toastTimer = 0;
+const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($('toast').textContent = ''), 3200); };
+
+let pw = ls.get('hubpw') || '';
+async function api(op, body, query = '') {
+  const res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { showLogin('Wrong password.'); throw new Error('Wrong password.'); }
+  if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+  return j;
+}
+
+// ---------- state ----------
+const S = {
+  projects: [], id: ls.get('studio-id') || '', meta: null, notes: [], feedback: [], sheet: null, rules: null,
+  project: null, demo: true, rev: -1, seen: 0, styleOver: {}, waiting: false,
+};
+const DEMOS = { cookie: SAMPLE_PROJECT, first: FIRST_VIDEO };
+let P = validateProject(SAMPLE_PROJECT).project; // what is on screen (style overrides applied)
+let base = P; // the same before overrides
+
+// ---------- drawing ----------
+const cv = $('cv');
+const ctx = cv.getContext('2d');
+const grain = makeGrain(document);
+const bgCache = new Map();
+let t = 0, playing = false, playFrom = 0, playAt = 0, lastKey = '', total = totalSeconds(P);
+
+function sizeCanvas() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(320, Math.min(W, Math.round(r.width * dpr)));
+  if (cv.width !== w) { cv.width = w; cv.height = Math.round((w * H) / W); lastKey = ''; }
+}
+function bgFor(i) {
+  const s = P.scenes[i];
+  const key = JSON.stringify([s.bg, s.props, s.id, P.style.wobble, P.style.line, P.style.ink, P.style.misregister]);
+  let c = bgCache.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    paintOps(c.getContext('2d'), renderBackground(P, s));
+    if (bgCache.size > 8) bgCache.delete(bgCache.keys().next().value);
+    bgCache.set(key, c);
+  }
+  return c;
+}
+function draw(force = false) {
+  if (!P.scenes.length) return;
+  const at = locate(P, Math.min(t, total - 1e-3));
+  const q = quantize(P.style, at.t);
+  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${JSON.stringify(P.style)}`;
+  if (!force && key === lastKey) return;
+  lastKey = key;
+  const f = renderFrame(P, at.scene, at.t, { withBg: false });
+  paint(ctx, f, { width: cv.width, height: cv.height, bgCanvas: bgFor(at.scene), grainCanvas: grain });
+  $('time').textContent = `${t.toFixed(1)} / ${total.toFixed(1)} s`;
+  if (!scrubbing) $('scrub').value = String(Math.round((t / total) * 1000));
+  for (const b of $('scenes').children) b.setAttribute('aria-current', String(Number(b.dataset.i) === at.scene));
+  if (playing) speakFor(at.scene, at.t);
+}
+function tick(now) {
+  if (playing) {
+    t = playFrom + (now - playAt) / 1000;
+    if (t >= total) { t = total - 1e-3; setPlaying(false); }
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  if (on && t >= total - 0.05) t = 0;
+  playing = on;
+  playFrom = t;
+  playAt = performance.now();
+  $('playBtn').textContent = on ? '❚❚' : '▶';
+  $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play');
+  $('playBtn').title = on ? 'Pause (space)' : 'Play (space)';
+  if (!on) { speech.cancel(); spoken.clear(); }
+}
+let scrubbing = false;
+$('scrub').addEventListener('input', (e) => { scrubbing = true; t = (Number(e.target.value) / 1000) * total; if (playing) setPlaying(true); draw(); });
+$('scrub').addEventListener('change', () => (scrubbing = false));
+$('playBtn').onclick = () => setPlaying(!playing);
+$('screen').onclick = () => setPlaying(!playing);
+document.addEventListener('keydown', (e) => { if (e.key === ' ' && !/TEXTAREA|INPUT|SELECT/.test(document.activeElement?.tagName)) { e.preventDefault(); setPlaying(!playing); } });
+
+function showProject(project, { keepTime = false } = {}) {
+  base = project;
+  applyStyle();
+  total = Math.max(0.1, totalSeconds(P));
+  if (!keepTime || t > total) t = 0;
+  const tl = timeline(P);
+  $('scenes').innerHTML = tl.map((x) => `<button type="button" data-i="${x.i}" title="${esc(P.scenes[x.i].narration)}">${x.i + 1}. ${esc(P.scenes[x.i].id)}</button>`).join('');
+  bgCache.clear();
+  lastKey = '';
+  drawCast();
+  draw(true);
+}
+$('scenes').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; t = timeline(P)[Number(b.dataset.i)].start + 0.01; if (playing) setPlaying(true); draw(true); };
+function applyStyle() {
+  P = { ...base, style: normalizeStyle({ ...base.style, ...S.styleOver }, base.style) };
+  lastKey = '';
+}
+function drawCast() {
+  const c = $('castCv');
+  const w = Math.min(1200, Math.round((c.getBoundingClientRect().width || 360) * Math.min(2, devicePixelRatio || 1)));
+  c.width = w; c.height = Math.round((w * H) / W);
+  paint(c.getContext('2d'), renderCastSheet(P), { width: c.width, height: c.height, grainCanvas: grain });
+}
+new ResizeObserver(() => { sizeCanvas(); draw(true); }).observe(cv);
+
+// ---------- voice (preview only) ----------
+const speech = window.speechSynthesis || { speak() {}, cancel() {} };
+const spoken = new Set();
+let voiceOn = ls.get('studio-voice') === '1';
+function setVoice(on) { voiceOn = on; ls.set('studio-voice', on ? '1' : '0'); $('voiceBtn').setAttribute('aria-pressed', String(on)); if (!on) speech.cancel(); }
+$('voiceBtn').onclick = () => setVoice(!voiceOn);
+setVoice(voiceOn);
+function say(text, pitch = 1, rate = 1) {
+  if (!voiceOn || !window.SpeechSynthesisUtterance) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.pitch = pitch; u.rate = rate;
+  speech.speak(u);
+}
+function speakFor(si, lt) {
+  const s = P.scenes[si];
+  if (s.narration && !spoken.has(`n${si}`)) { spoken.add(`n${si}`); say(s.narration, 1, 1.02); }
+  for (const a of s.actors) for (const b of a.beats) {
+    const k = `b${si}:${a.who}:${b.t}`;
+    if (b.say && lt >= b.t && !spoken.has(k)) {
+      spoken.add(k);
+      const h = [...a.who].reduce((x, c) => x + c.charCodeAt(0), 0);
+      say(b.say, 0.75 + (h % 7) * 0.1, 1.05);
+    }
+  }
+}
+
+// ---------- contact sheet for the critics ----------
+// The cast row on top, then three moments of each scene (up to 8 scenes).
+async function makeSheet(cell = 320) {
+  const ch = Math.round((cell * H) / W);
+  const scenes = P.scenes.map((s, i) => i);
+  const pickN = Math.min(8, scenes.length);
+  const pick = Array.from({ length: pickN }, (_, k) => scenes[Math.round((k * (scenes.length - 1)) / Math.max(1, pickN - 1))]);
+  const castH = Math.round(cell * 3 * 0.375);
+  const sheet = document.createElement('canvas');
+  sheet.width = cell * 3;
+  sheet.height = castH + pick.length * ch;
+  const g = sheet.getContext('2d');
+  const tmp = document.createElement('canvas');
+  const noGrain = { ...P, style: { ...P.style, grain: 0 } };
+  tmp.width = cell * 3; tmp.height = Math.round((tmp.width * H) / W);
+  paint(tmp.getContext('2d'), renderCastSheet(noGrain), { width: tmp.width, height: tmp.height });
+  g.drawImage(tmp, 0, tmp.height * 0.3, tmp.width, castH, 0, 0, tmp.width, castH);
+  tmp.width = cell; tmp.height = ch;
+  const tc = tmp.getContext('2d');
+  pick.forEach((si, row) => {
+    const d = noGrain.scenes[si].duration;
+    [0.12, 0.5, 0.88].forEach((f, col) => {
+      const fr = renderFrame(noGrain, si, d * f);
+      paint(tc, fr, { width: cell, height: ch });
+      g.drawImage(tmp, col * cell, castH + row * ch);
+      g.fillStyle = 'rgba(0,0,0,.65)';
+      g.fillRect(col * cell, castH + row * ch, 92, 20);
+      g.fillStyle = '#fff';
+      g.font = '13px system-ui, sans-serif';
+      g.fillText(`scene ${si + 1} · ${(d * f).toFixed(1)}s`, col * cell + 5, castH + row * ch + 14);
+    });
+  });
+  g.fillStyle = 'rgba(0,0,0,.25)';
+  for (let x = 1; x < 3; x++) g.fillRect(x * cell, castH, 1, sheet.height - castH);
+  const url = sheet.toDataURL('image/png');
+  if (url.length * 0.75 > 370 * 1024 && cell > 200) return makeSheet(Math.round(cell * 0.8));
+  return url;
+}
+let sheetBusy = false;
+async function maybeUploadSheet() {
+  if (S.demo || sheetBusy || !S.meta?.rev || (S.sheet && S.sheet.rev >= S.meta.rev)) return;
+  sheetBusy = true;
+  const rev = S.meta.rev;
+  try {
+    await document.fonts.ready;
+    const saved = S.styleOver;
+    S.styleOver = {};
+    applyStyle(); // critics see the project as saved, not this device's preview tweaks
+    const png = await makeSheet();
+    S.styleOver = saved;
+    applyStyle();
+    await api('studio-sheet', { id: S.id, rev, png });
+    S.sheet = { rev, at: Date.now() };
+  } catch (e) {
+    console.warn('sheet', e);
+  } finally {
+    sheetBusy = false;
+  }
+}
+
+// ---------- live data ----------
+async function loadList() {
+  const { projects } = await api('studio-list');
+  S.projects = projects;
+  if (S.id && !projects.some((p) => p.id === S.id)) S.id = '';
+  if (!S.id && !S.demoPick && projects[0]) S.id = projects[0].id;
+  const demos = Object.entries(DEMOS).map(([k, d]) => `<option value="demo:${k}"${!S.id && (S.demoPick || 'cookie') === k ? ' selected' : ''}>Demo: ${esc(d.title)}</option>`).join('');
+  $('pick').innerHTML = projects.map((p) => `<option value="${p.id}"${p.id === S.id ? ' selected' : ''}>${esc(p.title)}${p.stage === 'full' ? ' · full' : ''}</option>`).join('') + demos;
+}
+$('pick').onchange = (e) => {
+  const v = e.target.value;
+  S.rev = -1; S.seen = 0; S.styleOver = {};
+  if (v.startsWith('demo:')) {
+    // A built-in demo (the drawing style, or the copy of XIAO's reference video).
+    S.id = ''; S.demoPick = v.slice(5); S.demo = true;
+    buildSliders(); showProject(validateProject(DEMOS[S.demoPick] || SAMPLE_PROJECT).project); setStatus();
+    return;
+  }
+  S.id = v; S.demoPick = ''; ls.set('studio-id', S.id); buildSliders(); refresh(true);
+};
+
+async function refresh(full = false) {
+  if (!S.id) { S.demo = true; setStatus(); return; }
+  const q = full || S.rev < 0 ? `&id=${S.id}` : `&id=${S.id}&since=${S.rev}&seen=${S.seen}`;
+  const g = await api('studio-get', null, q);
+  if (g.same) return maybeUploadSheet();
+  const prevRev = S.rev;
+  S.meta = g.meta; S.notes = g.notes || []; S.feedback = g.feedback || []; S.sheet = g.sheet;
+  S.seen = S.notes.length ? S.notes[S.notes.length - 1].at : 0;
+  const lastFb = S.feedback.filter((f) => f.kind !== 'rate').slice(-1)[0];
+  S.waiting = !g.project || (lastFb && lastFb.rev >= g.meta.rev);
+  if (g.project && g.meta.rev !== prevRev) {
+    const v = validateProject(g.project);
+    S.demo = !v.ok;
+    if (v.ok) {
+      showProject(v.project, { keepTime: prevRev >= 0 });
+      if (prevRev >= 0) { $('screen').parentElement.classList.remove('flash'); void $('screen').offsetWidth; $('screen').parentElement.classList.add('flash'); toast(`Revision ${g.meta.rev} is in.`); }
+    }
+  } else if (!g.project) {
+    S.demo = true;
+    if (prevRev !== 0) showProject(validateProject(SAMPLE_PROJECT).project);
+  }
+  S.rev = g.meta.rev;
+  renderNotes();
+  setStatus();
+  maybeUploadSheet();
+}
+function setStatus() {
+  const m = S.meta;
+  const dot = $('liveDot');
+  $('badge').textContent = S.demo ? (S.id ? 'Demo while your team draws the sample…' : 'Demo story') : '';
+  $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
+  updateButtons();
+  if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one; this demo shows the drawing style.'; return; }
+  if (!m) return;
+  dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
+  const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
+  const what = S.waiting ? ' · the team is working on it…' : ' · live';
+  $('statusText').innerHTML = `${by}${what} · <a href="/" title="Open the hub">thread #${m.thread}</a>${m.stage === 'full' ? ' · full video' : ' · sample'}`;
+}
+function updateButtons() {
+  const noStory = !S.id ? 'Start a story first' : '';
+  const noDraw = noStory || (!S.meta?.rev ? 'Nothing to rate yet: wait for the first drawing' : '');
+  setOff($('fbSend'), noStory, 'Send this to the director and critic');
+  setOff($('rateGood'), noDraw);
+  setOff($('rateBad'), noDraw);
+  $('fbHint').textContent = noStory ? 'Start a story with “New story” first; then feedback goes to its team.' : 'The team revises and the new version appears here by itself.';
+  lookButtons();
+}
+function renderNotes() {
+  const items = [
+    ...S.notes.map((n) => ({ at: n.at, who: n.by || 'team', text: n.text, me: false })),
+    ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? '👍' : '👎'} rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
+  ].sort((a, b) => a.at - b.at);
+  $('notes').innerHTML = items.length ? items.map((n) => `<div class="note${n.me ? ' me' : ''}"><small>${esc(n.who)} · ${ago(n.at)}</small>${esc(n.text)}</div>`).join('') : '<p class="empty">Notes from the director and critic appear here as they work.</p>';
+  $('notes').scrollTop = $('notes').scrollHeight;
+}
+async function loadRules() {
+  try {
+    S.rules = await api('studio-rules');
+    $('rulesText').textContent = (S.rules.text || 'No rules yet. Tick “Make this a rule” when you send feedback.') + (Object.keys(S.rules.style || {}).length ? `\n\nDefault look: ${JSON.stringify(S.rules.style)}` : '') + `\n\n(version ${S.rules.version || 0})` + (S.rules.fromRefs ? `\n\nFrom your reference videos (every story follows these too):\n${S.rules.fromRefs}` : '');
+  } catch {}
+}
+
+// ---------- feedback ----------
+$('fbSend').onclick = async () => {
+  const text = $('fbText').value.trim();
+  if (!text) return $('fbText').focus();
+  if (!S.id) return toast('Start a story first.');
+  await busy($('fbSend'), 'Sending…', async () => {
+    try {
+      await api('studio-feedback', { id: S.id, text, rule: $('fbRule').checked });
+      $('fbText').value = ''; $('fbRule').checked = false;
+      toast('Sent. The team is revising.');
+      S.rev = -1; await refresh(true);
+      loadRules();
+    } catch (e) { toast(e.message); }
+  });
+};
+for (const [id, good] of [['rateGood', true], ['rateBad', false]])
+  $(id).onclick = async () => {
+    if (!S.id || !S.meta?.rev) return toast('Nothing to rate yet.');
+    await busy($(id), 'Saving…', async () => {
+      try { await api('studio-rate', { id: S.id, rev: S.meta.rev, good, note: $('fbText').value.trim() }); toast(good ? 'Noted: this one works.' : 'Noted: not there yet.'); S.rev = -1; refresh(true); } catch (e) { toast(e.message); }
+    });
+  };
+$('fullBtn').onclick = async () => {
+  if (!confirm('Approve this sample and ask the team for the full video?')) return;
+  await busy($('fullBtn'), 'Sending…', async () => {
+    try { await api('studio-full', { id: S.id }); toast('The team is making the full video.'); S.rev = -1; await refresh(true); } catch (e) { toast(e.message); }
+  });
+};
+
+// ---------- look sliders ----------
+const KNOBS = { fps: 'Frames/s', hold: 'Hold', boil: 'Boil', wobble: 'Wobble', line: 'Line', grain: 'Paper', misregister: 'Colour slip', shade: 'Shading' };
+function buildSliders() {
+  $('sliders').innerHTML = Object.entries(KNOBS).map(([k, label]) => {
+    const [lo, hi] = STYLE_RANGES[k];
+    const step = k === 'fps' || k === 'hold' ? 1 : (hi - lo) / 40;
+    const v = P.style[k];
+    return `<label class="slider"><span>${label}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${step}" value="${v}"><output>${+Number(v).toFixed(2)}</output></label>`;
+  }).join('');
+  lookButtons();
+}
+$('sliders').oninput = (e) => {
+  const k = e.target.dataset.k;
+  if (!k) return;
+  S.styleOver[k] = Number(e.target.value);
+  e.target.nextElementSibling.textContent = +Number(e.target.value).toFixed(2);
+  applyStyle(); bgCache.clear(); drawCast(); draw(true);
+  lookButtons();
+};
+function lookButtons() {
+  const why = Object.keys(S.styleOver).length ? '' : 'Move a slider first';
+  setOff($('styleSend'), why, 'Ask the team to draw with this look');
+  setOff($('styleReset'), why, 'Put the sliders back to this story\'s look');
+}
+$('styleReset').onclick = () => { S.styleOver = {}; applyStyle(); buildSliders(); bgCache.clear(); drawCast(); draw(true); lookButtons(); };
+$('styleSend').onclick = async () => {
+  const keys = Object.keys(S.styleOver);
+  if (!keys.length) return toast('Move a slider first.');
+  const style = Object.fromEntries(keys.map((k) => [k, P.style[k]]));
+  if (!S.id && !$('styleDefault').checked) return toast('No story yet: tick “make it my default” to save this look.');
+  await busy($('styleSend'), 'Sending…', async () => {
+    try {
+      if ($('styleDefault').checked) await api('studio-rules', { style });
+      if (S.id) await api('studio-feedback', { id: S.id, text: `Use this look: style ${JSON.stringify(style)}.`, rule: false });
+      toast(S.id ? 'Sent to the team.' : 'Saved as your default.');
+      loadRules();
+    } catch (e) { toast(e.message); }
+  });
+};
+
+// ---------- references (do / don't) ----------
+let refKind = 'do';
+const refImgCache = {};
+function setRefKind(k) {
+  refKind = k;
+  $('refDo').setAttribute('aria-pressed', String(k === 'do'));
+  $('refDont').setAttribute('aria-pressed', String(k === 'dont'));
+}
+$('refDo').onclick = () => setRefKind('do');
+$('refDont').onclick = () => setRefKind('dont');
+// Shrink a picture (or video frame) to a JPEG under the server's 150 KB limit.
+function shrink(src, w, h) {
+  let scale = Math.min(1, 800 / Math.max(w, h)), q = 0.82, url = '';
+  for (let i = 0; i < 6; i++) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    url = c.toDataURL('image/jpeg', q);
+    if (url.length * 0.75 < 140 * 1024) break;
+    scale *= 0.8; q = Math.max(0.5, q - 0.08);
+  }
+  return url;
+}
+const readImage = (file) => new Promise((ok, no) => {
+  const u = URL.createObjectURL(file), im = new Image();
+  im.onload = () => { const d = shrink(im, im.naturalWidth, im.naturalHeight); URL.revokeObjectURL(u); ok(d); };
+  im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Could not read that picture.')); };
+  im.src = u;
+});
+const readVideo = (file) => new Promise((ok, no) => {
+  const u = URL.createObjectURL(file), v = document.createElement('video');
+  v.muted = true; v.preload = 'auto'; v.playsInline = true;
+  const frames = [];
+  v.onerror = () => { URL.revokeObjectURL(u); no(new Error('This browser could not open that video. Add a link instead.')); };
+  v.onloadedmetadata = () => {
+    const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1, n = 4; let i = 0;
+    const next = () => { if (i >= n) { URL.revokeObjectURL(u); return ok(frames); } v.currentTime = Math.min(dur - 0.05, dur * (i + 0.5) / n); };
+    v.onseeked = () => { frames.push(shrink(v, v.videoWidth, v.videoHeight)); i++; next(); };
+    next();
+  };
+  v.src = u;
+});
+async function loadRefs() {
+  try {
+    const { refs } = await api('studio-refs');
+    const box = $('refList');
+    if (!refs.length) { box.innerHTML = '<p class="empty">No references yet. Add pictures of what you want (DO) and what you hate (DON\'T).</p>'; return; }
+    box.innerHTML = refs.slice().reverse().map((r) => `<div class="ref ${r.kind}" data-id="${r.id}">${r.images.length ? `<img alt="" data-ref="${r.id}">` : ''}<b>${r.kind === 'do' ? 'DO' : "DON'T"}: ${esc(r.title)}</b>${esc(r.note)}${r.url ? `<br><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a>` : ''}${r.tags.length ? `<br><small>${esc(r.tags.join(', '))}</small>` : ''}<button class="btn danger" data-del="${r.id}" type="button" title="Delete this reference for good">Delete</button></div>`).join('');
+    for (const im of box.querySelectorAll('img[data-ref]')) {
+      const id = im.dataset.ref;
+      try { refImgCache[id] ||= await api('studio-ref', null, `&id=${id}&n=0`); im.src = `data:${refImgCache[id].mime};base64,${refImgCache[id].data}`; } catch {}
+    }
+  } catch {}
+}
+$('refList').onclick = async (e) => {
+  const b = e.target.closest('[data-del]');
+  const id = b && b.dataset.del;
+  if (!id || !confirm('Delete this reference? This cannot be undone.')) return;
+  await busy(b, 'Deleting…', async () => {
+    try { await api('studio-ref-del', { id }); delete refImgCache[id]; await loadRefs(); } catch (er) { toast(er.message); }
+  });
+};
+$('refAdd').onclick = () => busy($('refAdd'), 'Adding…', async () => {
+  const files = [...$('refFile').files];
+  try {
+    let images = [], type = 'image';
+    const vid = files.find((f) => f.type.startsWith('video/'));
+    if (vid) { type = 'video'; images = await readVideo(vid); }
+    else for (const f of files.slice(0, 4)) images.push(await readImage(f));
+    if (files.length > 4 && !vid) toast('Only the first 4 pictures were used; add the rest as another reference.');
+    await api('studio-ref-add', { kind: refKind, type, title: $('refTitle').value, note: $('refNote').value, url: $('refLink').value, tags: $('refTags').value, images });
+    if ($('refTell').checked && S.id && S.meta && S.meta.rev) {
+      try { await api('studio-feedback', { id: S.id, text: `References changed: a new ${refKind === 'do' ? 'DO' : "DON'T"} was added. Call studio_refs again and apply it.` }); } catch {}
+    }
+    for (const x of ['refFile', 'refTitle', 'refNote', 'refLink', 'refTags']) $(x).value = '';
+    toast('Reference added.');
+    loadRefs();
+  } catch (e) { toast(e.message); }
+});
+
+// ---------- tabs ----------
+document.querySelector('.tabs').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  for (const x of document.querySelectorAll('.tabs button')) x.setAttribute('aria-selected', String(x === b));
+  for (const p of document.querySelectorAll('.pane')) p.classList.toggle('on', p.dataset.pane === b.dataset.tab);
+  if (b.dataset.tab === 'cast') drawCast();
+  if (b.dataset.tab === 'rules') loadRules();
+  if (b.dataset.tab === 'refs') loadRefs();
+};
+
+// ---------- new story ----------
+$('newBtn').onclick = () => { $('newErr').textContent = ''; $('newDlg').showModal(); $('newIdea').focus(); };
+$('newForm').addEventListener('submit', async (e) => {
+  if (e.submitter?.value !== 'ok') return;
+  e.preventDefault();
+  const idea = $('newIdea').value.trim();
+  if (!idea) return ($('newErr').textContent = 'Say what the story is about.');
+  $('newGo').disabled = true; $('newGo').textContent = 'Starting…';
+  try {
+    const r = await api('studio-new', { idea, title: $('newTitle').value.trim(), team: Number($('newTeam').value), model: $('newModel').value });
+    $('newDlg').close();
+    $('newIdea').value = ''; $('newTitle').value = '';
+    S.id = r.id; ls.set('studio-id', r.id); S.rev = -1; S.seen = 0;
+    await loadList(); await refresh(true);
+    toast(`Started: thread #${r.thread}. The sample appears here when it's drawn.`);
+  } catch (err) { $('newErr').textContent = err.message; }
+  $('newGo').disabled = false; $('newGo').textContent = 'Start story';
+});
+
+// ---------- export ----------
+// Plays the whole video into a hidden canvas and records it with the
+// browser's own encoder: WebM on Chrome/Android/Firefox, MP4 on Safari.
+$('exportBtn').onclick = async () => {
+  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) return toast('This browser cannot record video. Try Chrome or Safari.');
+  const out = $('exportOut');
+  const btn = $('exportBtn');
+  setPlaying(false);
+  btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Recording…';
+  out.hidden = false;
+  const fps = P.style.fps;
+  const c = document.createElement('canvas');
+  c.width = 1280; c.height = 720;
+  const g = c.getContext('2d');
+  const mime = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  const stream = c.captureStream(fps);
+  const rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: 5_000_000 });
+  const chunks = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const done = new Promise((r) => (rec.onstop = r));
+  const bgs = new Map();
+  const frames = Math.ceil(total * fps);
+  const drawAt = (i) => {
+    const at = locate(P, Math.min(total - 1e-3, i / fps));
+    if (!bgs.has(at.scene)) bgs.set(at.scene, bgFor(at.scene));
+    paint(g, renderFrame(P, at.scene, at.t, { withBg: false }), { width: c.width, height: c.height, bgCanvas: bgs.get(at.scene), grainCanvas: grain });
+  };
+  drawAt(0);
+  rec.start(500);
+  const start = performance.now();
+  for (let i = 0; i < frames; i++) {
+    drawAt(i);
+    out.textContent = `Recording ${Math.round((i / frames) * 100)}% (plays in real time; keep this page open)…`;
+    const wait = start + ((i + 1) * 1000) / fps - performance.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  }
+  rec.stop();
+  await done;
+  const type = rec.mimeType || mime || 'video/webm';
+  const blob = new Blob(chunks, { type });
+  const ext = type.includes('mp4') ? 'mp4' : 'webm';
+  const name = `${(P.title || 'story').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'story'}.${ext}`;
+  const url = URL.createObjectURL(blob);
+  out.innerHTML = `Video ready: <a href="${url}" download="${name}">${esc(name)}</a> (${(blob.size / 1048576).toFixed(1)} MB, captions, no sound; add a voice in any editor).`;
+  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = '<span class="ic" aria-hidden="true">⤓</span>Save video';
+};
+
+// ---------- start ----------
+function showLogin(err = '') { $('app').hidden = true; $('loginBox').hidden = false; $('loginErr').textContent = err; $('pw').focus(); }
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  pw = $('pw').value;
+  try { await api('studio-list'); ls.set('hubpw', pw); start(); } catch (err) { $('loginErr').textContent = err.message; }
+};
+let started = false;
+async function start() {
+  $('loginBox').hidden = true; $('app').hidden = false;
+  sizeCanvas();
+  showProject(P);
+  buildSliders();
+  if (!started) { started = true; requestAnimationFrame(tick); document.fonts?.ready.then(() => { lastKey = ''; drawCast(); draw(true); }); }
+  try { await loadList(); await refresh(true); loadRules(); } catch (e) { $('statusText').textContent = e.message; }
+  setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+  setInterval(() => { if (!document.hidden) loadList().catch(() => {}); }, 30000);
+}
+if (pw) start(); else showLogin();
+</script>
+</body>
+</html>
