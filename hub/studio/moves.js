@@ -18,6 +18,23 @@
 import { act, endPose, toLegacy, POSTURE } from './acting.js';
 
 const STRIDE = 0.11;
+const TAU = Math.PI * 2;
+// Held-pose cycles (move.cycle(pose, time, k)): small changes on the drawing
+// clock while a pose holds, k (0..1) fading them in. Each nudges a copy.
+const nudge = (pose, key, i, dv) => {
+  if (Array.isArray(pose[key])) pose[key] = pose[key].map((v, j) => (j === i ? v + dv : v));
+};
+// The pump's shape over one beat (0..1): hold up, dip (anticipation), punch
+// back up past the pose, settle, hold.
+const PUMP = [[0, 0], [0.42, 0], [0.58, 1], [0.7, -0.35], [0.82, 0], [1, 0]];
+const pump = (c) => {
+  let i = 0;
+  while (i < PUMP.length - 2 && PUMP[i + 1][0] <= c) i++;
+  const [c0, v0] = PUMP[i];
+  const [c1, v1] = PUMP[i + 1];
+  const u = Math.max(0, Math.min(1, (c - c0) / (c1 - c0)));
+  return v0 + (v1 - v0) * (u * u * (3 - 2 * u));
+};
 
 export const MOVE_SET = {
   idle: { settle: true, keys: [[0, {}]] },
@@ -88,22 +105,26 @@ export const MOVE_SET = {
     ],
   },
   point: {
+    opensAt: 0.58,
     keys: [
       [0, {}],
-      [0.18, { handB: [-0.06, 0.13, 0.1], gripB: 'fist', spine: -4, weight: 0.35, twist: -8, yaw: -6 }, 'out'],
-      [0.32, { handB: [0.42, 0.0, 0.06], gripB: 'point', spine: 7, weight: -0.6, twist: 12, yaw: 22, headYaw: 10, fx: 'lines' }, 'back'],
-      [0.55, { handB: [0.39, 0.02, 0.06], gripB: 'point', spine: 5, weight: -0.5, twist: 10, yaw: 18, headYaw: 8 }, 'io'],
+      [0.18, { handB: [0.1, 0.1, 0.14], gripB: 'fist', aimB: [0.6, -0.4, 0.6], spine: -3, weight: 0.3 }, 'out'],
+      [0.34, { armF: [4, 4, 6], handB: [0.08, -0.15, 0.27], gripB: 'point', aimB: [0.8, -0.6, -0.35], spine: 4, weight: -0.5, twist: 8, yaw: 14, headYaw: 6, fx: 'lines' }, 'back'],
+      [0.58, { armF: [4, 4, 6], handB: [0.08, -0.15, 0.27], gripB: 'point', aimB: [0.8, -0.6, -0.35], spine: 3, weight: -0.45, twist: 7, yaw: 12, headYaw: 5 }, 'io'],
     ],
   },
+
+  // The arms go up bent and a little forward (a cheer, not a T-pose), so
+  // in a bust they stay near the body on the way up.
   jump: {
     posture: 0.3,
     keys: [
       [0, {}],
       [0.16, { pelvis: [0, 0.075], spine: 20, armF: [12, -44, 30], armB: [12, -44, 30], squash: 0.9, headPitch: 8 }, 'out'],
-      [0.26, { lift: 0.12, squash: 1.08, armF: [160, 20, 10], armB: [155, 20, 12], spine: -6, footF: [0, 0.04, 0], footB: [0, 0.06, 0], headPitch: -10, toe: 1 }, 'out'],
-      [0.4, { lift: 0.2, armF: [165, 12, 20], armB: [160, 12, 20], footF: [0.01, 0.07, 0], footB: [-0.01, 0.08, 0], headPitch: -6 }, 'out'],
-      [0.54, { lift: 0.07, armF: [120, 10, 30], armB: [115, 10, 30], footF: [0, 0.02, 0] }, 'in'],
-      [0.62, { pelvis: [0, 0.065], squash: 0.9, spine: 15, armF: [40, 12, 30], armB: [40, 10, 30], headPitch: 6 }, 'in'],
+      [0.26, { lift: 0.12, squash: 1.08, armF: [150, 32, 46], armB: [146, 32, 48], spine: -6, footF: [0, 0.04, 0], footB: [0, 0.06, 0], headPitch: -10, toe: 1 }, 'out'],
+      [0.4, { lift: 0.2, armF: [156, 26, 40], armB: [152, 26, 42], footF: [0.01, 0.07, 0], footB: [-0.01, 0.08, 0], headPitch: -6 }, 'out'],
+      [0.54, { lift: 0.07, armF: [110, 34, 62], armB: [106, 34, 62], footF: [0, 0.02, 0] }, 'in'],
+      [0.62, { pelvis: [0, 0.065], squash: 0.9, spine: 15, armF: [36, 22, 52], armB: [36, 20, 52], headPitch: 6 }, 'in'],
       [0.84, { pelvis: [0, 0.01], spine: 3 }, 'out'],
       [1.0, {}, 'io'],
     ],
@@ -239,6 +260,133 @@ export const MOVE_SET = {
       [2.0, { headYaw: 26, twist: 6, gaze: 1, weight: 0.3, headPitch: -3 }, 'io'],
     ],
   },
+  // Hand poses from XIAO's reference f2, acted to the camera. f2 is held
+  // stills: each move reaches its pose by 0.3 s and holds it (breath, blinks
+  // and the mouth go on); a shot that opens on one starts in the pose
+  // (opensAt). Hand targets marked 'face' are in head radii in the head's
+  // own frame (x toward facing, y down, z toward the camera), so a hand on a
+  // cheek stays on it when the head tilts; aimF/aimB point the fingers (the
+  // wrist bends). One anchor per move, so the hand travels, never jumps.
+  // Flat palm on her cheek, the wrist waving a little (about 10 degrees).
+  cheek: {
+    opensAt: 0.82,
+    cycle: (p, t, k) => nudge(p, 'aimF', 0, 0.18 * k * Math.sin((t / 0.84) * TAU)),
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-1.35, 2.4, 0.5, 'face'], gripF: 'edge', aimF: [0.1, -1, 0.2], elbowF: [0.05, 1, 0.1], upperF: 1.2, foreF: 1.2, shrug: 0.15 }, 'out'],
+      [0.56, { handF: [-1.35, 1.75, 0.5, 'face'], gripF: 'edge', aimF: [0.12, -1, 0.05], elbowF: [0.05, 1, 0.1], upperF: 1.35, foreF: 1.35, headRoll: -9, weight: -0.2 }, 'out'],
+      [0.82, { handF: [-1.35, 1.75, 0.5, 'face'], gripF: 'edge', aimF: [0.12, -1, 0.05], elbowF: [0.05, 1, 0.1], upperF: 1.35, foreF: 1.35, headRoll: -9, weight: -0.2 }, 'io'],
+    ],
+  },
+  // A claw grip on her opposite shoulder (nervous).
+  clasp: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [0.14, 0.1, 0.12], gripF: 'drape', foreF: 1.25, shrug: 0.2 }, 'out'],
+      [0.56, { handF: [0.22, 0.05, 0.12], gripF: 'drape', aimF: [0.75, -0.55, -0.35], elbowF: [0, 1, 0.1], foreF: 1.5, armB: [2, 2, 4], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'out'],
+      [0.82, { handF: [0.22, 0.05, 0.12], gripF: 'drape', aimF: [0.75, -0.55, -0.35], elbowF: [0, 1, 0.1], foreF: 1.5, armB: [2, 2, 4], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'io'],
+    ],
+  },
+  // Index finger on her chin (thinking, sly).
+  chin: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-0.75, 2.4, 0.6, 'face'], gripF: 'chin', aimF: [0.4, -1, 0.3] }, 'out'],
+      [0.56, { handF: [-0.75, 1.95, 0.9, 'face'], gripF: 'chin', aimF: [0.3, -1, 0.2], elbowF: [0.2, 1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'out'],
+      [0.82, { handF: [-0.75, 1.95, 0.9, 'face'], gripF: 'chin', aimF: [0.3, -1, 0.2], elbowF: [0.2, 1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'io'],
+    ],
+  },
+  // Both hands round a phone held at the chest, looking over it.
+  phone: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [0.13, 0.08, 0.2], handB: [-0.13, 0.08, 0.2], gripF: 'hold', gripB: 'hold', aimF: [0.3, -1, 0.3], aimB: [-0.3, -1, 0.3], elbowF: [0.15, 1, -0.4], elbowB: [0.15, 1, -0.4], headPitch: 4 }, 'out'],
+      [0.56, { handF: [0.14, 0.045, 0.2], handB: [-0.14, 0.045, 0.2], gripF: 'hold', gripB: 'hold', aimF: [0.8, -0.6, 0.2], aimB: [-0.8, -0.6, 0.2], elbowF: [0.15, 1, -0.4], elbowB: [0.15, 1, -0.4], foreF: 1.15, foreB: 1.15, headPitch: 8, spine: 4, shrug: 0.25 }, 'out'],
+      [0.82, { handF: [0.14, 0.045, 0.2], handB: [-0.14, 0.045, 0.2], gripF: 'hold', gripB: 'hold', aimF: [0.8, -0.6, 0.2], aimB: [-0.8, -0.6, 0.2], elbowF: [0.15, 1, -0.4], elbowB: [0.15, 1, -0.4], foreF: 1.15, foreB: 1.15, headPitch: 8, spine: 4, shrug: 0.25 }, 'io'],
+    ],
+  },
+  // One fist thrown up high (pumped). The elbow folds first, the fist rises
+  // past the shoulder, then the arm straightens up; it lands at 0.75 s.
+  fistup: {
+    opensAt: 1.0,
+    // A fist pump every 1.4 s: the elbow gives (the fist drops about 4% of
+    // the frame), then punches back up past the pose.
+    cycle: (p, t, k) => {
+      const d = pump(((t + 0.7) / 1.4) % 1) * k;
+      nudge(p, 'armF', 0, -6 * d);
+      nudge(p, 'armF', 2, Math.max(0, 32 * d));
+      p.shrugF = Math.max(0, (p.shrugF || 0) - 0.4 * d);
+      p.headPitch = (p.headPitch || 0) + 2 * d;
+    },
+    keys: [
+      [0, {}],
+      [0.22, { armF: [18, 28, 128], gripF: 'fist', spine: 2, headPitch: 3, shrug: 0.15 }, 'io'],
+      [0.46, { armF: [96, 22, 118], gripF: 'fist', handB: [-0.1, 0.11, 0.16], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], spine: -2, headPitch: -2 }, 'io'],
+      [0.75, { armF: [174, -4, 2], gripF: 'fist', handB: [-0.11, 0.09, 0.17], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'out'],
+      [1.0, { armF: [174, -4, 2], gripF: 'fist', handB: [-0.11, 0.09, 0.17], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'io'],
+    ],
+  },
+
+  // Palms pressed together over her nose and mouth.
+  cover: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-0.85, 2.5, 0.7, 'face'], handB: [0.85, 2.5, 0.7, 'face'], gripF: 'cup2', gripB: 'cup2', aimF: [0.3, -1, 0.2], aimB: [-0.3, -1, 0.2], elbowF: [0.3, 1, 0.1], elbowB: [0.3, 1, 0.1], upperF: 1.2, upperB: 1.2, foreF: 1.2, foreB: 1.2, shrug: 0.3 }, 'out'],
+      [0.56, { handF: [-0.62, 1.6, 1.0, 'face'], handB: [0.62, 1.6, 1.0, 'face'], gripF: 'cup2', gripB: 'cup2', aimF: [0.4, -1, 0.1], aimB: [-0.4, -1, 0.1], elbowF: [0.3, 1, 0.1], elbowB: [0.3, 1, 0.1], upperF: 1.35, upperB: 1.35, foreF: 1.35, foreB: 1.35, headPitch: 6, shrug: 0.6, spine: 5 }, 'out'],
+      [0.82, { handF: [-0.62, 1.6, 1.0, 'face'], handB: [0.62, 1.6, 1.0, 'face'], gripF: 'cup2', gripB: 'cup2', aimF: [0.4, -1, 0.1], aimB: [-0.4, -1, 0.1], elbowF: [0.3, 1, 0.1], elbowB: [0.3, 1, 0.1], upperF: 1.35, upperB: 1.35, foreF: 1.35, foreB: 1.35, headPitch: 6, shrug: 0.6, spine: 5 }, 'io'],
+    ],
+  },
+  // Index finger up beside her face, thumb out (an idea).
+  oneup: {
+    opensAt: 0.82,
+    // The finger bobs with the words.
+    cycle: (p, t, k) => {
+      const b = Math.sin((t / 0.66) * TAU) * k;
+      nudge(p, 'handF', 1, 0.07 * b);
+      nudge(p, 'aimF', 0, -0.06 * b);
+    },
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-1.5, 2.2, 0.5, 'face'], gripF: 'fist', aimF: [0, -1, 0.2], headPitch: 3 }, 'out'],
+      [0.56, { handF: [-1.65, 1.75, 0.7, 'face'], gripF: 'one', aimF: [0.1, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'out'],
+      [0.82, { handF: [-1.65, 1.75, 0.7, 'face'], gripF: 'one', aimF: [0.1, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'io'],
+    ],
+  },
+  // A peace sign at her chin.
+  peace: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-0.7, 2.2, 0.6, 'face'], gripF: 'fist', aimF: [0, -1, 0.2] }, 'out'],
+      [0.56, { handF: [-0.75, 1.95, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'out'],
+      [0.82, { handF: [-0.75, 1.95, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'io'],
+    ],
+  },
+  // Palms pressed together, seen edge-on, raised to her side under the jaw
+  // (grateful, f2 still 43).
+  palms: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [0.38, 2.55, 0.9, 'face'], handB: [0.6, 2.5, 0.8, 'face'], gripF: 'edge', gripB: 'edge', aimF: [0.3, -1, 0.1], aimB: [0.3, -1, 0.1], elbowF: [-0.2, 1, 0.3], elbowB: [0.3, 1, 0.1], upperF: 1.2, upperB: 1.2, foreF: 1.2, foreB: 1.2, shrug: 0.15 }, 'out'],
+      [0.56, { handF: [0.35, 1.85, 1.0, 'face'], handB: [0.55, 1.8, 0.85, 'face'], gripF: 'edge', gripB: 'edge', aimF: [0.28, -1, 0], aimB: [0.22, -1, 0], elbowF: [-0.2, 1, 0.3], elbowB: [0.3, 1, 0.1], upperF: 1.3, upperB: 1.3, foreF: 1.3, foreB: 1.3, headRoll: -10, headPitch: 4, shrug: 0.3 }, 'out'],
+      [0.82, { handF: [0.35, 1.85, 1.0, 'face'], handB: [0.55, 1.8, 0.85, 'face'], gripF: 'edge', gripB: 'edge', aimF: [0.28, -1, 0], aimB: [0.22, -1, 0], elbowF: [-0.2, 1, 0.3], elbowB: [0.3, 1, 0.1], upperF: 1.3, upperB: 1.3, foreF: 1.3, foreB: 1.3, headRoll: -10, headPitch: 4, shrug: 0.3 }, 'io'],
+    ],
+  },
+  // Two loosely curled hands tucked under her chin (cute goodbye).
+  cheeks: {
+    opensAt: 0.82,
+    keys: [
+      [0, {}],
+      [0.3, { handF: [-0.6, 2.7, 0.6, 'face'], handB: [0.6, 2.7, 0.6, 'face'], gripF: 'curl', gripB: 'curl', aimF: [0.15, -1, 0.3], aimB: [-0.15, -1, 0.3], elbowF: [0.2, 1, 0.1], elbowB: [0.2, 1, 0.1], upperF: 1.15, upperB: 1.15, foreF: 1.15, foreB: 1.15, shrug: 0.2 }, 'out'],
+      [0.56, { handF: [-0.62, 2.0, 0.85, 'face'], handB: [0.62, 2.0, 0.85, 'face'], gripF: 'curl', gripB: 'curl', aimF: [0.12, -1, 0.15], aimB: [-0.12, -1, 0.15], elbowF: [0.2, 1, 0.1], elbowB: [0.2, 1, 0.1], upperF: 1.3, upperB: 1.3, foreF: 1.3, foreB: 1.3, shrug: 0.5, headRoll: -9, slump: -0.2 }, 'out'],
+      [0.82, { handF: [-0.62, 2.0, 0.85, 'face'], handB: [0.62, 2.0, 0.85, 'face'], gripF: 'curl', gripB: 'curl', aimF: [0.12, -1, 0.15], aimB: [-0.12, -1, 0.15], elbowF: [0.2, 1, 0.1], elbowB: [0.2, 1, 0.1], upperF: 1.3, upperB: 1.3, foreF: 1.3, foreB: 1.3, shrug: 0.5, headRoll: -9, slump: -0.2 }, 'io'],
+    ],
+  },
 };
 
 // The key drawings of each move with the neutral posture (cast sheet, tests).
@@ -253,10 +401,12 @@ const BLINK_EVERY = 3.3;
 // (its end pose starts this one); time: scene time, for breathing and
 // settles. Mouth and blink run on their own clocks so a long line keeps
 // flapping while the body holds.
-export function poseFor(beat, phase, { faceTalk, seed = 0, talking = false, prev = null, time, walking = false }) {
+export function poseFor(beat, phase, { faceTalk, seed = 0, talking = false, prev = null, time, walking = false, faceCam = false }) {
   const m = MOVE_SET[beat.move] || MOVE_SET.idle;
   const from = prev ? endPose(MOVE_SET, prev, beat.t - prev.t) : null;
-  const pose = toLegacy(act(MOVE_SET, beat, phase, { time: time ?? phase, prev: from, seed, talking, walking }));
+  // A shot that opens on a held pose starts in it (the cut hides the reach).
+  if (!prev && m.opensAt) phase += m.opensAt;
+  const pose = toLegacy(act(MOVE_SET, beat, phase, { time: time ?? phase, prev: from, seed, talking, walking, faceCam }));
   pose.face = beat.face;
   if ((m.talking || talking) && !pose.mouth && faceTalk?.length) {
     const k = Math.floor(phase / TALK_EVERY);

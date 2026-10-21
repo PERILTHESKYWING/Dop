@@ -44,14 +44,15 @@ export function ik3(root, target, a, b, pole) {
 }
 
 // Proportions as a share of height (cartoon: about four heads tall).
-const PRO = { ankle: 0.045, hip: 0.47, pelvis: 0.5, waist: 0.595, chest: 0.685, shoulder: 0.735, neck: 0.765, neckLen: 0.035, thigh: 0.218, shin: 0.218, upper: 0.152, fore: 0.135, stance: 0.115 };
+const PRO = { ankle: 0.045, hip: 0.47, pelvis: 0.5, waist: 0.595, chest: 0.685, shoulder: 0.735, neck: 0.765, neckLen: 0.035, thigh: 0.218, shin: 0.218, upper: 0.165, fore: 0.145, stance: 0.115 };
 // Half-widths [side, depth] per build; limb is a thickness factor.
 export const BUILD = {
   slim: { sh: 0.118, chest: [0.092, 0.064], waist: [0.074, 0.056], hip: [0.088, 0.064], limb: 0.88 },
   average: { sh: 0.13, chest: [0.106, 0.074], waist: [0.09, 0.068], hip: [0.1, 0.074], limb: 1 },
   round: { sh: 0.135, chest: [0.124, 0.096], waist: [0.134, 0.115], hip: [0.128, 0.1], limb: 1.18 },
-  // Narrow, sloped shoulders, a thin neck and fine limbs (the refs' girl).
-  petite: { sh: 0.104, chest: [0.086, 0.06], waist: [0.066, 0.052], hip: [0.088, 0.064], limb: 0.8, slope: 0.012, neck: 0.8 },
+  // The refs' girl, measured on f2's bust shots: shoulders about twice the
+  // face's width and sloping, a neck about 0.4 of it, a narrow waist.
+  petite: { sh: 0.205, chest: [0.15, 0.078], waist: [0.1, 0.064], hip: [0.115, 0.078], limb: 1, slope: 0.03, neck: 1.8 },
 };
 export const HEAD_R = 0.118; // head radius as a share of height, at headSize 1
 const ARM_REST = [9, 0, 14];
@@ -121,8 +122,11 @@ export function skeleton(ch, pose0, H) {
   const arm = (s) => {
     const out = s === 'F' ? -1 : 1;
     const root = s === 'F' ? shF : shB;
-    const ua = PRO.upper * H;
-    const fa = PRO.fore * H;
+    // upperF/foreF (and B) stretch the arm a little: a cartoon cheat for a
+    // close bust, e.g. a hand reaching the far shoulder from below, or an
+    // elbow kept down off the frame's bottom edge.
+    const ua = PRO.upper * H * Math.max(0.8, Math.min(1.5, p['upper' + s] ?? 1));
+    const fa = PRO.fore * H * Math.max(0.8, Math.min(1.5, p['fore' + s] ?? 1));
     const [ra, fw, el] = p['arm' + s] || ARM_REST;
     const [r1, f1, e1] = [deg(ra), deg(fw), deg(Math.max(0, Math.min(160, el)))];
     const dir = fChest([out * Math.sin(r1) * Math.cos(f1), Math.cos(r1) * Math.cos(f1), Math.sin(f1)]);
@@ -135,14 +139,39 @@ export function skeleton(ch, pose0, H) {
     const elbow = add(root, mul(dir, ua));
     const wrist = add(elbow, mul(fore, fa));
     const hand = p['hand' + s];
-    if (!Array.isArray(hand)) return { sh: root, el: elbow, wr: wrist };
+    if (!Array.isArray(hand)) return aimed({ sh: root, el: elbow, wr: wrist });
     // A hand target (IK), blended from the angle pose by handFw/handBw.
+    // 'face' targets are in head radii in the head's own frame, so a hand on
+    // the cheek stays on the cheek when the head turns or tilts.
     const w = Math.max(0, Math.min(1, p['hand' + s + 'w'] ?? 1));
-    const base = hand[3] === 'head' ? head : root;
-    const goal = add(base, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
+    const goal = hand[3] === 'face' ? add(head, fHead([hand[0] * r, hand[1] * r, (hand[2] || 0) * r]))
+      : add(hand[3] === 'head' ? head : root, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
     const target = add(mul(wrist, 1 - w), mul(goal, w));
-    const { joint, end } = ik3(root, target, ua, fa, fChest([out * 0.55, 0.7, -0.5]));
-    return { sh: root, el: joint, wr: end };
+    // The elbow points out and down, or where elbowF/elbowB says (chest frame,
+    // x toward this arm's own side), e.g. [0, 1, 0] tucks it in.
+    const ep = p['elbow' + s];
+    const { joint, end } = ik3(root, target, ua, fa, fChest(Array.isArray(ep) ? [out * ep[0], ep[1], ep[2]] : [out * 0.55, 0.7, -0.5]));
+    return aimed({ sh: root, el: joint, wr: end });
+  };
+  // The wrist bends: aimF/aimB is where the fingers point, in the chest frame
+  // (x toward facing, y down, z toward the camera); hd is the hand's direction.
+  const aimed = (A) => {
+    const s = A.sh === shF ? 'F' : 'B';
+    const fore = unit(sub(A.wr, A.el));
+    const aim = p['aim' + s];
+    if (!Array.isArray(aim) || !len(aim)) return { ...A, hd: fore };
+    // It comes in with the hand target (handFw/handBw), so the wrist turns as
+    // the arm travels instead of snapping. At most 75 degrees from the
+    // forearm, as a real wrist bends.
+    const k = Array.isArray(p['hand' + s]) ? Math.max(0, Math.min(1, p['hand' + s + 'w'] ?? 1)) : 1;
+    const want = unit(add(mul(fore, 1 - k), mul(unit(fChest(aim)), k)));
+    const c = Math.max(-1, Math.min(1, dot(fore, want)));
+    const ang = Math.acos(c);
+    const lim = deg(75);
+    if (ang <= lim) return { ...A, hd: want };
+    let perp = sub(want, mul(fore, c));
+    if (len(perp) < 1e-6) perp = fChest([0, -1, 0]);
+    return { ...A, hd: unit(add(mul(fore, Math.cos(lim)), mul(unit(perp), Math.sin(lim)))) };
   };
 
   // Legs: feet planted on the stance (moved by footF/footB), knees by IK.

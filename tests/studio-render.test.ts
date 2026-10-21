@@ -213,9 +213,9 @@ describe('studio renderer', () => {
 describe('studio camera, captions and fill', () => {
   const cam = (camera: any) => project({ scenes: [{ id: 'x', duration: 4, camera, actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0 }] }] }] });
 
-  it('allows a bust close-up and clamps beyond 4', () => {
+  it('allows a bust close-up and clamps beyond 6', () => {
     expect(cam({ zoom: 3 }).scenes[0].camera.zoom).toBe(3);
-    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(4);
+    expect(cam({ zoom: 12 }).scenes[0].camera.zoom).toBe(9);
     expect(cam({}).scenes[0].camera).toEqual({ zoom: 1, x: 0.5, y: 0.6 });
   });
 
@@ -340,11 +340,11 @@ describe('studio female lead options (refs f1/f2)', () => {
   };
 
   it('cleans the new cast fields and allows face close-ups', () => {
-    const r = S.validateProject({ cast: { a: { eyes: 'anime', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hair2: 'pink' } }, scenes: [{ camera: { zoom: 9 }, actors: [{ who: 'a' }] }] });
+    const r = S.validateProject({ cast: { a: { eyes: 'anime', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hair2: 'pink' } }, scenes: [{ camera: { zoom: 12 }, actors: [{ who: 'a' }] }] });
     expect(r.project.cast.a).toMatchObject({ eyes: 'anime', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
     expect(r.project.cast.a.hair2).toBeUndefined();
     expect(lead().hair2).toBe('#c0507a');
-    expect(r.project.scenes[0].camera.zoom).toBe(4);
+    expect(r.project.scenes[0].camera.zoom).toBe(9);
     expect(S.schemaText()).toMatch(/topStyle tee\|sleeveless\|turtleneck\|long/);
   });
 
@@ -421,5 +421,42 @@ describe('the reference copy (hub/studio/first-video.js)', () => {
     expect(REF_RULES.length).toBeGreaterThanOrEqual(12);
     // Every frame draws without bad numbers.
     for (let i = 0; i < p.scenes.length; i++) expect(R.toSVG(R.renderFrame(p, i, p.scenes[i].duration / 2), 320)).not.toMatch(/NaN|Infinity/);
+  });
+});
+
+describe('studio gag marks (f2)', () => {
+  it('keeps and draws the screen gags: board, card, phone, pan, shrimp, peek', () => {
+    const kinds = ['board', 'card', 'phone', 'pan', 'shrimp', 'peek'];
+    const marks = kinds.map((kind) => ({ kind, text: 'Gender', x: 0.5, y: 0.5, t: 0 }));
+    for (const m of marks) {
+      const p = project({ scenes: [{ id: 'g', duration: 3, actors: [], marks: [m] }] });
+      expect(p.scenes[0].marks[0].kind).toBe(m.kind);
+      const f = R.renderFrame(p, 0, 2);
+      expect(f.overlay.length).toBeGreaterThan(3);
+    }
+  });
+  it('draws the top caption as black sans with a white edge (f2)', () => {
+    const p = project({ style: { ...S.SAMPLE_PROJECT.style, capPos: 'top' }, scenes: [{ id: 'c', duration: 2, narration: 'Hi', actors: [] }] });
+    const f = R.renderFrame(p, 0, 1);
+    expect(f.overlay.some((o: any) => o.text === 'Hi' && o.fill === '#111111' && o.outline === '#ffffff' && o.sans)).toBe(true);
+  });
+});
+
+describe('studio gag props (f2)', () => {
+  it('keeps props with y and draws them on the screen layer, not the camera world', () => {
+    const props = ['sign', 'thumb', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp', 'phone'].map((kind) => ({ kind, x: 0.3, y: 0.4, text: 'Gender|A|B' }));
+    for (const pr of props) {
+      const p = project({ scenes: [{ id: 'g', duration: 2, camera: { zoom: 4, x: 0.5, y: 0.5 }, props: [pr], actors: [] }] });
+      expect(p.scenes[0].props[0]).toMatchObject({ kind: pr.kind, y: 0.4 });
+      const f = R.renderFrame(p, 0, 1);
+      expect(f.back.length).toBeGreaterThan(2);
+      expect(R.toSVG(f)).toContain('<svg');
+    }
+  });
+  it('draws the tablet in the world (on the table)', () => {
+    const p = project({ scenes: [{ id: 'g', duration: 2, props: [{ kind: 'tablet', x: 0.4 }], actors: [] }] });
+    const f = R.renderFrame(p, 0, 1);
+    expect(f.back.length).toBe(0);
+    expect(f.bg.length).toBeGreaterThan(3);
   });
 });

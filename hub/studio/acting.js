@@ -216,7 +216,7 @@ export function endPose(moves, prevBeat, duration) {
 // The full pose for one drawing. moves: the move set; beat: {move, face};
 // phase: seconds into the beat; time: scene time (breathing, settles);
 // prev: endPose of the previous beat or null; seed: per actor.
-export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, talking = false, walking = false } = {}) {
+export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, talking = false, walking = false, faceCam = false } = {}) {
   const name = moves[beat.move] ? beat.move : 'idle';
   const move = moves[name];
   const posture = POSTURE[beat.face] || POSTURE.neutral;
@@ -228,7 +228,8 @@ export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, t
   // Hair follows through after the upper body moves, and streams back on a walk.
   const d = (k, f) => ((pose[k] || 0) - (late[k] || 0)) * f;
   pose.hairSwing = clamp(d('spine', 0.05) + d('spineSide', 0.06) + d('headRoll', 0.04) + d('twist', 0.04) + d('weight', 0.8) - (walking || name === 'walk' ? 0.3 : 0), -1, 1);
-  if (move.settle) {
+  // A vlog holds its drawing (f2: 24 of 30 shots never change): no weight settles.
+  if (move.settle && !faceCam) {
     const st = settle(time, seed);
     pose.weight = (pose.weight || 0) + st.weight;
     pose.headYaw = (pose.headYaw || 0) + st.headYaw;
@@ -241,14 +242,43 @@ export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, t
     const k = Math.floor(time / 0.48);
     if ((k * 5 + seed) % 3 !== 0 && time - k * 0.48 < 0.2) pose.headPitch = (pose.headPitch || 0) + 3.5 * (posture.gesture ?? 1);
   }
+  // A held pose keeps living: the move's small cycle (a wrist wave, a fist
+  // pump, a finger bob) on the drawing clock, faded in as the pose lands.
+  if (move.cycle) {
+    const last = move.keys[move.keys.length - 1][0];
+    const tempo = move.tempo === false ? 1 : posture.tempo || 1;
+    const k = clamp((phase * tempo - (last - 0.3)) / 0.3, 0, 1);
+    if (k > 0) move.cycle(pose, time + (seed % 11) * 0.13, k);
+  }
   breathe(pose, time + (seed % 17) * 0.3, posture);
-  pose.yaw = DEFAULT_YAW + (pose.yaw || 0);
+  if (faceCam) lookAtCamera(pose);
+  else pose.yaw = DEFAULT_YAW + (pose.yaw || 0);
+  // The beat's own head tilt (roll) and turn (a yaw the camera look keeps;
+  // the eyes still find the lens).
+  if (isNum(beat.roll)) pose.headRoll = (pose.headRoll || 0) + beat.roll;
+  if (isNum(beat.turn)) {
+    pose.headYaw = (pose.headYaw || 0) + clamp(beat.turn, -20, 20);
+    if (faceCam) pose.gaze = [clamp(-(pose.yaw + pose.headYaw) / 30, -0.7, 0.7), pose.gaze[1]];
+  }
   pose.slump = clamp(pose.slump || 0, -1, 1);
   pose.shrug = clamp(pose.shrug || 0, 0, 1);
   pose.weight = clamp(pose.weight || 0, -1, 1);
   if (pose.toe != null) pose.toe = clamp(pose.toe, 0, 1);
   for (const s of ['armF', 'armB']) if (pose[s]) pose[s] = [pose[s][0], pose[s][1], clamp(pose[s][2], 0, 150)];
   pose.v = 2;
+  return pose;
+}
+
+// Talking to the camera (a vlog, style faceCam): the body stays square to the
+// viewer with only a small sway left of each turn, the head turns at most a
+// few degrees, and the eyes turn back against both, so she looks into the
+// lens in every drawing. Rolls, pitches and arm poses keep their acting.
+export const CAM_YAW = 7;
+export function lookAtCamera(pose) {
+  pose.yaw = clamp((pose.yaw || 0) * 0.3, -CAM_YAW, CAM_YAW);
+  pose.headYaw = clamp((pose.headYaw || 0) * 0.3, -5, 5);
+  pose.twist = clamp((pose.twist || 0) * 0.3, -6, 6);
+  pose.gaze = [clamp(-(pose.yaw + pose.headYaw) / 30, -0.5, 0.5), clamp(-(pose.headPitch || 0) / 40, -0.4, 0.4)];
   return pose;
 }
 
