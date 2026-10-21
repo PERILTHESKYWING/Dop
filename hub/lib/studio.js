@@ -11,6 +11,9 @@ const MAX_SHEET = 380 * 1024; // decoded PNG bytes
 const MAX_RULES = 6000;
 const MAX_STYLE = 4000;
 const SHEET_WAIT_MAX_S = 30;
+const MAX_REFS = 60; // reference entries kept; the oldest go first
+const MAX_REF_IMAGES = 4; // per entry: one picture, or up to 4 frames pulled from a video
+const MAX_REF_IMAGE = 150 * 1024; // decoded bytes per image (the page shrinks pictures before upload)
 const K = {
   seq: 'hub:studio:seq',
   index: 'hub:studio:index',
@@ -20,8 +23,14 @@ const K = {
   revs: (id) => `hub:studio:r:${id}`,
   notes: (id) => `hub:studio:n:${id}`,
   sheet: (id) => `hub:studio:sheet:${id}`,
+  refs: 'hub:studio:refs',
+  refSeq: 'hub:studio:refseq',
+  refImg: (id, n) => `hub:studio:refimg:${id}:${n}`,
 };
 const ID_RE = /^s\d{1,8}$/;
+const REF_RE = /^r\d{1,8}$/;
+const IMG_MAGICS = { png: [0x89, 0x50, 0x4e, 0x47], jpeg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
+const IMG_MIME = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' };
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const clean = (s, max) => String(s ?? '').trim().slice(0, max);
@@ -87,11 +96,13 @@ export function studioBrief(p) {
     '- studio_put(id, project, note): save the next version. It is checked; fix every problem it lists. The page redraws it live and uploads a contact sheet of the frames.',
     '- studio_look(id, wait_s): the latest sheet as an image plus lint warnings. Look at it before you call a version good.',
     '- studio_note(id, text): a short remark XIAO sees (what you changed, what you doubt).',
+    '- studio_refs(kind?, ref?): XIAO\'s reference pictures and video frames: DO = copy this look and acting, DON\'T = avoid this. Call it ONCE at the start (it is empty until XIAO adds some) and again if a note says refs changed.',
     '',
     'Team: the lead is the director and writes the storyboard. The other account is the critic: it looks at each sheet and notes drawing, pose, movement and consistency problems (same character, same colours, same size across shots). At most 2 critique rounds per request; stop after that and let XIAO react. Keep each tool call small and each note to one or two sentences: this runs on free-tier usage.',
     'Style target: hand-made storytime animation. Few simple reusable movements, poses held on 2s and 3s, slightly wobbly redrawn lines, small imperfections. Convincing handmade beats smooth and polished.',
     'Order of work: (1) a short SAMPLE (one or two shots) for XIAO to review; (2) when feedback arrives as a message in this thread, revise that sample and show it again; (3) only when XIAO asks for the full video, extend the project to the whole story. Never invent features the schema lacks.',
     'Feedback arrives as thread messages that start with "Studio feedback". Treat any line marked RULE as a permanent rule.',
+    'References: the director reads studio_refs before drawing and follows every DO and avoids every DON\'T (note one line on how). The critic compares each sheet to the refs and names the biggest gap, e.g. "Leo still reads as stacked shapes like DON\'T #3". References are XIAO\'s taste: never overrule them.',
     'Critic: call studio_look(id, wait_s: 25). If no sheet arrives (XIAO\'s page is closed), critique from the lint and the JSON instead and say so.',
     'This thread has no code: no branch, no commits, no pull request, no repo checks, whatever the general team rules say. When the version for this request is saved and noted, post kind "done" with one line (e.g. "Sample rev 2 ready: Leo angrier, point held 1 s longer").',
   ].join('\n');
@@ -290,6 +301,71 @@ export function createStudio(hub, { schema = null } = {}) {
     }
   }
 
+
+  // ---- references: XIAO's do / don't pictures and video frames ----
+  // Studio-wide (they teach the look of every story). Meta in one hash, each
+  // image in its own key so no single store request gets near Upstash's cap.
+  // A video is stored as up to 4 frames the page pulled from it, plus a note.
+  const refMeta = (r) => ({ id: r.id, kind: r.kind, type: r.type, title: r.title, note: r.note, tags: r.tags, url: r.url, images: r.images, at: r.at, by: r.by });
+  async function refList() {
+    const flat = await store.cmd('HGETALL', K.refs);
+    const out = [];
+    for (let i = 0; i < flat.length; i += 2) out.push(parse(flat[i + 1]));
+    return out.filter(Boolean).sort((a, b) => a.at - b.at);
+  }
+  function decodeImage(data) {
+    const m = /^data:image\/(png|jpeg|webp);base64,/.exec(String(data || ''));
+    const b64 = String(data || '').replace(/^data:image\/[a-z]+;base64,/, '').replace(/\s+/g, '');
+    if (!b64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) throw fail('A reference picture is not base64.');
+    const bytes = Buffer.from(b64, 'base64');
+    if (bytes.length > MAX_REF_IMAGE) throw fail(`A reference picture is ${Math.round(bytes.length / 1024)} KB; the limit is ${MAX_REF_IMAGE / 1024} KB (the page shrinks pictures for you).`);
+    const type = Object.keys(IMG_MAGICS).find((t) => IMG_MAGICS[t].every((b, i) => bytes[i] === b));
+    if (!type || (m && m[1] !== type)) throw fail('A reference picture must be a PNG, JPEG or WebP image.');
+    return { b64, type };
+  }
+  async function refAdd({ kind, title, note, tags, url, images, type }, by = 'XIAO') {
+    if (kind !== 'do' && kind !== 'dont') throw fail('Say whether this is a DO or a DON\'T.');
+    images = Array.isArray(images) ? images : [];
+    if (images.length > MAX_REF_IMAGES) throw fail(`At most ${MAX_REF_IMAGES} pictures per reference (for a video, the page picks frames).`);
+    url = clean(url, 500);
+    if (url && !/^https?:\/\//i.test(url)) throw fail('The link must start with http:// or https://');
+    note = clean(note, 600);
+    if (!images.length && !url && !note) throw fail('Add a picture, a link or a note.');
+    const decoded = images.map(decodeImage);
+    const id = `r${Number(await store.cmd('INCR', K.refSeq))}`;
+    const entry = {
+      id, kind,
+      type: type === 'video' ? 'video' : decoded.length ? 'image' : url ? 'link' : 'note',
+      title: clean(title, 80) || (kind === 'do' ? 'DO' : 'DON\'T'),
+      note,
+      tags: (Array.isArray(tags) ? tags : String(tags || '').split(/[,\s]+/)).map((t) => String(t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24)).filter(Boolean).slice(0, 8),
+      url, images: decoded.map((d) => d.type), at: now(), by: clean(by, 40),
+    };
+    const ops = decoded.map((d, n) => ['SET', K.refImg(id, n), d.b64]);
+    ops.push(['HSET', K.refs, id, JSON.stringify(entry)]);
+    await store.multi(ops);
+    // Keep the newest MAX_REFS.
+    const all = await refList();
+    for (const old of all.slice(0, Math.max(0, all.length - MAX_REFS))) await refDel(old.id);
+    return { ok: true, id };
+  }
+  async function refDel(id) {
+    if (!REF_RE.test(String(id))) throw fail('Unknown reference.');
+    const r = parse(await store.cmd('HGET', K.refs, id));
+    if (!r) throw fail(`No reference ${id}.`);
+    await store.multi([['HDEL', K.refs, id], ...r.images.map((_, n) => ['DEL', K.refImg(id, n)])]);
+    return { ok: true };
+  }
+  async function refImage(id, n = 0) {
+    if (!REF_RE.test(String(id))) throw fail('Unknown reference.');
+    const r = parse(await store.cmd('HGET', K.refs, id));
+    n = Number(n) || 0;
+    if (!r || n < 0 || n >= r.images.length) throw fail('No such picture.');
+    const data = await store.cmd('GET', K.refImg(id, n));
+    return { type: r.images[n], mime: IMG_MIME[r.images[n]], data };
+  }
+  const refLine = (r) => `${r.kind === 'do' ? 'DO' : 'DON\'T'} #${r.id.slice(1)} "${r.title}"${r.tags.length ? ` [${r.tags.join(', ')}]` : ''}${r.type === 'video' ? ' (frames from a video)' : ''}: ${r.note || '(no note)'}${r.url ? ` ${r.url}` : ''}`;
+
   // ---- the page's side (password) ----
   async function pageOp(method, op, query, body) {
     if (!op.startsWith('studio-')) return null;
@@ -298,6 +374,11 @@ export function createStudio(hub, { schema = null } = {}) {
         if (op === 'studio-list') return { status: 200, body: { projects: await list() } };
         if (op === 'studio-get') return { status: 200, body: await get(String(query.id || ''), query.since, query.seen) };
         if (op === 'studio-rules') return { status: 200, body: await rulesNow() };
+        if (op === 'studio-refs') return { status: 200, body: { refs: await refList() } };
+        if (op === 'studio-ref') {
+          const im = await refImage(String(query.id || ''), query.n);
+          return { status: 200, body: { mime: im.mime, data: im.data } };
+        }
         if (op === 'studio-log') return { status: 200, body: { log: await logSince(query.since), now: now() } };
         return null;
       }
@@ -307,6 +388,8 @@ export function createStudio(hub, { schema = null } = {}) {
       if (op === 'studio-sheet') return { status: 200, body: await sheet(String(body.id || ''), body.rev, body.png) };
       if (op === 'studio-rate') return { status: 200, body: await rate(String(body.id || ''), body.rev, body.good, body.note) };
       if (op === 'studio-rules') return { status: 200, body: await saveRules(body) };
+      if (op === 'studio-ref-add') return { status: 200, body: await refAdd(body || {}) };
+      if (op === 'studio-ref-del') return { status: 200, body: await refDel(String(body.id || '')) };
     } catch (e) {
       return { status: e.studio ? 400 : 500, body: { error: e.message } };
     }
@@ -335,6 +418,7 @@ export function createStudio(hub, { schema = null } = {}) {
           feedback: g.feedback.slice(-8),
           notes: g.notes.slice(-8),
           rating: g.meta.rating,
+          refs: (await refList()).map(refLine),
         });
       },
     },
@@ -375,9 +459,29 @@ export function createStudio(hub, { schema = null } = {}) {
         return 'Noted.';
       },
     },
+    {
+      name: 'studio_refs',
+      description: 'XIAO\'s reference pictures and video frames for how the characters should look and act. DO = copy this; DON\'T = avoid this. Returns the list (kind, title, tags, note) and the pictures as images (up to 6 per call; narrow with kind "do"/"dont" or ref "r3"). Read once before drawing; the critic compares sheets against them.',
+      inputSchema: { type: 'object', properties: { kind: { type: 'string', description: '"do" or "dont" to filter' }, ref: { type: 'string', description: 'one reference id, like "r3"' } } },
+      run: async (a, x) => {
+        let list = await refList();
+        if (x.kind === 'do' || x.kind === 'dont') list = list.filter((r) => r.kind === x.kind);
+        if (x.ref) list = list.filter((r) => r.id === String(x.ref));
+        if (!list.length) return 'No references yet. XIAO has not added any: use the schema and rules as they are, and do not invent a look from them.';
+        const content = [{ type: 'text', text: `${list.length} reference${list.length > 1 ? 's' : ''}. Follow every DO, avoid every DON'T.\n${list.map(refLine).join('\n')}` }];
+        let n = 0;
+        for (const r of list.slice().reverse()) {
+          for (let i = 0; i < r.images.length && n < 6; i++, n++) {
+            const im = await refImage(r.id, i);
+            content.push({ type: 'text', text: `${refLine(r).split(':')[0]} picture ${i + 1}:` }, { type: 'image', data: im.data, mimeType: im.mime });
+          }
+        }
+        return content.length > 1 ? { content } : content[0].text;
+      },
+    },
   ];
 
-  return { pageOp, tools, create, get, put, feedback, full, sheet, rate, saveRules, rulesNow, logSince, list, lint, check };
+  return { pageOp, tools, create, get, put, feedback, full, sheet, rate, refAdd, refDel, refList, refImage, saveRules, rulesNow, logSince, list, lint, check };
 }
 
 // One studio per hub object (the tools list is rebuilt on every MCP call).
