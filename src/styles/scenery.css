@@ -1,6 +1,5 @@
-/* The page backdrop of each theme (components/Scenery.tsx). One flat, quiet colour per theme with a
- * fine paper grain and a slight darkening towards the edges, so panels sit on a surface rather than
- * on a picture. Nothing moves. The theme's colour tokens are in styles/themes.css; --page-bg (set on
+/* The page backdrop of each theme (components/Scenery.tsx): one flat, quiet colour per theme, a step
+ * darker than the panels, so panels sit on a surface rather than on a picture. Nothing moves. The theme's colour tokens are in styles/themes.css; --page-bg (set on
  * :root and each theme) is the base colour, so the backdrop and the body underneath always agree. */
 
 .scenery {
@@ -8,40 +7,29 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-color: var(--page-bg);
-  /* grain: an SVG noise tile, then a soft edge shade so the middle of the page reads a little lighter */
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
-    radial-gradient(120% 90% at 50% 30%, transparent 55%, rgb(var(--tint-rgb) / 0.08) 100%);
-  background-size: 160px 160px, 100% 100%;
-  opacity: 1;
+  background: var(--page-bg);
   transition: opacity 0.4s var(--ease);
-}
-/* The grain is darker than the page, so on the dark theme it is turned down. */
-.scenery.scene-aurora {
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
-    radial-gradient(120% 90% at 50% 30%, transparent 50%, rgba(0, 0, 0, 0.35) 100%);
 }
 .scenery.leaving {
   opacity: 0;
 }
+
 /* ------------------------------------------------ theme swatches (landing and Settings pickers)
  * --sw is the backdrop, --sw-panel a panel on it, --sw-accent the theme's fill colour. */
 .sw-sunrise {
-  --sw: #efe9df;
+  --sw: #e9e3d8;
   --sw-panel: #fffdf9;
   --sw-accent: #d9532b;
   background: var(--sw);
 }
 .sw-sakura {
-  --sw: #e8d6cf;
+  --sw: #e3cfc7;
   --sw-panel: #fffbf9;
   --sw-accent: #c8457b;
   background: var(--sw);
 }
 .sw-mist {
-  --sw: #d9dfe5;
+  --sw: #d3dae1;
   --sw-panel: #fcfdfe;
   --sw-accent: #3f58a6;
   background: var(--sw);

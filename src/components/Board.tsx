@@ -386,7 +386,7 @@ function Wood({ id, size, g, full, skin }: { id: string; size: number; g: Geomet
       {t > 0 && (
         <>
           {/* the board rests on the page: a wide soft ambient shadow and a tight contact shadow */}
-          <SoftShadow id={`${id}-amb`} L={-m + W * 0.012} T={top + W * 0.03} R={W - m - W * 0.012} B={top + W + W * 0.016} F={W * 0.05} color="#70400f" alpha={0.3} />
+          <SoftShadow id={`${id}-amb`} L={-m + W * 0.012} T={top + W * 0.03} R={W - m - W * 0.012} B={top + W + W * 0.016} F={W * 0.05} color="#2a2420" alpha={0.3} />
           <SoftShadow id={`${id}-con`} L={-m + W * 0.002} T={top + W * 0.01} R={W - m - W * 0.002} B={top + W + W * 0.002} F={W * 0.009} color="#3a2006" alpha={0.42} />
         </>
       )}

@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { storedTheme, type ThemeId } from '../lib/themes';
 
 /*
- * The backdrop of each theme: one quiet colour with a fine grain (styles/scenery.css). It has no
+ * The backdrop of each theme: one flat, quiet colour (styles/scenery.css). It has no
  * images, so a theme switch never waits on a download.
  */
 

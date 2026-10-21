@@ -607,7 +607,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
         { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
         { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS) },
         ...mainTool,
-        { id: 'ai', label: 'AI analysis', icon: 'ai', on: true, onClick: () => setAnalysisPref(false), title: 'Back to recording' },
+        { id: 'ai', label: 'Analysis', icon: 'ai', on: true, onClick: () => setAnalysisPref(false), title: 'Back to recording' },
       ]
     : [
         ...(resume
@@ -615,9 +615,9 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
           : []),
         { id: 'new', label: 'New', icon: 'plus', onClick: () => setNotice({ newSize: k.size }) },
         { id: 'numbers', label: 'Numbers', icon: 'numbers', on: numbers, onClick: () => setNumbersPref(!numbers) },
-        { id: 'ai', label: 'AI analysis', icon: 'ai', onClick: () => setAnalysisPref(true) },
+        { id: 'ai', label: 'Analysis', icon: 'ai', title: 'AI analysis', onClick: () => setAnalysisPref(true) },
         paneTool('info', 'Edit info', 'pen'),
-        { ...paneTool('setup', 'Setup stones', 'setup'), onClick: () => (pane === 'setup' ? (setPane('notes'), setMode('play')) : (setPane('setup'), setMode('black'), setCursor(0))) },
+        { ...paneTool('setup', 'Setup', 'setup'), onClick: () => (pane === 'setup' ? (setPane('notes'), setMode('play')) : (setPane('setup'), setMode('black'), setCursor(0))) },
         { id: 'pass', label: 'Pass', icon: 'pass', onClick: () => play(PASS), disabled: mode !== 'play' },
         ...mainTool,
         paneTool('kifu', 'Your kifu', 'library'),

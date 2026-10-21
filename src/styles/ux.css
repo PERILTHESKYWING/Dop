@@ -231,7 +231,7 @@
   margin: 0 0 7px 8px;
   font-size: 10.5px;
   font-weight: 650;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -571,7 +571,7 @@
   flex: none;
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }

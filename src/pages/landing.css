@@ -101,31 +101,6 @@
   height: 16px;
 }
 
-/* theme swatches (top bar) and theme previews (both use the flat .sw-<id> colours in scenery.css) */
-.lp-swatches {
-  display: flex;
-  gap: 6px;
-  padding: 3px;
-  border-radius: 999px;
-}
-.lp-swatch {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid var(--glass-2);
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(40, 20, 5, 0.25);
-  transition: transform 0.3s var(--spring);
-}
-.lp-swatch:hover {
-  transform: scale(1.18);
-}
-.lp-swatch.on {
-  box-shadow:
-    0 0 0 2px var(--glass-2),
-    0 0 0 4px var(--accent, #f0673f);
-}
 /* ------------------------------------------------ hero */
 .lp-hero {
   position: relative;
@@ -171,14 +146,6 @@
 .lp .lp-mark {
   width: 58px;
   height: 58px;
-  animation: lp-float 7s ease-in-out infinite;
-}
-.lp-kicker {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .lp-title {
   font-family: var(--display);
@@ -403,9 +370,6 @@
   right: -26px;
   top: 17%;
   transition-delay: 0.25s;
-}
-.lp-float.show > * {
-  animation: lp-float 6s 0.8s ease-in-out infinite;
 }
 .lp-disc {
   width: 22px;
@@ -1090,7 +1054,6 @@
 .lp .lp-final-mark {
   width: 64px;
   height: 64px;
-  animation: lp-float 7s ease-in-out infinite;
 }
 .lp-foot {
   width: var(--lp-w);
@@ -1191,15 +1154,6 @@
     transform: translateY(30px) scale(0.97);
   }
 }
-@keyframes lp-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
 @keyframes lp-bob {
   0%,
   100% {
@@ -1281,10 +1235,6 @@
   }
   .lp-top-end {
     gap: 8px;
-  }
-  .lp-swatch {
-    width: 18px;
-    height: 18px;
   }
   .lp .btn.lp-top-cta {
     padding: 6px 11px;
