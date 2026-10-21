@@ -67,7 +67,7 @@ const HAIRLINE = {
 };
 // Locks for the fringe styles in face units: [centre u, half width, tip v, tip lean u].
 // Parted off-centre (left of the middle): uneven locks that sweep away from the part.
-const FRINGE = [[-0.82, 0.13, -0.05, -0.08], [-0.68, 0.17, 0.32, -0.1], [0.0, 0.09, 0.28, 0.02], [0.42, 0.2, 0.08, 0.12], [0.78, 0.14, -0.12, 0.08]];
+const FRINGE = [[-0.84, 0.2, 0.04, -0.08], [-0.58, 0.25, 0.32, -0.1], [-0.07, 0.11, 0.28, 0.0], [0.4, 0.28, 0.1, 0.12], [0.82, 0.2, -0.02, 0.08]];
 // Back hair outline for the fringe styles: length below the head centre
 // (head radii), half width at the ends, and the end lengths of each lock.
 const BACK = {
@@ -261,8 +261,9 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     // The lower edge of the face sampled finely, so the cheek and chin outline is round.
     for (let k = 0; k <= 30; k++) {
       const a = (k / 30) * Math.PI;
-      const u = Math.cos(a) * 0.93;
-      const v = Math.sin(a) * 0.93 * (vJawFace(u));
+      const v0 = Math.sin(a) * 0.93;
+      const u = Math.cos(a) * 0.93 * (1 - (vJaw ? 0.3 : 0.18) * smooth(v0 / 0.93));
+      const v = v0 * vJawFace(u);
       pts.push([u, v, faceZ(u, v)]);
     }
     // A "v" jaw narrows earlier to a small, slightly pointed chin.
