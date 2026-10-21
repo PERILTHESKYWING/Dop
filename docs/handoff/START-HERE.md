@@ -40,6 +40,7 @@ General LLMs can't read a Go board, so they invent lines with confidence. **Kami
 | Concept library, 48 ideas + 17 checked boards | `src/lib/coach/library/` | ✅ merged (#37) |
 | Board panel = Dop's study board in Kami | `kami/src/ui/BoardPanel.tsx`, `kami/src/lib/analysis.ts` | ✅ merged (#39), **not yet checked in a browser** |
 | Kami on Vercel, keys | Vercel `kami` project | ✅ set up by XIAO (2026-10-15) |
+| Storytime studio (hand-drawn story animations by the Claude team) | `hub/studio.html`, `hub/studio/`, `hub/lib/studio.js` | ✅ built 2026-10-21 (thread #333), see `studio.md` |
 
 No PRs are open at the time of writing.
 
@@ -126,6 +127,7 @@ One task per thread, one PR each. File ownership is listed so the threads don't 
 | `kami-library.md` | adding concepts or KataGo-checked examples |
 | `engine.md` | anything that changes KataGo itself (incl. `engineMoves`) |
 | `open-items.md` | what was never verified |
+| `studio.md` | the hub's storytime animation studio |
 
 ## 6 · Best next moves (ranked)
 
