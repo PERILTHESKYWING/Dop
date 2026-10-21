@@ -433,6 +433,12 @@ $('loginForm').addEventListener('submit', async (e) => {
   try { await load(true); ls.set('hubpw', pw); showApp(); readUsage(); }
   catch (err) { if (err.message !== 'auth') $('loginErr').textContent = err.message; }
 });
+// The project this hub serves (HUB_PROJECT on the server, "Dop" by default) names the page.
+function setProject(name) {
+  const t = `${name} hub`; if (document.title === t) return;
+  document.title = t;
+  for (const b of document.querySelectorAll('.brand b, #login h1')) b.lastChild.textContent = t;
+}
 const maxId = () => S.messages.reduce((x, m) => (typeof m.id === 'number' && m.id > x ? m.id : x), 0);
 // full: the whole recent window; otherwise only messages newer than the last one held.
 async function load(full) {
@@ -448,6 +454,7 @@ async function load(full) {
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
   S = { ...S, threads: d.threads, accounts: d.accounts, settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => !m.thread || ids.has(m.thread)) };
+  if (d.project) setProject(d.project);
   seq = d.seq; render();
   ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) }));
 }
