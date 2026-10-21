@@ -47,11 +47,10 @@ export function questionText(qs) {
   return qs.map((q, i) => `${i + 1}. ${q.header}: ${q.question}\n${q.options.map((o) => `   - ${o.label}${o.description ? ` (${o.description})` : ''}`).join('\n')}`).join('\n');
 }
 
-export function skillTools(hub) {
+// Skill storage shared by the MCP tools and the Library page (pageOp).
+export function skillsOf(hub) {
   const { store } = hub;
   const now = hub.now || (() => Date.now());
-  const str = { type: 'string' };
-  const num = { type: 'number' };
   const saved = async () => {
     const flat = await store.cmd('HGETALL', K.skills);
     const out = {};
@@ -65,6 +64,59 @@ export function skillTools(hub) {
     for (const [n, s] of Object.entries(over)) if (s?.text) out[n] = { text: s.text, by: s.by, at: s.at };
     return out;
   };
+  const checkText = (content) => {
+    const text = String(content ?? '');
+    if (!/^---\r?\n[\s\S]*?\r?\n---/.test(text)) throw new Error('content must start with SKILL.md frontmatter (--- name, description ---)');
+    if (Buffer.byteLength(text) > MAX_SKILL) throw new Error(`skill is over ${MAX_SKILL / 1024} KB`);
+    return text;
+  };
+  const put = async (name, content, by) => {
+    const n = cleanSkillName(name);
+    const text = checkText(content);
+    const had = (await all())[n];
+    await store.cmd('HSET', K.skills, n, JSON.stringify({ text, by, at: now() }));
+    return { name: n, replaced: !!had };
+  };
+  // Delete a saved skill; a bundled one then shows its bundled text again.
+  const remove = async (name) => {
+    const n = cleanSkillName(name);
+    const was = (await saved())[n];
+    if (!was?.text) throw new Error(SEED_SKILLS[n] ? `/${n} is a bundled skill with no saved change to remove.` : `No skill "${n}".`);
+    await store.cmd('HDEL', K.skills, n);
+    return { name: n, reverted: !!SEED_SKILLS[n] };
+  };
+  const list = async () => {
+    const over = await saved();
+    return Object.entries(await all())
+      .sort(([p], [q]) => p.localeCompare(q))
+      .map(([n, s]) => {
+        const i = skillInfo(s.text);
+        return { name: n, description: i.description, argumentHint: i.argumentHint, by: s.by, at: s.at || 0, bundled: n in SEED_SKILLS, overridden: n in SEED_SKILLS && !!over[n]?.text, text: s.text };
+      });
+  };
+
+  // The page's side (password): GET skill-list, POST skill-save, POST skill-delete.
+  async function pageOp(method, op, query, body) {
+    if (!op.startsWith('skill-')) return null;
+    try {
+      if (method === 'GET' && op === 'skill-list') return { status: 200, body: { skills: await list() } };
+      if (method === 'POST' && op === 'skill-save') return { status: 200, body: await put(body?.name, body?.content, 'XIAO') };
+      if (method === 'POST' && op === 'skill-delete') return { status: 200, body: await remove(body?.name) };
+    } catch (e) {
+      return { status: 400, body: { error: e.message } };
+    }
+    return null;
+  }
+
+  return { all, list, get: async (name) => (await all())[cleanSkillName(name)], put, remove, pageOp };
+}
+
+export function skillTools(hub) {
+  const skills = skillsOf(hub);
+  const { all } = skills;
+  const str = { type: 'string' };
+  const num = { type: 'number' };
+  const now = hub.now || (() => Date.now());
 
   return [
     {
@@ -98,13 +150,8 @@ export function skillTools(hub) {
       description: 'Save a skill (its whole SKILL.md text, with frontmatter) for every account, replacing the one with that name.',
       inputSchema: { type: 'object', properties: { name: str, content: str }, required: ['name', 'content'] },
       run: async (a, x) => {
-        const n = cleanSkillName(x.name);
-        const text = String(x.content ?? '');
-        if (!/^---\r?\n[\s\S]*?\r?\n---/.test(text)) throw new Error('content must start with SKILL.md frontmatter (--- name, description ---)');
-        if (Buffer.byteLength(text) > MAX_SKILL) throw new Error(`skill is over ${MAX_SKILL / 1024} KB`);
-        const had = (await all())[n];
-        await store.cmd('HSET', K.skills, n, JSON.stringify({ text, by: a.name, at: now() }));
-        return `${had ? 'Replaced' : 'Saved'} skill /${n}. Every account sees it now.`;
+        const r = await skills.put(x.name, x.content, a.name);
+        return `${r.replaced ? 'Replaced' : 'Saved'} skill /${r.name}. Every account sees it now.`;
       },
     },
     {
