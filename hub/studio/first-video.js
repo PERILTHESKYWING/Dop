@@ -31,7 +31,7 @@ export const FIRST_VIDEO = {
   scenes: [
     // Hook under 1.5 s: direct address on a face close-up.
     shot('guys', 1.2, 'Guys!', nami(0.5, [{ t: 0, move: 'gasp', face: 'surprised' }]), { camera: BUST(0.5) }),
-    shot('three-days', 3, 'It has literally been three days!', nami(0.62, [{ t: 0, move: 'point', face: 'worried' }]), {
+    shot('three-days', 3, 'It has literally been three days!', nami(0.62, [{ t: 0, move: 'point', face: 'worried' }], -1), {
       camera: WAIST(0.5), props: [{ kind: 'sign', x: 0.3, scale: 0.8, text: 'my 1st video' }],
     }),
     // The stakes by 4 s: shock close-up, SFX word and shock lines on the other third.
@@ -82,7 +82,7 @@ export const FIRST_VIDEO = {
     }),
     shot('last-night', 2, 'in the middle of the night,', nami(0.5, [{ t: 0, move: 'slump', face: 'sad' }]), {
       bg: { kind: 'night', color: '#746b85' }, camera: WAIST(0.5),
-      marks: [{ kind: 'sfx', text: 'RAHHH!!!', x: 0.3, y: 0.28, t: 0.2 }, { kind: 'label', text: '*footage of last night', x: 0.75, y: 0.75, t: 0.6 }],
+      marks: [{ kind: 'sfx', text: 'RAHHH!!!', x: 0.2, y: 0.3, t: 0.2 }, { kind: 'label', text: '*footage of last night', x: 0.75, y: 0.75, t: 0.6 }],
     }),
     shot('fine', 1, 'but I am fine now!', nami(0.5, [{ t: 0, move: 'idle', face: 'joy' }]), { camera: BUST(0.5) }),
     shot('cooking', 4, 'Anyway, the next video is getting cooked rn!', nami(0.62, [{ t: 0, move: 'point', face: 'smug' }]), {
