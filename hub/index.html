@@ -191,6 +191,12 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .sw:hover .sw-x, .sw-x:focus-visible { opacity: 1; }
 .sw.open .sw-x { opacity: 0; pointer-events: none; }
 @media (hover: none) { .sw-x { display: none; } }
+/* Copy on every prompt and reply */
+.cp { border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; background: transparent; color: var(--soft); font: inherit; font-size: 12px; font-weight: 600; line-height: 1.6; cursor: pointer; }
+.cp:hover, .cp:focus-visible { color: var(--ink); border-color: var(--soft); }
+.cp.done { color: var(--green); border-color: var(--green); }
+.row.me .cp { border-color: rgba(0, 0, 0, .12); }
+.me-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
 .note { text-align: center; font-size: 14px; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; }
 .note.alert { color: var(--amber); font-weight: 600; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 8px; padding: 12px 16px; }
@@ -597,16 +603,31 @@ function picksOf(meta) {
   const p = [meta.model && MODEL_NAME[meta.model], meta.thinking && meta.thinking !== 'medium' && `${THINK_NAME[meta.thinking]} thinking`, meta.accounts?.length && meta.accounts.join(' + '), meta.team > 1 && teamName(meta.team)].filter(Boolean);
   return p.length ? `<div class="picks">${p.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : '';
 }
+// A Copy button for one message; copyText holds what it copies (by message id).
+const copyText = new Map();
+function copyBtn(m, text = m.text) {
+  if (!text) return '';
+  copyText.set(String(m.id), text);
+  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy this message" aria-label="Copy this message">Copy</button>`;
+}
+async function copyToClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  // Older or non-secure browsers: copy through a hidden textarea.
+  const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch {}
+  ta.remove(); return ok;
+}
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
-  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}"><div class="text">${linkify(m.text)}</div>${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
+  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}"><div class="text">${linkify(m.text)}</div>${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
   if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}">${esc(m.text)} · ${clock(m.at)}</div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when}</div><div class="text">${linkify(m.text)}</div></div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div></div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
-    return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when}</div><dl><dt>Done</dt><dd>${linkify(get('Done'))}</dd><dt>Next</dt><dd>${linkify(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
+    return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd>${linkify(get('Done'))}</dd><dt>Next</dt><dd>${linkify(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
   }
   if (m.kind === 'routed') {
     const cut = m.text.endsWith(')') ? m.text.lastIndexOf(' (#') : -1;
@@ -614,10 +635,10 @@ function msgHtml(m) {
     const ids = [...new Set([...tail.matchAll(/#(\d+)/g)].map((x) => Number(x[1])))];
     const cards = ids.map((id) => S.threads.find((t) => t.id === id)).filter(Boolean);
     const text = (cut >= 0 ? m.text.slice(0, cut) : m.text).replace(/^One thread$/, 'Started one thread.');
-    return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
+    return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when} ${copyBtn(m, text)}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
   }
   const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : '';
-  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when}</div><div class="text">${linkify(m.text)}</div></div></div>`;
+  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div></div></div>`;
 }
 // Real messages (not the page's own drafts or the handover summary) can be deleted.
 let openMsg = null;
@@ -853,6 +874,13 @@ function openThread(id) { drafts[sel] = $('text').value; sel = id; closePop(); s
 document.addEventListener('click', async (e) => {
   if (!$('pop').classList.contains('hidden') && !e.target.closest('#pop') && !e.target.closest('[data-pop]')) closePop();
   if (Date.now() - swiped < 400) return;
+  const cp = e.target.closest('[data-mcopy]');
+  if (cp) {
+    const ok = await copyToClipboard(copyText.get(cp.dataset.mcopy) || '');
+    cp.textContent = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
+    setTimeout(() => { cp.textContent = 'Copy'; cp.classList.remove('done'); }, 1500);
+    return;
+  }
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
