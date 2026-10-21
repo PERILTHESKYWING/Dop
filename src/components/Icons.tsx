@@ -387,19 +387,13 @@ export function BrandStone({ id, color }: { id: string; color: 'black' | 'white'
   );
 }
 
-/** The app's mark: a stone and its double, their overlap lit by the sunrise, inside a split orbit. Static. */
+/** The app's mark: a cream D and its amber echo on a navy tile (same drawing as public/favicon.svg). Static. */
 export function BrandMark({ className }: { className?: string }) {
-  const id = useBrandId('bm');
   return (
     <svg className={className ?? 'brand-mark'} viewBox="0 0 64 64" aria-hidden>
-      <BrandDefs id={id} />
-      <circle cx="32" cy="32" r="31" fill={`url(#${id}g)`} />
-      <path d={BRAND.orbit} fill={`url(#${id}s)`} />
-      <g mask={`url(#${id}m)`}>
-        <BrandStone id={id} color="black" />
-        <BrandStone id={id} color="white" />
-      </g>
-      <path d={BRAND.lens} fill={`url(#${id}l)`} />
+      <rect width="64" height="64" rx="14" fill="#1f2a44" />
+      <path d="M21 14h12a18 18 0 0 1 0 36H21z" transform="translate(5 3)" fill="none" stroke="#f2b84b" strokeWidth="5" strokeLinejoin="round" opacity=".55" />
+      <path d="M17 14h12a18 18 0 0 1 0 36H17z" fill="none" stroke="#f6efe2" strokeWidth="5" strokeLinejoin="round" />
     </svg>
   );
 }
