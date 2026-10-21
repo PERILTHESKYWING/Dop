@@ -1,7 +1,7 @@
 /**
- * Background themes. Each theme is a painted, animated scene (components/Scenery.tsx,
- * styles/scenery.css, art in public/art/<id>/ rendered by tools/art) plus its colour
- * tokens ([data-theme] in the stylesheets). The bright sunrise is the default.
+ * Background themes. Each theme is a quiet backdrop colour (components/Scenery.tsx,
+ * styles/scenery.css) plus its colour tokens ([data-theme] in the stylesheets). The ids
+ * are kept from the old painted scenes so saved settings still match. Paper is the default.
  */
 export type ThemeId = 'sunrise' | 'sakura' | 'mist' | 'aurora';
 
@@ -14,10 +14,10 @@ export interface ThemeInfo {
 }
 
 export const THEMES: ThemeInfo[] = [
-  { id: 'sunrise', name: 'Sunrise meadow', description: 'Morning light over a meadow and a lone tree.', dark: false },
-  { id: 'sakura', name: 'Sakura dusk', description: 'Cherry blossoms at dusk, petals drifting past.', dark: false },
-  { id: 'mist', name: 'Misty peaks', description: 'Blue ridges at first light, fog drifting through the valleys.', dark: false },
-  { id: 'aurora', name: 'Aurora night', description: 'Northern lights over snowy peaks, stars turning.', dark: true },
+  { id: 'sunrise', name: 'Paper', description: 'Warm off-white, terracotta accent.', dark: false },
+  { id: 'sakura', name: 'Clay', description: 'Dusty rose, plum accent.', dark: false },
+  { id: 'mist', name: 'Slate', description: 'Cool grey-blue, ink-blue accent.', dark: false },
+  { id: 'aurora', name: 'Ink', description: 'Near-black, teal accent.', dark: true },
 ];
 
 export const DEFAULT_THEME: ThemeId = 'sunrise';

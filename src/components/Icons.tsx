@@ -1,4 +1,4 @@
-import { useId, type JSX, type SVGProps } from 'react';
+import type { JSX, SVGProps } from 'react';
 
 /** Small line icons (24x24, stroke = currentColor). Drawn for this app. */
 const PATHS: Record<string, JSX.Element> = {
@@ -289,117 +289,13 @@ export function Icon({ name, ...rest }: { name: IconName } & SVGProps<SVGSVGElem
   );
 }
 
-/**
- * Geometry of the DOPPELGÄNGER mark (viewBox 0 0 64 64), shared with the animated loader in Brand.tsx.
- * A slate stone and its shell-white double overlap on a diagonal; the lens where they agree is lit by the
- * sunrise. Around them the orbit is split along the mirror axis into two tapered crescents, one per stone.
- */
-export const BRAND = {
-  black: [25.6, 38.4],
-  white: [38.4, 25.6],
-  r: 15.5,
-  /** Where the two stones overlap (tips on the mirror axis). */
-  lens: 'M23.1 23.1A15.5 15.5 0 0 1 40.9 40.9A15.5 15.5 0 0 1 23.1 23.1Z',
-  /** The two orbit crescents (outer r 30, 4.2 thick at their middle, tapering towards the mirror axis). */
-  orbit:
-    'M17 6.02A30 30 0 0 1 57.98 47L56.8 46.32A30 30 0 0 0 17.68 7.2ZM47 57.98A30 30 0 0 1 6.02 17L7.2 17.68A30 30 0 0 0 46.32 56.8Z',
-  /** Centre lines of the two crescents (r 28), which the loader strokes to draw them in. */
-  orbitA: 'M18 7.75A28 28 0 0 1 56.25 46',
-  orbitB: 'M46 56.25A28 28 0 0 1 7.75 18',
-} as const;
-
-/** Stable, selector-safe ids so several marks on one page never share gradients. */
-export function useBrandId(prefix: string) {
-  return prefix + useId().replace(/[^A-Za-z0-9_-]/g, '');
-}
-
-/**
- * Gradients and the lens cut-out used by the mark. The accent stops read --brand-a/b/c so a theme can
- * retint the mark; without them it is the sunrise. `cutClassName` lets the loader animate the cut-out.
- */
-export function BrandDefs({ id, cutClassName }: { id: string; cutClassName?: string }) {
-  const a = { stopColor: 'var(--brand-a, #ffc46a)' };
-  const b = { stopColor: 'var(--brand-b, #ff8e52)' };
-  const c = { stopColor: 'var(--brand-c, #f0566f)' };
-  return (
-    <defs>
-      <linearGradient id={id + 's'} gradientUnits="userSpaceOnUse" x1="10" y1="10" x2="54" y2="54">
-        <stop offset="0" style={a} />
-        <stop offset="0.5" style={b} />
-        <stop offset="1" style={c} />
-      </linearGradient>
-      <linearGradient id={id + 'l'} gradientUnits="userSpaceOnUse" x1="25" y1="24" x2="40" y2="41">
-        <stop offset="0" style={a} />
-        <stop offset="0.55" style={b} />
-        <stop offset="1" style={c} />
-      </linearGradient>
-      <radialGradient id={id + 'g'} gradientUnits="userSpaceOnUse" cx="32" cy="32" r="31">
-        <stop offset="0" style={{ ...b, stopOpacity: 0.42 }} />
-        <stop offset="0.55" style={{ ...b, stopOpacity: 0.14 }} />
-        <stop offset="1" style={{ ...b, stopOpacity: 0 }} />
-      </radialGradient>
-      <radialGradient id={id + 'b'} cx="0.36" cy="0.3" r="0.78">
-        <stop offset="0" stopColor="#7a808d" />
-        <stop offset="0.42" stopColor="#25282f" />
-        <stop offset="1" stopColor="#040405" />
-      </radialGradient>
-      <radialGradient id={id + 'w'} cx="0.36" cy="0.3" r="0.8">
-        <stop offset="0" stopColor="#ffffff" />
-        <stop offset="0.66" stopColor="#f3eee6" />
-        <stop offset="1" stopColor="#cdc3b4" />
-      </radialGradient>
-      <linearGradient id={id + 'rb'} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#fff" stopOpacity="0.45" />
-        <stop offset="0.5" stopColor="#fff" stopOpacity="0.05" />
-        <stop offset="1" stopColor="#fff" stopOpacity="0.18" />
-      </linearGradient>
-      <linearGradient id={id + 'rw'} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#b8ad9c" stopOpacity="0.15" />
-        <stop offset="1" stopColor="#8a7c68" stopOpacity="0.7" />
-      </linearGradient>
-      <radialGradient id={id + 'h'}>
-        <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
-        <stop offset="1" stopColor="#fff" stopOpacity="0" />
-      </radialGradient>
-      <mask id={id + 'm'} maskUnits="userSpaceOnUse" x="-32" y="-32" width="128" height="128">
-        <rect x="-32" y="-32" width="128" height="128" fill="#fff" />
-        <path className={cutClassName} d={BRAND.lens} fill="#000" stroke="#000" strokeWidth="3" />
-      </mask>
-    </defs>
-  );
-}
-
-/** The black stone (with rim light and a soft highlight) or the white stone, at its place in the mark. */
-export function BrandStone({ id, color }: { id: string; color: 'black' | 'white' }) {
-  const [cx, cy] = BRAND[color];
-  const r = BRAND.r;
-  return color === 'black' ? (
-    <g>
-      <circle cx={cx} cy={cy} r={r} fill={`url(#${id}b)`} />
-      <circle cx={cx} cy={cy} r={r - 0.4} fill="none" stroke={`url(#${id}rb)`} strokeWidth="0.8" />
-      <ellipse cx={cx - 5.6} cy={cy - 6.5} rx="5.9" ry="3.7" transform={`rotate(-35 ${cx - 5.6} ${cy - 6.5})`} fill={`url(#${id}h)`} opacity="0.5" />
-    </g>
-  ) : (
-    <g>
-      <circle cx={cx} cy={cy} r={r} fill={`url(#${id}w)`} />
-      <circle cx={cx} cy={cy} r={r - 0.4} fill="none" stroke={`url(#${id}rw)`} strokeWidth="0.8" />
-    </g>
-  );
-}
-
-/** The app's mark: a stone and its double, their overlap lit by the sunrise, inside a split orbit. Static. */
+/** The app's mark: a cream D and its amber echo on a navy tile (same drawing as public/favicon.svg). Static. */
 export function BrandMark({ className }: { className?: string }) {
-  const id = useBrandId('bm');
   return (
     <svg className={className ?? 'brand-mark'} viewBox="0 0 64 64" aria-hidden>
-      <BrandDefs id={id} />
-      <circle cx="32" cy="32" r="31" fill={`url(#${id}g)`} />
-      <path d={BRAND.orbit} fill={`url(#${id}s)`} />
-      <g mask={`url(#${id}m)`}>
-        <BrandStone id={id} color="black" />
-        <BrandStone id={id} color="white" />
-      </g>
-      <path d={BRAND.lens} fill={`url(#${id}l)`} />
+      <rect width="64" height="64" rx="14" fill="#1f2a44" />
+      <path d="M21 14h12a18 18 0 0 1 0 36H21z" transform="translate(5 3)" fill="none" stroke="#f2b84b" strokeWidth="5" strokeLinejoin="round" opacity=".55" />
+      <path d="M17 14h12a18 18 0 0 1 0 36H17z" fill="none" stroke="#f6efe2" strokeWidth="5" strokeLinejoin="round" />
     </svg>
   );
 }

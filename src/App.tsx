@@ -10,7 +10,7 @@ import { storedTheme, THEME_PREF, themeInfo, type ThemeId } from './lib/themes';
 import { BrandLoader } from './components/Brand';
 
 /** Browser toolbar colour per theme (matches the first-paint splash in index.html). */
-const THEME_COLOR: Record<ThemeId, string> = { sunrise: '#ffdcb8', sakura: '#f1c9da', mist: '#d9dfea', aurora: '#0f1a3e' };
+const THEME_COLOR: Record<ThemeId, string> = { sunrise: '#e9e3d8', sakura: '#e3cfc7', mist: '#d3dae1', aurora: '#15181d' };
 import { BrandMark, Icon, type IconName } from './components/Icons';
 import { Dashboard } from './pages/Dashboard';
 import { Landing } from './pages/Landing';

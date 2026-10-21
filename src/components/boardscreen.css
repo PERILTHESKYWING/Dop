@@ -382,19 +382,26 @@
 .bs-panel > * + * {
   margin-top: 10px;
 }
+/* the move on screen and who plays next, at the top of the study panel */
+.bs-status {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
 .bs-tools {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+  gap: 2px;
   padding: 4px;
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--glass);
   border: 1px solid var(--line);
 }
 .bs-tools button {
   display: grid;
   justify-items: center;
-  align-content: center;
+  align-content: start;
   gap: 3px;
   min-height: 56px;
   padding: 6px 4px;
@@ -403,10 +410,11 @@
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
   cursor: pointer;
 }
 .bs-tools button svg {

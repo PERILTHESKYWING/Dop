@@ -37,7 +37,7 @@
 .app .nav .nav-label {
   padding: 12px 12px 5px;
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.06em;
 }
 .app .nav a.item {
   min-height: 38px;
@@ -52,16 +52,10 @@
 .app .nav a.item.active {
   background: var(--nav-active);
   color: var(--ink);
-  box-shadow:
-    0 1px 2px rgba(60, 30, 5, 0.08),
-    0 8px 18px -10px rgb(var(--accent-glow-rgb, 210 90 40) / 0.45);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .app .nav a.item.active::before {
-  left: -12px;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
+  display: none;
 }
 .app .nav a.item.active svg {
   stroke: var(--nav-accent);
@@ -247,22 +241,16 @@
   .app .tabbar {
     position: fixed;
     z-index: 30;
-    left: 10px;
-    right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: grid;
     /* Home, Study board and Doppelgänger, bigger; More, smaller. */
     grid-template-columns: repeat(3, minmax(0, 1.35fr)) minmax(0, 0.85fr);
     gap: 2px;
-    padding: 6px;
-    border-radius: 12px;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
     background: var(--glass-2);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
-    border: 1px solid var(--glass-edge);
-    box-shadow:
-      0 1px 1px rgba(60, 30, 5, 0.05),
-      0 14px 36px -12px rgba(60, 30, 5, 0.4);
+    border-top: 1px solid var(--glass-edge);
   }
   .app .tab {
     display: grid;
