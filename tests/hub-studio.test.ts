@@ -249,3 +249,41 @@ describe('studio references (do / don\'t)', () => {
     expect(refs[59].note).toBe('n60');
   });
 });
+
+describe('studio rules from the reference videos, studio_new, studio_rules', () => {
+  it('ships the reference rules to agents and the page without touching XIAO\'s rules', async () => {
+    const { REF_RULES_TEXT } = await lib('studio/ref-rules.js');
+    expect(REF_RULES_TEXT).toContain('One focus point per shot');
+    const before = (await get('studio-rules')).body;
+    expect(before.fromRefs).toBe(REF_RULES_TEXT);
+    const r = await post('studio-new', { idea: 'ref rules story' });
+    expect((await hub.thread(r.body.thread)).brief).toContain('rules.fromRefs');
+    await tool('studio_put', { id: r.body.id, project: SAMPLE });
+    expect(JSON.parse(await tool('studio_get', { id: r.body.id })).rules.fromRefs).toBe(REF_RULES_TEXT);
+    expect(JSON.parse(await tool('studio_rules')).fromRefs).toBe(REF_RULES_TEXT);
+  });
+
+  it('studio_new makes a project on the caller\'s thread without a new team', async () => {
+    const t = await hub.createThread({ title: 'worker thread', brief: 'x' });
+    const threads = (await hub.threads()).length;
+    const out = await tool('studio_new', { idea: 'First video, new character', title: 'First video', thread: t.id });
+    const id = /project (s\d+)/.exec(out)![1];
+    expect((await hub.threads()).length).toBe(threads);
+    const m = (await get('studio-get', { id })).body.meta;
+    expect(m).toMatchObject({ title: 'First video', thread: t.id, rev: 0, stage: 'sample' });
+    await expect(tool('studio_new', { idea: ' ', thread: t.id })).rejects.toThrow('Say what');
+    await expect(tool('studio_new', { idea: 'x', thread: 99999 })).rejects.toThrow('No thread');
+  });
+
+  it('studio_rules appends or replaces rule lines', async () => {
+    const v0 = (await get('studio-rules')).body;
+    expect(await tool('studio_rules', { text: 'Bust close-up by default\n- Captions top centre' })).toContain(`version ${v0.version + 1}`);
+    const r = (await get('studio-rules')).body;
+    expect(r.text.startsWith(v0.text.trimEnd())).toBe(true);
+    expect(r.text).toContain('- Bust close-up by default\n- Captions top centre');
+    await tool('studio_rules', { text: 'Only this', mode: 'replace' });
+    expect((await get('studio-rules')).body.text).toBe('- Only this');
+    await expect(tool('studio_rules', { text: 'x'.repeat(5000) })).resolves.toContain('Saved');
+    await expect(tool('studio_rules', { text: 'y'.repeat(2000) })).rejects.toThrow('limit');
+  });
+});

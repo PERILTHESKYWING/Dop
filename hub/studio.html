@@ -549,7 +549,7 @@ function renderNotes() {
 async function loadRules() {
   try {
     S.rules = await api('studio-rules');
-    $('rulesText').textContent = (S.rules.text || 'No rules yet. Tick “Make this a rule” when you send feedback.') + (Object.keys(S.rules.style || {}).length ? `\n\nDefault look: ${JSON.stringify(S.rules.style)}` : '') + `\n\n(version ${S.rules.version || 0})`;
+    $('rulesText').textContent = (S.rules.text || 'No rules yet. Tick “Make this a rule” when you send feedback.') + (Object.keys(S.rules.style || {}).length ? `\n\nDefault look: ${JSON.stringify(S.rules.style)}` : '') + `\n\n(version ${S.rules.version || 0})` + (S.rules.fromRefs ? `\n\nFrom your reference videos (every story follows these too):\n${S.rules.fromRefs}` : '');
   } catch {}
 }
 
