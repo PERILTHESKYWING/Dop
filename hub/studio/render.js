@@ -276,7 +276,7 @@ function caption(ops, text, st) {
     // Subtitle style: plain outlined text at the top centre, no box.
     const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
     const white = mix(st.paper, '#ffffff', 0.9);
-    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: st.ink, weight: 700 }));
+    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: '#000000', weight: 700 }));
     return;
   }
   const h = lines.length * size * 1.15 + 22;

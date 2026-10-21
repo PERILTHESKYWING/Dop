@@ -423,3 +423,21 @@ describe('the reference copy (hub/studio/first-video.js)', () => {
     for (let i = 0; i < p.scenes.length; i++) expect(R.toSVG(R.renderFrame(p, i, p.scenes[i].duration / 2), 320)).not.toMatch(/NaN|Infinity/);
   });
 });
+
+describe('studio gag marks (f2)', () => {
+  it('keeps and draws the screen gags: board, card, phone, pan, shrimp, peek', () => {
+    const kinds = ['board', 'card', 'phone', 'pan', 'shrimp', 'peek'];
+    const marks = kinds.map((kind) => ({ kind, text: 'Gender', x: 0.5, y: 0.5, t: 0 }));
+    for (const m of marks) {
+      const p = project({ scenes: [{ id: 'g', duration: 3, actors: [], marks: [m] }] });
+      expect(p.scenes[0].marks[0].kind).toBe(m.kind);
+      const f = R.renderFrame(p, 0, 2);
+      expect(f.overlay.length).toBeGreaterThan(3);
+    }
+  });
+  it('draws the top caption with a black outline', () => {
+    const p = project({ style: { ...S.SAMPLE_PROJECT.style, capPos: 'top' }, scenes: [{ id: 'c', duration: 2, narration: 'Hi', actors: [] }] });
+    const f = R.renderFrame(p, 0, 1);
+    expect(f.overlay.some((o: any) => o.text === 'Hi' && o.outline === '#000000')).toBe(true);
+  });
+});
