@@ -582,7 +582,6 @@ function acctState(a) {
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
 }
-const workingOn = (a) => S.threads.filter((t) => (t.account === a.name || crewOf(t).includes(a.name)) && t.status === 'working').map((t) => t.title);
 // The account doing the work, or the accounts XIAO allowed when none is on it yet.
 function threadAccounts(t) { return t.account ? [t.account, ...crewOf(t)] : t.accounts || []; }
 // Team members working with the lead right now.
@@ -984,7 +983,7 @@ function usageRow(label, pct, resets) {
 }
 // Live activity: the threads this account is on (role, last post, age) and its running sub-agents.
 function activityOf(a) {
-  const mine = (t) => t.account === a.name || (t.crew || {})[a.name] && !t.crew[a.name].done && !t.crew[a.name].gone;
+  const mine = (t) => t.account === a.name || crewOf(t).includes(a.name);
   const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
   const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   if (!ts.length && !ags.length) return a.working || !a.models.length ? '' : `<div class="act idle">Idle${a.lastSeen ? ` · seen ${esc(ago(Date.now() - a.lastSeen))}${ago(Date.now() - a.lastSeen) === 'just now' ? '' : ' ago'}` : ''}</div>`;
