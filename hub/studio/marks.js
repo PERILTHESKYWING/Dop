@@ -275,8 +275,14 @@ function shrimp(pen, id, x, y, k, m, st) {
     pen.stroke(id + 'sg' + i, [outer[j], inner[j]], { width: st.line * 0.5 });
   }
   pen.dot(id + 'eye', head[0] - 10 * k, head[1] - 16 * k, 6 * k);
-  // feeler: a long loop up and over (f2)
-  pen.stroke(id + 'f1', curve([[head[0] - 30 * k, head[1] - 10 * k], [head[0] - 110 * k, head[1] + 10 * k], [head[0] - 100 * k, head[1] - 80 * k], [head[0] - 70 * k, head[1] - 170 * k], [head[0] - 80 * k, head[1] - 230 * k]], 6), { width: st.line * 0.55 });
+  // feeler: a long loop up and over (f2); the big "before" shrimp's runs in a hook from
+  // its mouth round to the left and straight up off the top of the frame (still 44)
+  if (m.text === 'before') {
+    const [mx, my] = [head[0] - 40 * k, head[1] + 4 * k];
+    const D = my + 20 * k;
+    const x0 = mx - 0.13 * D;
+    pen.stroke(id + 'f1', curve([[mx, my], [x0 - 0.1 * D, my + 0.05 * D], [x0 - 0.25 * D, my - 0.15 * D], [x0 - 0.25 * D, my - 0.42 * D], [x0 + 0.04 * D, my - 0.7 * D], [x0, -20 * k]], 6), { width: st.line * 0.5 });
+  } else pen.stroke(id + 'f1', curve([[head[0] - 30 * k, head[1] - 10 * k], [head[0] - 110 * k, head[1] + 10 * k], [head[0] - 100 * k, head[1] - 80 * k], [head[0] - 70 * k, head[1] - 170 * k], [head[0] - 80 * k, head[1] - 230 * k]], 6), { width: st.line * 0.55 });
   // little legs under the body
   for (let i = 0; i < 4; i++) {
     const j = Math.round((n - 1) * (0.12 + i * 0.07));
@@ -501,7 +507,86 @@ function desk(pen, id, x, y, k, m, st) {
   }
 }
 
-const GAGS = { board, card, phone, pan, shrimp, peek, speed, desk };
+// A stroke widened into a closed outline (a limb), w0 at the start to w1 at the end.
+function band(ctrl, w0, w1) {
+  const pts = curve(ctrl, 6);
+  const n = pts.length;
+  const L = [];
+  const R = [];
+  pts.forEach((p, i) => {
+    const q = pts[Math.min(n - 1, i + 1)];
+    const o = pts[Math.max(0, i - 1)];
+    const l = Math.hypot(q[0] - o[0], q[1] - o[1]) || 1;
+    const h = lerp(w0, w1, i / (n - 1)) / 2;
+    L.push([p[0] - ((q[1] - o[1]) / l) * h, p[1] + ((q[0] - o[0]) / l) * h]);
+    R.push([p[0] + ((q[1] - o[1]) / l) * h, p[1] - ((q[0] - o[0]) / l) * h]);
+  });
+  return [...L, ...R.reverse(), L[0]];
+}
+
+// "Footage of last night" (f2 still 34): the lead collapsed, a small figure folded
+// over with her feet at the left, her back arched up, her head upside down on the
+// floor facing us, eyes shut, both arms wrapped round it. The rig cannot fold like
+// this, so it is a gag drawing in her colours. Drawn in f2 pixels (768 wide) about
+// the point (225, 250); x, y = that point on screen.
+const SKIN = '#f6e0da';
+const SKIN_B = '#e9cbc6'; // the far side, a shade darker
+function collapse(pen, id, x, y, k, m, st) {
+  const s = 2.083 * k;
+  const P = ([px, py]) => [x + (px - 225) * s, y + (py - 250) * s];
+  const Ps = (pts) => pts.map(P);
+  const w = st.line * 0.75;
+  // legs: bare, from the feet at the left up to her hips; shoes on the floor
+  pen.shape(id + 'legB', Ps(band([[142, 292], [137, 236], [166, 182]], 22, 26)), SKIN_B, { width: w });
+  pen.shape(id + 'shB', Ps(loop([[104, 298], [126, 288], [150, 292], [148, 302], [110, 304]], 4)), '#2a2340', { width: w });
+  pen.shape(id + 'legF', Ps(band([[204, 292], [208, 236], [196, 182]], 24, 28)), SKIN, { width: w });
+  pen.shape(id + 'shF', Ps(loop([[168, 300], [190, 290], [214, 293], [212, 304], [174, 306]], 4)), '#2a2340', { width: w });
+  // grey shorts over the hips and the tops of both legs
+  pen.shape(id + 'skirt', Ps(loop([[126, 222], [134, 186], [170, 158], [212, 156], [224, 216], [198, 222], [184, 196], [168, 196], [152, 226]], 5)), '#8e8f9c', { width: w });
+  // the dark top: her back arching over to the shoulders
+  pen.shape(id + 'top', Ps(loop([[196, 156], [238, 146], [278, 160], [306, 190], [318, 232], [296, 250], [268, 238], [242, 214], [214, 198]], 5)), '#3b3040', { width: w });
+  // far arm, down past the head to the floor
+  pen.shape(id + 'armB', Ps(band([[268, 232], [240, 262], [236, 300]], 20, 16)), SKIN_B, { width: w });
+  pen.shape(id + 'hB', Ps(ellipse(240, 304, 11, 9, { n: 10 })), SKIN_B, { width: w });
+  // the head, upside down: chin up by the shoulders, the hair spilling onto the floor
+  pen.shape(id + 'face', Ps(loop([[283, 238], [312, 252], [318, 280], [300, 300], [266, 300], [250, 280], [256, 252]], 5)), SKIN, { width: w });
+  const hair = Ps(curve([[247, 266], [250, 298], [236, 320], [224, 340], [248, 330], [254, 352], [272, 334], [284, 358], [296, 338], [314, 354], [316, 330], [338, 342], [326, 304], [319, 264], [308, 290], [299, 274], [290, 293], [279, 277], [268, 294], [258, 280], [247, 266]], 3));
+  const filled = pen.fill(id + 'hair', hair, HAIR);
+  if (filled) {
+    [[302, 0.25], [318, 0.55], [334, 0.85]].forEach(([yy, u]) => pen.ops.push({ d: pathOf(below(filled, P([0, yy])[1])), fill: mix(HAIR, HAIR2, u), alpha: 0.85, clip: pathOf(filled) }));
+  }
+  pen.stroke(id + 'hairL', hair, { closed: true, width: w });
+  // shut eyes and a small mouth, upside down; a little blush
+  for (const ex of [268, 300]) pen.stroke(id + 'eye' + ex, Ps(curve([[ex - 9, 268], [ex, 264], [ex + 9, 268]], 4)), { width: st.line * 0.8, round: true });
+  pen.stroke(id + 'mouth', Ps(curve([[278, 250], [284, 254], [290, 250]], 3)), { width: st.line * 0.6, round: true });
+  for (const bx of [264, 304]) pen.fill(id + 'bl' + bx, Ps(ellipse(bx, 258, 7, 3, { n: 8 })), '#f0a3a8', { slip: 0.2, alpha: 0.7 });
+  // near arm wrapped over the top of her head, the hand in her hair
+  pen.shape(id + 'armF', Ps(band([[300, 214], [342, 230], [354, 270], [334, 306]], 22, 18)), SKIN, { width: w });
+  pen.shape(id + 'hF', Ps(loop([[322, 300], [340, 296], [346, 312], [330, 320], [318, 312]], 4)), SKIN, { width: w });
+}
+
+// A thin scribbled loop in the air by her head (f2 still 27's "thinking" curl): a
+// stroke from (x, y) out to the left that winds once round and trails off.
+function curl(pen, id, x, y, k, m, st) {
+  const r = 26 * k;
+  const pts = [[x, y], [x - 40 * k, y - 4 * k]];
+  for (let i = 0; i <= 12; i++) {
+    const a = Math.PI / 2 + (i / 12) * Math.PI * 2.1;
+    pts.push([x - 60 * k + Math.cos(a) * r, y - 22 * k - Math.sin(a) * r * 0.9]);
+  }
+  pen.stroke(id + 'c', curve(pts, 3), { width: st.line * 0.6, round: true });
+}
+
+// A tear falling (f2 still 14): a short drip line, the drop, a small ring below it.
+function tear(pen, id, x, y, k, m, st) {
+  pen.stroke(id + 'dr', [[x, y - 48 * k], [x, y - 22 * k]], { width: st.line * 0.6, round: true });
+  const pts = drop(x, y, 11 * k);
+  pen.fill(id + 'd', pts, '#ffffff', { slip: 0.2 });
+  pen.stroke(id + 'd', pts, { closed: true, width: st.line * 0.6 });
+  pen.stroke(id + 'r', ellipse(x, y + 34 * k, 8 * k, 11 * k, { n: 12 }), { closed: true, width: st.line * 0.55 });
+}
+
+const GAGS = { board, card, phone, pan, shrimp, peek, speed, desk, collapse, curl, tear };
 export const GAG_KINDS = Object.keys(GAGS);
 // Props (drawn in the scene background, static): the same drawers, at stage coordinates.
 const PROP_DRAWERS = { sign: board, dropdown: card, phone, pan, shrimp, thumb, tablet, mascot, photo, stove };
@@ -613,7 +698,7 @@ export function drawMarks(ops, marks, t, st, W, H) {
     } else if (m.kind === 'sweat') {
       [[-30, 0, 11], [14, 28, 9], [40, -14, 7]].forEach(([dx, dy, rr], j) => {
         const pts = drop(x + dx * k, y + dy * k, rr * k);
-        pen.fill(id + j, pts, '#bfe3f5', { slip: 0.3 });
+        pen.fill(id + j, pts, '#ffffff', { slip: 0.3 }); // f2: small white drops outlined in ink
         pen.stroke(id + j, pts, { closed: true, width: st.line * 0.6 });
       });
     } else if (m.kind === 'sparkle') {

@@ -215,7 +215,7 @@ describe('studio camera, captions and fill', () => {
 
   it('allows a bust close-up and clamps beyond 6', () => {
     expect(cam({ zoom: 3 }).scenes[0].camera.zoom).toBe(3);
-    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(6);
+    expect(cam({ zoom: 12 }).scenes[0].camera.zoom).toBe(9);
     expect(cam({}).scenes[0].camera).toEqual({ zoom: 1, x: 0.5, y: 0.6 });
   });
 
@@ -340,11 +340,11 @@ describe('studio female lead options (refs f1/f2)', () => {
   };
 
   it('cleans the new cast fields and allows face close-ups', () => {
-    const r = S.validateProject({ cast: { a: { eyes: 'anime', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hair2: 'pink' } }, scenes: [{ camera: { zoom: 9 }, actors: [{ who: 'a' }] }] });
+    const r = S.validateProject({ cast: { a: { eyes: 'anime', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hair2: 'pink' } }, scenes: [{ camera: { zoom: 12 }, actors: [{ who: 'a' }] }] });
     expect(r.project.cast.a).toMatchObject({ eyes: 'anime', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
     expect(r.project.cast.a.hair2).toBeUndefined();
     expect(lead().hair2).toBe('#c0507a');
-    expect(r.project.scenes[0].camera.zoom).toBe(6);
+    expect(r.project.scenes[0].camera.zoom).toBe(9);
     expect(S.schemaText()).toMatch(/topStyle tee\|sleeveless\|turtleneck\|long/);
   });
 

@@ -273,15 +273,28 @@ function bubble(pen, text, spot, placed, st) {
   lines.forEach((l, i) => pen.text(l, cx, cy - th / 2 + 17 + size * 0.88 + i * size * 1.12, size));
 }
 
-function caption(ops, text, st) {
+// Relative brightness 0..1 of a #rrggbb colour.
+const luma = (c) => {
+  const n = parseInt(String(c).slice(1, 7), 16);
+  return Number.isFinite(n) ? (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 : 1;
+};
+
+function caption(ops, text, st, scene = {}) {
   const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
   if (st.capPos === 'top') {
-    // Subtitle style (f2): black bold sans with a thin white edge at the top centre, no box,
-    // in a fixed band (baseline at 8% of the frame); the shots keep her hair below it.
+    // Subtitle style (f2): black sans at a medium weight (not bold) with a thin white edge,
+    // no box, at the top centre (baseline at 8% of the frame); the shots keep her hair
+    // below it. On a dark break colour it turns white with a dark edge (f2 still 34).
+    // scene.capAt [x, y] moves it: left-aligned at x, middle at y (f2 still 44).
     const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
     const sz = size * 0.86;
-    lines.forEach((l, i) => pen.text(l, W / 2, 30 + sz * 0.95 + i * sz * 1.2, sz, { color: '#111111', outline: '#ffffff', ow: 0.12, weight: 700, sans: true }));
+    const dark = scene.bg?.color && luma(scene.bg.color) < 0.4;
+    const look = { color: dark ? '#ffffff' : '#111111', outline: dark ? '#231c2a' : '#ffffff', ow: 0.2, weight: 500, sans: true };
+    const at = scene.capAt;
+    const x = at ? at[0] * W : W / 2;
+    const y0 = at ? at[1] * H + sz * 0.35 - ((lines.length - 1) * sz * 1.2) / 2 : 30 + sz * 0.95;
+    lines.forEach((l, i) => pen.text(l, x, y0 + i * sz * 1.2, sz, { ...look, ...(at ? { align: 'left' } : {}) }));
     return;
   }
   const h = lines.length * size * 1.15 + 22;
@@ -347,7 +360,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   // Marks sit on the screen (x, y = share of the frame), like labels written on the
   // finished shot: a close-up never pushes them out of view.
   drawMarks(overlay, scene.marks, tq, st, W, H);
-  if (st.captions && scene.narration) caption(overlay, scene.narration, st);
+  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
