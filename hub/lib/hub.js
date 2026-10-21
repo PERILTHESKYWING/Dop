@@ -226,10 +226,12 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
 
   // ---------- usage from Claude ----------
   // Reads an account's 5-hour and weekly use the way Claude Code's /usage does,
-  // with one of its routine tokens. Not a documented API: if Claude refuses
-  // the token, the page says so and usage can still come from a PC status line
-  // or be typed in by hand.
+  // with one of its routine tokens. Not a documented API, and routine tokens
+  // are documented as able to start their routine only, so Claude usually
+  // refuses; then it retries every 6 hours. The numbers mostly come from the
+  // hub's agents (hub/usage-probe.mjs -> hub_usage), a PC status line, or by hand.
   const USAGE_EVERY_MS = 5 * 60_000;
+  const USAGE_REFUSED_EVERY_MS = 6 * 3600_000;
   const pctOf = (x) => {
     const v = Number(x?.utilization ?? x?.used_percentage);
     if (!Number.isFinite(v)) return null;
@@ -245,7 +247,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        if (res.status === 401 || res.status === 403) return { error: `Claude refused this token (${res.status}); a routine token may not be allowed to read usage` };
+        if (res.status === 401 || res.status === 403) return { error: `Claude refused this token (${res.status}); routine tokens can only start their routine, so its agents report usage instead`, refused: true };
         return { error: `Claude answered ${res.status}${e?.error?.message ? ': ' + clean(e.error.message, 140) : ''}` };
       }
       const b = await res.json();
@@ -272,7 +274,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const seen = new Map((await connLog()).filter((e) => e.keyOk && e.account && e.http === 'POST').map((e) => [e.account, e.at]));
     for (const a of Object.values(await accounts())) if (!a.connectedAt && seen.has(a.name)) await putAccount({ ...a, connectedAt: seen.get(a.name) });
     const all = Object.values(await accounts()).filter((a) => a.plan !== 'free');
-    const due = all.filter((a) => force || now() - (a.usageTriedAt || 0) > USAGE_EVERY_MS);
+    const due = all.filter((a) => force || now() - (a.usageTriedAt || 0) > (a.usageRefused ? USAGE_REFUSED_EVERY_MS : USAGE_EVERY_MS));
     // Claim the slot first so overlapping page polls don't all ask Claude.
     for (const a of due) await putAccount({ ...a, usageTriedAt: now() });
     await Promise.all(
@@ -281,6 +283,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
         const a = await account(a0.name);
         if (!a || !got) return;
         a.usageTriedAt = now();
+        a.usageRefused = !!got.refused;
         if (got.usage) {
           a.usage = got.usage;
           a.usageErr = '';
@@ -839,7 +842,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
+  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. ${slug === 'dop' ? 'Share your usage at the start and with each checkpoint: run `node hub/usage-probe.mjs` and pass what it prints to hub_usage (state "report"); skip it if it prints an error. ' : ''}Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
