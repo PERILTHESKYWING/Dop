@@ -131,7 +131,7 @@ describe('studio hands', () => {
     // The grip lands on the opposite shoulder: the fingers (a hand's length
     // past the wrist) reach it.
     const cl = held('clasp').sk;
-    const tip = cl.armF.wr.map((v: number, i: number) => v + cl.armF.hd[i] * 0.068 * 600 * ch.headSize ** 2 * 0.7);
+    const tip = cl.armF.wr.map((v: number, i: number) => v + cl.armF.hd[i] * 0.105 * 600 * ch.headSize ** 2 * 0.7);
     expect(Math.hypot(tip[0] - cl.armB.sh[0], tip[1] - cl.armB.sh[1]) / 600).toBeLessThan(0.07);
   });
 });

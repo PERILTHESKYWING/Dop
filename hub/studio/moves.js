@@ -97,15 +97,17 @@ export const MOVE_SET = {
     ],
   },
 
+  // The arms go up bent and a little forward (a cheer, not a T-pose), so
+  // in a bust they stay near the body on the way up.
   jump: {
     posture: 0.3,
     keys: [
       [0, {}],
       [0.16, { pelvis: [0, 0.075], spine: 20, armF: [12, -44, 30], armB: [12, -44, 30], squash: 0.9, headPitch: 8 }, 'out'],
-      [0.26, { lift: 0.12, squash: 1.08, armF: [160, 20, 10], armB: [155, 20, 12], spine: -6, footF: [0, 0.04, 0], footB: [0, 0.06, 0], headPitch: -10, toe: 1 }, 'out'],
-      [0.4, { lift: 0.2, armF: [165, 12, 20], armB: [160, 12, 20], footF: [0.01, 0.07, 0], footB: [-0.01, 0.08, 0], headPitch: -6 }, 'out'],
-      [0.54, { lift: 0.07, armF: [120, 10, 30], armB: [115, 10, 30], footF: [0, 0.02, 0] }, 'in'],
-      [0.62, { pelvis: [0, 0.065], squash: 0.9, spine: 15, armF: [40, 12, 30], armB: [40, 10, 30], headPitch: 6 }, 'in'],
+      [0.26, { lift: 0.12, squash: 1.08, armF: [150, 32, 46], armB: [146, 32, 48], spine: -6, footF: [0, 0.04, 0], footB: [0, 0.06, 0], headPitch: -10, toe: 1 }, 'out'],
+      [0.4, { lift: 0.2, armF: [156, 26, 40], armB: [152, 26, 42], footF: [0.01, 0.07, 0], footB: [-0.01, 0.08, 0], headPitch: -6 }, 'out'],
+      [0.54, { lift: 0.07, armF: [110, 34, 62], armB: [106, 34, 62], footF: [0, 0.02, 0] }, 'in'],
+      [0.62, { pelvis: [0, 0.065], squash: 0.9, spine: 15, armF: [36, 22, 52], armB: [36, 20, 52], headPitch: 6 }, 'in'],
       [0.84, { pelvis: [0, 0.01], spine: 3 }, 'out'],
       [1.0, {}, 'io'],
     ],
@@ -253,9 +255,9 @@ export const MOVE_SET = {
     opensAt: 0.82,
     keys: [
       [0, {}],
-      [0.3, { handF: [-1.0, 1.9, 0.6, 'face'], gripF: 'flat', aimF: [0.1, -1, 0.3], shrug: 0.15 }, 'out'],
-      [0.56, { handF: [-0.9, 1.3, 0.78, 'face'], gripF: 'flat', aimF: [0.15, -1, 0.15], headRoll: -9, weight: -0.2 }, 'out'],
-      [0.82, { handF: [-0.9, 1.3, 0.78, 'face'], gripF: 'flat', aimF: [0.15, -1, 0.15], headRoll: -9, weight: -0.2 }, 'io'],
+      [0.3, { handF: [-1.3, 2.3, 0.6, 'face'], gripF: 'flat', aimF: [0.1, -1, 0.3], shrug: 0.15 }, 'out'],
+      [0.56, { handF: [-1.22, 1.5, 0.78, 'face'], gripF: 'flat', aimF: [0.2, -1, 0.15], headRoll: -9, weight: -0.2 }, 'out'],
+      [0.82, { handF: [-1.22, 1.5, 0.78, 'face'], gripF: 'flat', aimF: [0.2, -1, 0.15], headRoll: -9, weight: -0.2 }, 'io'],
     ],
   },
   // A claw grip on her opposite shoulder (nervous).
@@ -264,8 +266,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [0.16, 0.12, 0.1], gripF: 'hold', shrug: 0.2 }, 'out'],
-      [0.56, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], elbowF: [0.1, 1, 0.25], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'out'],
-      [0.82, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], elbowF: [0.1, 1, 0.25], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'io'],
+      [0.56, { handF: [0.26, 0.03, 0.14], gripF: 'hold', aimF: [0.7, -0.6, -0.3], elbowF: [0, 1, 0.3], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'out'],
+      [0.82, { handF: [0.26, 0.03, 0.14], gripF: 'hold', aimF: [0.7, -0.6, -0.3], elbowF: [0, 1, 0.3], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'io'],
     ],
   },
   // Index finger on her chin (thinking, sly).
@@ -273,9 +275,9 @@ export const MOVE_SET = {
     opensAt: 0.82,
     keys: [
       [0, {}],
-      [0.3, { handF: [-0.45, 2.2, 0.6, 'face'], gripF: 'point', aimF: [0.2, -1, 0.3] }, 'out'],
-      [0.56, { handF: [-0.22, 1.55, 0.9, 'face'], gripF: 'point', aimF: [0.3, -1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'out'],
-      [0.82, { handF: [-0.22, 1.55, 0.9, 'face'], gripF: 'point', aimF: [0.3, -1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'io'],
+      [0.3, { handF: [-0.75, 2.4, 0.6, 'face'], gripF: 'point', aimF: [0.4, -1, 0.3] }, 'out'],
+      [0.56, { handF: [-0.6, 1.92, 0.9, 'face'], gripF: 'point', aimF: [0.5, -1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'out'],
+      [0.82, { handF: [-0.6, 1.92, 0.9, 'face'], gripF: 'point', aimF: [0.5, -1, 0.2], headRoll: -10, headPitch: -4, weight: -0.3 }, 'io'],
     ],
   },
   // Both hands round a phone held at the chest, looking over it.
@@ -316,9 +318,9 @@ export const MOVE_SET = {
     opensAt: 0.82,
     keys: [
       [0, {}],
-      [0.3, { handF: [-1.15, 1.9, 0.5, 'face'], gripF: 'fist', aimF: [0, -1, 0.2], headPitch: 3 }, 'out'],
-      [0.56, { handF: [-1.12, 1.25, 0.8, 'face'], gripF: 'point', aimF: [0.05, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'out'],
-      [0.82, { handF: [-1.12, 1.25, 0.8, 'face'], gripF: 'point', aimF: [0.05, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'io'],
+      [0.3, { handF: [-1.5, 2.2, 0.5, 'face'], gripF: 'fist', aimF: [0, -1, 0.2], headPitch: 3 }, 'out'],
+      [0.56, { handF: [-1.45, 1.45, 0.8, 'face'], gripF: 'point', aimF: [0.1, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'out'],
+      [0.82, { handF: [-1.45, 1.45, 0.8, 'face'], gripF: 'point', aimF: [0.1, -1, 0.1], headPitch: -3, headRoll: -5, spine: -2 }, 'io'],
     ],
   },
   // A peace sign at her chin.
@@ -327,8 +329,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [-0.7, 2.2, 0.6, 'face'], gripF: 'fist', aimF: [0, -1, 0.2] }, 'out'],
-      [0.56, { handF: [-0.6, 1.75, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'out'],
-      [0.82, { handF: [-0.6, 1.75, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'io'],
+      [0.56, { handF: [-0.75, 1.95, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'out'],
+      [0.82, { handF: [-0.75, 1.95, 0.85, 'face'], gripF: 'peace', aimF: [-0.15, -1, 0.2], headRoll: -10, weight: -0.3 }, 'io'],
     ],
   },
   // Palms clasped together beside her jaw (grateful).
@@ -337,8 +339,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [0.3, 2.2, 0.8, 'face'], handB: [0.45, 2.2, 0.75, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0.2], aimB: [0.3, -1, 0.2], shrug: 0.15 }, 'out'],
-      [0.56, { handF: [0.4, 2.0, 1.0, 'face'], handB: [0.62, 1.95, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'out'],
-      [0.82, { handF: [0.4, 2.0, 1.0, 'face'], handB: [0.62, 1.95, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'io'],
+      [0.56, { handF: [0.22, 1.85, 1.0, 'face'], handB: [0.44, 1.8, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'out'],
+      [0.82, { handF: [0.22, 1.85, 1.0, 'face'], handB: [0.44, 1.8, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'io'],
     ],
   },
   // Two loose fists tucked under her chin (cute goodbye).
@@ -346,9 +348,9 @@ export const MOVE_SET = {
     opensAt: 0.82,
     keys: [
       [0, {}],
-      [0.3, { handF: [-0.5, 2.3, 0.6, 'face'], handB: [0.5, 2.3, 0.6, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.3], aimB: [-0.2, -1, 0.3], shrug: 0.2 }, 'out'],
-      [0.56, { handF: [-0.34, 1.5, 0.85, 'face'], handB: [0.34, 1.5, 0.85, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.2], aimB: [-0.2, -1, 0.2], shrug: 0.5, headRoll: -9, slump: -0.2 }, 'out'],
-      [0.82, { handF: [-0.34, 1.5, 0.85, 'face'], handB: [0.34, 1.5, 0.85, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.2], aimB: [-0.2, -1, 0.2], shrug: 0.5, headRoll: -9, slump: -0.2 }, 'io'],
+      [0.3, { handF: [-0.55, 2.5, 0.6, 'face'], handB: [0.55, 2.5, 0.6, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.3], aimB: [-0.2, -1, 0.3], shrug: 0.2 }, 'out'],
+      [0.56, { handF: [-0.58, 1.72, 0.85, 'face'], handB: [0.58, 1.72, 0.85, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.2], aimB: [-0.2, -1, 0.2], shrug: 0.5, headRoll: -9, slump: -0.2 }, 'out'],
+      [0.82, { handF: [-0.58, 1.72, 0.85, 'face'], handB: [0.58, 1.72, 0.85, 'face'], gripF: 'fist', gripB: 'fist', aimF: [0.2, -1, 0.2], aimB: [-0.2, -1, 0.2], shrug: 0.5, headRoll: -9, slump: -0.2 }, 'io'],
     ],
   },
 };
