@@ -7,7 +7,7 @@ import path from 'node:path';
 const lib = (p: string) => import(/* @vite-ignore */ `../hub/${p}` as string) as Promise<any>;
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(40, 1)]).toString('base64');
 
-let hub: any, studio: any, api: any, nightly: any;
+let hub: any, studio: any, api: any, nightly: any, SAMPLE: any;
 const A = { name: 'ME' };
 const get = (op: string, query: any = {}) => api.pageApi({ hub, password: 'pw', method: 'GET', query: { op, ...query }, body: {}, headers: { 'x-hub-password': 'pw' } });
 const post = (op: string, body: any = {}) => api.pageApi({ hub, password: 'pw', method: 'POST', query: { op }, body, headers: { 'x-hub-password': 'pw' } });
@@ -21,13 +21,9 @@ beforeAll(async () => {
   nightly = await lib('studio-nightly.mjs');
   hub = createHub({ store: memoryStore(), fetchImpl: (async () => { throw new Error('offline'); }) as any });
   await hub.upsertAccount({ name: 'ME', plan: 'max' });
-  const schema = {
-    validateProject: (p: any) => (p.shots ? [] : ['shots is missing']),
-    lintProject: (p: any) => (p.shots?.length > 1 ? ['shot 2 has a different colour for Mia'] : []),
-  };
-  studio = createStudio(hub, { schema });
-  // pageApi uses the shared studio of this hub; give it the same schema.
-  (await lib('lib/studio.js')).studioOf(hub);
+  SAMPLE = (await lib('studio/schema.js')).SAMPLE_PROJECT;
+  // The real format checks (hub/studio/schema.js), loaded the way the server loads them.
+  studio = createStudio(hub);
 });
 
 describe('studio backend', () => {
@@ -50,24 +46,33 @@ describe('studio backend', () => {
   });
 
   it('rejects an invalid project and saves a valid one as a new revision', async () => {
-    expect(await tool('studio_put', { id, project: { a: 1 } })).toContain('shots is missing');
+    expect(await tool('studio_put', { id, project: { a: 1 } })).toContain('cast: no characters');
     expect((await get('studio-get', { id })).body.meta.rev).toBe(0);
-    expect(await tool('studio_put', { id, project: { shots: [1] }, note: 'first' })).toContain('Saved rev 1');
-    expect(await tool('studio_put', { id, project: JSON.stringify({ shots: [1, 2] }), note: 'second' })).toContain('Saved rev 2');
+    expect(await tool('studio_put', { id, project: SAMPLE, note: 'first' })).toContain('Saved rev 1');
+    // Unknown values are fixed, saved in their clean form and reported back.
+    const odd = { ...SAMPLE, title: 'Second', scenes: [{ ...SAMPLE.scenes[0], bg: 'moon' }, SAMPLE.scenes[1]] };
+    const out = await tool('studio_put', { id, project: JSON.stringify(odd), note: 'second' });
+    expect(out).toContain('Saved rev 2');
+    expect(out).toContain('bg "moon" unknown');
     const g = (await get('studio-get', { id })).body;
-    expect(g.project.shots).toHaveLength(2);
+    expect(g.project.title).toBe('Second');
+    expect(g.project.scenes[0].bg.kind).toBe('plain');
+    expect(g.project.style.fps).toBe(12);
     expect(g.revs.map((r: any) => r.rev)).toEqual([1, 2]);
     expect(g.revs[0].project).toBeUndefined();
     expect((await get('studio-get', { id, since: 2 })).body).toEqual({ same: true, rev: 2 });
   });
 
   it('keeps only the last 10 revisions', async () => {
-    for (let i = 0; i < 11; i++) await tool('studio_put', { id, project: { shots: [i] } });
+    for (let i = 0; i < 11; i++) await tool('studio_put', { id, project: { ...SAMPLE, title: `v${i}` } });
     expect((await get('studio-get', { id })).body.revs).toHaveLength(10);
   });
 
   it('refuses a huge project', async () => {
-    await expect(tool('studio_put', { id, project: { shots: ['x'.repeat(310 * 1024)] } })).rejects.toThrow('limit');
+    const say = 'x'.repeat(140);
+    const beats = Array.from({ length: 24 }, (_, t) => ({ t, move: 'talk', face: 'happy', say }));
+    const scene = { duration: 30, narration: 'n'.repeat(300), actors: ['mia', 'leo', 'mia', 'leo'].map((who) => ({ who, beats })) };
+    await expect(tool('studio_put', { id, project: { ...SAMPLE, scenes: Array(40).fill(scene) } })).rejects.toThrow('limit');
   });
 
   it('takes a sheet, rejects junk, and studio_look returns it with lint', async () => {
@@ -78,10 +83,10 @@ describe('studio backend', () => {
     const out = await tool('studio_look', { id });
     expect(out.content[0]).toMatchObject({ type: 'image', mimeType: 'image/png', data: PNG });
     expect(out.content[1].text).toContain(`Sheet for rev ${rev}`);
-    await tool('studio_put', { id, project: { shots: [1, 2] } });
+    await tool('studio_put', { id, project: { ...SAMPLE, cast: { ...SAMPLE.cast, sam: { name: 'Sam' } } } });
     const stale = await tool('studio_look', { id });
     expect(stale.content[1].text).toContain('not uploaded');
-    expect(stale.content[1].text).toContain('different colour');
+    expect(stale.content[1].text).toContain('cast.sam: never appears');
   });
 
   it('logs feedback, prompts the thread, and turns RULE feedback into a rule', async () => {

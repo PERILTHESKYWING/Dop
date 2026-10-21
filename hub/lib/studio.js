@@ -83,7 +83,7 @@ export function studioBrief(p) {
     `Storytime animation studio, project ${p.id} "${p.title}". XIAO's idea: ${p.idea}`,
     '',
     'You work only through the studio_* tools (and hub_* to talk to your team). Never draw by hand outside the project file: characters are code-drawn rigs in the project JSON, so they stay identical in every shot.',
-    '- studio_get(id): the project, the style rules XIAO has taught the studio, and his latest feedback. Read it first and obey the rules.',
+    '- studio_get(id): the project, the style rules XIAO has taught the studio, and the latest feedback from XIAO. Read it first and obey the rules.',
     '- studio_put(id, project, note): save the next version. It is checked; fix every problem it lists. The page redraws it live and uploads a contact sheet of the frames.',
     '- studio_look(id, wait_s): the latest sheet as an image plus lint warnings. Look at it before you call a version good.',
     '- studio_note(id, text): a short remark XIAO sees (what you changed, what you doubt).',
@@ -111,10 +111,16 @@ export function createStudio(hub, { schema = null } = {}) {
     await store.multi([['RPUSH', K.log, JSON.stringify({ ts: now(), ...entry })], ['LTRIM', K.log, -KEEP_LOG, -1]]);
   };
 
+  // validateProject never throws: it fills defaults (XIAO's style rules as the
+  // base style) and lists what it changed. Only a project with nothing to
+  // draw is refused; the rest is saved in its cleaned form.
   async function check(project) {
-    if (project == null || typeof project !== 'object' || Array.isArray(project)) return ['The project must be a JSON object.'];
+    if (project == null || typeof project !== 'object' || Array.isArray(project)) return { ok: false, problems: ['The project must be a JSON object.'] };
     const s = await sch();
-    return typeof s.validateProject === 'function' ? lines(s.validateProject(project)) : [];
+    if (typeof s.validateProject !== 'function') return { ok: true, project, problems: [] };
+    const r = await rulesNow();
+    const v = s.validateProject(project, { baseStyle: s.normalizeStyle ? s.normalizeStyle(r.style || {}) : undefined });
+    return { ok: !!v.ok, project: v.project, problems: lines(v.problems) };
   }
   async function lint(project) {
     const s = await sch();
@@ -128,13 +134,13 @@ export function createStudio(hub, { schema = null } = {}) {
     return out.filter(Boolean).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  async function create({ idea, title, team = 2, model = 'opus' }) {
+  async function create({ idea, title, team = 2, model = 'sonnet', thinking = 'medium' }) {
     idea = clean(idea, 4000);
     if (!idea) throw fail('Say what the story is about.');
     const id = `s${Number(await store.cmd('INCR', K.seq))}`;
     const m = { id, title: clean(title, 80) || clean(idea.split('\n')[0], 60), idea, stage: 'sample', rev: 0, thread: 0, createdAt: now(), updatedAt: now(), by: '', rating: null, sheetRev: 0 };
     await store.cmd('HSET', K.index, id, JSON.stringify(m));
-    const t = await hub.createThread({ title: `Studio: ${m.title}`, brief: studioBrief(m), model, thinking: 'xhigh', team: Math.max(1, Math.min(4, Number(team) || 2)), code: true, from: 'XIAO' });
+    const t = await hub.createThread({ title: `Studio: ${m.title}`, brief: studioBrief(m), model: ['opus', 'sonnet', 'haiku', 'fable'].includes(model) ? model : 'sonnet', thinking: ['low', 'medium', 'high', 'xhigh', 'max'].includes(thinking) ? thinking : 'medium', team: Math.max(1, Math.min(4, Number(team) || 2)), code: true, from: 'XIAO' });
     m.thread = t.id;
     await store.cmd('HSET', K.index, id, JSON.stringify(m));
     return { id, thread: t.id };
@@ -167,8 +173,9 @@ export function createStudio(hub, { schema = null } = {}) {
       project = parse(project);
       if (project == null) throw fail('project is not valid JSON.');
     }
-    const problems = await check(project);
-    if (problems.length) return { ok: false, problems };
+    const v = await check(project);
+    if (!v.ok) return { ok: false, problems: v.problems };
+    project = v.project;
     const doc = JSON.stringify(project);
     if (doc.length > MAX_PROJECT) throw fail(`The project is ${Math.round(doc.length / 1024)} KB; the limit is ${MAX_PROJECT / 1024} KB. Reuse rigs and moves instead of repeating them.`);
     const m = await meta(id);
@@ -182,7 +189,7 @@ export function createStudio(hub, { schema = null } = {}) {
       ['LTRIM', K.revs(id), -KEEP_REVS, -1],
       ['HSET', K.index, id, JSON.stringify(m)],
     ]);
-    return { ok: true, rev: m.rev };
+    return { ok: true, rev: m.rev, problems: v.problems, lint: await lint(project) };
   }
 
   async function addNote(id, text, by) {
@@ -316,7 +323,7 @@ export function createStudio(hub, { schema = null } = {}) {
           idea: g.meta.idea,
           rev: g.meta.rev,
           thread: g.meta.thread,
-          format: typeof s.FORMAT_HELP === 'string' ? s.FORMAT_HELP : undefined,
+          format: typeof s.schemaText === 'function' ? s.schemaText() : undefined,
           rules: { version: r.version, text: r.text, style: r.style },
           feedback: g.feedback.slice(-8),
           notes: g.notes.slice(-8),
@@ -331,7 +338,9 @@ export function createStudio(hub, { schema = null } = {}) {
       run: async (a, x) => {
         const r = await put(String(x.id || ''), x.project, x.note, a.name);
         if (!r.ok) return `Not saved. Fix these ${r.problems.length} problem${r.problems.length > 1 ? 's' : ''} and call studio_put again:\n- ${r.problems.slice(0, 25).join('\n- ')}`;
-        return `Saved rev ${r.rev}. The page redraws it and uploads a sheet within about 10 seconds (it must be open); then studio_look(id: "${x.id}", wait_s: 25) shows it.`;
+        const fixed = r.problems.length ? `\nFixed for you (check these were meant):\n- ${r.problems.slice(0, 15).join('\n- ')}` : '';
+        const warn = r.lint.length ? `\nLint (craft and consistency):\n- ${r.lint.slice(0, 15).join('\n- ')}` : '';
+        return `Saved rev ${r.rev}.${fixed}${warn}\nThe page redraws it and uploads a sheet within about 10 seconds (it must be open); then studio_look(id: "${x.id}", wait_s: 25) shows it.`;
       },
     },
     {
