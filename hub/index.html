@@ -334,6 +334,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .afoot .mdl { font-size: 13px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--chip); }
 .afoot .upd { font-size: 13px; color: var(--soft); margin-left: auto; }
 .aacts { display: flex; gap: 4px; flex-wrap: wrap; }
+.agents { padding: 14px 12px 0; display: grid; gap: 6px; }
+.agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
+.ag-who { font-weight: 700; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
+.ag { display: grid; gap: 4px; padding: 7px 8px; border-radius: 8px; background: var(--sel); min-width: 0; }
+.ag-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ag-top .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ag-top small { color: var(--soft); flex: none; }
+.ag .dot { background: var(--green); } .ag.done .dot { background: var(--faint); } .ag.failed .dot { background: var(--red); } .ag.stale .dot { background: var(--amber); }
+.ag-step { color: var(--soft); font-size: 14px; overflow-wrap: anywhere; }
+.ag .track { height: 5px; border-radius: 3px; background: var(--line, rgba(128,128,128,.25)); overflow: hidden; }
+.ag .track .fill { height: 100%; background: var(--green); transition: width .4s; } .ag.failed .fill { background: var(--red); }
 .tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
 .tasks > *, .tgroup { min-width: 0; }
 .tasks .cap { white-space: nowrap; }
@@ -464,7 +475,7 @@ const ls = {
   del: (k) => { try { localStorage.removeItem(k); } catch {} },
 };
 let pw = ls.get('hubpw') || '';
-let S = { threads: [], accounts: [], messages: [], settings: {}, overhead: {}, loading: true };
+let S = { threads: [], accounts: [], messages: [], agents: [], settings: {}, overhead: {}, loading: true };
 // Last view, so a reload paints at once and then catches up.
 try { const c = JSON.parse(ls.get('hub-cache') || 'null'); if (c && pw) S = { ...c, loading: false }; } catch {}
 // sel: 0 is Project chat, a thread id, or NEW_CHAT for a clean chat that has no thread yet.
@@ -508,7 +519,7 @@ async function load(full) {
   const ids = new Set(d.threads.map((t) => t.id));
   // A message still sending stays until the hub has it.
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
-  S = { ...S, threads: d.threads, accounts: d.accounts, settings: d.settings, overhead: d.overhead, loading: false,
+  S = { ...S, threads: d.threads, accounts: d.accounts, agents: d.agents || [], settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => m.pending || !m.thread || ids.has(m.thread)) };
   if (d.project) setProject(d.project, d.owner);
   seq = d.seq; render();
@@ -523,6 +534,7 @@ async function tick() {
 // Usage is read from Claude in the background, so nothing waits on it.
 async function readUsage(force) { try { await api('usage' + (force ? '&force=1' : '')); await load(false); } catch {} }
 setInterval(tick, 3000);
+setInterval(() => { if (!document.hidden && (S.agents || []).some((g) => g.status === 'running')) renderTeam(); }, 15_000);
 setInterval(() => { if (!document.hidden && pw) readUsage(); }, 5 * 60_000);
 document.addEventListener('visibilitychange', tick);
 
@@ -939,6 +951,22 @@ function taskList() {
     return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
   }).join('')}</div>`;
 }
+const AGENT_STALE = 30 * 60_000;
+function agentRow(g) {
+  const t = Date.now();
+  const stale = g.status === 'running' && t - g.at > AGENT_STALE;
+  const cls = stale ? 'stale' : g.status;
+  const dur = ago((g.finished || t) - g.started);
+  const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
+  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(g.title)}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+}
+function agentPanel() {
+  const list = S.agents || [];
+  if (!list.length) return '';
+  const run = list.filter((g) => g.status === 'running').length;
+  const names = [...new Set(list.map((g) => g.account))];
+  return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run} running</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
+}
 function renderTeam() {
   const rank = (a) => (a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
@@ -948,6 +976,7 @@ function renderTeam() {
   $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
     ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
+    ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
