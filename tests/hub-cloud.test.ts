@@ -545,3 +545,37 @@ describe('cloud hub: usage cards explain why numbers are missing', () => {
     expect(both).toContain('earlier note');
   });
 });
+
+describe('cloud hub: removed accounts', () => {
+  it('drops a removed account everywhere and never brings it back', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const store = memoryStore();
+    const h = createHub({ store, fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Keep', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_k', token: 'good-k' }] });
+    const gone = await h.upsertAccount({ name: 'Gone', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_g', token: 'good-g' }] });
+    await h.saveSettings({ coordinatorAccount: 'Gone' });
+    const t = await h.createThread({ title: 'Picked', brief: 'x', accounts: ['Gone', 'Keep'], model: 'sonnet' });
+    await h.updateThread(t.id, { status: 'done' });
+    const rev = await h.version();
+    await h.removeAccount('Gone');
+    // Every page refreshes: the change bumps the revision.
+    expect(await h.version()).not.toBe(rev);
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect((await h.snapshot()).accounts.map((a: any) => a.name)).toEqual(['Keep']);
+    expect((await h.thread(t.id)).accounts).toEqual(['Keep']);
+    expect((await h.settings()).coordinatorAccount).toBe('');
+    // A write still in flight (usage read, touch) can't re-create it.
+    await store.cmd('HSET', 'hub:accounts', 'Gone', JSON.stringify(gone));
+    expect(await h.account('Gone')).toBeNull();
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect(await h.touchAccount('Gone')).toBeNull();
+    expect(await h.authAgent('Gone', gone.key)).toBeNull();
+    // Old picks from a page that still lists it fall away.
+    const msg = await h.prompt({ text: 'Do it', accounts: ['Gone'] });
+    expect(msg.meta.accounts).toEqual([]);
+    // Adding the name again is a fresh account.
+    await h.upsertAccount({ name: 'Gone', plan: 'free' });
+    expect((await h.account('Gone')).key).not.toBe(gone.key);
+  });
+});
