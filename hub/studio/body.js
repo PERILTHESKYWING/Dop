@@ -11,8 +11,9 @@ const TAU = Math.PI * 2;
 // Fill, shade and outline a solid. Pen.form adds the light and shadow; with
 // a plain pen it falls back to fill + outline.
 export function solid(pen, id, pts, color, opts = {}) {
-  if (pen.form) pen.form(id, pts, color, opts);
-  else pen.shape(id, pts, color, { width: opts.width });
+  if (pen.form) return pen.form(id, pts, color, opts);
+  pen.shape(id, pts, color, { width: opts.width });
+  return pts;
 }
 
 // 2D helpers.

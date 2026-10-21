@@ -67,7 +67,7 @@ const FRINGE = [[-0.66, 0.16, -0.16, 0.05], [-0.4, 0.17, -0.06, 0.07], [-0.12, 0
 const BACK = {
   // side: the left edge from the bottom up as [half width, height]; heights
   // over 0.3 are shares of len (choppy layers stick out, then tuck in).
-  shag: { len: 1.75, w: 1.0, ends: [0.86, 1.0, 0.8, 0.95, 0.78, 1.0, 0.84], side: [[1.06, 0.97], [0.96, 0.78], [1.16, 0.62], [1.06, 0.48], [1.14, 0.34], [1.08, 0.1]] },
+  shag: { len: 1.75, w: 1.0, ends: [0.86, 1.0, 0.8, 0.95, 0.78, 1.0, 0.84], side: [[1.02, 0.88], [0.96, 0.78], [1.16, 0.62], [1.06, 0.48], [1.14, 0.34], [1.08, 0.1]] },
   flowing: { len: 3.1, w: 0.98, ends: [0.92, 1.0, 0.95, 0.99, 0.93, 1.0], side: [[1.02, 0.97], [1.06, 0.6], [1.16, 0.34], [1.1, 0.1]] },
 };
 const knot = (tab, a) => {
@@ -155,12 +155,12 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     }
     pts.push(pts[0]);
     const col = mix(ch.hair, ink, 0.12);
-    solid(pen, 'hairB', pts, col, { width: line * 0.9, slip: ch.hair2 ? 0 : 1 });
+    const drawn = solid(pen, 'hairB', pts, col, { width: line * 0.9 }) || pts;
     if (ch.hair2) {
-      // Ombre in soft steps toward the lock ends.
-      for (let k = 0; k < 6; k++) {
-        const f = 0.45 + k * 0.08;
-        pen.shade('hairTipB' + k, [at(-3, L * f), at(3, L * f), at(3, L * 1.2), at(-3, L * 1.2)], pts, { color: ch.hair2, alpha: 0.18 });
+      // Ombre: many faint bands over the lower third, clipped to the fill as drawn.
+      for (let k = 0; k < 10; k++) {
+        const f = 0.6 + k * 0.035;
+        pen.shade('hairTipB' + k, [at(-3, L * f), at(3, L * f), at(3, L * 1.3), at(-3, L * 1.3)], drawn, { color: ch.hair2, alpha: 0.13 });
       }
       pen.stroke('hairB', pts, { width: line * 0.9, closed: true });
     }
@@ -438,8 +438,11 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         if (tufts && Math.abs(a) < 58) v += (style === 'spiky' ? 0.1 : 0.06) * Math.abs(((a + 300) / 13) % 2 - 1);
         const rho = Math.sqrt(Math.max(0.01, 1 - v * v));
         const rad = (deg) => (deg * Math.PI) / 180;
-        loopPts.push({ q: add(C, [Math.sin(rad(a)) * rho * hs, v * hs, Math.cos(rad(a)) * rho * hs]), vis: facingCam([Math.sin(rad(a)) * rho, v, Math.cos(rad(a)) * rho]) });
+        loopPts.push({ q: add(C, [Math.sin(rad(a)) * rho * hs, v * hs, Math.cos(rad(a)) * rho * hs]), vis: facingCam([Math.sin(rad(a)) * rho, v, Math.cos(rad(a)) * rho]), a });
       }
+      // Head tilted back so the whole hairline shows: drop its back half, so
+      // the cap closes over the crown along the skull's rim (no bare crescent).
+      if (loopPts.every((q) => q.vis > 0)) loopPts.forEach((q) => { if (Math.abs(q.a) > 110) q.vis = -1; });
       // The longest run of visible hairline.
       const n = loopPts.length;
       let best = [0, -1];
@@ -505,7 +508,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     if (ch.extras.includes('ahoge') && !ch.extras.includes('cap')) {
       // One springy strand off the crown; it bounces a little between drawings.
       const b = (pen.drawing % 3) * 0.03 + (p.hairSwing || 0) * 0.2;
-      const q = [[0.04, -1.02, 0.12], [0.12, -1.32, 0.1], [0.36 + b, -1.5, 0.04], [0.42 + b, -1.36, 0.02], [0.26 + b, -1.3, 0.04]];
+      const q = [[0.04, -1.0, 0.12], [0.09, -1.2, 0.1], [0.24 + b, -1.33, 0.05], [0.33 + b, -1.24, 0.03], [0.22 + b, -1.17, 0.05]];
       pen.stroke('ahoge', curve(q.map((x) => HP([x[0], x[1] * hs, x[2]])), 5), { width: line * 0.8 });
     }
     if (ch.extras.includes('cap')) {
@@ -543,10 +546,14 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const lock = (id, ctl, map, tipV, tips) => {
         const edge = [...curve(ctl.slice(0, 3), 4), ...curve(ctl.slice(2), 4).slice(1)];
         const pts = edge.map(map);
-        pen.fill(id, pts, ch.hair, { slip: 0.3 });
+        const drawn = pen.fill(id, pts, ch.hair, { slip: 0.3 }) || pts;
         if (tips) {
-          const tip = edge.filter(([, v]) => v > tipV).map(map);
-          if (tip.length > 2) pen.shade(id + 't', tip, pts, { color: ch.hair2, alpha: 0.85 });
+          // Two soft steps toward the tip, clipped to the fill as drawn.
+          for (const [k, f] of [[0, 0], [1, 0.5]]) {
+            const v0 = tipV + f * (Math.max(...edge.map((q) => q[1])) - tipV);
+            const tip = edge.filter(([, v]) => v > v0).map(map);
+            if (tip.length > 2) pen.shade(id + 't' + k, tip, drawn, { color: ch.hair2, alpha: 0.45 });
+          }
         }
         pen.stroke(id, pts, { width: line * 0.8 });
       };
