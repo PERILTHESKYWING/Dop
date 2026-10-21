@@ -521,7 +521,7 @@ $('fullBtn').onclick = async () => {
 };
 
 // ---------- look sliders ----------
-const KNOBS = { fps: 'Frames/s', hold: 'Hold', boil: 'Boil', wobble: 'Wobble', line: 'Line', grain: 'Paper', misregister: 'Colour slip' };
+const KNOBS = { fps: 'Frames/s', hold: 'Hold', boil: 'Boil', wobble: 'Wobble', line: 'Line', grain: 'Paper', misregister: 'Colour slip', shade: 'Shading' };
 function buildSliders() {
   $('sliders').innerHTML = Object.entries(KNOBS).map(([k, label]) => {
     const [lo, hi] = STYLE_RANGES[k];

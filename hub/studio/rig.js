@@ -12,6 +12,8 @@ import { bodyParts, hull, solid, tube } from './body.js';
 
 export const BASE_H = 390; // character height in stage px at height 1, scale 1
 const INK_SKIN = 0.55; // how dark the inner lines on skin are (mix of skin to ink)
+// The ground shadow uses a higher light than the shading, so it stays short.
+const SHADOW_LIGHT = [-0.36, -0.93];
 const VIEW_S = Math.sin((9 * Math.PI) / 180);
 const VIEW_C = Math.cos((9 * Math.PI) / 180);
 
@@ -149,7 +151,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const b = add(sk.head, fH(mul([sway * 0.5, 0.45, -1.3], r)));
       const c = add(sk.head, fH(mul([sway * 1.1, 1.35, -1.15], r)));
       const t1 = tube(Pj, a, b, (t) => (0.3 - 0.06 * t) * r);
-      const t2 = tube(Pj, b, c, (t) => (0.24 - 0.17 * t) * r);
+      const t2 = tube(Pj, b, c, (t) => (0.27 - 0.15 * t) * r);
       return { z: HP([0, 0.4, -1.25])[2], draw: () => { solid(pen, 'tail2', t2.pts, ch.hair, { axis: t2.axis, width: line * 0.8 }); solid(pen, 'tail1', t1.pts, ch.hair, { axis: t1.axis, width: line * 0.8 }); } };
     };
     const extra = style === 'bun' ? bun() : style === 'ponytail' ? tail() : null;
@@ -334,9 +336,9 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         if (j - i > best[1] - best[0]) best = [i, j];
       }
       const allSeen = loopPts.every((q) => q.vis > 0);
-      const lumpy = (a) => (style === 'spiky' ? 0.28 * Math.max(0, Math.cos(((a - up) * 7) % (2 * Math.PI))) ** 3 : style === 'curly' ? 0.05 * Math.cos((a - up) * 11) : 0);
+      const lumpy = (a) => (style === 'spiky' ? 0.3 * Math.max(0, Math.cos((a - up) * 7)) ** 3 : style === 'curly' ? 0.05 * Math.cos((a - up) * 11) : 0);
       const rimPt = (a) => {
-        const rr = rimR * (1 + lumpy(a) * smooth(1 - Math.abs(Math.atan2(Math.sin(a - up), Math.cos(a - up))) / 1.6));
+        const rr = rimR * (1 + lumpy(a) * smooth(1 - Math.abs(Math.atan2(Math.sin(a - up), Math.cos(a - up))) / 2.3));
         return [Cp[0] + Math.cos(a) * rr, Cp[1] + Math.sin(a) * rr];
       };
       let cap;
@@ -466,7 +468,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     for (let k = 0; k < 8; k++) shadowPts.push([c[0] + Math.cos((k / 8) * Math.PI * 2) * rad, c[1] + Math.sin((k / 8) * Math.PI * 2) * rad]);
   }
   const n1 = pen.ops.length;
-  castShadow(pen, shadowPts, g0);
+  castShadow(pen, shadowPts, g0, SHADOW_LIGHT);
   pen.ops.splice(n0, 0, ...pen.ops.splice(n1));
 
   const hp = Pj(sk.head);
