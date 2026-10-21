@@ -212,7 +212,7 @@ describe('studio 3D characters', () => {
 
 describe('studio female lead options (refs f1/f2)', () => {
   const lead = (patch: any = {}) =>
-    S.validateProject({ cast: { a: { hairStyle: 'layered', eyes: 'big', jaw: 'v', topStyle: 'turtleneck', bottomStyle: 'skirt', hair: '#4a2a30', hairTips: '#c0507a', top: '#3a2a2a', bottom: '#6a5a8a', skin: '#f6dfd6', extras: ['lashes', 'lips', 'blushlines', 'ahoge'], ...patch } }, scenes: [{ actors: [{ who: 'a' }] }] }).project.cast.a;
+    S.validateProject({ cast: { a: { hairStyle: 'shag', eyes: 'anime', jaw: 'v', topStyle: 'turtleneck', bottomStyle: 'skirt', hair: '#4a2a30', hair2: '#c0507a', top: '#3a2a2a', bottom: '#6a5a8a', skin: '#f6dfd6', extras: ['lashes', 'lips', 'blushlines', 'ahoge'], ...patch } }, scenes: [{ actors: [{ who: 'a' }] }] }).project.cast.a;
   const draw = async (ch: any, pose: any = {}) => {
     const D = await lib('draw.js');
     const G = await lib('rig.js');
@@ -222,16 +222,16 @@ describe('studio female lead options (refs f1/f2)', () => {
   };
 
   it('cleans the new cast fields and allows face close-ups', () => {
-    const r = S.validateProject({ cast: { a: { eyes: 'big', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hairTips: 'pink' } }, scenes: [{ camera: { zoom: 9 }, actors: [{ who: 'a' }] }] });
-    expect(r.project.cast.a).toMatchObject({ eyes: 'big', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
-    expect(r.project.cast.a.hairTips).toBeUndefined();
-    expect(lead().hairTips).toBe('#c0507a');
+    const r = S.validateProject({ cast: { a: { eyes: 'anime', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hair2: 'pink' } }, scenes: [{ camera: { zoom: 9 }, actors: [{ who: 'a' }] }] });
+    expect(r.project.cast.a).toMatchObject({ eyes: 'anime', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
+    expect(r.project.cast.a.hair2).toBeUndefined();
+    expect(lead().hair2).toBe('#c0507a');
     expect(r.project.scenes[0].camera.zoom).toBe(4);
     expect(S.schemaText()).toMatch(/topStyle tee\|sleeveless\|turtleneck\|long/);
   });
 
   it('draws every top, bottom, eye, jaw and fringe style at every turn without bad numbers', async () => {
-    for (const hairStyle of ['layered', 'flowing'])
+    for (const hairStyle of ['shag', 'flowing'])
       for (const topStyle of S.TOPS)
         for (const bottomStyle of S.BOTTOMS)
           for (const yaw of [0, 40, 90, 180]) {
@@ -264,12 +264,12 @@ describe('studio female lead options (refs f1/f2)', () => {
     const shirt = ops.findIndex((o) => o.fill === '#3a2a2a');
     expect(tips).toBeGreaterThan(-1);
     expect(tips).toBeLessThan(shirt);
-    // Without hairTips there is no ombre colour anywhere.
-    expect((await draw(lead({ hairTips: undefined }))).some((o) => o.fill === '#c0507a')).toBe(false);
+    // Without hair2 there is no ombre colour anywhere.
+    expect((await draw(lead({ hair2: undefined }))).some((o) => o.fill === '#c0507a')).toBe(false);
   });
 
   it('side locks hang from the temples: both at the front, only the near ones in profile', async () => {
-    const ch = lead({ hairTips: undefined, hair: '#4a2a30' });
+    const ch = lead({ hair2: undefined, hair: '#4a2a30' });
     const locks = async (yaw: number) => (await draw(ch, { yaw })).filter((o) => o.fill === '#4a2a30' && !o.clip).length;
     expect(await locks(0)).toBeGreaterThan(await locks(90));
   });

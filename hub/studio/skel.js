@@ -50,6 +50,8 @@ export const BUILD = {
   slim: { sh: 0.118, chest: [0.092, 0.064], waist: [0.074, 0.056], hip: [0.088, 0.064], limb: 0.88 },
   average: { sh: 0.13, chest: [0.106, 0.074], waist: [0.09, 0.068], hip: [0.1, 0.074], limb: 1 },
   round: { sh: 0.135, chest: [0.124, 0.096], waist: [0.134, 0.115], hip: [0.128, 0.1], limb: 1.18 },
+  // Narrow, sloped shoulders, a thin neck and fine limbs (the refs' girl).
+  petite: { sh: 0.104, chest: [0.086, 0.06], waist: [0.066, 0.052], hip: [0.088, 0.064], limb: 0.8, slope: 0.012, neck: 0.8 },
 };
 export const HEAD_R = 0.118; // head radius as a share of height, at headSize 1
 const ARM_REST = [9, 0, 14];
@@ -105,7 +107,7 @@ export function skeleton(ch, pose0, H) {
   const chest = add(waist, fChest([0, -(PRO.chest - PRO.waist) * H * squash - breath, 0]));
   const shY = -(PRO.shoulder - PRO.chest) * H * squash;
   const shrug = (s) => Math.max(0, Math.min(1, p['shrug' + s] ?? p.shrug ?? 0)) * 0.045 * H;
-  const shoulderAt = (sd, s) => add(chest, fChest([sd * b.sh * 0.88 * H * (1 - slump * 0.06), shY + 0.022 * H - shrug(s) + slump * 0.008 * H, slump * 0.02 * H - 0.004 * H]));
+  const shoulderAt = (sd, s) => add(chest, fChest([sd * b.sh * 0.88 * H * (1 - slump * 0.06), shY + (0.022 + (b.slope || 0)) * H - shrug(s) + slump * 0.008 * H, slump * 0.02 * H - 0.004 * H]));
   const shF = shoulderAt(-1, 'F');
   const shB = shoulderAt(1, 'B');
   const neckBase = add(chest, fChest([0, -(PRO.neck - PRO.chest) * H * squash, slump * 0.012 * H]));
