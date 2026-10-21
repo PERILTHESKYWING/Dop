@@ -92,6 +92,8 @@ export function studioBrief(p) {
     'Style target: hand-made storytime animation. Few simple reusable movements, poses held on 2s and 3s, slightly wobbly redrawn lines, small imperfections. Convincing handmade beats smooth and polished.',
     'Order of work: (1) a short SAMPLE (one or two shots) for XIAO to review; (2) when feedback arrives as a message in this thread, revise that sample and show it again; (3) only when XIAO asks for the full video, extend the project to the whole story. Never invent features the schema lacks.',
     'Feedback arrives as thread messages that start with "Studio feedback". Treat any line marked RULE as a permanent rule.',
+    'Critic: call studio_look(id, wait_s: 25). If no sheet arrives (XIAO\'s page is closed), critique from the lint and the JSON instead and say so.',
+    'This thread has no code: no branch, no commits, no pull request, no repo checks, whatever the general team rules say. When the version for this request is saved and noted, post kind "done" with one line (e.g. "Sample rev 2 ready: Leo angrier, point held 1 s longer").',
   ].join('\n');
 }
 

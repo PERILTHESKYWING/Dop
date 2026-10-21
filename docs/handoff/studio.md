@@ -1,28 +1,53 @@
 # Storytime studio (hub)
 
-Free AI-directed storytime animation studio inside the Dop hub. Characters are code-drawn rigs (identical in every shot); lines are redrawn every 2-3 frames with seeded wobble; Claude accounts direct and critique through hub tools. Page: `hub/studio.html` (renderer in `hub/studio/`, written by the lead). Backend: `hub/lib/studio.js`.
+Hand-drawn style story animations, directed by your Claude accounts, inside the Dop hub. Open the hub and press **Storytime studio** (or go to `<hub address>/studio.html`). Same password as the hub. Works on phone and computer; nothing to install. The only extra (optional) step is the nightly learning job on your PC (below).
 
-## Flow
-1. XIAO writes an idea on the studio page: `studio-new` makes a project and a team thread (opus, xhigh, team of 2, code) whose brief is `studioBrief()`.
-2. The director calls `studio_put` (validated by `hub/studio/schema.js` `validateProject`; problems mean nothing is saved). The page sees the new rev, redraws it live and uploads a PNG contact sheet (`studio-sheet`).
-3. The critic calls `studio_look` (sheet as an image + `lintProject` warnings) and `studio_note`. Max 2 critique rounds per request.
-4. XIAO reviews the sample, types feedback (`studio-feedback`, optional "make this a rule"): logged and sent into the thread as a prompt. Revisions appear live. `studio-full` asks for the whole video; the WebM is exported in the browser.
+## Using it
+1. **New story**: type the idea. Pick *Director + critic* (2 accounts) or *Director only* (cheaper), and a model (Sonnet by default). This opens a hub thread for the team.
+2. While the team works, the page shows a demo story. Keep the page open: it draws each new version the moment it is saved, and sends the team a picture of it (the "contact sheet") so the critic can look.
+3. The **sample** (1-2 scenes, under 25 s) appears by itself. Press play, scrub, tap the scene chips. **Voice on** reads the captions and lines with your device's voice (preview only).
+4. **Feedback** tab: write what to change in your own words and press *Send to the team*. Tick *Make this a rule for every story* for things that should always hold. 👍 / 👎 rate the current version. The new revision appears by itself (a toast says "Revision N is in").
+5. **Team** tab: the director's and critic's notes and your own feedback, in order. **Cast** tab: the model sheet every shot is drawn from. **Look** tab: sliders for frames per second, hold (frames per drawing), boil, wobble, line width, paper and colour slip; they preview at once, *Ask the team to use this* sends them, *Also make it my default* saves them for new stories. **Rules** tab: the studio's rules.
+6. Happy with the sample: **Sample approved: make the full video**. The team extends it, keeping the approved characters and moves.
+7. **Save video** records the whole video in the browser (it plays in real time; keep the page open): MP4 on Safari and recent Chrome, WebM elsewhere. It has captions and no sound; add a voice in any editor if you want one.
+
+## How it looks hand-made
+- Characters are drawn by code from a short cast spec (hair style and colour, clothes, build, glasses, freckles...), so a character is the same drawing in every shot. No image generator, so no drifting faces.
+- Every line is a filled pen ribbon that swells, thins and tapers; it wanders a little off the true shape; closed shapes start at a seam and overshoot it.
+- Colour fills are a separate, rougher shape that slips off the outline (like a print or a quick colour pass).
+- Poses are held for `hold` frames (on twos by default at 12 fps). Each new drawing re-seeds part of the line noise ("boil"), cycling three variants as traced frames do, so even a held pose shimmers.
+- 14 reusable moves (idle, talk, walk, wave, nod, shake, shrug, point, jump, think, facepalm, cheer, cry, laugh), each 2-6 drawings with anticipation and a held end pose; 8 faces (eyebrows carry most of it); mouths flap irregularly while talking; blinks.
+- Paper grain on top, simple wobbly backgrounds (8 kinds) and props (10 kinds), speech bubbles with tails, caption banner.
+
+## Parts
+- `hub/studio/schema.js`: the project format. `validateProject` never throws: it fills defaults (your default look as the base style), clamps numbers, drops unknown values and lists what it changed; only a project with no cast or no scenes is refused. `lintProject` finds craft problems (bubbles too short to read, actors overlapping, speech without talk, look-alike cast, sample too long). `schemaText()` is the format in six lines for agents.
+- `hub/studio/draw.js` (pen, wobble, boil, fills), `rig.js` (body, face, hair, extras), `moves.js` (the moves), `render.js` (timeline, backgrounds, bubbles, captions, camera, canvas and SVG painters). Pure JS, no DOM except the canvas painter, so the tests render frames in Node.
+- `hub/studio.html`: the page. Polls `studio-get` every 3 s with `since=rev&seen=<newest note time>` (answers `{same:true}` while nothing changed: one or two store reads).
+- `hub/lib/studio.js`: store, page API, MCP tools, the team brief (`studioBrief`).
 
 ## Store keys (`hub:studio:*`)
-`seq`, `index` (hash id → meta), `p:<id>` project JSON (latest), `r:<id>` last 10 revisions, `n:<id>` notes (100), `sheet:<id>` latest PNG (base64, rev), `log` (feedback / rate / rule / full, 500), `rules` ({text, style, version}).
+`seq`, `index` (hash id → meta), `p:<id>` project JSON (latest), `r:<id>` last 10 revisions, `n:<id>` notes (100), `sheet:<id>` latest PNG (base64 + rev), `log` (feedback / rate / rule / full, 500), `rules` (`{text, style, version}`).
 
 ## Page API (password, `/api/hub?op=`)
-GET `studio-list`, `studio-get&id[&since=rev]` (`{same:true}` if unchanged), `studio-rules`, `studio-log&since=ts`.
-POST `studio-new {idea,title,team,model}`, `studio-feedback {id,text,rule}`, `studio-full {id}`, `studio-sheet {id,rev,png}` (PNG base64, max 380 KB), `studio-rate {id,rev,good,note}`, `studio-rules {text,style}` (style is a patch; `null` deletes a key).
+GET `studio-list`, `studio-get&id[&since=rev&seen=ts]`, `studio-rules`, `studio-log&since=ts`.
+POST `studio-new {idea,title,team,model,thinking}`, `studio-feedback {id,text,rule}`, `studio-full {id}`, `studio-sheet {id,rev,png}` (PNG base64 or data URL, max 380 KB), `studio-rate {id,rev,good,note}`, `studio-rules {text,style}` (style is a patch; `null` deletes a key).
 
-## MCP tools
-`studio_get`, `studio_put`, `studio_look`, `studio_note` (in `hub/lib/studio.js`, added to the hub tool list).
+## MCP tools (agents)
+`studio_get` (project, format, rules, recent feedback and notes), `studio_put` (saves the cleaned project as a new revision and reports what it fixed plus lint), `studio_look` (latest sheet as an image + lint; `wait_s` up to 30 waits for the newest one), `studio_note`. The brief tells the team: director writes, critic looks, at most 2 critique rounds per request, no branches or PRs, post `done` with one line.
+The critic only gets a picture while the studio page is open somewhere (it draws the sheet). Without it the critic works from lint and the JSON.
 
-## Schema contract assumed by the backend
-`hub/studio/schema.js` may export `validateProject(p)` (array of problem strings, or `{problems|errors}`; empty = fine), `lintProject(p)` (array of warnings) and `FORMAT_HELP` (text returned by `studio_get`). All optional: without the file the backend only checks that the project is an object. Limit: 300 KB of JSON per project. `project` is `null` until the first `studio_put`.
+## Nightly learning (your PC, almost no tokens)
+`node hub/studio-nightly.mjs` reads the feedback log since its last run. Nothing new: it stops with zero tokens. Otherwise ONE `claude -p --model haiku` call (about 1-3k characters: current rules, the style knobs, at most 40 new feedback lines) returns updated rules and small style changes; the answer is checked and saved with `studio-rules`. Every agent reads the rules in `studio_get`, so the next story starts from them. `--dry` prints the answer without saving.
 
-## Nightly learning (PC, almost no tokens)
-`node hub/studio-nightly.mjs` with `HUB_URL` and `HUB_PASSWORD` set. If no feedback is new since the last run (state in `~/.dop-studio-nightly.json`) it exits with zero tokens. Otherwise ONE `claude -p --model haiku` call (prompt about 1-3k characters: current rules + at most 40 feedback lines) returns `{rules, style}`; it is validated (`cleanStyle`, 6000-char rules cap) and saved with `studio-rules`. `--dry` prints the answer without saving.
-Schedule once a night. Windows: `setx HUB_URL https://<hub>` and `setx HUB_PASSWORD <password>`, then `schtasks /create /sc daily /st 03:00 /tn DopStudio /tr "node C:\path\to\Dop\hub\studio-nightly.mjs"`. Mac/Linux cron: `0 3 * * * HUB_URL=... HUB_PASSWORD=... node ~/Dop/hub/studio-nightly.mjs`. The PC must be on and signed in to Claude Code (`claude -p`).
+Set it up once (needs Node and Claude Code signed in on the PC, which the PC hub agent already uses):
+- Windows (Command Prompt): `setx HUB_URL https://<your hub address>` and `setx HUB_PASSWORD <hub password>`, then `schtasks /create /sc daily /st 03:00 /tn DopStudio /tr "node C:\path\to\Dop\hub\studio-nightly.mjs"`.
+- Mac/Linux (`crontab -e`): `0 3 * * * HUB_URL=https://<hub> HUB_PASSWORD=<pw> node ~/Dop/hub/studio-nightly.mjs`.
+The PC must be on at that time.
 
-Tests: `tests/hub-studio.test.ts`.
+## Limits (honest)
+- Video has no sound (browser recording of the canvas only). Voice preview uses the device's speech voice.
+- One body plan (front-facing with a 3/4 face turn); no side or back views, no hands with fingers, no lip sync to audio.
+- The contact sheet needs the page open; agents cannot see drawings otherwise.
+- Not measured yet: how many revisions a story takes, and usage per story.
+
+Tests: `tests/hub-studio.test.ts` (backend, nightly), `tests/studio-render.test.ts` (renderer).

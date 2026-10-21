@@ -25,6 +25,7 @@ Now open the hub's link and type your password. On your phone, use "Add to Home 
 To put a helper to work, open a chat on it and type: **check the Dop hub**. It does one task, then asks the hub for the next.
 
 ## Using it
+- **Storytime studio** (button under New task, or `/studio.html`): hand-drawn story animations made by a director + critic team; see `studio.md`.
 - Type a task in **Project chat**. The coordinator opens threads and says where each went, with a card per thread. It splits every prompt into its independent tasks, one thread each (up to 8), so agents work in parallel; a single task, or parts that depend on each other, stays one thread.
 - The buttons under the box pick, for that task: **Model** (Auto lets the coordinator choose), **Thinking** (Claude's own levels: Low, Medium, High, xHigh, Max), **Accounts** (any, or tick one or more; only those accounts work on it) and **Solo / Team of 2-4** (how many accounts work one thread together). **One thread** skips the coordinator. The picks are remembered on that device.
 - **New chat** (top of the thread list, next to New task) opens a clean chat. What you send goes straight to one agent as a new thread: no coordinator runs and nothing is added to Project chat. It uses the same Model, Thinking, Accounts and Team picks.
