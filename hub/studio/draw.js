@@ -256,6 +256,7 @@ export class Pen {
   fill(id, pts, color, { slip = 1, alpha } = {}) {
     if (pts.length < 3 || !color) return;
     const st = this.style;
+    if (st.fill != null && st.fill < 1 && st.paper) color = mix(st.paper, color, st.fill);
     const r = rng(hash(this.seed, 'slip', this.boilKey));
     const a = r() * TAU;
     const m = st.misregister * slip * this.scale * (2.2 + st.line * 0.35);
@@ -300,6 +301,7 @@ export class Pen {
       }
     }
     this.stroke(id, pts, { ...opts, closed: true });
+    return slipped; // the fill as drawn, to clip extra paint to
   }
 
   // A shadow shape confined to another shape: head on neck, arm across the torso.
@@ -317,7 +319,7 @@ export class Pen {
   }
 
   text(t, x, y, size, opts = {}) {
-    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}) });
+    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}), ...(opts.outline ? { outline: opts.outline } : {}) });
   }
 }
 

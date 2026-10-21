@@ -4,6 +4,7 @@
 // read and write the project through the studio_* MCP tools. The format of a
 // project is owned by hub/studio/schema.js (validateProject, lintProject).
 import { libraryOf } from './library.js';
+import { REF_RULES_TEXT } from '../studio/ref-rules.js';
 
 const KEEP_REVS = 10;
 const KEEP_NOTES = 100;
@@ -101,7 +102,7 @@ export function studioBrief(p) {
     '- studio_refs(kind?, ref?): every reference XIAO gave the studio: DO = copy this look and acting, DON\'T = avoid this. Pictures from the studio Refs tab come back as images; Library files tagged "studio" are listed with an id: open each with lib_get(id) (a video shows its frames). Call it ONCE at the start (it is empty until XIAO adds some) and again if a note says refs changed.',
     '',
     'Team: the lead is the director and writes the storyboard. The other account is the critic: it looks at each sheet and notes drawing, pose, movement and consistency problems (same character, same colours, same size across shots). At most 2 critique rounds per request; stop after that and let XIAO react. Keep each tool call small and each note to one or two sentences: this runs on free-tier usage.',
-    'Style target: hand-made storytime animation. Few simple reusable movements, poses held on 2s and 3s, slightly wobbly redrawn lines, small imperfections. Convincing handmade beats smooth and polished.',
+    'Style target: XIAO\'s DO videos (an animated talking-head vlog with a beautiful female lead): smooth, clean movements, one focus point per shot, a new crop and drawn gag every 2-4 s to hold attention, slightly wobbly hand-drawn lines. studio_get returns these as rules.fromRefs; obey them with XIAO\'s own rules (his win where they differ).',
     'Order of work: (1) a short SAMPLE (one or two shots) for XIAO to review; (2) when feedback arrives as a message in this thread, revise that sample and show it again; (3) only when XIAO asks for the full video, extend the project to the whole story. Never invent features the schema lacks.',
     'Feedback arrives as thread messages that start with "Studio feedback". Treat any line marked RULE as a permanent rule.',
     'References: the director reads studio_refs before drawing and follows every DO and avoids every DON\'T (note one line on how). The critic compares each sheet to the refs and names the biggest gap, e.g. "Leo still reads as stacked shapes like DON\'T #3". References are XIAO\'s taste: never overrule them.',
@@ -147,6 +148,18 @@ export function createStudio(hub, { schema = null } = {}) {
     const out = [];
     for (let i = 0; i < flat.length; i += 2) out.push(parse(flat[i + 1]));
     return out.filter(Boolean).sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  // A project for an agent's own thread (no new team): studio_new.
+  async function createHere({ idea, title, thread }) {
+    idea = clean(idea, 4000);
+    if (!idea) throw fail('Say what the story is about.');
+    thread = Number(thread) || 0;
+    if (thread && !(await hub.thread(thread))) throw fail(`No thread ${thread}.`);
+    const id = `s${Number(await store.cmd('INCR', K.seq))}`;
+    const m = { id, title: clean(title, 80) || clean(idea.split('\n')[0], 60), idea, stage: 'sample', rev: 0, thread, createdAt: now(), updatedAt: now(), by: '', rating: null, sheetRev: 0 };
+    await store.cmd('HSET', K.index, id, JSON.stringify(m));
+    return { id, thread };
   }
 
   async function create({ idea, title, team = 2, model = 'sonnet', thinking = 'medium' }) {
@@ -386,7 +399,7 @@ export function createStudio(hub, { schema = null } = {}) {
       if (method === 'GET') {
         if (op === 'studio-list') return { status: 200, body: { projects: await list() } };
         if (op === 'studio-get') return { status: 200, body: await get(String(query.id || ''), query.since, query.seen) };
-        if (op === 'studio-rules') return { status: 200, body: await rulesNow() };
+        if (op === 'studio-rules') return { status: 200, body: { ...(await rulesNow()), fromRefs: REF_RULES_TEXT } };
         if (op === 'studio-refs') return { status: 200, body: { refs: await refList() } };
         if (op === 'studio-ref') {
           const im = await refImage(String(query.id || ''), query.n);
@@ -427,7 +440,7 @@ export function createStudio(hub, { schema = null } = {}) {
           rev: g.meta.rev,
           thread: g.meta.thread,
           format: typeof s.schemaText === 'function' ? s.schemaText() : undefined,
-          rules: { version: r.version, text: r.text, style: r.style },
+          rules: { version: r.version, text: r.text, style: r.style, fromRefs: REF_RULES_TEXT },
           feedback: g.feedback.slice(-8),
           notes: g.notes.slice(-8),
           rating: g.meta.rating,
@@ -473,6 +486,33 @@ export function createStudio(hub, { schema = null } = {}) {
       },
     },
     {
+      name: 'studio_new',
+      description: 'Start a new studio project tied to your own thread (feedback on it comes back to that thread); no new team is started. Then fill it with studio_put. XIAO starts stories from the page; use this only when your brief asks you to make one.',
+      inputSchema: { type: 'object', properties: { title: str, idea: { type: 'string', description: 'What the story is about.' }, thread: { type: 'number', description: 'Your thread id.' } }, required: ['idea', 'thread'] },
+      run: async (a, x) => {
+        const r = await createHere({ idea: x.idea, title: x.title, thread: x.thread });
+        return `Made project ${r.id} for thread ${r.thread}. Save the first version with studio_put(id: "${r.id}", project).`;
+      },
+    },
+    {
+      name: 'studio_rules',
+      description: 'The studio\'s style rules (every story follows them): with no text, returns them; with text, adds rule lines (mode "append", the default) or replaces them all (mode "replace"; only when XIAO asked). Use it to save rules XIAO asked you to work out. The rules from XIAO\'s reference videos ship with the code (fromRefs) and need no saving.',
+      inputSchema: { type: 'object', properties: { text: { type: 'string', description: 'Rule lines, one per line.' }, mode: { type: 'string', enum: ['append', 'replace'] } } },
+      run: async (a, x) => {
+        const text = clean(x.text, MAX_RULES);
+        if (!text) {
+          const r = await rulesNow();
+          return JSON.stringify({ version: r.version, text: r.text, style: r.style, fromRefs: REF_RULES_TEXT });
+        }
+        const add = text.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => (l.startsWith('- ') ? l : `- ${l}`)).join('\n');
+        const cur = (await rulesNow()).text;
+        const body = x.mode === 'replace' || !cur ? add : `${cur.trimEnd()}\n${add}`;
+        if (body.length > MAX_RULES) throw fail(`The rules would be ${body.length} characters; the limit is ${MAX_RULES}. Merge or shorten lines (mode "replace").`);
+        const r = await saveRules({ text: body });
+        return `Saved rules version ${r.version} (${r.text.length} characters).`;
+      },
+    },
+    {
       name: 'studio_refs',
       description: 'XIAO\'s reference pictures and video frames for how the characters should look and act. DO = copy this; DON\'T = avoid this. Returns the list (kind, title, tags, note) and the Refs-tab pictures as images (up to 6 per call; narrow with kind "do"/"dont" or ref "r3"); Library files tagged "studio" are listed with an id for lib_get. Read once before drawing; the critic compares sheets against them.',
       inputSchema: { type: 'object', properties: { kind: { type: 'string', description: '"do" or "dont" to filter' }, ref: { type: 'string', description: 'one reference id, like "r3"' } } },
@@ -497,7 +537,7 @@ export function createStudio(hub, { schema = null } = {}) {
     },
   ];
 
-  return { pageOp, tools, create, get, put, feedback, full, sheet, rate, refAdd, refDel, refList, refImage, saveRules, rulesNow, logSince, list, lint, check };
+  return { pageOp, tools, create, createHere, get, put, feedback, full, sheet, rate, refAdd, refDel, refList, refImage, saveRules, rulesNow, logSince, list, lint, check };
 }
 
 // One studio per hub object (the tools list is rebuilt on every MCP call).

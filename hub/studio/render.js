@@ -2,6 +2,7 @@
 // gives layers of ops; paint() draws them on a canvas, toSVG() makes an SVG.
 import { LIGHT, Pen, curve, ellipse, hash, loop, mix, pathOf, rng, wrap } from './draw.js';
 import { drawCharacter, headSpot, seedFor, FACE } from './rig.js';
+import { drawMarks } from './marks.js';
 import { poseFor, MOVE_SET, WALK_SPEED } from './moves.js';
 
 export const W = 1600;
@@ -82,7 +83,7 @@ const BG = {
 export function renderBackground(p, scene) {
   const st = p.style;
   const ops = [];
-  const pen = new Pen({ style: { ...st, boil: 0, wobble: st.wobble * 0.8 }, seed: hash('bg', scene.id, scene.bg.kind), ops });
+  const pen = new Pen({ style: { ...st, boil: 0, wobble: st.wobble * 0.8 }, seed: hash('bg', scene.id, scene.bg.kind), ops, scale: 1 / Math.pow(scene.camera?.zoom || 1, 0.75) });
   const k = scene.bg.kind;
   const spec = BG[k];
   const wall = scene.bg.color || spec.wall;
@@ -269,8 +270,15 @@ function bubble(pen, text, spot, placed, st) {
 }
 
 function caption(ops, text, st) {
-  const size = 38;
+  const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
+  if (st.capPos === 'top') {
+    // Subtitle style: plain outlined text at the top centre, no box.
+    const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
+    const white = mix(st.paper, '#ffffff', 0.9);
+    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: st.ink, weight: 700 }));
+    return;
+  }
   const h = lines.length * size * 1.15 + 22;
   const y0 = H - h - 14;
   const w = Math.min(W - 120, Math.max(...lines.map((l) => l.length)) * size * 0.46 + 70);
@@ -288,6 +296,15 @@ function roundRect(x0, y0, w, h, r) {
   return [...pts, pts[0]];
 }
 
+// The camera at local time t: fixed, or eased (smoothstep) from camera to camera.to over the scene.
+export function cameraAt(scene, t) {
+  const c = scene.camera;
+  if (!c.to) return c;
+  const u = Math.min(1, Math.max(0, t / scene.duration));
+  const e = u * u * (3 - 2 * u);
+  return { zoom: c.zoom + (c.to.zoom - c.zoom) * e, x: c.x + (c.to.x - c.x) * e, y: c.y + (c.to.y - c.y) * e };
+}
+
 // ---------- one frame ----------
 // sceneIndex + local time t. Returns { scene, drawing, bg (scene id for cache), world, overlay, camera }.
 export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
@@ -295,7 +312,11 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   const st = p.style;
   const { drawing, tq } = quantize(st, t);
   const world = [];
-  const pen = new Pen({ style: st, drawing, ops: world });
+  const cam = cameraAt(scene, t);
+  // The camera magnifies the drawing; draw close-ups with a finer pen so the
+  // line on screen stays close to the wide shot's (a bit heavier, as an artist would).
+  const fine = 1 / Math.pow(cam.zoom, 0.75);
+  const pen = new Pen({ style: st, drawing, ops: world, scale: fine });
   const placed = [];
   const states = scene.actors.map((a) => ({ a, s: actorState(scene, a, tq) }));
   const talkers = [];
@@ -305,15 +326,18 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     const beat = s.walking ? s.beat : s.beat.move === 'walk' ? { ...s.beat, move: 'idle' } : s.beat;
     const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking: !!beat.say && beat.move !== 'walk', prev: a.beats[s.beatIndex - 1], time: tq, walking: s.walking });
     const at = { x: s.x * W, ground: GROUND, scale: a.scale, facing: s.facing };
-    drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) }), ch, pose, at);
+    drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) * fine }), ch, pose, at);
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
   const overlay = [];
+  // Marks sit on the screen (x, y = share of the frame), like labels written on the
+  // finished shot: a close-up never pushes them out of view.
+  drawMarks(overlay, scene.marks, tq, st, W, H);
   if (st.captions && scene.narration) caption(overlay, scene.narration, st);
-  const z = scene.camera.zoom;
-  const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, scene.camera.x * W));
-  const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, scene.camera.y * H));
+  const z = cam.zoom;
+  const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
+  const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
   const camera = { zoom: z, tx: W / 2 - fx * z, ty: H / 2 - fy * z };
   return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, overlay, camera, paper: st.paper, grain: st.grain };
 }
@@ -351,6 +375,12 @@ export function paintOps(ctx, ops) {
       ctx.font = `${o.weight || 400} ${o.size}px ${FONT}`;
       ctx.textAlign = o.align || 'center';
       ctx.textBaseline = 'alphabetic';
+      if (o.outline) {
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = o.size * 0.18;
+        ctx.strokeStyle = o.outline;
+        ctx.strokeText(o.text, o.x, o.y);
+      }
       ctx.fillText(o.text, o.x, o.y);
       continue;
     }
@@ -422,7 +452,7 @@ function svgOps(ops) {
   return ops
     .map((o) => {
       if (o.text != null)
-        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}" text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * 0.18}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
       const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
       if (!o.clip) return path;
       const id = `cl${clipN++}`;
