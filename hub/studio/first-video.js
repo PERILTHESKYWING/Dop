@@ -37,16 +37,15 @@ export const FIRST_VIDEO = {
     shot('guys-2', 0.3, 'Guys!', nami(0.5, [{ t: 0, move: 'cheek', face: 'worried', quiet: true }]), { camera: BUST(0.47, { zoom: 4.5 }) }),
     // 0:01.4 Points back at her first video's thumbnail, blank shock.
     shot('three-days', 2.9, 'It literally has been three days!', nami(0.64, [{ t: 0, move: 'point', face: 'shock' }]), {
-      camera: CHEST(0.58), props: [{ kind: 'thumb', x: 0.3, y: 0.42, scale: 1, text: 'MY 1ST VIDEO' }],
+      camera: CHEST(0.58), marks: [{ kind: 'thumb', x: 0.24, y: 0.42, text: 'MY 1ST VIDEO' }],
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
       camera: CLOSE(0.47), marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.8, y: 0.28 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
-    shot('sign', 2.5, 'dym I already have like 2k subscribers???', nami(0.62, [{ t: 0, move: 'idle', face: 'tired', quiet: true }]), {
-      camera: { zoom: 1.6, x: 0.5, y: 0.37 }, props: [{ kind: 'sign', x: 0.5, y: 0.2, scale: 1.2, text: '1000 Followers', cross: true }],
-      marks: [{ kind: 'label', text: 'Just woke up', x: 0.8, y: 0.8, to: [0.69, 0.86], t: 0.4 }],
+    shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
+      camera: { zoom: 1, x: 0.5, y: 0.5 }, marks: [{ kind: 'board', text: '1000 Followers', x: 0.5, y: 0.22, size: 1.1 }, { kind: 'peek', x: 0.62, y: 0.78, t: 0.3 }, { kind: 'label', text: 'Just woke up', x: 0.84, y: 0.72, to: [0.72, 0.84], t: 0.6 }],
     }),
     // 0:08.3 Teary eyes, cat mouth, sweat: "you are scaring me".
     shot('scaring', 3, 'no frr, you guys are so scaring me rn...', nami(0.5, [{ t: 0, move: 'idle', face: 'teary' }]), {
@@ -58,19 +57,17 @@ export const FIRST_VIDEO = {
     }),
     // 0:11.8 At the desk, hunched over the tablet, "my posture".
     shot('posture', 4.3, 'I was actually in the middle of drawing', nami(0.4, [{ t: 0, move: 'slump', face: 'cat' }]), {
-      camera: DESK(0.5), props: [{ kind: 'table', x: 0.42 }, { kind: 'tablet', x: 0.4 }, { kind: 'shrimp', x: 0.72, y: 0.55, scale: 0.6, text: 'before' }],
-      marks: [{ kind: 'label', text: 'My posture', x: 0.84, y: 0.36, to: [0.74, 0.46], t: 0.8 }],
+      camera: DESK(0.5), marks: [{ kind: 'desk', x: 0.5, y: 0.72 }, { kind: 'shrimp', x: 0.76, y: 0.56, size: 0.5, t: 0.6 }, { kind: 'label', text: 'My posture', x: 0.88, y: 0.32, to: [0.8, 0.44], t: 0.8 }],
     }),
     // 0:16.1 Impact: a 0.3 s colour flash.
     { id: 'flash', duration: 0.3, bg: { kind: 'plain', color: '#6e3346' }, narration: 'when I decided to do this side quest', actors: [] },
     // 0:16.4 Speed lines over the desk, a message pops up.
     shot('side-quest', 3.2, 'when I decided to do this side quest', nami(0.4, [{ t: 0, move: 'slump', face: 'cat' }]), {
-      camera: DESK(0.48), props: [{ kind: 'table', x: 0.42 }, { kind: 'tablet', x: 0.4 }, { kind: 'phone', x: 0.2, y: 0.8 }],
-      marks: [{ kind: 'speed', x: 0.5, y: 0.4 }, { kind: 'exclaim', x: 0.18, y: 0.45, t: 0.2 }, { kind: 'label', text: 'message', x: 0.16, y: 0.62, to: [0.2, 0.74], t: 0.5 }],
+      camera: DESK(0.48), marks: [{ kind: 'desk', x: 0.5, y: 0.72, text: 'phone' }, { kind: 'speed', x: 0.5, y: 0.4 }, { kind: 'exclaim', x: 0.18, y: 0.45, t: 0.2 }, { kind: 'label', text: 'message', x: 0.16, y: 0.62, to: [0.2, 0.74], t: 0.5 }],
     }),
-    // 0:19.6 Cutaway: the stern little mascot with its pen.
-    shot('feelings', 5.5, 'because I wanted to express my feelings, my confusion towards you guys', [], {
-      camera: { zoom: 1, x: 0.5, y: 0.5 }, props: [{ kind: 'mascot', x: 0.5, y: 0.55, scale: 1.4 }],
+    // 0:19.6 (f2 cuts to a stern mascot here) A serious face, finger on her chin: "my feelings".
+    shot('feelings', 5.5, 'because I wanted to express my feelings, my confusion towards you guys', nami(0.5, [{ t: 0, move: 'chin', face: 'neutral' }]), {
+      camera: CLOSE(0.5), marks: [{ kind: 'label', text: '*very serious', x: 0.8, y: 0.7, t: 1 }],
     }),
     // 0:25.1 Front bust, nervous grin.
     shot('confused', 1.2, 'because I wanted to express my feelings, my confusion towards you guys', nami(0.5, [{ t: 0, move: 'idle', face: 'nervous' }]), {
@@ -82,11 +79,11 @@ export const FIRST_VIDEO = {
     shot('here', 3.6, 'so here I am!', nami(0.5, [{ t: 0, move: 'jump', face: 'joy' }]), { camera: BUST(0.5), marks: [{ kind: 'sparkle', x: 0.72, y: 0.3, t: 0.3 }] }),
     // 0:30.4 The "Gender" dropdown gag, finger on chin, HEHEHE.
     shot('weird', 3.3, 'Just a weird artist on her art journey', nami(0.7, [{ t: 0, move: 'chin', face: 'cat' }]), {
-      camera: BUST(0.62), props: [{ kind: 'dropdown', x: 0.22, y: 0.42, scale: 1, text: 'Gender|Female|Male|Artist girl' }],
+      camera: BUST(0.62), marks: [{ kind: 'card', text: 'Gender', x: 0.22, y: 0.45, size: 0.8 }],
       marks: [{ kind: 'label', text: 'HEHEHE...', x: 0.46, y: 0.62, t: 0.5 }],
     }),
     // 0:33.5 Phone in both hands, amazed.
-    shot('comments', 3.9, 'and thank you all for the comments and support', nami(0.5, [{ t: 0, move: 'phone', face: 'shock' }]), {
+    shot('comments', 3.9, 'and thank you all for the comments and support', nami(0.5, [{ t: 0, move: 'phone', face: 'surprised' }]), {
       camera: BUST(0.5), marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.8, y: 0.34, t: 0.4 }],
     }),
     // 0:37.4 Same, softer, with an "Aww!" bubble.
@@ -97,9 +94,9 @@ export const FIRST_VIDEO = {
     shot('cheer', 7.0, 'I even started the next video right away because I was so pumped!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }]), {
       camera: CHEST(0.48), marks: [{ kind: 'sparkle', x: 0.24, y: 0.3, t: 0.5 }],
     }),
-    // 0:47.0 Reaction-picture cutaway.
-    shot('shocked', 3.3, 'but then I saw how long animating takes', [], {
-      camera: { zoom: 1, x: 0.5, y: 0.5 }, props: [{ kind: 'photo', x: 0.3, y: 0.45, scale: 1.2 }, { kind: 'mascot', x: 0.72, y: 0.55, scale: 0.9 }],
+    // 0:47.0 (f2 cuts to a reaction picture) The blank white-eyed shock, shock lines both sides.
+    shot('shocked', 3.3, 'but then I saw how long animating takes', nami(0.5, [{ t: 0, move: 'clasp', face: 'yell' }]), {
+      camera: BUST(0.5), marks: [{ kind: 'lines', x: 0.2, y: 0.4 }, { kind: 'lines', x: 0.8, y: 0.4, t: 0.15 }],
     }),
     // 0:50.0 Crash-out: rose break colour, palms over the face, eyes up.
     shot('crashout', 1.6, 'and crashed out in the middle of the night,', nami(0.5, [{ t: 0, move: 'cover', face: 'shock' }]), {
@@ -119,7 +116,7 @@ export const FIRST_VIDEO = {
     }),
     // 1:00.1 The stove gag: the pan on fire, peace sign.
     shot('stove', 2.4, 'Anyway, the next video is getting cooked rn!', nami(0.72, [{ t: 0, move: 'peace', face: 'smug' }]), {
-      camera: CHEST(0.6), props: [{ kind: 'pan', x: 0.32, y: 0.62, scale: 1.1, text: 'NEXT VIDEO' }],
+      bg: { kind: 'kitchen' }, camera: CHEST(0.6), marks: [{ kind: 'pan', x: 0.3, y: 0.66, size: 1.1 }, { kind: 'label', text: 'next video', x: 0.3, y: 0.86, to: [0.3, 0.74], t: 0.4 }],
     }),
     shot('soon', 1.4, 'It should be out super soon, so stay tuned!', nami(0.5, [{ t: 0, move: 'nod', face: 'nervous' }]), { camera: BUST(0.5, { zoom: 4.6 }) }),
     shot('tuned', 2.2, 'It should be out super soon, so stay tuned!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }]), { camera: CHEST(0.48) }),
@@ -129,12 +126,12 @@ export const FIRST_VIDEO = {
     }),
     // 1:11.5 The posture PSA, shrimp before and after.
     shot('posture-pls', 1.3, 'fix your posture,', [], {
-      camera: { zoom: 1, x: 0.5, y: 0.5 }, props: [{ kind: 'shrimp', x: 0.45, y: 0.55, scale: 1.4, text: 'before' }],
-      marks: [{ kind: 'label', text: 'you before', x: 0.72, y: 0.45, to: [0.6, 0.52], t: 0.2 }],
+      camera: { zoom: 1, x: 0.5, y: 0.5 },
+      marks: [{ kind: 'shrimp', text: 'before', x: 0.45, y: 0.55, size: 1.3 }, { kind: 'label', text: 'you before', x: 0.74, y: 0.42, to: [0.62, 0.5], t: 0.2 }],
     }),
     shot('posture-after', 1.5, 'fix your posture,', [], {
-      camera: { zoom: 1, x: 0.5, y: 0.5 }, props: [{ kind: 'shrimp', x: 0.45, y: 0.6, scale: 1.4, text: 'after' }],
-      marks: [{ kind: 'label', text: 'you after', x: 0.66, y: 0.3, to: [0.54, 0.36], t: 0.1 }],
+      camera: { zoom: 1, x: 0.5, y: 0.5 },
+      marks: [{ kind: 'shrimp', text: 'after', x: 0.45, y: 0.5, size: 1.3 }, { kind: 'label', text: 'you after', x: 0.68, y: 0.3, to: [0.56, 0.36], t: 0.1 }],
     }),
     // Bookend: hands on her cheeks, a wink, a star.
     shot('bye', 3, 'See you in the next video! Bye!', nami(0.5, [{ t: 0, move: 'cheeks', face: 'wink' }]), {
