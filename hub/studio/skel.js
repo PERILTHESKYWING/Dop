@@ -96,7 +96,7 @@ export function skeleton(ch, pose0, H) {
   const restDrop = Math.abs(weight) * 0.012 * H;
   const pelvis = add(body([-weight * stance * 0.42, 0, 0]), [pdx * H, -PRO.pelvis * H + pdy * H + restDrop - lift + slump * 0.012 * H, 0]);
   const fPel = frame(yaw, deg((p.spine || 0) * 0.15), hipRoll);
-  const spine = (p.spine || 0) + slump * 13;
+  const spine = (p.spine || 0) + slump * 8;
   const side = p.spineSide || 0;
   const fWaist = frame(yaw + twist * 0.4, deg(spine * 0.4), deg(-weight * 2 + side * 0.4));
   const fChest = frame(yaw + twist, deg(spine), deg(-weight * 5 + side) - hipRoll * 0.1);
@@ -109,8 +109,8 @@ export function skeleton(ch, pose0, H) {
   const shF = shoulderAt(-1, 'F');
   const shB = shoulderAt(1, 'B');
   const neckBase = add(chest, fChest([0, -(PRO.neck - PRO.chest) * H * squash, slump * 0.012 * H]));
-  const headPitch = deg((p.headPitch || 0) + slump * 14 - spine * 0.45);
-  const fNeck = frame(yaw + twist + deg((p.headYaw || 0) * 0.3), deg(spine) + headPitch * 0.35 + deg(slump * 18), deg(side * 0.5 + (p.headRoll || 0) * 0.3));
+  const headPitch = deg((p.headPitch || 0) * 0.8 + slump * 5 - spine * 0.6);
+  const fNeck = frame(yaw + twist + deg((p.headYaw || 0) * 0.3), deg(spine) + headPitch * 0.35 + deg(slump * 10), deg(side * 0.5 + (p.headRoll || 0) * 0.3));
   const neckTop = add(neckBase, fNeck([0, -PRO.neckLen * H, 0]));
   const fHead = frame(yaw + twist + deg(p.headYaw || 0), deg(spine) + headPitch, deg(side * 0.6 + (p.headRoll || 0)) - hipRoll * 0.15);
   const head = add(neckTop, fHead([0, -0.9 * r, 0.04 * r]));
@@ -121,13 +121,6 @@ export function skeleton(ch, pose0, H) {
     const root = s === 'F' ? shF : shB;
     const ua = PRO.upper * H;
     const fa = PRO.fore * H;
-    const hand = p['hand' + s];
-    if (Array.isArray(hand)) {
-      const base = hand[3] === 'head' ? head : root;
-      const target = add(base, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
-      const { joint, end } = ik3(root, target, ua, fa, fChest([out * 0.55, 0.7, -0.5]));
-      return { sh: root, el: joint, wr: end };
-    }
     const [ra, fw, el] = p['arm' + s] || ARM_REST;
     const [r1, f1, e1] = [deg(ra), deg(fw), deg(Math.max(0, Math.min(160, el)))];
     const dir = fChest([out * Math.sin(r1) * Math.cos(f1), Math.cos(r1) * Math.cos(f1), Math.sin(f1)]);
@@ -138,7 +131,16 @@ export function skeleton(ch, pose0, H) {
     bend = unit(bend);
     const fore = add(mul(dir, Math.cos(e1)), mul(bend, Math.sin(e1)));
     const elbow = add(root, mul(dir, ua));
-    return { sh: root, el: elbow, wr: add(elbow, mul(fore, fa)) };
+    const wrist = add(elbow, mul(fore, fa));
+    const hand = p['hand' + s];
+    if (!Array.isArray(hand)) return { sh: root, el: elbow, wr: wrist };
+    // A hand target (IK), blended from the angle pose by handFw/handBw.
+    const w = Math.max(0, Math.min(1, p['hand' + s + 'w'] ?? 1));
+    const base = hand[3] === 'head' ? head : root;
+    const goal = add(base, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
+    const target = add(mul(wrist, 1 - w), mul(goal, w));
+    const { joint, end } = ik3(root, target, ua, fa, fChest([out * 0.55, 0.7, -0.5]));
+    return { sh: root, el: joint, wr: end };
   };
 
   // Legs: feet planted on the stance (moved by footF/footB), knees by IK.

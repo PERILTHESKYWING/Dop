@@ -50,15 +50,20 @@ describe('studio renderer', () => {
     expect(paths(R.renderFrame(p, 0, 2.3))).toBe(paths(R.renderFrame(p, 0, 2.3)));
   });
 
-  it('holds each drawing for `hold` frames, then boils', () => {
+  it('holds each drawing for `hold` frames, then boils', async () => {
     const p = project(); // 12 fps on twos: a drawing lasts 1/6 s
     const a = paths(R.renderFrame(p, 0, 0.5));
     expect(paths(R.renderFrame(p, 0, 0.5 + 0.05))).toBe(a);
     expect(paths(R.renderFrame(p, 0, 0.5 + 1 / 6))).not.toBe(a);
-    // Boil 0: an idle hold keeps its lines; only the pose changes.
-    const still = project({ style: { boil: 0 } });
-    const head = (f: any) => f.world.filter((o: any) => o.d).slice(0, 4).map((o: any) => o.d).join();
-    expect(head(R.renderFrame(still, 0, 0.0))).toBe(head(R.renderFrame(still, 0, 0.2)));
+    // Boil 0: the same line on the next drawing keeps its wobble; with boil it shimmers.
+    const D = await lib('draw.js');
+    const line = (boil: number, drawing: number) => {
+      const ops: any[] = [];
+      new D.Pen({ style: { ...S.DEFAULT_STYLE, boil }, drawing, seed: 5, ops }).stroke('l', [[0, 0], [200, 40], [400, 0]]);
+      return ops[0].d;
+    };
+    expect(line(0, 0)).toBe(line(0, 1));
+    expect(line(0.6, 0)).not.toBe(line(0.6, 1));
   });
 
   it('draws every move, face, background, hair, extra and prop without bad numbers', () => {
