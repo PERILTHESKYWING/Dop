@@ -627,9 +627,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   // ---------- XIAO's prompts ----------
-  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false }) {
+  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false, chat = false }) {
     text = clean(text, 20_000);
     if (!text) throw new Error('Empty prompt.');
+    // New chat: a clean thread that goes straight to one agent. Nothing is posted in Project chat
+    // and no coordinator runs; the first message is the brief, shown as XIAO's own words.
+    if (chat && !tid) {
+      const t = await createThread({ title: text.split('\n')[0].slice(0, 60), brief: text, model: MODELS.includes(model) ? model : 'sonnet', thinking, team: teamOf(team, 1), accounts: only, account: acc || '', from: 'XIAO' });
+      return { thread: t.id };
+    }
     if (tid) {
       const t = await thread(tid);
       if (!t) throw new Error('No such thread.');
