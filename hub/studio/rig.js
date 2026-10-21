@@ -321,8 +321,9 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const vis = seen(ex, ey);
       if (vis < 0.08) continue;
       const kind = kind0 === 'wink' ? (sx > 0 ? 'happy' : 'open') : kind0;
-      const ew = big ? 0.225 : 0.165;
-      const eh = big ? 0.215 : ch.eyes === 'oval' ? 0.17 : 0.14;
+      // f2's eyes are wide almonds (about 1.5x wider than tall), not discs.
+      const ew = big ? 0.25 : 0.165;
+      const eh = big ? 0.17 : ch.eyes === 'oval' ? 0.17 : 0.14;
       const at = (pts) => F(pts.map(([a, b]) => [ex + a, ey + b]));
       if (blink || kind === 'closed') {
         pen.stroke('eye' + sx, curve(at([[-ew * 1.05, 0.0], [0, eh * 0.45], [ew * 1.05, 0]]), 4), { width: line * 0.9 });
@@ -374,9 +375,10 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const white = [...upper, ...[...lower].reverse().slice(1, -1)];
       pen.fill('white' + sx, at(white), '#fbf8f2', { slip: 0.15 });
       // Iris: a disc moved by the gaze, clamped inside the lids.
-      const ir = eh * (big ? (kind === 'wide' ? 0.6 : 0.8) : kind === 'wide' ? 0.62 : ch.eyes === 'dot' ? 0.9 : 0.82);
+      // Big eyes: the iris fills the eye's height and the upper lid covers its top.
+      const ir = eh * (big ? (kind === 'wide' ? 0.66 : 0.95) : kind === 'wide' ? 0.62 : ch.eyes === 'dot' ? 0.9 : 0.82);
       const gx = Math.max(-1, Math.min(1, g[0])) * ew * 0.42;
-      const gy = Math.max(-1, Math.min(1, g[1] || 0)) * eh * 0.4 + eh * 0.08;
+      const gy = Math.max(-1, Math.min(1, g[1] || 0)) * eh * 0.4 + eh * (big ? 0.0 : 0.08);
       const clampLid = ([a, b]) => {
         const aa = Math.max(-ew * 0.96, Math.min(ew * 0.96, a));
         return [aa, Math.max(topY(aa) + 0.004, Math.min(botY(aa) - 0.004, b))];

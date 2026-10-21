@@ -264,8 +264,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [0.16, 0.12, 0.1], gripF: 'hold', shrug: 0.2 }, 'out'],
-      [0.56, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'out'],
-      [0.82, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'io'],
+      [0.56, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], elbowF: [0.1, 1, 0.25], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'out'],
+      [0.82, { handF: [0.24, 0.07, 0.12], gripF: 'relaxed', aimF: [0.55, -0.7, -0.45], elbowF: [0.1, 1, 0.25], armB: [3, 4, 5], shrug: 0.45, shrugF: 0.8, slump: -0.2, headRoll: -6 }, 'io'],
     ],
   },
   // Index finger on her chin (thinking, sly).

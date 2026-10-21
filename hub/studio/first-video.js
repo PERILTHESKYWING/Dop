@@ -41,7 +41,7 @@ export const FIRST_VIDEO = {
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
-      camera: { zoom: 3.6, x: 0.48, y: 0.5 }, marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.76, y: 0.16 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
+      camera: { zoom: 3.6, x: 0.48, y: 0.5 }, marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.86, y: 0.24 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
     shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
