@@ -11,6 +11,7 @@ const fake = async (url: string) => {
   if (url.startsWith('https://page.test/')) return new Response('<html><head><title>x</title><style>a{}</style></head><body><h1>Go &amp; Baduk</h1><p>Hello</p><script>evil()</script></body></html>', { headers: { 'content-type': 'text/html' } });
   if (url.startsWith('https://html.duckduckgo.com/')) return new Response('<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa&rut=1">Example <b>A</b></a><a class="result__snippet" href="x">About A</a>', { headers: { 'content-type': 'text/html' } });
   if (url.startsWith('https://image.pollinations.ai/')) return new Response(png, { headers: { 'content-type': 'image/png' } });
+  if (url.startsWith('https://gen.pollinations.ai/image/')) return new Response(png, { headers: { 'content-type': 'image/png' } });
   return new Response('nope', { status: 404 });
 };
 
@@ -59,5 +60,18 @@ describe('hub web tools', () => {
     expect(posts[0]).toMatchObject({ thread: 7, from: 'ME', meta: { image: { account: 'ME', name: 'images/5.png' } } });
     expect(await readImage(hub, 'ME', 'images/5.png')).toEqual({ type: 'image/png', data: Buffer.from(png).toString('base64') });
     expect(await readImage(hub, 'ME', 'images/9.png')).toBeNull();
+  });
+  it('uses the Pollinations key from the server environment, only as a header', async () => {
+    const { webTools } = await lib('tools-web.js');
+    const calls: { url: string; auth: string }[] = [];
+    const f = async (url: string, init: any) => { calls.push({ url, auth: init?.headers?.authorization || '' }); return fake(url); };
+    process.env.POLLINATIONS_API_KEY = 'sk_test123';
+    try {
+      const t = Object.fromEntries(webTools(f).map((x: any) => [x.name, x]));
+      await t.image_gen.run({}, { prompt: 'stone' });
+    } finally { delete process.env.POLLINATIONS_API_KEY; }
+    expect(calls[0].url.startsWith('https://gen.pollinations.ai/image/stone')).toBe(true);
+    expect(calls[0].url).not.toContain('sk_test123');
+    expect(calls[0].auth).toBe('Bearer sk_test123');
   });
 });

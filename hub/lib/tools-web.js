@@ -33,10 +33,13 @@ async function get(f, url, headers = {}) {
   const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
     let cur = checkUrl(url);
+    let hdrs = { 'user-agent': UA, ...headers };
     for (let hop = 0; hop < 5; hop++) {
-      const res = await f(cur.href, { headers: { 'user-agent': UA, ...headers }, redirect: 'manual', signal: ac.signal });
+      const res = await f(cur.href, { headers: hdrs, redirect: 'manual', signal: ac.signal });
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-        cur = checkUrl(new URL(res.headers.get('location'), cur).href); // re-check every hop
+        const next = checkUrl(new URL(res.headers.get('location'), cur).href); // re-check every hop
+        if (next.host !== cur.host) { const { authorization, ...rest } = hdrs; hdrs = rest; } // never send a key to another host
+        cur = next;
         continue;
       }
       return res;
@@ -135,13 +138,14 @@ export function webTools(f = fetch, hub = null) {
     },
     {
       name: 'image_gen',
-      description: 'Make an image from a text prompt (free, via Pollinations, no key). Returns the picture. Pass thread (your thread id) to also show it inline in that thread on the hub page. Optional width/height (256-1024, default 768), seed, model (default flux).',
+      description: 'Make an image from a text prompt (via Pollinations; no watermark when POLLINATIONS_API_KEY is set on the server). Returns the picture. Pass thread (your thread id) to also show it inline in that thread on the hub page. Optional width/height (256-1024, default 768), seed, model (default flux).',
       inputSchema: { type: 'object', properties: { prompt: str, width: num, height: num, seed: num, model: str, thread: num }, required: ['prompt'] },
       run: async (a, x) => {
         const dim = (v) => Math.max(256, Math.min(1024, Math.round(Number(v) || 768)));
         const seed = Number.isFinite(Number(x.seed)) && x.seed !== undefined ? `&seed=${Math.floor(Number(x.seed))}` : '';
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(x.prompt).slice(0, 1000))}?width=${dim(x.width)}&height=${dim(x.height)}&nologo=true&enhance=true&model=${encodeURIComponent(String(x.model || 'flux').slice(0, 30))}${seed}`;
-        const res = await get(f, url);
+        const key = String(process.env.POLLINATIONS_API_KEY || '').trim();
+        const url = `https://${key ? 'gen' : 'image'}.pollinations.ai/${key ? 'image' : 'prompt'}/${encodeURIComponent(String(x.prompt).slice(0, 1000))}?width=${dim(x.width)}&height=${dim(x.height)}&nologo=true&enhance=true&model=${encodeURIComponent(String(x.model || 'flux').slice(0, 30))}${seed}`;
+        const res = await get(f, url, key ? { authorization: `Bearer ${key}` } : {});
         const type = String(res.headers.get('content-type') || '');
         if (!res.ok || !/^image\//i.test(type)) return `Image service said HTTP ${res.status} (${type || 'no type'}). Try again in a minute.`;
         const buf = Buffer.from(new Uint8Array(await res.arrayBuffer()));
