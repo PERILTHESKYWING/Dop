@@ -1,6 +1,6 @@
 // Turns a validated project into frames. renderFrame() is pure (no DOM) and
 // gives layers of ops; paint() draws them on a canvas, toSVG() makes an SVG.
-import { Pen, curve, ellipse, hash, loop, mix, rng, wrap } from './draw.js';
+import { LIGHT, Pen, curve, ellipse, hash, loop, mix, pathOf, rng, wrap } from './draw.js';
 import { drawCharacter, headSpot, seedFor, FACE } from './rig.js';
 import { poseFor, MOVE_SET, WALK_SPEED } from './moves.js';
 
@@ -356,7 +356,12 @@ export function paintOps(ctx, ops) {
     }
     ctx.globalAlpha = o.alpha ?? 1;
     ctx.fillStyle = o.fill;
-    ctx.fill(p2d(o.d));
+    if (o.clip) {
+      ctx.save();
+      ctx.clip(p2d(o.clip));
+      ctx.fill(p2d(o.d));
+      ctx.restore();
+    } else ctx.fill(p2d(o.d));
     ctx.globalAlpha = 1;
   }
 }
@@ -412,16 +417,56 @@ export function makeGrain(doc, seed = 7) {
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+let clipN = 0;
 function svgOps(ops) {
   return ops
-    .map((o) =>
-      o.text != null
-        ? `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}" text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`
-        : `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`,
-    )
+    .map((o) => {
+      if (o.text != null)
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}" text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
+      const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
+      if (!o.clip) return path;
+      const id = `cl${clipN++}`;
+      return `<clipPath id="${id}"><path d="${o.clip}"/></clipPath><g clip-path="url(#${id})">${path}</g>`;
+    })
     .join('');
 }
+
+// Ground shadow: every point of the figure thrown along the light onto the
+// floor and flattened, then one convex outline (so overlapping parts never
+// double-darken). pts = all the figure's outline points; groundY = the floor
+// under the feet; light as in Pen.style.light (the direction it comes FROM).
+export function castShadow(pen, pts, groundY, light = LIGHT) {
+  if (pts.length < 3) return;
+  const [lx, ly] = light;
+  const run = ly < -0.05 ? -lx / -ly : 0; // sideways travel per unit of height
+  const flat = pts.map(([x, y]) => {
+    const h = Math.max(0, groundY - y);
+    return [x + h * run * 0.85, groundY - h * 0.07];
+  });
+  const hull = convexHull(flat);
+  const k = pen.style.shade ?? 0.6;
+  pen.ops.push({ d: pathOf(hull), fill: pen.style.ink, alpha: 0.1 + 0.12 * k });
+  const core = hull.map(([x, y]) => [x * 0.85 + (hull.reduce((a, p) => a + p[0], 0) / hull.length) * 0.15, y]);
+  pen.ops.push({ d: pathOf(core), fill: pen.style.ink, alpha: 0.08 + 0.1 * k });
+}
+
+function convexHull(points) {
+  const p = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [];
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop();
+    lower.push(q);
+  }
+  const upper = [];
+  for (const q of [...p].reverse()) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop();
+    upper.push(q);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
 export function toSVG(frame, width = W) {
+  clipN = 0;
   const c = frame.camera;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}"><rect width="${W}" height="${H}" fill="${frame.paper}"/><g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.bg || [])}${svgOps(frame.world)}</g>${svgOps(frame.overlay)}</svg>`;
 }

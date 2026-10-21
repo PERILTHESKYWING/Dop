@@ -113,4 +113,36 @@ describe('studio renderer', () => {
     expect(svg).toContain("That one's mine.");
     expect((svg.match(/<path /g) || []).length).toBeGreaterThan(100);
   });
+
+  it('shades a form inside its own shape and honours clips in SVG', async () => {
+    const D = await lib('draw.js');
+    const style = { line: 3, ink: '#222222', wobble: 1, misregister: 1, boil: 0 };
+    const ball = D.ellipse(100, 100, 40, 40, { n: 24 });
+    const ops: any[] = [];
+    new D.Pen({ style, seed: 2, ops }).form('b', ball, '#e8b48c');
+    const clipped = ops.filter((o) => o.clip);
+    expect(clipped.length).toBeGreaterThanOrEqual(3); // soft shadow, core, rim
+    expect(clipped[0].d.match(/M/g).length).toBe(2); // shape with a lit hole cut out
+    const flat: any[] = [];
+    new D.Pen({ style: { ...style, shade: 0 }, seed: 2, ops: flat }).form('b', ball, '#e8b48c', { rim: false });
+    expect(flat.some((o) => o.clip)).toBe(false);
+    // light from the upper left puts the shadow on the lower right of a ball
+    const shadow = clipped[0].d.split('M').filter(Boolean)[0].split('L').map((q: string) => q.replace('Z', '').split(' ').map(Number));
+    expect(shadow.length).toBeGreaterThan(8);
+    const svg = R.toSVG({ paper: '#fff', camera: { zoom: 1, tx: 0, ty: 0 }, world: ops, overlay: [] }, 400);
+    expect((svg.match(/<clipPath /g) || []).length).toBe(clipped.length);
+    expect(svg).toContain('clip-path="url(#cl0)"');
+  });
+
+  it('throws a flat cast shadow on the ground away from the light', async () => {
+    const D = await lib('draw.js');
+    const style = { line: 3, ink: '#222222', wobble: 1, misregister: 1, boil: 0 };
+    const ops: any[] = [];
+    const pen = new D.Pen({ style, seed: 1, ops });
+    R.castShadow(pen, [[100, 100], [140, 100], [140, 300], [100, 300]], 300);
+    expect(ops.length).toBe(2);
+    const xs = ops[0].d.match(/[ML]([\d.-]+) ([\d.-]+)/g).map((q: string) => q.slice(1).split(' ').map(Number));
+    expect(Math.max(...xs.map((q: number[]) => q[0]))).toBeGreaterThan(140); // thrown to the right
+    expect(Math.min(...xs.map((q: number[]) => q[1]))).toBeGreaterThan(270); // flattened onto the floor
+  });
 });

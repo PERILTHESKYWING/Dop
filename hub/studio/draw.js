@@ -266,12 +266,46 @@ export class Pen {
     const off = this.wander(id + ':f', total, st.wobble * 0.7 * this.scale, 0.7);
     const out = p.map(([x, y], i) => [x + dx + nrm[i][0] * off(lens[i]), y + dy + nrm[i][1] * off(lens[i])]);
     this.ops.push({ d: pathOf(out), fill: color, ...(alpha != null ? { alpha } : {}) });
+    return out;
   }
 
   // Fill then outline: the usual way a shape is drawn.
   shape(id, pts, fillColor, opts = {}) {
     this.fill(id, pts, fillColor, opts);
     this.stroke(id, pts, { ...opts, closed: true });
+  }
+
+  // A part with volume: flat fill, a form shadow on the side away from the
+  // light (two bands, a soft step), an optional rim light, then the inked
+  // outline. axis = the part's long axis [[x0,y0],[x1,y1]] so the terminator
+  // runs along a limb; null = a ball (head, fist), terminator is a crescent.
+  form(id, pts, color, { axis = null, round = 1, rim = true, slip = 1, alpha, ...opts } = {}) {
+    const slipped = this.fill(id, pts, color, { slip, alpha });
+    const k = (this.style.shade ?? 0.6) * round;
+    if (slipped && k > 0) {
+      const [L, wide] = lightFor(this.style.light || LIGHT, pts, axis);
+      const dx = L[0];
+      const dy = L[1];
+      const sh = mix(color, this.style.ink, 0.28 + 0.2 * k);
+      const core = mix(color, this.style.ink, 0.42 + 0.25 * k);
+      const hi = mix(color, '#ffffff', 0.55);
+      // lit area = the shape pushed toward the light; shadow = what is left of the fill
+      const kk = Math.min(1, k + 0.15);
+      const part = (d, fill) => this.ops.push({ d: holed(slipped, tf(slipped, { x: dx * d, y: dy * d })), fill, clip: pathOf(slipped), ...(alpha != null ? { alpha } : {}) });
+      part(wide * 0.5 * kk, sh); // wide soft shadow
+      part(wide * 0.26 * kk, core); // darker core on the far edge
+      if (rim) {
+        const d3 = wide * 0.1;
+        this.ops.push({ d: holed(slipped, tf(slipped, { x: -dx * d3, y: -dy * d3 })), fill: hi, alpha: 0.7, clip: pathOf(slipped) });
+      }
+    }
+    this.stroke(id, pts, { ...opts, closed: true });
+  }
+
+  // A shadow shape confined to another shape: head on neck, arm across the torso.
+  shade(id, shadowPts, clipPts, { color = this.style.ink, alpha = 0.22 } = {}) {
+    if (shadowPts.length < 3 || clipPts.length < 3) return;
+    this.ops.push({ d: pathOf(shadowPts), fill: color, alpha, clip: pathOf(clipPts) });
   }
 
   // A small solid blob (eye dot, button), drawn as a filled wobbly loop.
@@ -285,6 +319,42 @@ export class Pen {
   text(t, x, y, size, opts = {}) {
     this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}) });
   }
+}
+
+export const LIGHT = [-0.55, -0.83]; // the light comes FROM here (upper left)
+
+// Unit vector from the part toward the light, and the part's width across it.
+// For a limb the vector is the axis normal on the lit side, so the shadow
+// terminator runs along the limb; for a ball it is the light itself.
+function lightFor(light, pts, axis) {
+  const l = Math.hypot(light[0], light[1]) || 1;
+  let v = [light[0] / l, light[1] / l];
+  if (axis) {
+    const ax = axis[1][0] - axis[0][0];
+    const ay = axis[1][1] - axis[0][1];
+    const al = Math.hypot(ax, ay) || 1;
+    let n = [-ay / al, ax / al];
+    if (n[0] * v[0] + n[1] * v[1] < 0) n = [-n[0], -n[1]];
+    v = n;
+  }
+  // width of the shape measured along v
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const [x, y] of pts) {
+    const t = x * v[0] + y * v[1];
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  return [v, hi - lo];
+}
+
+// The part of `outer` not covered by `inner`: outer plus inner wound the other way
+// (the painters fill nonzero, so the reversed loop cuts a hole). Needs no clipper.
+function holed(outer, inner) {
+  const area = (p) => p.reduce((a, [x, y], i) => a + x * p[(i + 1) % p.length][1] - p[(i + 1) % p.length][0] * y, 0);
+  const o = area(outer) >= 0 ? outer : [...outer].reverse();
+  const q = area(inner) >= 0 ? [...inner].reverse() : inner;
+  return pathOf(o) + pathOf(q);
 }
 
 function total0(pts) {
