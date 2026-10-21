@@ -13,7 +13,7 @@ const BUST = (x, extra = {}) => ({ zoom: 4.2, x, y: 0.475, ...extra }); // head 
 const CLOSE = (x, extra = {}) => ({ zoom: 5.2, x, y: 0.465, ...extra }); // the face fills the frame (shock, crash-out)
 const CHEST = (x, extra = {}) => ({ zoom: 3.4, x, y: 0.5, ...extra }); // head to the waist: hands in view
 const DESK = (x) => ({ zoom: 2.2, x, y: 0.58 }); // sitting at the desk, the table across the bottom
-const nami = (x, beats) => [{ who: 'nami', x, facing: 1, beats }];
+const nami = (x, beats, facing = 1) => [{ who: 'nami', x, facing, beats }];
 const shot = (id, duration, narration, actors, more = {}) => ({ id, duration, bg: HOME, narration, actors, ...more });
 
 export const FIRST_VIDEO = {
@@ -36,12 +36,12 @@ export const FIRST_VIDEO = {
     // 0:01.1 A 0.3 s jump cut: same line, a touch closer, the hand settles.
     shot('guys-2', 0.3, 'Guys!', nami(0.5, [{ t: 0, move: 'cheek', face: 'worried', quiet: true }]), { camera: BUST(0.47, { zoom: 4.5 }) }),
     // 0:01.4 Points back at her first video's thumbnail, blank shock.
-    shot('three-days', 2.9, 'It literally has been three days!', nami(0.64, [{ t: 0, move: 'point', face: 'shock' }]), {
+    shot('three-days', 2.9, 'It literally has been three days!', nami(0.64, [{ t: 0, move: 'point', face: 'shock' }], -1), {
       camera: CHEST(0.58), marks: [{ kind: 'thumb', x: 0.24, y: 0.42, text: 'MY 1ST VIDEO' }],
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
-      camera: CLOSE(0.47), marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.86, y: 0.2 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
+      camera: { zoom: 3.6, x: 0.48, y: 0.5 }, marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.86, y: 0.2 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
     shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
