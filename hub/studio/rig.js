@@ -293,13 +293,13 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     const g = Array.isArray(gz) ? gz : [gz ?? 0.15, 0];
     const blushFx = (p.fx || face.fx) === 'blush';
     if (ch.extras.includes('blush') || blushFx)
-      for (const sx of [-1, 1]) if (seen(sx * 0.5, 0.3) > 0.1) pen.fill('blush' + sx, F(ellipse(sx * 0.52, ey + 0.27, 0.15, 0.075, { n: 12 })), mix(ch.skin, '#ff6f7d', 0.4), { slip: 0.2, alpha: Math.min(1, 0.75 * (face.blush || 1)) });
+      for (const sx of [-1, 1]) if (seen(sx * 0.5, 0.3) > 0.1) pen.fill('blush' + sx, F(ellipse(sx * 0.5, ey + 0.27, 0.15, 0.08, { n: 12 })), mix(ch.skin, '#ff6f7d', 0.4), { slip: 0.2, alpha: Math.min(1, 0.42 * (face.blush || 1)) });
     // Hatched blush: three short slanted strokes on each cheek.
     if (ch.extras.includes('blushlines') || blushFx)
       for (const sx of [-1, 1])
-        for (let i = 0; i < 3; i++) {
-          const u = sx * (0.42 + i * 0.08);
-          if (seen(u, ey + 0.27) > 0.15) pen.stroke('hatch' + sx + i, F([[u + 0.035, ey + 0.21], [u - 0.035, ey + 0.33]], 0.02), { width: line * 0.45, color: mix('#e0606e', ink, 0.25) });
+        for (let i = 0; i < 4; i++) {
+          const u = sx * (0.39 + i * 0.065);
+          if (seen(u, ey + 0.27) > 0.15) pen.stroke('hatch' + sx + i, F([[u + 0.02, ey + 0.2], [u - 0.02, ey + 0.34]], 0.02), { width: line * 0.5, color: mix('#e0606e', ink, 0.12) });
         }
     if (ch.extras.includes('freckles'))
       for (let i = 0; i < 6; i++) {
@@ -387,6 +387,8 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       pen.fill('iris' + sx, at(irisPts), ch.eyes === 'dot' ? mix(irisC, ink, 0.55) : irisC, { slip: 0 });
       // Big eyes: the top of the iris in the lid's shadow, a ringed edge.
       if (big) pen.fill('irisTop' + sx, at(ellipse(gx, gy - ir * 0.45, ir * 0.74, ir * 0.55, { n: 22 }).map(clampLid)), mix(irisC, ink, 0.5), { slip: 0 });
+      // f2's iris lights up toward the bottom.
+      if (big) pen.fill('irisLow' + sx, at(ellipse(gx, gy + ir * 0.48, ir * 0.58, ir * 0.36, { n: 18 }).map(clampLid)), mix(irisC, '#ffffff', 0.38), { slip: 0 });
       pen.fill('pupil' + sx, at(ellipse(gx, gy, ir * (big ? 0.34 : 0.45), ir * 0.5, { n: 20 }).map(clampLid)), ink, { slip: 0 });
       if (big) pen.stroke('irisRim' + sx, at(irisPts), { width: line * 0.45, closed: true, color: kind === 'teary' ? '#e8708a' : undefined });
       if (kind === 'teary') {
@@ -404,15 +406,31 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       }
       // Upper lid: the strong line, with a small flick at the outer corner.
       const flick = [sx * ew * 1.15, topY(sx * ew) - eh * 0.15];
-      pen.stroke('lid' + sx, at(sx > 0 ? [...upper, flick] : [flick, ...upper]), { width: line * (lashes ? 2.1 : 1.05) });
-      if (lashes) {
+      if (big) {
+        // f2's lid: a solid lash wedge, thin at the inner corner and heavy at the
+        // outer one, ending in a winged flick, with a fine crease above it.
+        const thick = (a) => eh * (0.1 + 0.32 * smooth((sx * a / ew + 0.6) / 1.6));
+        const top = upper.map(([a, b]) => [a, b - thick(a)]);
+        const wing = [sx * ew * 1.32, topY(sx * ew) - eh * 0.42];
+        const wedge = sx > 0 ? [...upper, wing, ...top.reverse()] : [wing, ...upper, ...top.reverse()];
+        pen.fill('lid' + sx, at(wedge), ink, { slip: 0 });
+        pen.stroke('lidEdge' + sx, at(sx > 0 ? [...upper, wing] : [wing, ...upper]), { width: line * 0.9 });
+        pen.stroke('crease' + sx, curve(at([[-ew * 0.75, topY(-ew * 0.75) - eh * 0.62], [0, topY(0) - eh * 0.66], [ew * 0.75, topY(ew * 0.75) - eh * 0.62]].map(([a, b]) => [a + sx * ew * 0.12, b])), 3), { width: line * 0.45, color: skinLine });
+      } else pen.stroke('lid' + sx, at(sx > 0 ? [...upper, flick] : [flick, ...upper]), { width: line * (lashes ? 2.1 : 1.05) });
+      if (lashes && big) {
+        // A short lower lid on the outer half and one lower lash tick.
+        const outer = lower.filter(([a]) => sx * a > ew * 0.05);
+        pen.stroke('lowLash' + sx, at(outer.map(([a, b]) => [a, b + eh * 0.04])), { width: line * 0.55 });
+        const o = [sx * ew * 0.78, botY(sx * ew * 0.78) + eh * 0.04];
+        pen.stroke('lashC' + sx, at([o, [o[0] + sx * ew * 0.12, o[1] + eh * 0.2]]), { width: line * 0.4 });
+      } else if (lashes) {
         // Two lash flicks off the outer corner and a short lower lash.
         const o = [sx * ew, topY(sx * ew)];
         pen.stroke('lashA' + sx, at([[o[0] - sx * ew * 0.15, o[1] - eh * 0.05], [o[0] + sx * ew * 0.32, o[1] - eh * 0.42]]), { width: line * 0.7 });
         pen.stroke('lashB' + sx, at([[o[0] - sx * ew * 0.05, o[1] + eh * 0.12], [o[0] + sx * ew * 0.4, o[1] - eh * 0.06]]), { width: line * 0.6 });
         pen.stroke('lowLash' + sx, at(lower.slice(N - 4, N).map(([a, b]) => [sx > 0 ? a : -a, b])), { width: line * 0.6 });
       } else pen.stroke('low' + sx, at(lower.slice(3, -2)), { width: line * 0.4, color: skinLine });
-      if (open < 0.7) pen.stroke('crease' + sx, curve(at([[-ew * 0.9, topY(-ew * 0.9) - 0.05], [0, topY(0) - 0.07], [ew * 0.9, topY(ew * 0.9) - 0.05]]), 3), { width: line * 0.4, color: skinLine });
+      if (open < 0.7 && !big) pen.stroke('crease' + sx, curve(at([[-ew * 0.9, topY(-ew * 0.9) - 0.05], [0, topY(0) - 0.07], [ew * 0.9, topY(ew * 0.9) - 0.05]]), 3), { width: line * 0.4, color: skinLine });
     }
     if (ch.extras.includes('glasses')) {
       for (const sx of [-1, 1]) if (seen(sx * gap, ey) > 0.05) pen.stroke('glass' + sx, F(ellipse(sx * gap, ey, 0.21, 0.17, { n: 18 }), 0.1), { width: line * 0.7, closed: true });
@@ -423,9 +441,9 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     // (big eyes get a tiny tick, as in the anime look).
     if (big) {
       // The refs' nose: a tiny open ring with a dot under it.
-      const [nx, ny] = onFace(0.0, 0.3, 0.06);
-      pen.stroke('nose', ellipse(nx, ny, 0.032 * r, 0.026 * r, { n: 10 }), { width: line * 0.5, color: skinLine, closed: true });
-      pen.dot('noseDot', nx + 0.012 * r, ny + 0.055 * r, 0.011 * r, skinLine);
+      // f2's nose: a small round button, pinker than the skin, outlined.
+      const [nx, ny] = onFace(0.0, 0.31, 0.06);
+      pen.shape('nose', ellipse(nx, ny, 0.045 * r, 0.038 * r, { n: 12 }), mix(ch.skin, '#e88a8a', 0.35), { width: line * 0.5, color: skinLine, slip: 0 });
     }
     else pen.stroke('nose', curve([onFace(0.03, 0.14, 0.02), onFace(0.07, 0.28, 0.13), onFace(0.0, 0.335, 0.08), onFace(-0.07, 0.31, 0.03)], 4), { width: line * 0.7, color: skinLine });
 
@@ -435,7 +453,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const w = 0.34;
       const m = p.mouth || face.mouth;
       const at = (pts) => F(pts.map(([u, v]) => [u, my + v]));
-      const dark = '#6b2a2a';
+      const dark = '#8e3b48';
       const lw = { width: line * 0.9 };
       if (seen(0, my) > 0.05) {
         if (m === 'smile') pen.stroke('mouth', curve(at([[-w / 2, -0.03], [0, 0.09], [w / 2, -0.03]]), 4), lw);
@@ -467,9 +485,10 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
           pen.shape('mouth', at(loop([[-w / 2, -0.04], [w / 2, -0.04], [w / 2, 0.06], [-w / 2, 0.06]], 4)), '#ffffff', { width: line * 0.8 });
           pen.stroke('teeth', at([[-w / 2, 0.01], [w / 2, 0.01]]), { width: line * 0.5 });
         } else {
-          const [rx, ry, dy] = { grin: [w * 0.55, 0.13, 0.02], open: [w * 0.3, 0.08, 0.02], wide: [w * 0.42, 0.17, 0.04], o: [w * 0.18, 0.12, 0.02] }[m] || [w * 0.3, 0.08, 0];
+          const [rx, ry, dy] = { grin: [w * 0.5, 0.12, 0.02], open: [w * 0.24, 0.065, 0.02], wide: [w * 0.3, 0.11, 0.03], o: [w * 0.13, 0.085, 0.02] }[m] || [w * 0.24, 0.065, 0];
           const pts = m === 'grin' ? loop([[-rx, -0.04], [rx, -0.04], [rx * 0.6, ry * 0.8], [0, ry], [-rx * 0.6, ry * 0.8]], 5) : ellipse(0, dy, rx, ry, { n: 14 });
-          pen.shape('mouth', at(pts), dark, { width: line * 0.8, slip: 0.2 });
+          // f2's small mouths are light inside (an 'o' is almost white), not dark holes.
+          pen.shape('mouth', at(pts), m === 'o' ? '#fbeeee' : dark, { width: line * 0.8, slip: 0.2 });
           if (m === 'grin') pen.fill('teethTop', at(loop([[-rx * 0.85, -0.03], [rx * 0.85, -0.03], [rx * 0.7, 0.02], [-rx * 0.7, 0.02]], 3)), '#fbf8f2', { slip: 0 });
           if (m === 'grin' || m === 'wide') pen.fill('tongue', at(ellipse(0, m === 'grin' ? ry * 0.6 : dy + ry * 0.55, rx * 0.45, ry * 0.28, { n: 10 })), '#d9646a', { slip: 0 });
         }
