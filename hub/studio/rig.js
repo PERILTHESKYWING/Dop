@@ -326,7 +326,13 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const eh = big ? 0.17 : ch.eyes === 'oval' ? 0.17 : 0.14;
       const at = (pts) => F(pts.map(([a, b]) => [ex + a, ey + b]));
       if (blink || kind === 'closed') {
-        pen.stroke('eye' + sx, curve(at([[-ew * 1.05, 0.0], [0, eh * 0.45], [ew * 1.05, 0]]), 4), { width: line * 0.9 });
+        // Shut eyes (f2's shy smile): a bold downward lid curve with lashes off the outer end.
+        pen.stroke('eye' + sx, curve(at([[-ew * 1.05, 0.0], [0, eh * 0.5], [ew * 1.05, 0]]), 4), { width: line * (big ? 1.6 : 0.9) });
+        if (big) for (const [k, t] of [[0, 0.72], [1, 0.95]]) {
+          const a = sx * ew * t;
+          const b = eh * 0.5 * (1 - t * t) + 0.01;
+          pen.stroke('shutLash' + sx + k, at([[a, b], [a + sx * ew * 0.18, b + eh * 0.32]]), { width: line * 0.6 });
+        }
         continue;
       }
       if (kind === 'spiral') {
@@ -349,8 +355,13 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         pen.stroke('lid' + sx, at([[-ew * 1.25, -eh * 0.1], [-ew * 0.5, -eh * 1.05], [ew * 0.5, -eh * 1.05], [ew * 1.25, -eh * 0.1]]), { width: line * 1.2 });
         continue;
       }
+      if (kind === 'happy' && big && kind0 !== 'wink') {
+        // f2's squeezed-shut joy: bold > < chevrons pointing at the nose.
+        pen.stroke('eye' + sx, at([[sx * ew, -eh * 0.6], [-sx * ew * 0.75, eh * 0.05], [sx * ew, eh * 0.6]]), { width: line * 1.6 });
+        continue;
+      }
       if (kind === 'happy') {
-        pen.stroke('eye' + sx, curve(at([[-ew, eh * 0.35], [0, -eh * 0.65], [ew, eh * 0.35]]), 4), { width: line * 0.95 });
+        pen.stroke('eye' + sx, curve(at([[-ew, eh * 0.35], [0, -eh * 0.65], [ew, eh * 0.35]]), 4), { width: line * (big ? 1.6 : 0.95) });
         continue;
       }
       let open = { wide: 1.25, teary: 1.2, lidded: 0.5, sad: 0.85, angry: 0.78 }[kind] ?? 1;
