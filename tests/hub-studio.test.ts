@@ -113,6 +113,11 @@ describe('studio backend', () => {
   it('stores notes for the page', async () => {
     expect(await tool('studio_note', { id, text: 'Critic: legs too long in shot 2' })).toBe('Noted.');
     expect((await get('studio-get', { id })).body.notes[0]).toMatchObject({ by: 'ME', text: 'Critic: legs too long in shot 2' });
+    // A new note shows up even when the revision has not changed.
+    const g = (await get('studio-get', { id })).body;
+    const seen = g.notes[g.notes.length - 1].at;
+    expect((await get('studio-get', { id, since: g.meta.rev, seen })).body.same).toBe(true);
+    expect((await get('studio-get', { id, since: g.meta.rev, seen: seen - 1 })).body.same).toBeUndefined();
   });
 
   it('merges style patches and rejects unsafe ones', async () => {

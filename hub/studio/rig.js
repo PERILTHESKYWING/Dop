@@ -153,7 +153,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     }
     // Fringe: comes down to brow level, parted toward where the face looks.
     const part = fx * 0.6;
-    const fy = (s === 'short' || s === 'spiky') ? -0.42 * R : -0.3 * R;
+    const fy = (s === 'short' || s === 'spiky') ? -0.58 * R : -0.52 * R;
     const fringe = [
       [1.04 * R, -0.08 * R],
       [0.7 * R, fy - 0.05 * R],
@@ -172,7 +172,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
   const eyes = () => {
     const ey = (pose.eyeY || 0) * R + 0.02 * R;
     const gap = 0.33 * R;
-    const r = 0.085 * R * (ch.eyes === 'oval' ? 1.1 : 1);
+    const r = 0.1 * R * (ch.eyes === 'oval' ? 1.1 : 1);
     const kind = pose.eyes || face.eyes;
     const blink = pose.blink && kind !== 'wide';
     for (const [k, sx] of [['L', -1], ['R', 1]]) {
@@ -192,14 +192,8 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         const lid = ch.eyes === 'sleepy' || kind === 'lidded';
         if (lid) pen.stroke('lid' + k, at(curve([[ex - r * 1.5, ey - r * 0.25], [ex, ey - r * 0.55], [ex + r * 1.5, ey - r * 0.25]])), { width: line * 0.8 });
         if (kind === 'angry') pen.stroke('lid' + k, at([[ex - sx * r * 1.6, ey - r * 1.5], [ex + sx * r * 1.3, ey - r * 0.4]]), { width: line * 0.7 });
-        if (kind === 'sad') pen.stroke('lid' + k, at([[ex - sx * r * 1.4, ey - r * 0.5], [ex + sx * r * 1.4, ey - r * 1.3]]), { width: line * 0.6 });
+        if (kind === 'sad') pen.stroke('lid' + k, at([[ex - sx * r * 1.4, ey - r * 1.3], [ex + sx * r * 1.4, ey - r * 0.5]]), { width: line * 0.6 });
       }
-      // Brows: inner end tilted by the feeling.
-      const by = ey - 0.3 * R + face.browY * R + (pose.browUp || 0) * R;
-      const b = deg(face.brow) * (face.browOne && sx < 0 ? 0.2 : 1);
-      const inner = [ex - sx * 0.12 * R, by + Math.sin(b) * 0.1 * R];
-      const outer = [ex + sx * 0.14 * R, by - Math.sin(b) * 0.1 * R - (face.browOne && sx > 0 ? 0.06 * R : 0)];
-      pen.stroke('brow' + k, at(curve([inner, [(inner[0] + outer[0]) / 2, Math.min(inner[1], outer[1]) - 0.03 * R], outer])), { width: line * 0.95 });
     }
     if (ch.extras.includes('blush') || pose.fx === 'blush')
       for (const sx of [-1, 1]) pen.fill('blush' + sx, P(head(ellipse(fx + sx * 0.5 * R, ey + 0.27 * R, 0.14 * R, 0.07 * R, { n: 12 }))), mix(ch.skin, '#ff6f7d', 0.45), { slip: 0.2, alpha: 0.8 });
@@ -212,6 +206,21 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     if (ch.extras.includes('glasses')) {
       for (const sx of [-1, 1]) pen.stroke('glass' + sx, P(head(ellipse(fx + sx * gap, ey, 0.2 * R, 0.17 * R, { n: 16 }))), { width: line * 0.7, closed: true });
       pen.stroke('bridge', P(head(curve([[fx - gap + 0.2 * R, ey - 0.02 * R], [fx, ey - 0.07 * R], [fx + gap - 0.2 * R, ey - 0.02 * R]]))), { width: line * 0.6 });
+    }
+  };
+
+  // Brows go over the fringe (cartoon brows show through hair): the inner
+  // end tilts with the feeling, which carries most of the expression.
+  const brows = () => {
+    const ey = (pose.eyeY || 0) * R + 0.02 * R;
+    for (const [k, sx] of [['L', -1], ['R', 1]]) {
+      const ex = fx + sx * 0.33 * R + (pose.gaze || 0) * 0.06 * R;
+      const by = ey - 0.33 * R + face.browY * R + (pose.browUp || 0) * R;
+      const b = deg(face.brow) * (face.browOne && sx < 0 ? 0.2 : 1);
+      // brow > 0 lifts the inner end (sad, worried); < 0 pulls it down (angry).
+      const inner = [ex - sx * 0.12 * R, by - Math.sin(b) * 0.17 * R];
+      const outer = [ex + sx * 0.15 * R, by + Math.sin(b) * 0.17 * R - (face.browOne && sx > 0 ? 0.07 * R : 0)];
+      pen.stroke('brow' + k, P(head(curve([inner, [(inner[0] + outer[0]) / 2, (inner[1] + outer[1]) / 2 - 0.03 * R], outer]))), { width: line * 1.15 });
     }
   };
 
@@ -309,6 +318,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
   eyes();
   mouth();
   hairFront();
+  brows();
   extrasOnHead();
   if (pose.overB) arm('B');
   if (pose.overF) arm('F');

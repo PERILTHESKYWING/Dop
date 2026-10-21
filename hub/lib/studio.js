@@ -146,9 +146,14 @@ export function createStudio(hub, { schema = null } = {}) {
     return { id, thread: t.id };
   }
 
-  async function get(id, since) {
+  // since (a rev) and seen (the time of the newest note the page has): the
+  // page polls with both and gets { same: true } while nothing changed.
+  async function get(id, since, seen) {
     const m = await meta(id);
-    if (since != null && since !== '' && Number(since) === m.rev) return { same: true, rev: m.rev };
+    if (since != null && since !== '' && Number(since) === m.rev) {
+      const last = parse((await store.cmd('LRANGE', K.notes(id), -1, -1))[0]);
+      if (!last || last.at <= Number(seen || 0)) return { same: true, rev: m.rev };
+    }
     const [project, revs, notes, log, rules] = await Promise.all([
       store.cmd('GET', K.proj(id)),
       store.cmd('LRANGE', K.revs(id), 0, -1),
@@ -289,7 +294,7 @@ export function createStudio(hub, { schema = null } = {}) {
     try {
       if (method === 'GET') {
         if (op === 'studio-list') return { status: 200, body: { projects: await list() } };
-        if (op === 'studio-get') return { status: 200, body: await get(String(query.id || ''), query.since) };
+        if (op === 'studio-get') return { status: 200, body: await get(String(query.id || ''), query.since, query.seen) };
         if (op === 'studio-rules') return { status: 200, body: await rulesNow() };
         if (op === 'studio-log') return { status: 200, body: { log: await logSince(query.since), now: now() } };
         return null;

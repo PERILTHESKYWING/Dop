@@ -276,11 +276,16 @@ function caption(ops, text, st) {
   const w = Math.min(W - 120, Math.max(...lines.map((l) => l.length)) * size * 0.46 + 70);
   const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
   const x0 = (W - w) / 2;
-  const r = 18;
-  const pts = loop([[x0 + r, y0], [x0 + w - r, y0], [x0 + w, y0 + r], [x0 + w, y0 + h - r], [x0 + w - r, y0 + h], [x0 + r, y0 + h], [x0, y0 + h - r], [x0, y0 + r]], 4);
+  const pts = roundRect(x0, y0, w, h, 18);
   pen.fill('cap', pts, mix(st.paper, '#ffffff', 0.5), { slip: 0, alpha: 0.92 });
   pen.stroke('cap', pts, { closed: true, width: st.line * 0.6, color: mix(st.ink, st.paper, 0.4) });
   lines.forEach((l, i) => pen.text(l, W / 2, y0 + 11 + size * 0.9 + i * size * 1.15, size));
+}
+
+function roundRect(x0, y0, w, h, r) {
+  const c = (cx, cy, a0) => ellipse(cx, cy, r, r, { from: a0, to: a0 + Math.PI / 2, n: 5 });
+  const pts = [...c(x0 + w - r, y0 + r, -Math.PI / 2), ...c(x0 + w - r, y0 + h - r, 0), ...c(x0 + r, y0 + h - r, Math.PI / 2), ...c(x0 + r, y0 + r, Math.PI)];
+  return [...pts, pts[0]];
 }
 
 // ---------- one frame ----------
@@ -339,7 +344,7 @@ function p2d(d) {
   }
   return p;
 }
-function paintOps(ctx, ops) {
+export function paintOps(ctx, ops) {
   for (const o of ops) {
     if (o.text != null) {
       ctx.fillStyle = o.fill;
