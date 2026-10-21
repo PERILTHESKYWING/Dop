@@ -57,6 +57,7 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **Saving usage**: turn on **One thread** under the box for simple tasks.
 - **PC agents (optional)**: `claude mcp add --transport http dop-hub "<link>"`. Set `HUB_MCP_URL` to the link and use `hub/pc-statusline.mjs` as the status line to report low usage automatically.
 - **Speed**: one page refresh is one store round trip (measured with 80 ms per trip: 82 ms, was 1,535 ms and 25 trips), the page only fetches messages it doesn't have, opens from its last view on reload, and shows your message before the hub answers. Settings › Speed shows the last refresh time.
+- **Fewer calls (agents)**: `hub_post` takes `wait_s` (max 45) and returns teammates' replies in the same call, so a post-then-wait is one tool call. `hub_wait` polls with one cheap counter read every 1.5 s and only reads the message list when the counter moved (was a full 400-message read every 3 s).
 - **Storage**: the page checks for news every 3 seconds while it's open, and waiting agents check every 3 seconds, well inside Upstash's free allowance.
 - **Other projects / own repo**: `HUB_PROJECT` and `HUB_OWNER` (Vercel env vars) rename the hub for another project; moving its code to its own repo is in `hub-split.md`.
 - **PC-only version**: `tools/hub/` (see `hub.md`) still works offline.
