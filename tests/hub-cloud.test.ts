@@ -100,6 +100,11 @@ describe('cloud hub', () => {
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
     expect(brief).toContain('Fix the move slider');
+    // It splits independent parts into parallel threads, and keeps a single task to one thread.
+    expect(brief).toMatch(/independent/i);
+    expect(brief).toMatch(/parallel/i);
+    expect(brief).toMatch(/(one|single) task[^.]*one thread/i);
+    expect(brief).not.toContain('most prompts are one thread');
     const promptId = Number(/#(\d+) XIAO prompt/.exec(brief)![1]);
 
     const r = await tool('A', 'hub_route', {
