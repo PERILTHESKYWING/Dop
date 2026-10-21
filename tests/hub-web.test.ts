@@ -31,5 +31,7 @@ describe('hub web tools', () => {
     const img = await t.image_gen.run({}, { prompt: 'a black stone', width: 5000 });
     expect(img.content[0]).toMatchObject({ type: 'image', mimeType: 'image/png', data: Buffer.from(png).toString('base64') });
     expect(seen.at(-1)).toContain('width=1024');
+    expect(seen.at(-1)).toContain('model=flux');
+    expect(img.content[1].text).not.toContain('http'); // the picture is shown, not linked
   });
 });
