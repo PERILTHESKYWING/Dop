@@ -3,6 +3,7 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)docs' ':(exclude).claude' ':(exclude).claude-plugin' ':(exclude).github' ':(exclude)hub' ':(exclude)eval' ':(exclude)data' ':(exclude)README.md' ':(exclude)CLAUDE.md' ':(exclude)THIRD_PARTY_NOTICES.md' ':(exclude)scripts' ':(exclude)tests'",
   "rewrites": [
     { "source": "/katago-models/:path*", "destination": "https://media.katagotraining.org/uploaded/networks/models/kata1/:path*" },
     { "source": "/((?!api/|engine/|demo/|assets/|katago-models/|book/|downloads/|pc-helper/|student/).*)", "destination": "/index.html" }

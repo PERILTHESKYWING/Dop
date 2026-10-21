@@ -60,3 +60,11 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **Other projects / own repo**: `HUB_PROJECT` and `HUB_OWNER` (Vercel env vars) rename the hub for another project; moving its code to its own repo is in `hub-split.md`.
 - **PC-only version**: `tools/hub/` (see `hub.md`) still works offline.
 - Code: `hub/`. Tests: `tests/hub-cloud.test.ts`.
+
+## Vercel deployment limit (2026-10-21)
+- Symptom: a PR check says deployments are limited and resets in 24 hours. Cause: Vercel Hobby allows about 100 deployments a day, and three projects (Dop, Kami, hub) build from this one repo, so each push counted up to three times. Bot data commits (AI training, coach training, problem bank) and parallel threads pushing after every edit used it up.
+- Fix: each `vercel.json` has an `ignoreCommand` that skips the build when a push changes nothing that project uses. Dop skips docs, `.claude`, `.github`, `hub`, `eval`, `data`, scripts and tests. Kami also skips the bot data folders under `public/` (student, book, level, coach, problems, broadcast). The hub builds only when `hub/` changes. The commands compare the last commit with the one before it, and build if that comparison fails, so a doubt always builds.
+- Dop still builds on bot data commits, because that data is served by the site.
+- Gotcha: a skipped build shows as canceled or ignored on the PR, which is expected. A docs-only commit never redeploys production; the next code push does.
+- Threads push once, when done (CLAUDE.md and dop-ship-pr).
+

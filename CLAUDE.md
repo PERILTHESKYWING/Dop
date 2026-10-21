@@ -10,6 +10,7 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - ChatGPT (OpenAI API, `OPENAI_API_KEY`) is a training-only tone reviewer (`scripts/coachlm/tone.py`); the sites never call it.
 - Never commit network weights except the bundled `public/models/g170e-b10c128-*.bin.gz`. Keep `THIRD_PARTY_NOTICES.md` current.
 - Hosting is Vercel Hobby (free) and XIAO finds Vercel setup hard: avoid new config, spell out any step.
+- Vercel Hobby allows about 100 deployments a day across Dop, Kami and the hub, and every push builds all three. Push once per thread when the work is done, never after each edit (details: `hub-cloud.md`).
 - Bump `ENGINE_FILES` whenever `public/engine` changes (Vercel caches /engine for a week).
 - Measure speed/strength claims (scripts/ai-eval.ts, Settings › Benchmark) and report honest numbers.
 - PRs: mark ready (not draft) once built and tested.
