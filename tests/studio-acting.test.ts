@@ -82,6 +82,19 @@ describe('studio acting', () => {
     expect(p.handFw).toBeCloseTo(0.3);
   });
 
+  it('talks to the camera in faceCam: square body, small head turns, eyes in the lens', () => {
+    for (const move of S.MOVES as string[])
+      for (const face of S.FACES as string[])
+        for (const t of [0, 0.4, 1.2, 2.5]) {
+          const p = pose(move, face, t, { faceCam: true });
+          expect(Math.abs(p.yaw), `${move}/${face}`).toBeLessThanOrEqual(A.CAM_YAW);
+          expect(Math.abs(p.headYaw)).toBeLessThanOrEqual(5);
+          // The eyes turn back against the head, so the gaze lands on the viewer.
+          if (Math.abs(p.yaw + p.headYaw) > 1) expect(Math.sign(p.gaze[0])).toBe(-Math.sign(p.yaw + p.headYaw));
+        }
+    expect(pose('lookaround', 'neutral', 0.6).yaw).toBeGreaterThan(A.CAM_YAW); // without it she still turns
+  });
+
   it('breathes and settles while standing still', () => {
     const a = pose('idle', 'neutral', 0.2);
     const b = pose('idle', 'neutral', 1.9);
