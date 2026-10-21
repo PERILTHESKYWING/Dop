@@ -534,6 +534,9 @@ async function load(full) {
   S = { ...S, threads: d.threads, accounts: d.accounts, agents: d.agents || [], settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => m.pending || !m.thread || ids.has(m.thread)) };
   if (d.project) setProject(d.project, d.owner);
+  // A removed account also leaves the saved picks on this device.
+  const names = new Set(d.accounts.map((a) => a.name));
+  if (opts.accounts.some((n) => !names.has(n))) { opts.accounts = opts.accounts.filter((n) => names.has(n)); saveOpts(); }
   seq = d.seq; render();
   ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) }));
 }

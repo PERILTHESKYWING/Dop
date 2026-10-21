@@ -19,7 +19,7 @@ const THINK_LINE = {
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
 // seq counts messages; rev counts thread and account changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents' };
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents', gone: 'hub:accounts-gone' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 const AGENTS_KEEP = 60; // sub-agent records shown on the page
@@ -113,11 +113,30 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   // ---------- accounts ----------
+  // A removed account leaves a tombstone (K.gone) so a write still in flight
+  // (usage read, routine fire, agent touch) can't bring it back: reads skip
+  // tombstoned names and delete what such a write left behind.
+  function live(ac, gone) {
+    const all = hashToObj(ac);
+    const dead = Object.keys(hashToObj(gone)).filter((n) => all[n]);
+    for (const n of dead) delete all[n];
+    if (dead.length) store.cmd('HDEL', K.accounts, ...dead).catch(() => {});
+    return all;
+  }
   async function accounts() {
-    return hashToObj(await store.cmd('HGETALL', K.accounts));
+    const [ac, gone] = await store.multi([['HGETALL', K.accounts], ['HGETALL', K.gone]]);
+    return live(ac, gone);
   }
   async function account(name) {
-    return parse(await store.cmd('HGET', K.accounts, name));
+    const [a, gone] = await store.multi([['HGET', K.accounts, name], ['HGET', K.gone, name]]);
+    return gone ? null : parse(a);
+  }
+  // Picked account names that still exist (a page or prompt may hold old ones).
+  async function liveList(v) {
+    const list = cleanList(v);
+    if (!list.length) return list;
+    const all = await accounts();
+    return list.filter((n) => all[n]);
   }
   async function putAccount(a, { quiet = false } = {}) {
     await store.multi([['HSET', K.accounts, a.name, json(a)], ...(quiet ? [] : [['INCR', K.rev]])]);
@@ -155,11 +174,37 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
         })
         .filter((r) => r.id && r.token);
     }
+    // Adding a name again (after Remove) clears its tombstone.
+    await store.cmd('HDEL', K.gone, name);
     return putAccount({ ...old, plan, routines, label: clean(input.label ?? old.label ?? '', 40) });
   }
 
+  // Gone everywhere: the account list, every thread's account picks, its
+  // place on threads that are not running, and the coordinator setting.
+  // Its key stops working at once; a session it is running keeps going until
+  // its next hub call fails, and the stall check moves that thread on.
   async function removeAccount(name) {
-    await store.cmd('HDEL', K.accounts, name);
+    name = String(name);
+    await store.multi([['HDEL', K.accounts, name], ['HSET', K.gone, name, String(now())], ['INCR', K.rev]]);
+    for (const t of await threads()) {
+      let changed = false;
+      if (t.accounts?.includes(name)) {
+        t.accounts = t.accounts.filter((n) => n !== name);
+        changed = true;
+      }
+      if (t.account === name && t.status !== 'working') {
+        t.account = '';
+        changed = true;
+      }
+      const c = t.crew?.[name];
+      if (c && c.role === 'member' && !c.gone && !c.done) {
+        c.gone = true;
+        changed = true;
+      }
+      if (changed) await putThread(t);
+    }
+    const s = await settings();
+    if (s.coordinatorAccount === name) await saveSettings({ coordinatorAccount: '' });
   }
 
   function publicAccount(a, threads = []) {
@@ -453,6 +498,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       return { ok: false, reason: `Claude returned ${res.status}: ${JSON.stringify(body).slice(0, 120)}` };
     }
     const fresh = await account(a.name);
+    // Removed while the fire was on its way: the session runs, nothing to save.
+    if (!fresh) return { ok: true, url: body.claude_code_session_url || '', account: a.name, model };
     const fr = (fresh.routines || []).find((x) => x.id === r.id);
     if (fr) fr.fires = [...(fr.fires || []).filter((f) => now() - f < 3600_000), now()];
     const fromHeaders = usageFromHeaders(res.headers);
@@ -606,7 +653,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   async function createThread({ title, brief, account: acc = '', accounts: only = [], model = 'sonnet', thinking = 'medium', team = 1, code = true, from = 'coordinator', parent = null }) {
-    only = cleanList(only);
+    only = await liveList(only);
+    if (acc && !(await account(acc))) acc = '';
     if (only.length === 1 && !acc) acc = only[0];
     const t = {
       id: await nextId(),
@@ -658,7 +706,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       return msg;
     }
     // What XIAO picked in the composer; the coordinator's threads keep it.
-    const meta = { model: MODELS.includes(model) ? model : '', thinking: thinkingOf(thinking), accounts: cleanList(only), team: teamOf(team, 0) };
+    const meta = { model: MODELS.includes(model) ? model : '', thinking: thinkingOf(thinking), accounts: await liveList(only), team: teamOf(team, 0) };
     const msg = await post({ thread: 0, from: 'XIAO', kind: 'prompt', text, meta });
     const s = await settings();
     const ov = await overhead();
@@ -690,7 +738,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const grow = patch.team != null && teamOf(patch.team, t.team || 1) > teamOf(t.team);
     if (patch.team != null) t.team = teamOf(patch.team, t.team || 1);
     if (Array.isArray(patch.accounts)) {
-      t.accounts = cleanList(patch.accounts);
+      t.accounts = await liveList(patch.accounts);
       if (t.accounts.length && t.account && !t.accounts.includes(t.account) && t.status !== 'working') t.account = '';
     }
     if (['done', 'new'].includes(patch.status)) t.status = patch.status;
@@ -731,7 +779,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // Everything the page shows, read in one round trip. With since, only
   // messages newer than that id come back.
   async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev, del, ag] = await store.multi([
+    const [th, ac, fd, st, fi, tok, seq, rev, del, ag, gone] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
@@ -742,6 +790,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       ['GET', K.rev],
       ['LRANGE', K.deleted, -200, -1],
       ['HGETALL', K.agents],
+      ['HGETALL', K.gone],
     ]);
     const t = now();
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
@@ -762,7 +811,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       seq: `${Number(seq || 0)}.${Number(rev || 0)}`,
       full: !since,
       threads: ths,
-      accounts: Object.values(hashToObj(ac)).map((a) => publicAccount(a, ths)),
+      accounts: Object.values(live(ac, gone)).map((a) => publicAccount(a, ths)),
       messages,
       deleted: (del || []).map((x) => parse(x)?.id).filter(Boolean),
       agents: Object.values(hashToObj(ag)).sort((a, b) => b.at - a.at).slice(0, AGENTS_KEEP),
@@ -926,7 +975,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   async function route(agent, { prompt_id, summary, threads: list = [] }) {
     const out = [];
     const meta = (await feed(1500)).find((m) => m.id === Number(prompt_id))?.meta || {};
-    const picked = cleanList(meta.accounts);
+    const picked = await liveList(meta.accounts);
     for (const x of list.slice(0, 8)) {
       if (x.thread_id) {
         const t = await thread(x.thread_id);
