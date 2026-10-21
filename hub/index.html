@@ -340,6 +340,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .track { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
 .fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .4s ease; }
 .fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
+.act { display: grid; gap: 2px; font-size: 14px; border-left: 3px solid var(--line); padding-left: 9px; }
+.act-top { display: flex; gap: 8px; justify-content: space-between; }
+.act .ttl { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act small { color: var(--soft); font-size: 12px; }
+.act-last { color: var(--soft); line-height: 1.35; }
+.act.idle { color: var(--soft); border-left-color: transparent; padding-left: 0; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .afoot { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
 .afoot .mdl { font-size: 13px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--chip); }
@@ -976,19 +982,32 @@ function usageRow(label, pct, resets) {
   const c = pct >= lowAt() ? 'bad' : pct >= lowAt() - 25 ? 'warn' : '';
   return `<div class="use"><span class="lbl">${label}</span><div class="track"><div class="fill ${c}" style="width:${pct > 0 ? Math.min(100, Math.max(2, pct)) : 0}%"></div></div><span class="pct">${Math.round(pct)}%</span>${resets ? `<span class="rs">${esc(until(resets))}</span>` : ''}</div>`;
 }
+// Live activity: the threads this account is on (role, last post, age) and its running sub-agents.
+function activityOf(a) {
+  const mine = (t) => t.account === a.name || (t.crew || {})[a.name] && !t.crew[a.name].done && !t.crew[a.name].gone;
+  const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
+  const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
+  if (!ts.length && !ags.length) return a.working || !a.models.length ? '' : `<div class="act idle">Idle${a.lastSeen ? ` · seen ${esc(ago(Date.now() - a.lastSeen))}${ago(Date.now() - a.lastSeen) === 'just now' ? '' : ' ago'}` : ''}</div>`;
+  const row = (t) => {
+    const role = t.account === a.name ? 'lead' : 'member';
+    const last = S.messages.filter((m) => m.thread === t.id && acctOf(m.from)?.name === a.name && m.kind !== 'thinking').at(-1);
+    return `<div class="act"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${role}</small></div>${last ? `<div class="act-last" title="${esc(last.text)}">${esc(last.text.replace(/\s+/g, ' ').slice(0, 110))} <small>${esc(ago(Date.now() - last.at))}${ago(Date.now() - last.at) === 'just now' ? '' : ' ago'}</small></div>` : ''}</div>`;
+  };
+  return `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div>${g.step ? `<div class="act-last">${esc(g.step)}</div>` : ''}</div>`).join('')}`;
+}
 function accountCard(a) {
   const [cls, st] = acctState(a);
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
-  const src = u?.source === 'manual' ? 'typed in' : u?.source === 'pc' ? 'from your PC' : 'from Claude';
-  const on = workingOn(a);
-  const sub = a.low ? a.lowNote : on.length === 1 ? on[0] : on.length ? `${on.length} threads` : '';
+  const src = u?.source === 'manual' ? 'typed in' : u?.source === 'pc' ? 'from your PC' : u?.source === 'agent' ? 'reported by its agent' : 'from Claude';
+  const sub = a.low ? a.lowNote : '';
   const usage = has
     ? `${usageRow('5-hour', u.five_hour_pct, u.five_hour_resets)}${usageRow('Weekly', u.seven_day_pct, u.seven_day_resets)}${u.opus_week_pct != null ? usageRow('Opus wk', u.opus_week_pct) : ''}`
     : `<div class="nouse">${a.usageErr ? `Claude didn't share usage (${esc(a.usageErr)}).` : a.models.length ? 'Usage not read yet.' : 'Free plans don\'t share usage.'} <button class="btn small quiet" data-open="usage" data-name="${esc(a.name)}">Type it in</button></div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name, 'l')}<div class="aname"><div class="nmrow"><span class="nm">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>${a.connected ? '<span class="conn">✓ Connected</span>' : '<span class="conn no">Not connected yet</span>'}</div><span class="state ${cls}">${esc(st)}</span></div>
     ${sub ? `<div class="sub" title="${esc(sub)}">${esc(sub)}</div>` : ''}
+    ${activityOf(a)}
     ${usage}
     <div class="afoot">${a.models.map((m) => `<span class="mdl">${MODEL_NAME[m]}</span>`).join('')}${has ? `<span class="upd">${ago(Date.now() - u.at)}${ago(Date.now() - u.at) === 'just now' ? '' : ' ago'}, ${src}</span>` : ''}</div>
     <div class="aacts"><button class="btn small ${a.connected ? '' : 'primary'}" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-open="usage" data-name="${esc(a.name)}">Usage</button>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>
