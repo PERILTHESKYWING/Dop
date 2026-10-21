@@ -54,6 +54,11 @@ export const POSTURE = {
   worried: { yaw: -4, slump: 0.35, spine: 6, headPitch: 4, headRoll: 6, shrug: 0.35, weight: -0.2, stance: 0.09, handF: [0.07, 0.19, 0.1], handB: [-0.08, 0.19, 0.1], tempo: 1.1, gesture: 0.7, breath: [2.2, 0.6], fidget: 0.02 },
   smug: { slump: -0.55, spine: -7, headPitch: -10, headRoll: -7, weight: -0.5, stance: 0.15, armF: [8, 4, 12], armB: [30, -45, 128], gripB: 'hip', tempo: 0.9, gesture: 0.8, breath: [3.8, 0.5] },
   tired: { yaw: -4, slump: 0.9, spine: 8, headPitch: 2, headRoll: 8, weight: -0.2, pelvis: [0, 0.012], stance: 0.1, armF: [2, 4, 4], armB: [2, 2, 4], tempo: 0.65, gesture: 0.45, breath: [5, 0.9] },
+  shock: { slump: -0.6, spine: -8, headPitch: -6, shrug: 0.5, weight: -0.5, stance: 0.12, armF: [22, 20, 70], armB: [20, 10, 64], gripF: 'open', gripB: 'open', tempo: 1.4, gesture: 0.8, breath: [1.6, 0.5] },
+  cat: { yaw: 6, slump: -0.1, spine: 0, headPitch: -2, headRoll: 6, weight: 0.4, stance: 0.12, armF: [6, 4, 14], armB: [28, -40, 120], gripB: 'hip', tempo: 0.85, gesture: 0.7, breath: [4, 0.6] },
+  joy: { slump: -0.45, spine: -3, headPitch: -6, headRoll: 5, weight: 0.3, stance: 0.13, armF: [14, 10, 30], armB: [12, 8, 28], tempo: 1.15, gesture: 1.2, breath: [2.8, 0.6] },
+  shy: { yaw: -10, slump: 0.4, spine: 5, headPitch: 6, headRoll: 8, shrug: 0.3, weight: -0.2, stance: 0.09, armF: [20, 14, 100], armB: [8, 4, 20], tempo: 0.8, gesture: 0.5, breath: [3.2, 0.5] },
+  panic: { slump: 0.1, spine: -4, headPitch: -2, headRoll: 5, shrug: 0.6, weight: -0.4, stance: 0.13, armF: [30, 24, 80], armB: [28, 16, 74], gripF: 'open', gripB: 'open', tempo: 1.5, gesture: 1.5, breath: [1.2, 0.8] },
 };
 const NEUTRAL_ARMS = { armF: POSTURE.neutral.armF, armB: POSTURE.neutral.armB };
 

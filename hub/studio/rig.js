@@ -27,6 +27,12 @@ export const FACE = {
   worried: { brow: 16, browY: -0.03, eyes: 'open', mouth: 'wavy', talk: ['open', 'wavy'], fx: 'sweat' },
   smug: { brow: -8, browY: 0, eyes: 'lidded', mouth: 'smirk', talk: ['smirk', 'open'], browOne: true },
   tired: { brow: 4, browY: 0.05, eyes: 'lidded', mouth: 'flat', talk: ['open', 'flat'], tilt: 4 },
+  // Reference-video faces: blank white-eyed shock, content cat smile, closed-eye joy, shy glance aside, spiral-eyed panic.
+  shock: { brow: -2, browY: -0.14, eyes: 'shock', mouth: 'square', talk: ['square', 'o'] },
+  cat: { brow: -3, browY: -0.02, eyes: 'lidded', mouth: 'cat', talk: ['cat', 'open'], tilt: 3 },
+  joy: { brow: -8, browY: -0.05, eyes: 'happy', mouth: 'grin', talk: ['grin', 'open'], fx: 'blush' },
+  shy: { brow: 10, browY: -0.02, eyes: 'lidded', mouth: 'wavy', talk: ['wavy', 'open'], tilt: 5, gaze: [-0.9, 0.3], fx: 'blush', blush: 1.6 },
+  panic: { brow: 14, browY: -0.1, eyes: 'spiral', mouth: 'wavy', talk: ['wide', 'wavy'], fx: 'sweat' },
 };
 
 const smooth = (x) => {
@@ -203,9 +209,10 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     // ---- face ----
     const ey = 0.06 + (p.eyeY || 0);
     const gap = 0.35;
-    const g = Array.isArray(p.gaze) ? p.gaze : [p.gaze ?? 0.15, 0];
-    if (ch.extras.includes('blush') || p.fx === 'blush')
-      for (const sx of [-1, 1]) if (seen(sx * 0.5, 0.3) > 0.1) pen.fill('blush' + sx, F(ellipse(sx * 0.52, ey + 0.27, 0.15, 0.075, { n: 12 })), mix(ch.skin, '#ff6f7d', 0.4), { slip: 0.2, alpha: 0.75 });
+    const gz = p.gaze ?? face.gaze;
+    const g = Array.isArray(gz) ? gz : [gz ?? 0.15, 0];
+    if (ch.extras.includes('blush') || (p.fx || face.fx) === 'blush')
+      for (const sx of [-1, 1]) if (seen(sx * 0.5, 0.3) > 0.1) pen.fill('blush' + sx, F(ellipse(sx * 0.52, ey + 0.27, 0.15, 0.075, { n: 12 })), mix(ch.skin, '#ff6f7d', 0.4), { slip: 0.2, alpha: Math.min(1, 0.75 * (face.blush || 1)) });
     if (ch.extras.includes('freckles'))
       for (let i = 0; i < 6; i++) {
         const sx = i < 3 ? -1 : 1;
@@ -230,6 +237,23 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const at = (pts) => F(pts.map(([a, b]) => [ex + a, ey + b]));
       if (blink || kind === 'closed') {
         pen.stroke('eye' + sx, curve(at([[-ew * 1.05, 0.0], [0, eh * 0.45], [ew * 1.05, 0]]), 4), { width: line * 0.9 });
+        continue;
+      }
+      if (kind === 'spiral') {
+        const sp = [];
+        for (let i = 0; i <= 28; i++) sp.push([Math.cos(i * 0.62 + sx) * ew * (0.15 + i * 0.03) * 1.15, Math.sin(i * 0.62 + sx) * eh * (0.15 + i * 0.03) * 1.5]);
+        pen.fill('white' + sx, at(ellipse(0, 0, ew * 1.1, eh * 1.45, { n: 16 })), '#fbf8f2', { slip: 0.15 });
+        pen.stroke('ring' + sx, at(ellipse(0, 0, ew * 1.1, eh * 1.45, { n: 16 })), { width: line * 0.9, closed: true });
+        pen.stroke('spiral' + sx, curve(at(sp), 2), { width: line * 0.6 });
+        continue;
+      }
+      if (kind === 'shock') {
+        // blank white eyes, a tiny pupil, a heavy upper lid
+        const oval = ellipse(0, 0, ew * 1.05, eh * 1.3, { n: 16 });
+        pen.fill('white' + sx, at(oval), '#fbf8f2', { slip: 0.15 });
+        pen.stroke('ring' + sx, at(oval), { width: line * 0.95, closed: true });
+        const [px, py] = onFace(ex, ey);
+        pen.dot('pupil' + sx, px, py, 0.035 * r, ink);
         continue;
       }
       if (kind === 'happy') {
@@ -297,6 +321,8 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         if (m === 'smile') pen.stroke('mouth', curve(at([[-w / 2, -0.03], [0, 0.09], [w / 2, -0.03]]), 4), lw);
         else if (m === 'frown') pen.stroke('mouth', curve(at([[-w / 2, 0.07], [0, -0.04], [w / 2, 0.07]]), 4), lw);
         else if (m === 'flat') pen.stroke('mouth', at([[-w * 0.38, 0.01], [w * 0.38, -0.01]]), lw);
+        else if (m === 'cat') pen.stroke('mouth', curve(at([[-w * 0.36, -0.02], [-w * 0.18, 0.06], [0, -0.01], [w * 0.18, 0.06], [w * 0.36, -0.02]]), 4), lw);
+        else if (m === 'square') pen.shape('mouth', at(loop([[-w * 0.2, -0.03], [w * 0.2, -0.03], [w * 0.2, 0.11], [-w * 0.2, 0.11]], 3)), dark, { width: line * 0.8, slip: 0.2 });
         else if (m === 'smirk') pen.stroke('mouth', curve(at([[-w * 0.4, 0.03], [w * 0.1, 0.05], [w * 0.5, -0.07]]), 4), lw);
         else if (m === 'wavy') pen.stroke('mouth', curve(at([[-w / 2, 0.02], [-w / 4, -0.03], [0, 0.02], [w / 4, -0.03], [w / 2, 0.02]]), 4), lw);
         else if (m === 'grit') {
