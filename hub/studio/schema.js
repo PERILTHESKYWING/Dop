@@ -8,10 +8,13 @@
 export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround'];
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
-export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald'];
+export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'layered', 'flowing'];
 export const BUILDS = ['slim', 'average', 'round'];
-export const EYES = ['dot', 'oval', 'sleepy'];
-export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow'];
+export const EYES = ['dot', 'oval', 'sleepy', 'big'];
+export const JAWS = ['round', 'v'];
+export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
+export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
+export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge'];
 export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box'];
 
 // How the drawing looks. Agents may tune these; XIAO's rules set the defaults.
@@ -72,6 +75,10 @@ function normalizeCharacter(c, id, problems) {
     bottom: color(c.bottom, '#4a4a58'),
     shoes: color(c.shoes, '#2f2a28'),
     eyes: pick(c.eyes, EYES, 'dot'),
+    jaw: pick(c.jaw, JAWS, 'round'),
+    topStyle: pick(c.topStyle, TOPS, 'tee'),
+    bottomStyle: pick(c.bottomStyle, BOTTOMS, 'trousers'),
+    ...(HEX.test(String(c.hairTips || '')) ? { hairTips: String(c.hairTips).toLowerCase() } : {}),
     extras: [...new Set(extras)],
   };
 }
@@ -145,7 +152,7 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
       duration: clamp(s.duration, LIMITS.duration, 4),
       bg: { kind: pick(bg.kind, BACKGROUNDS, 'plain'), color: color(bg.color, '') || undefined },
       narration: text(s.narration, LIMITS.narration),
-      camera: { zoom: clamp(cam.zoom, [1, 1.8], 1), x: clamp(cam.x, [0, 1], 0.5), y: clamp(cam.y, [0, 1], 0.6) },
+      camera: { zoom: clamp(cam.zoom, [1, 4], 1), x: clamp(cam.x, [0, 1], 0.5), y: clamp(cam.y, [0, 1], 0.6) },
       actors,
       props,
     });
@@ -221,8 +228,8 @@ function near(a, b) {
 export function schemaText() {
   return [
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
-    `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
-    `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-1.8, x 0-1, y 0-1}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], actors: [Actor] (max ${LIMITS.actors})}.`,
+    `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, hairTips? (ombre ends), top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, jaw ${JAWS.join('|')}, topStyle ${TOPS.join('|')}, bottomStyle ${BOTTOMS.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
+    `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-4 (3+ = face close-up), x 0-1, y 0-1}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], actors: [Actor] (max ${LIMITS.actors})}.`,
     `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
     `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, paper, ink}. Omit style to use XIAO's defaults.`,
     `A sample is 1-2 scenes under ${SAMPLE_MAX_SECONDS} s.`,
