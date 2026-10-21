@@ -135,7 +135,7 @@ export function toolsFor(hub) {
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
     },
-    ...webTools(),
+    ...webTools(fetch, hub),
     ...fileTools(hub),
   ];
 }

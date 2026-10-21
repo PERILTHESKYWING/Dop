@@ -34,4 +34,30 @@ describe('hub web tools', () => {
     expect(seen.at(-1)).toContain('model=flux');
     expect(img.content[1].text).not.toContain('http'); // the picture is shown, not linked
   });
+  it('shows a made image in the thread on the hub page', async () => {
+    const { webTools } = await lib('tools-web.js');
+    const { readImage } = await lib('tools-files.js');
+    const posts: any[] = [];
+    const cmds: any[][] = [];
+    const kv = new Map<string, string>();
+    const hub = {
+      now: () => 5,
+      post: async (m: any) => posts.push(m),
+      store: {
+        multi: async (c: any[][]) => c.map(([op, k, a, b]) => {
+          cmds.push([op, k]);
+          if (op === 'SET') kv.set(k, a);
+          if (op === 'HSET') kv.set(`${k}|${a}`, b);
+          if (op === 'GET') return kv.get(k) ?? null;
+          if (op === 'HGET') return kv.get(`${k}|${a}`) ?? null;
+          return 1;
+        }),
+      },
+    };
+    const t = Object.fromEntries(webTools(fake, hub).map((x: any) => [x.name, x]));
+    await t.image_gen.run({ name: 'ME' }, { prompt: 'stone', thread: 7 });
+    expect(posts[0]).toMatchObject({ thread: 7, from: 'ME', meta: { image: { account: 'ME', name: 'images/5.png' } } });
+    expect(await readImage(hub, 'ME', 'images/5.png')).toEqual({ type: 'image/png', data: Buffer.from(png).toString('base64') });
+    expect(await readImage(hub, 'ME', 'images/9.png')).toBeNull();
+  });
 });
