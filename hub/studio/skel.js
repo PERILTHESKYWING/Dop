@@ -50,8 +50,9 @@ export const BUILD = {
   slim: { sh: 0.118, chest: [0.092, 0.064], waist: [0.074, 0.056], hip: [0.088, 0.064], limb: 0.88 },
   average: { sh: 0.13, chest: [0.106, 0.074], waist: [0.09, 0.068], hip: [0.1, 0.074], limb: 1 },
   round: { sh: 0.135, chest: [0.124, 0.096], waist: [0.134, 0.115], hip: [0.128, 0.1], limb: 1.18 },
-  // Narrow, sloped shoulders, a thin neck and fine limbs (the refs' girl).
-  petite: { sh: 0.104, chest: [0.086, 0.06], waist: [0.066, 0.052], hip: [0.088, 0.064], limb: 0.8, slope: 0.012, neck: 0.8 },
+  // The refs' girl, measured on f2's bust shots: shoulders about twice the
+  // face's width and sloping, a neck about 0.4 of it, a narrow waist.
+  petite: { sh: 0.205, chest: [0.15, 0.078], waist: [0.1, 0.064], hip: [0.115, 0.078], limb: 1, slope: 0.03, neck: 1.8 },
 };
 export const HEAD_R = 0.118; // head radius as a share of height, at headSize 1
 const ARM_REST = [9, 0, 14];
