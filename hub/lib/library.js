@@ -106,6 +106,52 @@ export async function libSummary(store, threadId, owner = 'XIAO') {
   return lines.join('\n');
 }
 
+// ---------- files sent in the chat box ----------
+// A message keeps a small copy of each file's details, so the page draws its
+// chip (and thumbnail) and agents see what to read, with no extra store call.
+export const MAX_CHAT_FILES = 10;
+const VIEW_BYTES = 650 * 1024; // a picture this small is its own thumbnail (files.js makes a view copy above it)
+export function fileRef(m) {
+  const thumb = m.hasView ? 'view' : m.kind === 'image' && m.hasBody && m.chunks === 1 && (m.size || 0) <= VIEW_BYTES ? 'body' : m.kind === 'video' && m.frames ? `frame:${Math.floor((m.frames - 1) / 2)}` : m.hasSheet ? 'sheet' : '';
+  return { id: m.id, name: m.name, kind: m.kind, type: m.type, size: m.size || 0, ...(thumb ? { thumb } : {}), ...(m.hasBody ? {} : { noBody: true }) };
+}
+const cleanIds = (ids) => [...new Set((Array.isArray(ids) ? ids : []).map((x) => String(x?.id ?? x).trim().toLowerCase()).filter((x) => /^f\d+$/.test(x)))].slice(0, MAX_CHAT_FILES);
+
+// The library items behind file ids. strict: a missing or unfinished file is an error.
+export async function chatFiles(store, ids, { strict = false } = {}) {
+  const list = cleanIds(ids);
+  if (Array.isArray(ids) && ids.length > MAX_CHAT_FILES && strict) throw new Error(`At most ${MAX_CHAT_FILES} files a message.`);
+  if (!list.length) return [];
+  const raw = await store.multi(list.map((id) => ['HGET', K.items, id]));
+  const out = [];
+  raw.forEach((s, i) => {
+    const m = parse(s);
+    if (m?.status === 'ready') out.push(fileRef(m));
+    else if (strict) throw new Error(`File ${list[i]} is ${m ? 'still uploading' : 'gone'}; send it again.`);
+  });
+  return out;
+}
+
+// Point library files at a thread, so its agents see them first in their start text.
+export async function attachFiles(store, ids, tid) {
+  tid = Math.floor(Number(tid) || 0);
+  const list = cleanIds(ids);
+  if (!tid || !list.length) return 0;
+  const raw = await store.multi(list.map((id) => ['HGET', K.items, id]));
+  const saves = [];
+  for (const s of raw) {
+    const m = parse(s);
+    if (!m || m.threads?.includes(tid)) continue;
+    m.threads = [...(m.threads || []), tid].slice(-20);
+    saves.push(['HSET', K.items, m.id, JSON.stringify(m)]);
+  }
+  if (saves.length) await store.multi(saves);
+  return saves.length;
+}
+
+// One short line for an agent: which files a message carries and how to read them.
+export const filesLine = (files) => (files?.length ? `Files: ${files.map((f) => `${f.id} ${f.kind} "${f.name}"`).join(', ')} (read each with lib_get)` : '');
+
 export function createLibrary(hub) {
   const { store } = hub;
   const now = hub.now || (() => Date.now());
