@@ -382,6 +382,13 @@
 .bs-panel > * + * {
   margin-top: 10px;
 }
+/* the move on screen and who plays next, at the top of the study panel */
+.bs-status {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
 .bs-tools {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));

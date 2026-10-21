@@ -559,7 +559,7 @@ export function Study({ id, query }: { id?: string; query: URLSearchParams }) {
   } else {
     panel = (
       <>
-        <span className="small mono">
+        <span className="bs-status">
           {depth ? `${depth}. ${node.move!.color === 1 ? '●' : '○'} ${node.move!.loc === PASS ? 'pass' : locToGtp(node.move!.loc, size)}` : 'Start'} · {toPlay === 1 ? 'Black' : 'White'} to play
         </span>
         {error && <div className="callout small">Could not open that: {error}.</div>}

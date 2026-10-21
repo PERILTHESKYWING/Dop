@@ -434,7 +434,7 @@ p {
 /* the panel to act on first: a brighter surface and an accent rule on top, not a coloured outline */
 .panel.accent {
   background: var(--glass-2);
-  border-top: 3px solid var(--fill);
+  box-shadow: inset 0 3px 0 var(--fill);
 }
 a.panel,
 .panel.click {
