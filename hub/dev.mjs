@@ -41,8 +41,8 @@ createServer((req, res) => {
     // The icons sit next to index.html, as Vercel serves them.
     const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml' }[p];
     if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
-    // The studio page and its modules, also plain static files on Vercel.
-    if (p === '/studio.html' || /^\/studio\/[a-z]+\.js$/.test(p)) {
+    // The studio and library pages and their modules, also plain static files on Vercel.
+    if (p === '/studio.html' || p === '/library.html' || /^\/(studio|library)\/[a-z]+\.js$/.test(p)) {
       res.setHeader('content-type', p.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
       return res.end(readFileSync(path.join(here, p.slice(1))));
     }
