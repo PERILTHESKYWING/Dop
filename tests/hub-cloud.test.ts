@@ -95,7 +95,7 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(17);
+    expect(list.body.result.tools.length).toBe(18);
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
@@ -131,6 +131,12 @@ describe('cloud hub', () => {
     expect(brief).toContain('Fix the slider jump');
     await tool('A', 'hub_checkpoint', { thread: t.id, done: 'Found double touchmove', next: 'Debounce in MoveSlider.tsx', branch: 'claude/slider' });
     expect((await hub.thread(t.id)).checkpoint.next).toBe('Debounce in MoveSlider.tsx');
+    // The account's own sub-agents show per thread; the same id updates in place.
+    await tool('A', 'hub_agent', { thread: t.id, id: 'scan', name: 'Scanner', task: 'find touch handlers', note: 'reading MoveSlider' });
+    await tool('A', 'hub_agent', { thread: t.id, id: 'scan', status: 'done', note: 'found 2' });
+    const ag = (await hub.thread(t.id)).agents['A:scan'];
+    expect(ag).toMatchObject({ by: 'A', name: 'Scanner', task: 'find touch handlers', status: 'done', note: 'found 2' });
+    expect(ag.endedAt).toBeGreaterThan(0);
     await tool('A', 'hub_post', { thread: t.id, kind: 'done', text: 'PR #60 ready' });
     expect((await hub.thread(t.id)).status).toBe('done');
   });

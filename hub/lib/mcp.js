@@ -42,10 +42,10 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_create_thread',
-      description: 'Coordinator: open a thread for one piece of work and start an agent on it (team > 1 starts several accounts on it). model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
+      description: 'Any account: open a thread for one piece of work (parent = the thread it comes from) and start an agent on it (team > 1 starts several accounts on it). model: opus, sonnet, haiku or fable. code=false for work that needs no repo.',
       inputSchema: {
         type: 'object',
-        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, team, code: { type: 'boolean' } },
+        properties: { title: str, brief: str, model: { type: 'string', enum: ['opus', 'sonnet', 'haiku', 'fable'] }, thinking: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'] }, account: str, team, code: { type: 'boolean' }, parent: num },
         required: ['title', 'brief'],
       },
       run: async (a, x) => {
@@ -68,6 +68,12 @@ export function toolsFor(hub) {
         required: ['thread', 'text'],
       },
       run: (a, x) => hub.agentPost(a, x),
+    },
+    {
+      name: 'hub_agent',
+      description: 'Show your own sub-agents on the hub page. Call when you start one (status running), when it changes (waiting) and when it ends (done or failed), with a short note of what it is doing. id names the agent within your account; calling again with the same id updates it.',
+      inputSchema: { type: 'object', properties: { thread: num, id: str, name: str, task: str, status: { type: 'string', enum: ['running', 'waiting', 'done', 'failed'] }, note: str }, required: ['thread', 'id'] },
+      run: (a, x) => hub.agentTrack(a, x),
     },
     {
       name: 'hub_checkpoint',

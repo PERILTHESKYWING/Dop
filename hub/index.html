@@ -238,6 +238,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .row.me .cp { border-color: rgba(0, 0, 0, .12); }
 .me-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
 .note { text-align: center; font-size: 14px; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; }
+.note.agents { flex-direction: column; align-items: stretch; text-align: left; gap: 4px; padding: 10px 12px; border: 1px solid var(--line, #8883); border-radius: 10px; }
+.agrow { display: grid; grid-template-columns: 20px auto 1fr; column-gap: 8px; align-items: center; }
+.agrow .star svg { width: 14px; height: 14px; }
+.agrow > div { grid-column: 2 / 4; }
+.agrow.st-failed b { color: var(--amber); }
+.agrow.st-done { opacity: .7; }
 .note.alert { color: var(--amber); font-weight: 600; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
@@ -757,6 +763,19 @@ function renderHead(t) {
     <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`;
   applyPanels();
 }
+// Per-agent progress: each account's own sub-agents on a thread (hub_agent).
+function agentsHtml(t) {
+  const list = Object.values((t && t.agents) || {}).sort((a, b) => (a.endedAt ? 1 : 0) - (b.endedAt ? 1 : 0) || b.at - a.at);
+  if (!list.length) return '';
+  const run = list.filter((x) => x.status === 'running').length;
+  const rows = list.map((x) => {
+    const live = x.status === 'running' && Date.now() - x.at < 20 * 60e3;
+    const secs = Math.max(0, Math.round(((x.endedAt || Date.now()) - x.startedAt) / 1000));
+    const el = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    return `<div class="agrow st-${x.status}"><span class="star">${live ? SPIN[Math.floor(Date.now() / 150) % SPIN.length] : x.status === 'done' ? '✓' : x.status === 'failed' ? '✗' : '·'}</span><b>${esc(x.name)}</b><span class="cap">${esc(x.by)} · ${esc(x.status)} · ${el}</span><div class="cap">${esc(x.note || x.task)}</div></div>`;
+  }).join('');
+  return `<div class="note agents"><b>Agents</b> ${run} running of ${list.length}${rows}</div>`;
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
@@ -769,7 +788,7 @@ function renderFeed() {
   if (t && t.checkpoint && !recentHandover) html += msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` });
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
   if (hid) html += `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>`;
-  html += liveLines(t, msgs);
+  html += agentsHtml(t) + liveLines(t, msgs);
   if (!html && S.loading) html = '<div class="note">Loading…</div>';
   if (!html && sel === NEW_CHAT) html = `<div class="hello">
       <i class="logo hero" aria-hidden="true"></i>
