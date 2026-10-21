@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f4f1ec">
 <title>Dop hub</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='w' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23eec97f'/><stop offset='1' stop-color='%23c88f45'/></linearGradient><radialGradient id='b' cx='.36' cy='.3' r='.8'><stop offset='0' stop-color='%236e6e6e'/><stop offset='.38' stop-color='%23262626'/><stop offset='1' stop-color='%23050505'/></radialGradient><radialGradient id='s' cx='.36' cy='.3' r='.85'><stop offset='0' stop-color='%23fff'/><stop offset='.55' stop-color='%23f1efe9'/><stop offset='1' stop-color='%23c2bcaf'/></radialGradient></defs><rect width='64' height='64' rx='14' fill='url(%23w)'/><path d='M0 21H64M21 0V64M0 43H64M43 0V64' stroke='%235a3a12' stroke-opacity='.45' stroke-width='1.5'/><circle cx='22.3' cy='23' r='13.6' fill='%233a2408' opacity='.32'/><circle cx='21' cy='21' r='13.4' fill='url(%23b)'/><circle cx='44.3' cy='45' r='13.6' fill='%233a2408' opacity='.32'/><circle cx='43' cy='43' r='13.4' fill='url(%23s)'/></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <script>
 // Look (theme + background) is per device; set it before the page paints.
@@ -122,10 +122,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* sidebar */
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
 .brand b { font-size: 19px; white-space: nowrap; }
-/* The logo (hub/logo.svg): a black stone and its white copy on a board. */
-.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='w' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23eec97f'/><stop offset='1' stop-color='%23c88f45'/></linearGradient><radialGradient id='b' cx='.36' cy='.3' r='.8'><stop offset='0' stop-color='%236e6e6e'/><stop offset='.38' stop-color='%23262626'/><stop offset='1' stop-color='%23050505'/></radialGradient><radialGradient id='s' cx='.36' cy='.3' r='.85'><stop offset='0' stop-color='%23fff'/><stop offset='.55' stop-color='%23f1efe9'/><stop offset='1' stop-color='%23c2bcaf'/></radialGradient></defs><rect width='64' height='64' rx='14' fill='url(%23w)'/><path d='M0 21H64M21 0V64M0 43H64M43 0V64' stroke='%235a3a12' stroke-opacity='.45' stroke-width='1.5'/><circle cx='22.3' cy='23' r='13.6' fill='%233a2408' opacity='.32'/><circle cx='21' cy='21' r='13.4' fill='url(%23b)'/><circle cx='44.3' cy='45' r='13.6' fill='%233a2408' opacity='.32'/><circle cx='43' cy='43' r='13.4' fill='url(%23s)'/></svg>") center / contain no-repeat; filter: drop-shadow(0 1px 2px rgba(40, 25, 5, .25)); }
+/* The logo (hub/logo.svg): a cream D with an amber echo on a navy tile. */
+.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>") center / contain no-repeat; }
 .logo.l { width: 40px; height: 40px; }
-.logo.hero { width: 72px; height: 72px; filter: drop-shadow(0 6px 14px rgba(40, 25, 5, .3)); }
+.logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
 :root[data-bg]:not([data-bg=""]) .hello { background: var(--glass); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
@@ -217,6 +217,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .label.q { background: var(--amber); color: #fff; }
 .label.ok { background: var(--green); color: var(--on-green); }
 .text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.55; }
+.pic { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; background: var(--line); min-height: 40px; }
 .text a, .bubble a { color: var(--green); }
 .picks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
 .picks span { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
@@ -713,7 +714,25 @@ function msgHtml(m) {
     return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when} ${copyBtn(m, text)}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
   }
   const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : '';
-  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div></div></div>`;
+  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div>${imgOf(m.meta)}</div></div>`;
+}
+// Pictures agents attach (image_gen with a thread): fetched with the password, cached as data URLs.
+const IMGS = new Map();
+function imgOf(meta) {
+  const i = meta && meta.image;
+  if (!i || !i.name) return '';
+  const key = `${i.account}/${i.name}`;
+  const src = IMGS.get(key);
+  return `<img class="pic" alt="${esc(i.name)}" data-img="${esc(key)}" ${src ? `src="${src}"` : ''}>`;
+}
+function hydrateImgs(root) {
+  for (const el of root.querySelectorAll('img[data-img]:not([src])')) {
+    const key = el.dataset.img, at = key.indexOf('/');
+    api(`image&account=${encodeURIComponent(key.slice(0, at))}&name=${encodeURIComponent(key.slice(at + 1))}`).then((r) => {
+      const src = `data:${r.type};base64,${r.data}`; IMGS.set(key, src);
+      for (const e of document.querySelectorAll('img[data-img]')) if (e.dataset.img === key) e.src = src;
+    }).catch(() => { el.alt = 'Image not available'; });
+  }
 }
 // Real messages (not the page's own drafts or the handover summary) can be deleted.
 let openMsg = null;
@@ -796,7 +815,7 @@ function renderFeed() {
       <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; }
+  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; hydrateImgs(feed); }
   if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
   feed.dataset.sel = String(sel);
   renderTools(t);

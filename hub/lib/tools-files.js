@@ -131,3 +131,21 @@ export function fileTools(hub) {
     },
   ];
 }
+
+// Store an image the hub made (base64) and read any stored file back, for the page.
+export async function saveImage(hub, account, name, buf, type) {
+  const content = buf.toString('base64');
+  const meta = { size: buf.length, stored: content.length, encoding: 'base64', type, at: hub.now() };
+  await hub.store.multi([
+    ['SET', K.body(account, name), content],
+    ['HSET', K.index(account), name, JSON.stringify(meta)],
+    ['INCRBY', K.total, content.length],
+  ]);
+}
+export async function readImage(hub, account, name) {
+  const n = cleanName(name);
+  const [body, metaS] = await hub.store.multi([['GET', K.body(String(account), n)], ['HGET', K.index(String(account)), n]]);
+  const meta = parse(metaS) || {};
+  if (body == null || meta.encoding !== 'base64' || !/^image\//.test(meta.type || '')) return null;
+  return { type: meta.type, data: body };
+}
