@@ -354,7 +354,8 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       // Front half of the collar band, as seen from a little above.
       const front = (pts) => pts.filter((_, i) => i >= 2 && i <= 10);
       const band = [...front(col), ...front(inner).reverse()];
-      if (band.length > 4) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
+      const toCam = Pj(add(sk.neckBase, mul(fwdChest, 10)))[2] - Pj(sk.neckBase)[2];
+      if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
     },
   });
 
