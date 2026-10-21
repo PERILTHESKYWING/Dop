@@ -2,7 +2,7 @@
 // gives layers of ops; paint() draws them on a canvas, toSVG() makes an SVG.
 import { LIGHT, Pen, curve, ellipse, hash, loop, mix, pathOf, rng, wrap } from './draw.js';
 import { drawCharacter, headSpot, seedFor, FACE } from './rig.js';
-import { drawMarks } from './marks.js';
+import { drawGagProp, drawMarks, isScreenProp, PROP_KINDS } from './marks.js';
 import { poseFor, MOVE_SET, WALK_SPEED } from './moves.js';
 
 export const W = 1600;
@@ -182,7 +182,7 @@ export function renderBackground(p, scene) {
         pen.shape('crown' + tx, loop([[tx - 120, horizon - 170], [tx - 90, horizon - 300], [tx, horizon - 350], [tx + 100, horizon - 290], [tx + 120, horizon - 170], [tx, horizon - 130]], 6), '#7fb069', thin);
       }
   }
-  for (const [i, pr] of scene.props.entries()) drawProp(pen, pr, i, soft, st);
+  for (const [i, pr] of scene.props.entries()) if (!isScreenProp(pr)) drawProp(pen, pr, i, soft, st);
   return ops;
 }
 
@@ -197,7 +197,9 @@ function drawProp(pen, pr, i, soft, st) {
     pen.stroke(id + k, rect(x0, y0, x1, y1), { ...o, closed: true });
   };
   const g = GROUND;
-  if (pr.kind === 'table') {
+  if (PROP_KINDS.includes(pr.kind) && (pr.y != null || !['sign', 'phone'].includes(pr.kind))) {
+    drawGagProp(pen, pr, i, st, W, H);
+  } else if (pr.kind === 'table') {
     box('top', x - 170 * s, g - 150 * s, x + 170 * s, g - 128 * s, '#b98a5e');
     box('l1', x - 150 * s, g - 128 * s, x - 132 * s, g, '#a27650');
     box('l2', x + 132 * s, g - 128 * s, x + 150 * s, g, '#a27650');
@@ -332,6 +334,12 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
+  // Gag props with a y (the sign, card, shrimp...) sit on the screen behind her, like the marks:
+  // a close-up never crops them away. They boil with the drawing clock.
+  const back = [];
+  for (const [i, pr] of scene.props.entries()) {
+    if (isScreenProp(pr)) drawGagProp(new Pen({ style: st, drawing, seed: hash('sprop', scene.id, i), ops: back }), pr, i, st, W, H);
+  }
   const overlay = [];
   // Marks sit on the screen (x, y = share of the frame), like labels written on the
   // finished shot: a close-up never pushes them out of view.
@@ -341,7 +349,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
   const camera = { zoom: z, tx: W / 2 - fx * z, ty: H / 2 - fy * z };
-  return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, overlay, camera, paper: st.paper, grain: st.grain };
+  return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, back, overlay, camera, paper: st.paper, grain: st.grain };
 }
 
 // The cast side by side with their names: the "model sheet" critics compare shots against.
@@ -409,6 +417,11 @@ export function paint(ctx, frame, { width, height, bgCanvas = null, grainCanvas 
   if (bgCanvas) {
     ctx.drawImage(bgCanvas, 0, 0, W, H);
   } else if (frame.bg) paintOps(ctx, frame.bg);
+  if (frame.back?.length) {
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    paintOps(ctx, frame.back);
+    ctx.setTransform(k * c.zoom, 0, 0, k * c.zoom, k * c.tx, k * c.ty);
+  }
   paintOps(ctx, frame.world);
   ctx.setTransform(k, 0, 0, k, 0, 0);
   if (grainCanvas && frame.grain > 0) {
@@ -500,5 +513,5 @@ function convexHull(points) {
 export function toSVG(frame, width = W) {
   clipN = 0;
   const c = frame.camera;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}"><rect width="${W}" height="${H}" fill="${frame.paper}"/><g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.bg || [])}${svgOps(frame.world)}</g>${svgOps(frame.overlay)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}"><rect width="${W}" height="${H}" fill="${frame.paper}"/><g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.bg || [])}</g>${svgOps(frame.back || [])}<g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.world)}</g>${svgOps(frame.overlay)}</svg>`;
 }

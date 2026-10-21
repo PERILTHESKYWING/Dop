@@ -441,3 +441,22 @@ describe('studio gag marks (f2)', () => {
     expect(f.overlay.some((o: any) => o.text === 'Hi' && o.outline === '#000000')).toBe(true);
   });
 });
+
+describe('studio gag props (f2)', () => {
+  it('keeps props with y and draws them on the screen layer, not the camera world', () => {
+    const props = ['sign', 'thumb', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp', 'phone'].map((kind) => ({ kind, x: 0.3, y: 0.4, text: 'Gender|A|B' }));
+    for (const pr of props) {
+      const p = project({ scenes: [{ id: 'g', duration: 2, camera: { zoom: 4, x: 0.5, y: 0.5 }, props: [pr], actors: [] }] });
+      expect(p.scenes[0].props[0]).toMatchObject({ kind: pr.kind, y: 0.4 });
+      const f = R.renderFrame(p, 0, 1);
+      expect(f.back.length).toBeGreaterThan(2);
+      expect(R.toSVG(f)).toContain('<svg');
+    }
+  });
+  it('draws the tablet in the world (on the table)', () => {
+    const p = project({ scenes: [{ id: 'g', duration: 2, props: [{ kind: 'tablet', x: 0.4 }], actors: [] }] });
+    const f = R.renderFrame(p, 0, 1);
+    expect(f.back.length).toBe(0);
+    expect(f.bg.length).toBeGreaterThan(3);
+  });
+});
