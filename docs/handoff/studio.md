@@ -53,6 +53,7 @@ The PC must be on at that time.
 - One body plan, dressed by the cast spec (T-shirt, trousers, shoes); no skirts, coats or props held in hands yet. Turns work from front to profile; a full back view works but nobody has tuned it. Hands are mitten-like with a thumb, no separate fingers. No lip sync to audio.
 - Rendering is about 8 ms a frame in Node (the old flat rig was 3 ms); fine for 12 fps playback.
 - The contact sheet needs the page open; agents cannot see drawings otherwise.
+- Reference pictures and videos: XIAO uploads them in the hub **Library** (`/library.html`) with the tag `studio` and `do` (copy this) or `dont` (avoid this). `studio_refs` lists them next to the Refs-tab ones, and the team opens each with `lib_get` before the first sample; a video reaches agents as a contact sheet of 16 frames. See hub-cloud.md › Library.
 - Not measured yet: how many revisions a story takes, and usage per story.
 
 Tests: `tests/hub-studio.test.ts` (backend, nightly, refs), `tests/studio-render.test.ts` (renderer, shading, 3D skeleton), `tests/studio-acting.test.ts` (acting).
@@ -63,4 +64,4 @@ XIAO teaches the look with pictures and videos: **DO** = copy this, **DON'T** = 
 - **Store**: meta in hash `hub:studio:refs`, each picture in its own key (`refimg:<id>:<n>`), newest 60 references kept.
 - **Page API**: GET `studio-refs`, GET `studio-ref&id&n` (`{mime,data}`), POST `studio-ref-add {kind:'do'|'dont',title,note,tags,url,type,images:[dataURL]}`, POST `studio-ref-del {id}`.
 - **Agents**: `studio_refs(kind?, ref?)` returns the list plus up to 6 pictures; `studio_get` also lists them as text. The brief tells the director to read them once before drawing and follow every DO / avoid every DON'T, and the critic to compare each sheet to them and name the biggest gap. With none added, the tool says so and agents must not invent a look.
-- **Uploads feature (thread #351)**: not built when this was written. Until it exists, the Refs tab is the upload path. When it lands, add its files as `url` or extra image sources in `refAdd` (hub/lib/studio.js); the tool and brief need no change.
+- **Two ways in, one list**: the Refs tab (quick: up to 4 pictures or 4 frames of a short video, stored in the studio) and the hub Library (long videos, 16 frames; tag `studio` plus `do` or `dont`). `studio_refs` and `studio_get` list both (`libRefs` in hub/lib/studio.js); Library files are opened with `lib_get`.

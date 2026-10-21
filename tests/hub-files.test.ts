@@ -43,9 +43,10 @@ describe('hub file tools', () => {
   it('keeps base64 files and their media type', async () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]).toString('base64');
     expect(await run(B, 'file_put', { name: 'img/a.png', content: png, encoding: 'base64', type: 'image/png' })).toContain('7 B, base64');
-    const got = await run(A, 'file_get', { name: 'img/a.png', account: 'Dad' });
-    expect(got).toContain('image/png');
-    expect(got.endsWith(png)).toBe(true);
+    // Pictures come back as image content, so the agent sees them.
+    const got: any = await run(A, 'file_get', { name: 'img/a.png', account: 'Dad' });
+    expect(got.content[0]).toEqual({ type: 'image', data: png, mimeType: 'image/png' });
+    expect(got.content[1].text).toContain('image/png');
     await expect(run(B, 'file_put', { name: 'bad.bin', content: 'not base64!', encoding: 'base64' })).rejects.toThrow('base64');
   });
 

@@ -3,6 +3,8 @@
 // draws the project and uploads a contact sheet per revision; Claude agents
 // read and write the project through the studio_* MCP tools. The format of a
 // project is owned by hub/studio/schema.js (validateProject, lintProject).
+import { libraryOf } from './library.js';
+
 const KEEP_REVS = 10;
 const KEEP_NOTES = 100;
 const KEEP_LOG = 500;
@@ -96,7 +98,7 @@ export function studioBrief(p) {
     '- studio_put(id, project, note): save the next version. It is checked; fix every problem it lists. The page redraws it live and uploads a contact sheet of the frames.',
     '- studio_look(id, wait_s): the latest sheet as an image plus lint warnings. Look at it before you call a version good.',
     '- studio_note(id, text): a short remark XIAO sees (what you changed, what you doubt).',
-    '- studio_refs(kind?, ref?): XIAO\'s reference pictures and video frames: DO = copy this look and acting, DON\'T = avoid this. Call it ONCE at the start (it is empty until XIAO adds some) and again if a note says refs changed.',
+    '- studio_refs(kind?, ref?): every reference XIAO gave the studio: DO = copy this look and acting, DON\'T = avoid this. Pictures from the studio Refs tab come back as images; Library files tagged "studio" are listed with an id: open each with lib_get(id) (a video shows its frames). Call it ONCE at the start (it is empty until XIAO adds some) and again if a note says refs changed.',
     '',
     'Team: the lead is the director and writes the storyboard. The other account is the critic: it looks at each sheet and notes drawing, pose, movement and consistency problems (same character, same colours, same size across shots). At most 2 critique rounds per request; stop after that and let XIAO react. Keep each tool call small and each note to one or two sentences: this runs on free-tier usage.',
     'Style target: hand-made storytime animation. Few simple reusable movements, poses held on 2s and 3s, slightly wobbly redrawn lines, small imperfections. Convincing handmade beats smooth and polished.',
@@ -364,6 +366,17 @@ export function createStudio(hub, { schema = null } = {}) {
     const data = await store.cmd('GET', K.refImg(id, n));
     return { type: r.images[n], mime: IMG_MIME[r.images[n]], data };
   }
+  // Library files tagged "studio" are references too ("do" / "dont" tags).
+  async function libRefs() {
+    if (!hub.store) return [];
+    try {
+      const all = await libraryOf(hub).items();
+      return all.filter((m) => m.status === 'ready' && m.tags?.includes('studio')).map((m) => ({ lib: true, id: m.id, kind: m.tags.includes('dont') ? 'dont' : 'do', title: m.name, note: m.note, tags: m.tags.filter((t) => !['studio', 'do', 'dont'].includes(t)), kindOfFile: m.kind }));
+    } catch {
+      return [];
+    }
+  }
+  const libLine = (m) => `${m.kind === 'do' ? 'DO' : 'DON\'T'} library file "${m.title}" (${m.kindOfFile}${m.tags.length ? `; ${m.tags.join(', ')}` : ''}): ${m.note || '(no note)'}. Open with lib_get(id: "${m.id}").`;
   const refLine = (r) => `${r.kind === 'do' ? 'DO' : 'DON\'T'} #${r.id.slice(1)} "${r.title}"${r.tags.length ? ` [${r.tags.join(', ')}]` : ''}${r.type === 'video' ? ' (frames from a video)' : ''}: ${r.note || '(no note)'}${r.url ? ` ${r.url}` : ''}`;
 
   // ---- the page's side (password) ----
@@ -418,7 +431,7 @@ export function createStudio(hub, { schema = null } = {}) {
           feedback: g.feedback.slice(-8),
           notes: g.notes.slice(-8),
           rating: g.meta.rating,
-          refs: (await refList()).map(refLine),
+          refs: [...(await refList()).map(refLine), ...(await libRefs()).map(libLine)],
         });
       },
     },
@@ -461,14 +474,17 @@ export function createStudio(hub, { schema = null } = {}) {
     },
     {
       name: 'studio_refs',
-      description: 'XIAO\'s reference pictures and video frames for how the characters should look and act. DO = copy this; DON\'T = avoid this. Returns the list (kind, title, tags, note) and the pictures as images (up to 6 per call; narrow with kind "do"/"dont" or ref "r3"). Read once before drawing; the critic compares sheets against them.',
+      description: 'XIAO\'s reference pictures and video frames for how the characters should look and act. DO = copy this; DON\'T = avoid this. Returns the list (kind, title, tags, note) and the Refs-tab pictures as images (up to 6 per call; narrow with kind "do"/"dont" or ref "r3"); Library files tagged "studio" are listed with an id for lib_get. Read once before drawing; the critic compares sheets against them.',
       inputSchema: { type: 'object', properties: { kind: { type: 'string', description: '"do" or "dont" to filter' }, ref: { type: 'string', description: 'one reference id, like "r3"' } } },
       run: async (a, x) => {
         let list = await refList();
         if (x.kind === 'do' || x.kind === 'dont') list = list.filter((r) => r.kind === x.kind);
         if (x.ref) list = list.filter((r) => r.id === String(x.ref));
-        if (!list.length) return 'No references yet. XIAO has not added any: use the schema and rules as they are, and do not invent a look from them.';
-        const content = [{ type: 'text', text: `${list.length} reference${list.length > 1 ? 's' : ''}. Follow every DO, avoid every DON'T.\n${list.map(refLine).join('\n')}` }];
+        let libs = x.ref ? [] : await libRefs();
+        if (x.kind === 'do' || x.kind === 'dont') libs = libs.filter((m) => m.kind === x.kind);
+        if (!list.length && !libs.length) return 'No references yet. XIAO has not added any: use the schema and rules as they are, and do not invent a look from them.';
+        const total = list.length + libs.length;
+        const content = [{ type: 'text', text: `${total} reference${total > 1 ? 's' : ''}. Follow every DO, avoid every DON'T.\n${[...list.map(refLine), ...libs.map(libLine)].join('\n')}` }];
         let n = 0;
         for (const r of list.slice().reverse()) {
           for (let i = 0; i < r.images.length && n < 6; i++, n++) {

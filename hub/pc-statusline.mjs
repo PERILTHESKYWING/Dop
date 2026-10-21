@@ -32,7 +32,7 @@ const low = pct >= 85;
 // (at most every 30 minutes) when a limit passes 85%.
 const due = low ? Date.now() - lastSent > 30 * 60_000 : Date.now() - lastSent > 10 * 60_000;
 if (url && (typeof five === 'number' || typeof week === 'number') && due) {
-  const args = { state: low ? 'low' : 'report', five_hour_pct: five, seven_day_pct: week, five_hour_resets: input.rate_limits?.five_hour?.resets_at, seven_day_resets: input.rate_limits?.seven_day?.resets_at };
+  const args = { state: low ? 'low' : 'report', source: 'pc', five_hour_pct: five, seven_day_pct: week, five_hour_resets: input.rate_limits?.five_hour?.resets_at, seven_day_resets: input.rate_limits?.seven_day?.resets_at };
   try {
     await fetch(url, {
       method: 'POST',

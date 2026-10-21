@@ -95,7 +95,7 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(27);
+    expect(list.body.result.tools.length).toBe(31);
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
@@ -543,5 +543,65 @@ describe('cloud hub: usage cards explain why numbers are missing', () => {
     const first = Number(/#(\d+)/.exec(none)![1]);
     const both = await tool('A', 'hub_wait', { thread: t.id, after: first, wait_s: 0 });
     expect(both).toContain('earlier note');
+  });
+});
+
+describe('cloud hub: removed accounts', () => {
+  it('drops a removed account everywhere and never brings it back', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const store = memoryStore();
+    const h = createHub({ store, fetchImpl: fakeFetch, now: () => clock });
+    await h.upsertAccount({ name: 'Keep', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_k', token: 'good-k' }] });
+    const gone = await h.upsertAccount({ name: 'Gone', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_g', token: 'good-g' }] });
+    await h.saveSettings({ coordinatorAccount: 'Gone' });
+    const t = await h.createThread({ title: 'Picked', brief: 'x', accounts: ['Gone', 'Keep'], model: 'sonnet' });
+    await h.updateThread(t.id, { status: 'done' });
+    const rev = await h.version();
+    await h.removeAccount('Gone');
+    // Every page refreshes: the change bumps the revision.
+    expect(await h.version()).not.toBe(rev);
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect((await h.snapshot()).accounts.map((a: any) => a.name)).toEqual(['Keep']);
+    expect((await h.thread(t.id)).accounts).toEqual(['Keep']);
+    expect((await h.settings()).coordinatorAccount).toBe('');
+    // A write still in flight (usage read, touch) can't re-create it.
+    await store.cmd('HSET', 'hub:accounts', 'Gone', JSON.stringify(gone));
+    expect(await h.account('Gone')).toBeNull();
+    expect(Object.keys(await h.accounts())).toEqual(['Keep']);
+    expect(await h.touchAccount('Gone')).toBeNull();
+    expect(await h.authAgent('Gone', gone.key)).toBeNull();
+    // Old picks from a page that still lists it fall away.
+    const msg = await h.prompt({ text: 'Do it', accounts: ['Gone'] });
+    expect(msg.meta.accounts).toEqual([]);
+    // Adding the name again is a fresh account.
+    await h.upsertAccount({ name: 'Gone', plan: 'free' });
+    expect((await h.account('Gone')).key).not.toBe(gone.key);
+  });
+});
+
+describe('cloud hub: usage reported by agents', () => {
+  it('takes numbers from hub_usage, asks for them at checkpoints only when due, and keeps the weekly one past 5 hours', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock });
+    const acc = await h.upsertAccount({ name: 'Probe', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_p', token: 'good-p' }] });
+    const call = async (name: string, args: any) => {
+      const r = await mcpApi({ hub: h, method: 'POST', query: { account: 'Probe', key: acc.key }, body: { jsonrpc: '2.0', id: rpcId++, method: 'tools/call', params: { name, arguments: args } }, headers: {} });
+      return r.body.result.content[0].text as string;
+    };
+    const t = await h.createThread({ title: 'Usage', brief: 'x', account: 'Probe', model: 'sonnet' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    await call('hub_usage', { state: 'report', five_hour_pct: 15, seven_day_pct: 62, seven_day_resets: new Date(clock + 3 * 86400_000).toISOString() });
+    const card = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(card.usage).toMatchObject({ five_hour_pct: 15, seven_day_pct: 62, source: 'agent' });
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toBe('Handover saved.');
+    clock += 6 * 3600_000;
+    expect(await call('hub_checkpoint', { thread: t.id, done: 'a', next: 'b' })).toContain('Usage is due');
+    const later = (await h.snapshot()).accounts.find((a: any) => a.name === 'Probe');
+    expect(later.usage).toMatchObject({ five_hour_pct: null, seven_day_pct: 62 });
+    clock += 3 * 86400_000;
+    await h.touchAccount('Probe');
+    expect((await h.account('Probe')).usage).toBeNull();
   });
 });

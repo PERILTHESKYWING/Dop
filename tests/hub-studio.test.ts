@@ -228,6 +228,17 @@ describe('studio references (do / don\'t)', () => {
     expect(JSON.parse(await tool('studio_get', { id: sid })).refs[0]).toContain('DO #1');
   });
 
+  it('lists Library files tagged studio as references for lib_get', async () => {
+    const put = (m: any) => hub.store.cmd('HSET', 'hub:lib:items', m.id, JSON.stringify({ status: 'ready', kind: 'video', at: 1, ...m }));
+    await put({ id: 'f9', name: 'slump.mp4', note: 'whole body sags when sad', tags: ['studio', 'dont', 'body'] });
+    await put({ id: 'f10', name: 'cat.png', note: 'not for the studio', tags: ['cats'] });
+    const out = await tool('studio_refs', { kind: 'dont' });
+    expect(out.content[0].text).toContain('DON\'T library file "slump.mp4" (video; body): whole body sags when sad. Open with lib_get(id: "f9").');
+    expect(out.content[0].text).not.toContain('cat.png');
+    expect((await tool('studio_refs', { kind: 'do' })).content[0].text).not.toContain('slump.mp4');
+    await hub.store.cmd('HDEL', 'hub:lib:items', 'f9', 'f10');
+  });
+
   it('deletes a reference with its pictures and keeps only the newest 60', async () => {
     expect((await post('studio-ref-del', { id: 'r1' })).status).toBe(200);
     expect((await get('studio-ref', { id: 'r1', n: 0 })).status).toBe(400);
