@@ -524,4 +524,13 @@ describe('cloud hub: usage cards explain why numbers are missing', () => {
     expect(h.publicAccount(await h.account('NoTok')).usageErr).toContain('no routine');
     expect(h.publicAccount(await h.account('Bare')).usageErr).toContain('no routine');
   });
+  it('hub_post with wait_s returns teammates\' replies in the same call', async () => {
+    const t = await hub.createThread({ title: 'Post wait', brief: 'Fast comms', model: 'sonnet' });
+    const none = await tool('A', 'hub_post', { thread: t.id, text: 'hello?', wait_s: 0.01 });
+    expect(none).toContain('Posted #');
+    await tool('B', 'hub_post', { thread: t.id, text: 'earlier note' });
+    const first = Number(/#(\d+)/.exec(none)![1]);
+    const both = await tool('A', 'hub_wait', { thread: t.id, after: first, wait_s: 0 });
+    expect(both).toContain('earlier note');
+  });
 });
