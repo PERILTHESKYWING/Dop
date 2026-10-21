@@ -19,9 +19,10 @@ const THINK_LINE = {
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
 // seq counts messages; rev counts thread and account changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted' };
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
+const AGENTS_KEEP = 60; // sub-agent records shown on the page
 // A thread whose agent has said nothing for this long is treated as stopped.
 export const STALL_MS = 15 * 60_000;
 // An agent that touched its thread this recently is still running and will
@@ -730,7 +731,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // Everything the page shows, read in one round trip. With since, only
   // messages newer than that id come back.
   async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev, del] = await store.multi([
+    const [th, ac, fd, st, fi, tok, seq, rev, del, ag] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
@@ -740,6 +741,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       ['GET', K.seq],
       ['GET', K.rev],
       ['LRANGE', K.deleted, -200, -1],
+      ['HGETALL', K.agents],
     ]);
     const t = now();
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
@@ -763,6 +765,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       accounts: Object.values(hashToObj(ac)).map((a) => publicAccount(a, ths)),
       messages,
       deleted: (del || []).map((x) => parse(x)?.id).filter(Boolean),
+      agents: Object.values(hashToObj(ag)).sort((a, b) => b.at - a.at).slice(0, AGENTS_KEEP),
       settings: s,
       overhead: { used, budget: s.overheadTokens, traffic: Number(tok || 0), coordinatorSessions, fires: fires.length, over: used >= s.overheadTokens },
     };
@@ -836,7 +839,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Repo skills in .claude/skills load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
+  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). You may deploy your own sub-agents with your Agent tool when a task splits up; report each with hub_agent (start, update with step and pct, finish) so ${owner}'s page shows its live progress. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Repo skills in .claude/skills load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
@@ -1014,6 +1017,39 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return msg;
   }
 
+  // Sub-agents an account deploys itself (Claude's Agent tool). The account's
+  // session reports each one here so the page can show live progress.
+  async function agentRun(agent, { action = 'update', id, thread: tid = 0, title, status, step, pct, note }) {
+    id = clean(String(id || ''), 40).replace(/[^\w.-]/g, '');
+    if (!id) throw new Error('id is required.');
+    const field = `${agent.name}:${id}`;
+    const old = parse(await store.cmd('HGET', K.agents, field), null);
+    if (action !== 'start' && !old) throw new Error('Unknown agent id: call hub_agent with action "start" first.');
+    const t = now();
+    const next = old || { id, account: agent.name, thread: Number(tid) || 0, title: '', status: 'running', step: '', pct: null, note: '', started: t };
+    if (title != null) next.title = clean(title, 120);
+    if (tid) next.thread = Number(tid) || 0;
+    if (step != null) next.step = clean(step, 160);
+    if (note != null) next.note = clean(note, 600);
+    if (typeof pct === 'number' && isFinite(pct)) next.pct = Math.max(0, Math.min(100, Math.round(pct)));
+    if (action === 'finish') {
+      next.status = status === 'failed' ? 'failed' : 'done';
+      next.finished = t;
+      if (next.status === 'done') next.pct = 100;
+    } else next.status = 'running';
+    next.at = t;
+    if (!next.title) next.title = id;
+    await store.multi([['HSET', K.agents, field, json(next)], ['INCR', K.rev]]);
+    await touchAccount(agent.name);
+    if (action === 'start') {
+      // Keep the hash small: drop the oldest finished agents.
+      const all = Object.entries(hashToObj(await store.cmd('HGETALL', K.agents)));
+      const over = all.filter(([, v]) => v.status !== 'running').sort((a, b) => b[1].at - a[1].at).slice(AGENTS_KEEP);
+      if (over.length) await store.multi(over.map(([k]) => ['HDEL', K.agents, k]));
+    }
+    return `Agent ${id} ${next.status}${next.pct != null ? ` ${next.pct}%` : ''}.`;
+  }
+
   // An agent is still alive on this thread (it is waiting for messages).
   async function heartbeat(tid, name = '') {
     const t = await thread(tid);
@@ -1032,7 +1068,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
     threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, dispatch,
-    start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
+    start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again.
     version: async () => {
       const [seq, rev] = await store.multi([['GET', K.seq], ['GET', K.rev]]);

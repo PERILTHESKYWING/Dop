@@ -95,7 +95,7 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(17);
+    expect(list.body.result.tools.length).toBe(18);
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
@@ -122,6 +122,17 @@ describe('cloud hub', () => {
     expect(routedMsg.replyTo).toBe(promptId);
     // A handled prompt is not offered again.
     expect(await tool('B', 'hub_start')).not.toContain('You are the coordinator');
+  });
+
+  it('shows sub-agents an account deploys itself', async () => {
+    expect(await tool('A', 'hub_agent', { action: 'start', id: 'scan1', title: 'Scan tests', thread: 0 })).toMatch(/running/);
+    await tool('A', 'hub_agent', { action: 'update', id: 'scan1', step: 'reading', pct: 40 });
+    let snap = (await page('state')).body;
+    expect(snap.agents.find((x: any) => x.id === 'scan1')).toMatchObject({ account: 'A', status: 'running', step: 'reading', pct: 40, title: 'Scan tests' });
+    await tool('A', 'hub_agent', { action: 'finish', id: 'scan1' });
+    snap = (await page('state')).body;
+    expect(snap.agents.find((x: any) => x.id === 'scan1')).toMatchObject({ status: 'done', pct: 100 });
+    expect(await tool('A', 'hub_agent', { action: 'update', id: 'nope' })).toMatch(/Unknown agent id/);
   });
 
   it('runs a worker: brief, handover, done', async () => {
