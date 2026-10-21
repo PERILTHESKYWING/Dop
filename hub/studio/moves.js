@@ -41,9 +41,9 @@ export const MOVE_SET = {
     keys: [
       // Contact (front leg forward, opposite arm forward), passing (body up,
       // back foot lifting through), the other contact, the other passing.
-      [0, { footF: [STRIDE, 0, 0], footB: [-STRIDE, 0, 0], armF: [4, -26, 14], armB: [4, 26, 22], pelvis: [0, 0.014], weight: 0.3, twist: -6, spine: 4 }, 'in'],
+      [0, { footF: [STRIDE, 0, 0], footB: [-STRIDE, 0, 0], armF: [4, -34, 16], armB: [4, 34, 24], pelvis: [0, 0.014], weight: 0.3, twist: -6, spine: 4 }, 'in'],
       [0.16, { footF: [0, 0, 0], footB: [0.01, 0.055, 0], armF: [4, 0, 10], armB: [4, 0, 12], pelvis: [0, -0.012], weight: 0.6, spine: 3 }, 'out'],
-      [0.32, { footF: [-STRIDE, 0, 0], footB: [STRIDE, 0, 0], armF: [4, 26, 22], armB: [4, -26, 14], pelvis: [0, 0.014], weight: -0.3, twist: 6, spine: 4, toe: 0.6 }, 'in'],
+      [0.32, { footF: [-STRIDE, 0, 0], footB: [STRIDE, 0, 0], armF: [4, 34, 24], armB: [4, -34, 16], pelvis: [0, 0.014], weight: -0.3, twist: 6, spine: 4, toe: 0.6 }, 'in'],
       [0.48, { footF: [0.01, 0.055, 0], footB: [0, 0, 0], armF: [4, 0, 12], armB: [4, 0, 10], pelvis: [0, -0.012], weight: -0.6, spine: 3 }, 'out'],
     ],
   },
@@ -134,8 +134,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.12, { pelvis: [0, 0.045], armF: [30, -10, 100], armB: [30, -10, 100], gripF: 'fist', gripB: 'fist', spine: 9, headPitch: 6 }, 'out'],
-      [0.26, { lift: 0.04, armF: [165, 10, 14], armB: [160, 10, 24], gripF: 'fist', gripB: 'fist', spine: -8, headPitch: -12, mouth: 'grin', eyes: 'happy', toe: 1 }, 'back'],
-      [0.46, { pelvis: [0, 0.02], armF: [150, 10, 40], armB: [166, 10, 10], gripF: 'fist', gripB: 'fist', spine: -4, headPitch: -6, mouth: 'wide', eyes: 'happy' }, 'io'],
+      [0.26, { lift: 0.04, armF: [168, 0, 6], armB: [162, 4, 10], gripF: 'fist', gripB: 'fist', spine: -8, headPitch: -12, mouth: 'grin', eyes: 'happy', toe: 1 }, 'back'],
+      [0.46, { pelvis: [0, 0.02], armF: [155, 0, 12], armB: [166, 4, 8], gripF: 'fist', gripB: 'fist', spine: -4, headPitch: -6, mouth: 'wide', eyes: 'happy' }, 'io'],
     ],
   },
   cry: {
@@ -144,8 +144,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.22, { handF: [0.15, 0.15, 0.2], handB: [-0.02, 0.15, 0.2], gripF: 'open', gripB: 'open', slump: 0.5, headPitch: 12 }, 'io'],
-      [0.4, { handF: [-0.03, 0.01, 0.1, 'head'], handB: [0.06, 0.01, 0.09, 'head'], gripF: 'open', gripB: 'open', slump: 0.8, headPitch: 22, spine: 14, shrug: 0.35, eyes: 'closed', mouth: 'wide', fx: 'tears' }, 'io'],
-      [0.7, { handF: [-0.03, 0.02, 0.1, 'head'], handB: [0.06, 0.02, 0.09, 'head'], gripF: 'open', gripB: 'open', slump: 0.85, headPitch: 27, spine: 16, shrug: 0.65, pelvis: [0, 0.014], eyes: 'closed', mouth: 'frown', fx: 'tears' }, 'out'],
+      [0.4, { handF: [-0.03, 0.01, 0.1, 'head'], handB: [0.06, 0.01, 0.09, 'head'], gripF: 'open', gripB: 'open', slump: 0.8, headPitch: 12, spine: 12, shrug: 0.35, eyes: 'closed', mouth: 'wide', fx: 'tears' }, 'io'],
+      [0.7, { handF: [-0.03, 0.02, 0.1, 'head'], handB: [0.06, 0.02, 0.09, 'head'], gripF: 'open', gripB: 'open', slump: 0.85, headPitch: 16, spine: 14, shrug: 0.65, pelvis: [0, 0.014], eyes: 'closed', mouth: 'frown', fx: 'tears' }, 'out'],
     ],
   },
   laugh: {
@@ -154,8 +154,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.12, { spine: 7, headPitch: 6, shrug: 0.2 }, 'out'],
-      [0.22, { spine: -14, headPitch: -16, headRoll: -6, handF: [0.06, 0.3, 0.12], handB: [-0.06, 0.31, 0.1], gripF: 'open', gripB: 'open', shrug: 0.3, mouth: 'grin', eyes: 'happy' }, 'back'],
-      [0.37, { spine: -6, headPitch: -6, headRoll: -3, handF: [0.06, 0.31, 0.12], handB: [-0.06, 0.32, 0.1], gripF: 'open', gripB: 'open', shrug: 0.08, pelvis: [0, 0.012], mouth: 'wide', eyes: 'happy' }, 'io'],
+      [0.22, { spine: -14, headPitch: -16, headRoll: -6, handF: [0.06, 0.22, 0.12], handB: [-0.06, 0.23, 0.1], gripF: 'open', gripB: 'open', shrug: 0.3, mouth: 'grin', eyes: 'happy' }, 'back'],
+      [0.37, { spine: -6, headPitch: -6, headRoll: -3, handF: [0.06, 0.23, 0.12], handB: [-0.06, 0.24, 0.1], gripF: 'open', gripB: 'open', shrug: 0.08, pelvis: [0, 0.012], mouth: 'wide', eyes: 'happy' }, 'io'],
     ],
   },
   // New full-body moves.
@@ -164,8 +164,8 @@ export const MOVE_SET = {
       [0, {}],
       [0.4, { shrug: 0.5, slump: -0.3, spine: -4, headPitch: -8 }, 'io'],
       [0.6, { shrug: 0.5, slump: -0.3, spine: -4, headPitch: -8 }, 'io'],
-      [1.3, { shrug: 0, slump: 0.7, spine: 12, headPitch: 18, pelvis: [0, 0.01], armF: [2, 6, 6], armB: [2, 4, 6], eyes: 'closed' }, 'out'],
-      [1.8, { slump: 0.6, spine: 10, headPitch: 15, pelvis: [0, 0.008], armF: [2, 6, 6], armB: [2, 4, 6] }, 'io'],
+      [1.3, { shrug: 0, slump: 0.7, spine: 12, headPitch: 9, pelvis: [0, 0.01], armF: [2, 6, 6], armB: [2, 4, 6], eyes: 'closed' }, 'out'],
+      [1.8, { slump: 0.6, spine: 10, headPitch: 8, pelvis: [0, 0.008], armF: [2, 6, 6], armB: [2, 4, 6] }, 'io'],
     ],
   },
   stomp: {
@@ -189,26 +189,26 @@ export const MOVE_SET = {
   fidget: {
     loop: { from: 0, end: 2.4 },
     keys: [
-      [0, { handF: [0.06, 0.25, 0.1], handB: [-0.07, 0.25, 0.1], weight: 0.4, headYaw: -10, headPitch: 8, shrug: 0.3 }, 'io'],
-      [0.6, { handF: [0.03, 0.23, 0.12], handB: [-0.04, 0.26, 0.1], weight: -0.4, headYaw: 6, headPitch: 6, shrug: 0.4, gaze: -1 }, 'io'],
-      [1.2, { handF: [0.07, 0.26, 0.1], handB: [-0.08, 0.24, 0.1], weight: 0.3, headYaw: 12, headPitch: 10, shrug: 0.25, footF: [0.01, 0.02, 0], toe: 0.5 }, 'io'],
-      [1.8, { handF: [0.04, 0.24, 0.12], handB: [-0.05, 0.25, 0.1], weight: -0.3, headYaw: -4, headPitch: 9, shrug: 0.35, gaze: 1 }, 'io'],
+      [0, { handF: [0.06, 0.19, 0.1], handB: [-0.07, 0.19, 0.1], weight: 0.4, headYaw: -10, headPitch: 8, shrug: 0.3 }, 'io'],
+      [0.6, { handF: [0.03, 0.17, 0.12], handB: [-0.04, 0.2, 0.1], weight: -0.4, headYaw: 6, headPitch: 6, shrug: 0.4, gaze: -1 }, 'io'],
+      [1.2, { handF: [0.07, 0.2, 0.1], handB: [-0.08, 0.18, 0.1], weight: 0.3, headYaw: 12, headPitch: 10, shrug: 0.25, footF: [0.01, 0.02, 0], toe: 0.5 }, 'io'],
+      [1.8, { handF: [0.04, 0.18, 0.12], handB: [-0.05, 0.19, 0.1], weight: -0.3, headYaw: -4, headPitch: 9, shrug: 0.35, gaze: 1 }, 'io'],
     ],
   },
   crossarms: {
     settle: true,
     keys: [
       [0, {}],
-      [0.3, { handF: [0.15, 0.16, 0.14], handB: [-0.15, 0.15, 0.1], gripF: 'fist', gripB: 'fist', spine: -4, slump: -0.3, weight: -0.3, headPitch: -4 }, 'io'],
-      [0.45, { handF: [0.16, 0.17, 0.14], handB: [-0.16, 0.16, 0.1], gripF: 'fist', gripB: 'fist', spine: -5, slump: -0.35, weight: -0.35, headPitch: -6, headRoll: -4 }, 'out'],
+      [0.3, { handF: [0.18, 0.12, 0.07], handB: [-0.08, 0.12, 0.17], gripF: 'fist', gripB: 'fist', spine: -4, slump: -0.3, weight: -0.3, headPitch: -4 }, 'io'],
+      [0.45, { handF: [0.19, 0.12, 0.07], handB: [-0.08, 0.13, 0.18], gripF: 'fist', gripB: 'fist', spine: -5, slump: -0.35, weight: -0.35, headPitch: -6, headRoll: -4 }, 'out'],
     ],
   },
   hips: {
     settle: true,
     keys: [
       [0, {}],
-      [0.22, { handF: [-0.04, 0.2, -0.02], handB: [0.04, 0.2, -0.02], gripF: 'hip', gripB: 'hip', slump: -0.5, spine: -5, headPitch: -6, weight: 0.4 }, 'back'],
-      [0.5, { handF: [-0.04, 0.2, -0.02], handB: [0.04, 0.2, -0.02], gripF: 'hip', gripB: 'hip', slump: -0.55, spine: -4, headPitch: -7, weight: 0.45 }, 'io'],
+      [0.22, { armF: [30, -45, 128], armB: [30, -45, 128], gripF: 'hip', gripB: 'hip', slump: -0.5, spine: -5, headPitch: -6, weight: 0.4 }, 'back'],
+      [0.5, { armF: [30, -45, 128], armB: [30, -45, 128], gripF: 'hip', gripB: 'hip', slump: -0.55, spine: -4, headPitch: -7, weight: 0.45 }, 'io'],
     ],
   },
   bow: {
@@ -224,8 +224,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.2, { shrug: 0.3, headPitch: -4 }, 'out'],
-      [0.6, { slump: 1, spine: 20, headPitch: 28, pelvis: [0, 0.03], stance: 0.09, armF: [0, 8, 4], armB: [0, 6, 4], weight: -0.2, eyes: 'lidded' }, 'in'],
-      [0.8, { slump: 1, spine: 18, headPitch: 26, pelvis: [0, 0.025], stance: 0.09, armF: [0, 8, 4], armB: [0, 6, 4], weight: -0.2, eyes: 'lidded' }, 'out'],
+      [0.6, { slump: 1, spine: 12, headPitch: 6, pelvis: [0, 0.03], stance: 0.09, armF: [0, 8, 4], armB: [0, 6, 4], weight: -0.2, eyes: 'lidded' }, 'in'],
+      [0.8, { slump: 1, spine: 10, headPitch: 5, pelvis: [0, 0.025], stance: 0.09, armF: [0, 8, 4], armB: [0, 6, 4], weight: -0.2, eyes: 'lidded' }, 'out'],
     ],
   },
   lookaround: {

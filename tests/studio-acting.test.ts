@@ -45,7 +45,8 @@ describe('studio acting', () => {
     const angry = pose('idle', 'angry', 1);
     expect(sad.slump).toBeGreaterThan(0.5);
     expect(happy.slump).toBeLessThan(0);
-    expect(sad.headPitch).toBeGreaterThan(happy.headPitch + 15);
+    expect(sad.headPitch).toBeGreaterThan(happy.headPitch + 4);
+    expect(sad.spine).toBeGreaterThan(happy.spine);
     expect(angry.gripF).toBe('fist');
     expect(angry.weight).toBeGreaterThan(sad.weight);
     expect(pose('idle', 'smug', 1).gripB).toBe('hip');
