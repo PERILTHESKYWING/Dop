@@ -66,7 +66,8 @@ const HAIRLINE = {
   flowing: [[0, -0.5], [40, -0.48], [66, -0.2], [84, 0.45], [100, 0.62], [180, 0.62]],
 };
 // Locks for the fringe styles in face units: [centre u, half width, tip v, tip lean u].
-const FRINGE = [[-0.66, 0.16, -0.16, 0.05], [-0.4, 0.17, -0.06, 0.07], [-0.12, 0.16, 0.1, 0.06], [0.14, 0.16, -0.08, -0.05], [0.4, 0.17, -0.02, -0.07], [0.68, 0.15, -0.18, -0.06]];
+// Parted off-centre (left of the middle): uneven locks that sweep away from the part.
+const FRINGE = [[-0.8, 0.15, -0.1, -0.1], [-0.56, 0.2, 0.14, -0.13], [-0.3, 0.13, -0.02, -0.06], [-0.02, 0.15, 0.17, 0.1], [0.36, 0.21, 0.07, 0.13], [0.74, 0.15, -0.12, 0.1]];
 // Back hair outline for the fringe styles: length below the head centre
 // (head radii), half width at the ends, and the end lengths of each lock.
 const BACK = {
@@ -129,7 +130,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
   const C = [0, -0.06, -0.05]; // centre of the cranium ball
   const style = ch.hairStyle;
   const fringe = style === 'shag' || style === 'flowing';
-  const hs = style === 'curly' ? 1.13 : style === 'bob' || fringe ? 1.09 : 1.06;
+  const hs = style === 'curly' ? 1.13 : fringe ? 1.17 : style === 'bob' ? 1.09 : 1.06;
   const Cp = HP(C);
   const upP = HP([C[0], C[1] - 1, C[2]]);
   const up = Math.atan2(upP[1] - Cp[1], upP[0] - Cp[0]);
@@ -256,8 +257,18 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         const v = j / 9.4;
         if (u * u + v * v < 1) pts.push([u, v, faceZ(u, v)]);
       }
-    // A "v" jaw narrows earlier to a small, slightly pointed chin.
     const vJaw = ch.jaw === 'v';
+    // The lower edge of the face sampled finely, so the cheek and chin outline is round.
+    for (let k = 0; k <= 30; k++) {
+      const a = (k / 30) * Math.PI;
+      const u = Math.cos(a) * 0.93;
+      const v = Math.sin(a) * 0.93 * (vJawFace(u));
+      pts.push([u, v, faceZ(u, v)]);
+    }
+    // A "v" jaw narrows earlier to a small, slightly pointed chin.
+    function vJawFace(u) {
+      return 1 - (vJaw ? 0.18 : 0.1) * smooth(Math.abs(u) / 0.9);
+    }
     const jawRings = vJaw ? [[0.56, 0.68, 0.56, -0.08], [0.69, 0.55, 0.44, 0.03], [0.8, 0.36, 0.3, 0.14], [0.92, 0.17, 0.17, 0.28]] : [[0.6, 0.72, 0.6, -0.08], [0.84, 0.42, 0.36, 0.14]];
     for (const [y, w, d, zc] of jawRings)
       for (let k = 0; k < 28; k++) {
@@ -276,7 +287,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     const big = ch.eyes === 'anime';
     const lashes = big || ch.extras.includes('lashes');
     const ey = (big ? 0.12 : 0.06) + (p.eyeY || 0);
-    const gap = big ? 0.37 : 0.35;
+    const gap = big ? 0.42 : 0.35;
     const gz = p.gaze ?? face.gaze;
     const g = Array.isArray(gz) ? gz : [gz ?? 0.15, 0];
     const blushFx = (p.fx || face.fx) === 'blush';
@@ -309,8 +320,8 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       const vis = seen(ex, ey);
       if (vis < 0.08) continue;
       const kind = kind0 === 'wink' ? (sx > 0 ? 'happy' : 'open') : kind0;
-      const ew = big ? 0.2 : 0.165;
-      const eh = big ? 0.25 : ch.eyes === 'oval' ? 0.17 : 0.14;
+      const ew = big ? 0.225 : 0.165;
+      const eh = big ? 0.215 : ch.eyes === 'oval' ? 0.17 : 0.14;
       const at = (pts) => F(pts.map(([a, b]) => [ex + a, ey + b]));
       if (blink || kind === 'closed') {
         pen.stroke('eye' + sx, curve(at([[-ew * 1.05, 0.0], [0, eh * 0.45], [ew * 1.05, 0]]), 4), { width: line * 0.9 });
@@ -326,7 +337,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       }
       if (kind === 'shock') {
         // blank white eyes, a tiny pupil, a heavy upper lid
-        const oval = ellipse(0, 0, ew * 1.25, eh * 1.2, { n: 18 });
+        const oval = ellipse(0, 0, ew * 1.25, eh * 1.2, { n: 40 });
         pen.fill('white' + sx, at(oval), '#ffffff', { slip: 0.15 });
         pen.stroke('ring' + sx, at(oval), { width: line * 0.8, closed: true });
         const [px, py] = onFace(ex + g[0] * ew * 0.2, ey + eh * 0.1);
@@ -390,7 +401,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       }
       // Upper lid: the strong line, with a small flick at the outer corner.
       const flick = [sx * ew * 1.15, topY(sx * ew) - eh * 0.15];
-      pen.stroke('lid' + sx, at(sx > 0 ? [...upper, flick] : [flick, ...upper]), { width: line * (lashes ? 1.6 : 1.05) });
+      pen.stroke('lid' + sx, at(sx > 0 ? [...upper, flick] : [flick, ...upper]), { width: line * (lashes ? 2.1 : 1.05) });
       if (lashes) {
         // Two lash flicks off the outer corner and a short lower lash.
         const o = [sx * ew, topY(sx * ew)];
@@ -518,17 +529,20 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
       if (cap.length > 3) {
         solid(pen, 'hairF', loop(cap.filter((_, i) => i % 2 === 0), 3), ch.hair, { width: line, round: 0.9 });
         // A few strands following the flow from the crown.
-        for (const a of [-40, -8, 26]) {
+        for (const a of fringe ? [-62, -40, -22, -6, 14, 30, 50] : [-40, -8, 26]) {
           const v1 = knot(tab, a) - 0.12;
           const pts3 = [-0.92, (v1 - 0.92) / 2, v1].map((v, i) => {
             const rho = Math.sqrt(Math.max(0.01, 1 - v * v));
             const aa = ((a + (i - 1) * 6) * Math.PI) / 180;
             return { q: add(C, [Math.sin(aa) * rho * hs * 0.99, v * hs, Math.cos(aa) * rho * hs * 0.99]), vis: facingCam([Math.sin(aa) * rho, v, Math.cos(aa) * rho]) };
           });
-          if (pts3.every((q) => q.vis > 0.15)) pen.stroke('strand' + a, curve(pts3.map((q) => HP(q.q)), 5), { width: line * 0.45, color: mix(ch.hair, ink, 0.5) });
+          if (pts3.every((q) => q.vis > 0.15)) pen.stroke('strand' + a, curve(pts3.map((q) => HP(q.q)), 5), { width: line * (fringe ? 0.55 : 0.45), color: fringe ? mix(ch.hair, '#9aa4e0', 0.28) : mix(ch.hair, ink, 0.5) });
         }
       }
-      if (fringe) fringeLocks();
+      if (fringe) {
+        fringeLocks();
+        strays();
+      }
     } else {
       pen.stroke('strand', curve([[-0.1, -1.0, 0.1], [0.05, -1.12, 0.05], [0.25, -1.04, 0.0]].map(HP), 4), { width: line * 0.6 });
     }
@@ -578,6 +592,18 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
     frontParts.forEach((d) => d());
     effects();
 
+    // A few loose strands flicking off the crown and sides, as the refs have.
+    function strays() {
+      const flick = (id, a, len, bend) => {
+        const c0 = [Math.cos(up + a), Math.sin(up + a)];
+        const nn = [-c0[1] * bend, c0[0] * bend];
+        const at = (k, off) => [Cp[0] + c0[0] * rimR * (0.9 + k * len) + nn[0] * off * rimR, Cp[1] + c0[1] * rimR * (0.9 + k * len) + nn[1] * off * rimR];
+        pen.stroke(id, curve([at(0, 0), at(0.5, 0.05), at(1, 0.16)], 5), { width: line * 0.95, color: mix(ch.hair, ink, 0.55) });
+      };
+      flick('stray1', -0.7, 0.2, 1);
+      flick('stray2', 0.5, 0.17, -1);
+    }
+
     // Fringe styles, front: pointed locks over the forehead and two at each
     // side framing the face, laid on the face surface so they turn with it.
     function fringeLocks() {
@@ -597,7 +623,7 @@ export function drawCharacter(pen, ch, pose, { x, ground, scale = 1, facing = 1 
         }
         pen.stroke(id, pts, { width: line * 0.8 });
       };
-      const shape = (c, w, vb, vt, lean) => [[c - w, vb], [c - w * 0.75 + lean * 0.4, vb * 0.4 + vt * 0.6], [c + lean, vt], [c + w * 0.6 + lean * 0.4, vb * 0.45 + vt * 0.55], [c + w, vb]];
+      const shape = (c, w, vb, vt, lean) => [[c - w, vb], [c - w * 0.75 + lean * 0.55, vb * 0.4 + vt * 0.6], [c + lean, vt], [c + w * 0.55 + lean * 0.7, vb * 0.45 + vt * 0.55], [c + w, vb]];
       // Fringe: on the face surface, lifted a little.
       FRINGE.forEach(([c, w, vt, lean], i) => {
         if (seen(c, (vt - 0.62) / 2) >= 0.05) lock('fr' + i, shape(c, w, -0.62, vt, lean), ([u, v]) => onFace(u, v, 0.1), 9, false);
