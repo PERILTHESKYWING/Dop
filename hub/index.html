@@ -397,7 +397,8 @@ const THINK_NAME = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'xHigh',
 const THINK_HINT = { low: 'Fastest, least reasoning', medium: 'Balanced', high: 'Thinks hard and checks its work', xhigh: 'Thinks harder on every step', max: 'Deepest (ultrathink)' };
 const STATUS = { new: 'Starting', working: 'Working', waiting: 'Needs you', queued: 'Waiting', stalled: 'Stopped', done: 'Done' };
 const PALETTE = ['#2f6b4f', '#b4532a', '#9a7412', '#7a4f86', '#2e6f73', '#9b3d4a', '#5f6b2a', '#4f5b66'];
-const ROUTINE_PROMPT = 'You are an agent in XIAO\'s Dop hub. First call hub_start from the Dop hub connector, with payload set to the full text of the routine-fire payload (or no payload if there is none). Then do exactly what hub_start returns.';
+let proj = { project: 'Dop', owner: 'XIAO' };
+const routinePrompt = () => `You are an agent in ${proj.owner}'s ${proj.project} hub. First call hub_start from the ${proj.project} hub connector, with payload set to the full text of the routine-fire payload (or no payload if there is none). Then do exactly what hub_start returns.`;
 const STARTERS = [['Fix a bug', 'Fix this bug: '], ['Review a PR', 'Review the latest PR and list anything that needs fixing.'], ['Research', 'Research this and give me a short answer with sources: '], ['Write docs', 'Write or update the docs for: ']];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -434,7 +435,8 @@ $('loginForm').addEventListener('submit', async (e) => {
   catch (err) { if (err.message !== 'auth') $('loginErr').textContent = err.message; }
 });
 // The project this hub serves (HUB_PROJECT on the server, "Dop" by default) names the page.
-function setProject(name) {
+function setProject(name, owner) {
+  proj = { project: name, owner: owner || proj.owner };
   const t = `${name} hub`; if (document.title === t) return;
   document.title = t;
   for (const b of document.querySelectorAll('.brand b, #login h1')) b.lastChild.textContent = t;
@@ -454,7 +456,7 @@ async function load(full) {
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
   S = { ...S, threads: d.threads, accounts: d.accounts, settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => !m.thread || ids.has(m.thread)) };
-  if (d.project) setProject(d.project);
+  if (d.project) setProject(d.project, d.owner);
   seq = d.seq; render();
   ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) }));
 }
@@ -989,9 +991,9 @@ async function openSheet(kind, name) {
     html = `<h3>Connect ${esc(name)}</h3>
       <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
       <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button><button class="btn small" data-newkey="${esc(name)}">New link</button></div><div id="testOut" class="hidden"></div>
-      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>Dop hub</i>, paste the link. Under sign-in, tick <b>No sign-in</b> (it says Detected), then press Add. If a Connect button appears, press it. No sign-in page should open.</p>
-      ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the Dop hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the Dop repo and a model, turn on the Dop hub connector, add an API trigger, and paste this prompt:</p>
-      <code class="copyline">${esc(ROUTINE_PROMPT)}</code><div><button class="btn small" data-copy="${esc(ROUTINE_PROMPT)}">Copy prompt</button></div>
+      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>${esc(proj.project)} hub</i>, paste the link. Under sign-in, tick <b>No sign-in</b> (it says Detected), then press Add. If a Connect button appears, press it. No sign-in page should open.</p>
+      ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the ${esc(proj.project)} hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the ${esc(proj.project)} repo and a model, turn on the ${esc(proj.project)} hub connector, add an API trigger, and paste this prompt:</p>
+      <code class="copyline">${esc(routinePrompt())}</code><div><button class="btn small" data-copy="${esc(routinePrompt())}">Copy prompt</button></div>
       <p><b>Step 4.</b> Press Edit on this account here and paste the routine's id and token. Repeat steps 3 and 4 for each model you want.</p>`}
       <div class="acts"><button class="btn primary" data-close>Done</button></div>`;
   } else if (kind === 'add' || kind === 'edit') {
