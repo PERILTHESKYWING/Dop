@@ -213,9 +213,9 @@ describe('studio renderer', () => {
 describe('studio camera, captions and fill', () => {
   const cam = (camera: any) => project({ scenes: [{ id: 'x', duration: 4, camera, actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0 }] }] }] });
 
-  it('allows a bust close-up and clamps beyond 3.5', () => {
+  it('allows a bust close-up and clamps beyond 4', () => {
     expect(cam({ zoom: 3 }).scenes[0].camera.zoom).toBe(3);
-    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(3.5);
+    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(4);
     expect(cam({}).scenes[0].camera).toEqual({ zoom: 1, x: 0.5, y: 0.6 });
   });
 
@@ -325,5 +325,70 @@ describe('close-ups (talking-head shots like XIAO\'s reference videos)', () => {
     // The mark is an overlay op (not moved by the camera), so it stays in the frame.
     expect(f.overlay.some((o: any) => o.text === 'SHOCK' || /SHOCK/.test(o.text || ''))).toBe(true);
     expect(f.world.some((o: any) => /SHOCK/.test(o.text || ''))).toBe(false);
+  });
+});
+
+describe('studio female lead options (refs f1/f2)', () => {
+  const lead = (patch: any = {}) =>
+    S.validateProject({ cast: { a: { hairStyle: 'layered', eyes: 'big', jaw: 'v', topStyle: 'turtleneck', bottomStyle: 'skirt', hair: '#4a2a30', hairTips: '#c0507a', top: '#3a2a2a', bottom: '#6a5a8a', skin: '#f6dfd6', extras: ['lashes', 'lips', 'blushlines', 'ahoge'], ...patch } }, scenes: [{ actors: [{ who: 'a' }] }] }).project.cast.a;
+  const draw = async (ch: any, pose: any = {}) => {
+    const D = await lib('draw.js');
+    const G = await lib('rig.js');
+    const ops: any[] = [];
+    G.drawCharacter(new D.Pen({ style: { ...S.DEFAULT_STYLE, boil: 0 }, seed: 3, ops }), ch, { v: 2, ...pose }, { x: 400, ground: 700 });
+    return ops;
+  };
+
+  it('cleans the new cast fields and allows face close-ups', () => {
+    const r = S.validateProject({ cast: { a: { eyes: 'big', jaw: 'pointy', topStyle: 'cape', bottomStyle: 'longskirt', hairTips: 'pink' } }, scenes: [{ camera: { zoom: 9 }, actors: [{ who: 'a' }] }] });
+    expect(r.project.cast.a).toMatchObject({ eyes: 'big', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
+    expect(r.project.cast.a.hairTips).toBeUndefined();
+    expect(lead().hairTips).toBe('#c0507a');
+    expect(r.project.scenes[0].camera.zoom).toBe(4);
+    expect(S.schemaText()).toMatch(/topStyle tee\|sleeveless\|turtleneck\|long/);
+  });
+
+  it('draws every top, bottom, eye, jaw and fringe style at every turn without bad numbers', async () => {
+    for (const hairStyle of ['layered', 'flowing'])
+      for (const topStyle of S.TOPS)
+        for (const bottomStyle of S.BOTTOMS)
+          for (const yaw of [0, 40, 90, 180]) {
+            const ops = await draw(lead({ hairStyle, topStyle, bottomStyle, eyes: S.EYES[yaw % 4], jaw: S.JAWS[yaw % 2] }), { yaw, face: 'happy', hairSwing: 0.5 });
+            const all = ops.map((o) => o.d).join('|');
+            expect(all).not.toMatch(/NaN|Infinity|undefined/);
+            expect(ops.length).toBeGreaterThan(40);
+          }
+  });
+
+  it('dresses the body: no sleeves when bare, long sleeves in the top colour, bare legs under a skirt', async () => {
+    const count = (ops: any[], c: string) => ops.filter((o) => o.fill === c && !o.clip).length;
+    const tee = await draw(lead({ topStyle: 'tee', top: '#123456' }), { yaw: 0 });
+    const bare = await draw(lead({ topStyle: 'sleeveless', top: '#123456' }), { yaw: 0 });
+    const long = await draw(lead({ topStyle: 'long', top: '#123456' }), { yaw: 0 });
+    expect(count(bare, '#123456')).toBe(count(tee, '#123456') - 2); // the two sleeves
+    expect(count(long, '#123456')).toBeGreaterThan(count(bare, '#123456') + 1); // arms are sleeves
+    const skin = '#f6dfd6';
+    const trousers = await draw(lead({ bottomStyle: 'trousers' }), { yaw: 0 });
+    const skirt = await draw(lead({ bottomStyle: 'skirt' }), { yaw: 0 });
+    expect(count(skirt, skin)).toBeGreaterThanOrEqual(count(trousers, skin) + 2); // two bare legs
+  });
+
+  it('big eyes get two catch lights each; fringe back hair with ombre ends sits behind the body', async () => {
+    const ops = await draw(lead(), { yaw: 0 });
+    expect(ops.filter((o) => o.fill === '#ffffff').length).toBeGreaterThanOrEqual(4);
+    const dot = await draw(lead({ eyes: 'dot', extras: [] }), { yaw: 0 });
+    expect(dot.filter((o) => o.fill === '#ffffff').length).toBe(2);
+    const tips = ops.findIndex((o) => o.fill === '#c0507a');
+    const shirt = ops.findIndex((o) => o.fill === '#3a2a2a');
+    expect(tips).toBeGreaterThan(-1);
+    expect(tips).toBeLessThan(shirt);
+    // Without hairTips there is no ombre colour anywhere.
+    expect((await draw(lead({ hairTips: undefined }))).some((o) => o.fill === '#c0507a')).toBe(false);
+  });
+
+  it('side locks hang from the temples: both at the front, only the near ones in profile', async () => {
+    const ch = lead({ hairTips: undefined, hair: '#4a2a30' });
+    const locks = async (yaw: number) => (await draw(ch, { yaw })).filter((o) => o.fill === '#4a2a30' && !o.clip).length;
+    expect(await locks(0)).toBeGreaterThan(await locks(90));
   });
 });

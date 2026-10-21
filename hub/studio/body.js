@@ -247,6 +247,10 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
   const skin = ch.skin;
   const top = ch.top;
   const bottom = ch.bottom;
+  const skirt = ch.bottomStyle === 'skirt' || ch.bottomStyle === 'longskirt';
+  const bare = ch.topStyle === 'sleeveless' || ch.topStyle === 'turtleneck';
+  const longSleeve = ch.topStyle === 'long';
+  const legC = skirt ? skin : bottom; // bare legs under a skirt
   const fwdChest = frames.chest([0, 0, 1]);
   const fwdBody = frames.body([0, 0, 1]);
 
@@ -263,10 +267,10 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     parts.push({
       z: -1e6 + Pj(L.knee)[2],
       draw: () => {
-        if (whole) solid(pen, 'leg' + s, whole.pts, bottom, { axis: whole.axis, width: line });
+        if (whole) solid(pen, 'leg' + s, whole.pts, legC, { axis: whole.axis, width: line });
         else {
-          solid(pen, 'shin' + s, shin.pts, bottom, { axis: shin.axis, width: line });
-          solid(pen, 'thigh' + s, thigh.pts, bottom, { axis: thigh.axis, width: line });
+          solid(pen, 'shin' + s, shin.pts, legC, { axis: shin.axis, width: line });
+          solid(pen, 'thigh' + s, thigh.pts, legC, { axis: thigh.axis, width: line });
         }
         shoe(s, L);
       },
@@ -325,12 +329,40 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     ring(add(sk.pelvis, fP([0, 0.012 * H, 0])), fP, hw * 1.05 * H, hd * 1.08 * H),
   ];
   const shirt = stackOutline(shirtRings, Pj);
+  // A skirt: rings from the waist flaring to a hem at the knee or the ankle.
+  let skirtO = null;
+  if (skirt) {
+    const long = ch.bottomStyle === 'longskirt';
+    const drop = (long ? 0.4 : 0.2) * H;
+    const flare = long ? 1.55 : 1.42;
+    const sway = (p.hairSwing || 0) * 0.02 * H;
+    skirtO = stackOutline([
+      ring(add(sk.waist, fW([0, 0.03 * H, 0])), fW, ww * 1.04 * H, wd * 1.04 * H),
+      ring(add(sk.pelvis, fP([0, 0.01 * H, 0])), fP, hw * 1.08 * H, hd * 1.1 * H),
+      ring(add(sk.pelvis, fP([sway, drop, 0])), fP, hw * flare * H, hd * flare * 1.1 * H, 24),
+    ], Pj);
+  }
   const chestZ = Pj(sk.chest)[2];
   const axisT = [Pj(sk.pelvis), Pj(sk.neckBase)];
   parts.push({
     z: -5e5,
     draw: () => {
-      solid(pen, 'pants', pants.pts, bottom, { axis: axisT, width: line, round: 0.75 });
+      if (skirtO) {
+        solid(pen, 'skirt', skirtO.pts, bottom, { axis: axisT, width: line, round: 0.75 });
+        // Hem and two folds running down from the hips.
+        const hem = skirtO.frontArc(2);
+        if (hem.length > 4) {
+          const q = hem.filter((_, i) => i % 2 === 0);
+          pen.stroke('skirtHem', curve(q, 3), { width: line * 0.5, color: mix(bottom, ink, 0.55) });
+          const L = skirtO.left;
+          const R = skirtO.right;
+          for (const f of [0.33, 0.66]) {
+            const lo = q[Math.round(f * (q.length - 1))];
+            const hi = [L[1][0] + (R[1][0] - L[1][0]) * f, L[1][1] + (R[1][1] - L[1][1]) * f];
+            pen.stroke('fold' + f, [[hi[0] + (lo[0] - hi[0]) * 0.35, hi[1] + (lo[1] - hi[1]) * 0.35], lo], { width: line * 0.45, color: mix(bottom, ink, 0.5) });
+          }
+        }
+      } else solid(pen, 'pants', pants.pts, bottom, { axis: axisT, width: line, round: 0.75 });
       solid(pen, 'shirt', shirt.pts, top, { axis: axisT, width: line, round: 0.75 });
       // Hem and a crease where the spine bends.
       const hem = shirt.frontArc(4);
@@ -355,7 +387,12 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       const front = (pts) => pts.filter((_, i) => i >= 2 && i <= 10);
       const band = [...front(col), ...front(inner).reverse()];
       const toCam = Pj(add(sk.neckBase, mul(fwdChest, 10)))[2] - Pj(sk.neckBase)[2];
-      if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
+      if (ch.topStyle === 'turtleneck') {
+        // A high rolled collar: a tube up the lower neck with a fold line.
+        const tn = tube(Pj, add(sk.neckBase, fC([0, 0.012 * H, 0])), add(sk.neckBase, mul(unit([sk.neckTop[0] - sk.neckBase[0], sk.neckTop[1] - sk.neckBase[1], sk.neckTop[2] - sk.neckBase[2]]), 0.032 * H)), () => 0.041 * H * lim ** 0.5);
+        solid(pen, 'turtle', tn.pts, top, { axis: tn.axis, width: line * 0.85 });
+        if (toCam > -3) pen.stroke('turtleFold', curve(front(ring(add(sk.neckBase, fC([0, -0.008 * H, 0])), fC, 0.044 * H, 0.043 * H, 24).map(Pj)).filter((_, i) => i % 2 === 0), 3), { width: line * 0.45, color: mix(top, ink, 0.55) });
+      } else if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
     },
   });
 
@@ -382,12 +419,27 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       const t = Math.sign((thumbV[0] - W[0]) * nrm[0] + (thumbV[1] - W[1]) * nrm[1]) || (s === 'F' ? 1 : -1) * facing;
       hand(pen, 'hand' + s, W, dir, t, 0.068 * H * (ch.headSize || 1) ** 0.4, Math.max(0.45, Math.min(1, d3 * 1.1)), p['grip' + s] || 'relaxed', skin, line);
     };
-    const drawSleeve = () => solid(pen, 'sleeve' + s, sleeve.pts, top, { axis: sleeve.axis, width: line * 0.9 });
+    const drawSleeve = () => {
+      if (bare) return;
+      if (longSleeve) {
+        // The arm itself is the sleeve; a cuff line near the wrist.
+        const W = Pj(A.wr);
+        const E = Pj(A.el);
+        const k = 0.86;
+        const c = [E[0] + (W[0] - E[0]) * k, E[1] + (W[1] - E[1]) * k];
+        const nn = n2([-(W[1] - E[1]), W[0] - E[0]]);
+        const rr = 0.024 * H * lim * (W[3] || 1);
+        pen.stroke('cuff' + s, [[c[0] + nn[0] * rr, c[1] + nn[1] * rr], [c[0] - nn[0] * rr, c[1] - nn[1] * rr]], { width: line * 0.5, color: mix(top, ink, 0.55) });
+        return;
+      }
+      solid(pen, 'sleeve' + s, sleeve.pts, top, { axis: sleeve.axis, width: line * 0.9 });
+    };
+    const armC = longSleeve ? top : skin;
     if (whole) {
       parts.push({
         z: behind(whole.z) ? -7e5 + whole.z : whole.z,
         draw: () => {
-          solid(pen, 'arm' + s, whole.pts, skin, { axis: whole.axis, width: line * 0.9 });
+          solid(pen, 'arm' + s, whole.pts, armC, { axis: whole.axis, width: line * 0.9 });
           drawSleeve();
           drawHand();
         },
@@ -398,7 +450,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     parts.push({
       z: behind(zU) ? -7e5 + zU : zU,
       draw: () => {
-        solid(pen, 'uarm' + s, upper.pts, skin, { axis: upper.axis, width: line * 0.9 });
+        solid(pen, 'uarm' + s, upper.pts, armC, { axis: upper.axis, width: line * 0.9 });
         drawSleeve();
       },
     });
@@ -408,7 +460,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     parts.push({
       z: (behind(zF) ? -7e5 + zF : zF) + order,
       draw: () => {
-        solid(pen, 'farm' + s, foreT.pts, skin, { axis: foreT.axis, width: line * 0.9 });
+        solid(pen, 'farm' + s, foreT.pts, armC, { axis: foreT.axis, width: line * 0.9 });
         drawHand();
       },
     });
