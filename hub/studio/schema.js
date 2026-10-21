@@ -15,6 +15,7 @@ export const JAWS = ['round', 'v'];
 export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
 export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
 export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge', 'sweat'];
+export const CAP_POS = ['bottom', 'top']; // top = outlined subtitle line at top centre
 export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box'];
 
 // How the drawing looks. Agents may tune these; XIAO's rules set the defaults.
@@ -27,9 +28,11 @@ export const STYLE_RANGES = {
   grain: [0, 1], // paper texture
   misregister: [0, 1], // colour fills slipping off the outlines
   shade: [0, 1], // how strongly the 3D shading (form shadow, rim light) shows
+  fill: [0, 1], // colour fills: 1 = full colour, 0 = line art only (fills fade to the paper colour)
 };
-export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, paper: '#f7f1e3', ink: '#2a2420', captions: true };
+export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, fill: 1, paper: '#f7f1e3', ink: '#2a2420', captions: true, capPos: 'bottom' };
 
+const ZOOM = [1, 3.5]; // 3.5 = bust close-up, head and shoulders fill the frame
 const LIMITS = { scenes: 40, actors: 4, beats: 24, props: 6, cast: 6, say: 140, narration: 300, title: 80, idea: 2000, duration: [1, 30] };
 const SAMPLE_MAX_SECONDS = 25;
 const READ_CHARS_PER_SEC = 14; // a comfortable reading speed for captions and bubbles
@@ -52,6 +55,7 @@ export function normalizeStyle(s = {}, base = DEFAULT_STYLE) {
   out.paper = color(s.paper, base.paper);
   out.ink = color(s.ink, base.ink);
   out.captions = s.captions == null ? base.captions : !!s.captions;
+  out.capPos = pick(s.capPos, CAP_POS, base.capPos);
   return out;
 }
 
@@ -153,7 +157,14 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
       duration: clamp(s.duration, LIMITS.duration, 4),
       bg: { kind: pick(bg.kind, BACKGROUNDS, 'plain'), color: color(bg.color, '') || undefined },
       narration: text(s.narration, LIMITS.narration),
-      camera: { zoom: clamp(cam.zoom, [1, 4], 1), x: clamp(cam.x, [0, 1], 0.5), y: clamp(cam.y, [0, 1], 0.6) },
+      camera: {
+        zoom: clamp(cam.zoom, ZOOM, 1),
+        x: clamp(cam.x, [0, 1], 0.5),
+        y: clamp(cam.y, [0, 1], 0.6),
+        ...(cam.to && typeof cam.to === 'object'
+          ? { to: { zoom: clamp(cam.to.zoom, ZOOM, clamp(cam.zoom, ZOOM, 1)), x: clamp(cam.to.x, [0, 1], clamp(cam.x, [0, 1], 0.5)), y: clamp(cam.to.y, [0, 1], clamp(cam.y, [0, 1], 0.6)) } }
+          : {}),
+      },
       actors,
       props,
     });
@@ -230,9 +241,9 @@ export function schemaText() {
   return [
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
     `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, hair2? (ombre ends), eyeColor? (iris), top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, jaw ${JAWS.join('|')}, topStyle ${TOPS.join('|')}, bottomStyle ${BOTTOMS.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
-    `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-4 (3+ = face close-up), x 0-1, y 0-1}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], actors: [Actor] (max ${LIMITS.actors})}.`,
+    `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-3.5 (3 = bust close-up), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], actors: [Actor] (max ${LIMITS.actors})}.`,
     `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
-    `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, paper, ink}. Omit style to use XIAO's defaults.`,
+    `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, shade 0-1, fill 0-1 (0 = line art only), capPos bottom|top (top = outlined subtitle), paper, ink}. Omit style to use XIAO's defaults.`,
     `A sample is 1-2 scenes under ${SAMPLE_MAX_SECONDS} s.`,
   ].join('\n');
 }
