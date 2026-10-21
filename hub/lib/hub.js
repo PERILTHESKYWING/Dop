@@ -18,8 +18,9 @@ const THINK_LINE = {
   xhigh: 'Thinking: xHigh. Think harder: reason carefully before every step, weigh alternatives and check your work.',
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
-// seq counts messages; rev counts thread and account changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn' };
+// seq counts messages and new lessons (so a waiting agent notices both with
+// one small read); rev counts thread, account and lesson changes. The page polls both.
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', lessons: 'hub:lessons', lessonSeq: 'hub:lessonseq', seen: 'hub:seen' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 // A thread whose agent has said nothing for this long is treated as stopped.
@@ -28,6 +29,9 @@ export const STALL_MS = 15 * 60_000;
 // see new messages itself, so the hub does not start another session for it.
 const ACTIVE_MS = 3 * 60_000;
 const RESUME_GAP_MS = 30 * 60_000;
+const MAX_LESSONS = 100;
+// Lessons go to every account, so anything that looks like a key stays out.
+const SECRET = /sk-ant-|ghp_|gho_|github_pat_|AIza[0-9A-Za-z_-]{20}|xox[bp]-|-----BEGIN/;
 const ROUTINE_FIRES_PER_HOUR = 28; // Claude allows 30; keep a little spare.
 
 export const DEFAULT_SETTINGS = {
@@ -348,10 +352,6 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return (await store.cmd('LRANGE', K.feed, -limit, -1)).map((s) => parse(s)).filter(Boolean);
   }
 
-  async function messagesSince(after, filter = () => true, limit = 400) {
-    return (await feed(limit)).filter((m) => m.id > after && filter(m));
-  }
-
   // ---------- overhead budget ----------
   async function overhead() {
     const t = now();
@@ -551,7 +551,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       t.archived = false;
       if (t.status === 'done' || t.status === 'waiting' || t.status === 'stalled' || t.status === 'queued') t.status = 'new';
       await putThread(t);
-      // A running agent sees it with hub_wait; otherwise start one.
+      // A running agent gets it with its next hub call; otherwise start one.
       if (!(t.status === 'working' && now() - (t.lastAgentAt || 0) < ACTIVE_MS)) await dispatch(t);
       return msg;
     }
@@ -607,7 +607,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   // Everything the page shows, read in one round trip. With since, only
   // messages newer than that id come back.
   async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev] = await store.multi([
+    const [th, ac, fd, st, fi, tok, seq, rev, le] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
@@ -616,6 +616,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       ['GET', `hub:tok:${Math.floor(now() / FIVE_H)}`],
       ['GET', K.seq],
       ['GET', K.rev],
+      ['HGETALL', K.lessons],
     ]);
     const t = now();
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
@@ -638,6 +639,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       threads: ths,
       accounts: Object.values(hashToObj(ac)).map((a) => publicAccount(a, ths)),
       messages,
+      lessons: Object.values(hashToObj(le)).sort((a, b) => a.id - b.id),
       settings: s,
       overhead: { used, budget: s.overheadTokens, traffic: Number(tok || 0), coordinatorSessions, fires: fires.length, over: used >= s.overheadTokens },
     };
@@ -659,6 +661,82 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
         await dispatch(th, 'resume', { exclude: th.account ? [th.account] : [] });
       }
     }
+  }
+
+  // ---------- team lessons ----------
+  // What one agent learns (do this, don't do that) reaches every other agent
+  // on its next hub call, and every new session starts with all of them.
+  async function lessons() {
+    return Object.values(hashToObj(await store.cmd('HGETALL', K.lessons))).sort((a, b) => a.id - b.id);
+  }
+  function lessonLine(l) {
+    return `L${l.id}${l.by === 'XIAO' ? ' [XIAO]' : ''} ${l.kind === 'dont' ? "Don't" : 'Do'}: ${l.text}${l.why ? ` (why: ${l.why})` : ''}`;
+  }
+  function lessonsBlock(list) {
+    // XIAO's own lessons first: they win when two disagree.
+    const sorted = [...list.filter((l) => l.by === 'XIAO'), ...list.filter((l) => l.by !== 'XIAO')];
+    return sorted.length ? `Team lessons (learned by the whole team; follow them, and XIAO's win if two disagree):\n${sorted.map(lessonLine).join('\n')}` : 'Team lessons: none yet.';
+  }
+  const norm = (s) => String(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  async function learn({ text, kind, why = '', by, thread: tid = 0 }) {
+    text = clean(text, 280);
+    why = clean(why, 200);
+    if (!text) throw new Error('Write the lesson.');
+    if (SECRET.test(text) || SECRET.test(why)) throw new Error('That looks like a key or token. Lessons go to every account, so leave secrets out.');
+    const all = await lessons();
+    const same = all.find((l) => norm(l.text) === norm(text));
+    if (same) return { lesson: same, known: true };
+    const l = { id: Number(await store.cmd('INCR', K.lessonSeq)), kind: kind === 'dont' ? 'dont' : 'do', text, why, by: clean(by, 40) || 'agent', thread: Number(tid) || 0, at: now() };
+    // When full, the oldest lesson an agent wrote makes room; XIAO's stay.
+    const drop = all.length >= MAX_LESSONS ? all.find((x) => x.by !== 'XIAO') || all[0] : null;
+    await store.multi([['HSET', K.lessons, String(l.id), json(l)], ...(drop ? [['HDEL', K.lessons, String(drop.id)]] : []), ['INCR', K.seq], ['INCR', K.rev]]);
+    if (l.thread && l.by !== 'XIAO' && (await thread(l.thread))) await post({ thread: l.thread, from: l.by, kind: 'lesson', text: lessonLine(l) });
+    return { lesson: l, dropped: drop };
+  }
+  async function removeLesson(id) {
+    await store.multi([['HDEL', K.lessons, String(Number(id))], ['INCR', K.rev]]);
+  }
+
+  // ---------- news for one agent ----------
+  // Each agent (account + thread) has a marker of what it has seen, so any
+  // hub call it makes can carry what is new: messages in its thread from
+  // others, answers to questions it asked elsewhere, and new team lessons.
+  const seenKey = (agent, tid) => `${agent.name}|${Number(tid) || 0}`;
+  async function resetSeen(agent, tid) {
+    const [ls, ms] = await store.multi([['GET', K.lessonSeq], ['GET', K.seq]]);
+    await store.cmd('HSET', K.seen, seenKey(agent, tid), json({ l: Number(ls || 0), m: Number(ms || 0), q: [] }));
+  }
+  async function watchQuestion(agent, tid, qid) {
+    const field = seenKey(agent, tid);
+    const seen = parse(await store.cmd('HGET', K.seen, field)) || { l: 0, m: Number(qid), q: [] };
+    seen.q = [...new Set([...(seen.q || []), Number(qid)])].slice(-20);
+    await store.cmd('HSET', K.seen, field, json(seen));
+  }
+  // Returns { text, seq }: text is empty when nothing is new; seq is the hub's
+  // seq at the time of reading, for waiting on the next change.
+  async function news(agent, tid, { after } = {}) {
+    tid = Number(tid) || 0;
+    const field = seenKey(agent, tid);
+    const [raw, ls, ms] = await store.multi([['HGET', K.seen, field], ['GET', K.lessonSeq], ['GET', K.seq]]);
+    const L = Number(ls || 0);
+    const M = Number(ms || 0);
+    // First contact (no hub_start): no old messages, but every lesson.
+    const seen = { l: 0, m: M, q: [], ...parse(raw, {}) };
+    if (after != null && after !== '' && Number.isFinite(Number(after))) seen.m = Number(after);
+    if (L <= seen.l && M <= seen.m) return { text: '', seq: M };
+    const reads = [];
+    if (L > seen.l) reads.push(['HGETALL', K.lessons]);
+    if (M > seen.m) reads.push(['LRANGE', K.feed, -Math.min(400, M - seen.m), -1]);
+    const out = await store.multi(reads);
+    const fresh = L > seen.l ? Object.values(hashToObj(out.shift())).filter((l) => l.id > seen.l && !(l.by === agent.name && l.thread === tid)).sort((a, b) => a.id - b.id) : [];
+    const mine = (m) => tid && m.thread === tid && m.from !== agent.name && m.kind !== 'lesson' && !(m.from === 'hub' && m.kind === 'start');
+    const msgs = M > seen.m ? (out.shift() || []).map((x) => parse(x)).filter((m) => m && m.id > seen.m && (mine(m) || (m.kind === 'answer' && seen.q.includes(m.replyTo)))) : [];
+    const q = seen.q.filter((id) => !msgs.some((m) => m.kind === 'answer' && m.replyTo === id));
+    await store.cmd('HSET', K.seen, field, json({ l: L, m: M, q }));
+    const parts = [];
+    if (msgs.length) parts.push(`New messages for you:\n${msgs.slice(-12).map(msgLine).join('\n')}${msgs.length > 12 ? `\n(${msgs.length - 12} older ones: hub_read(${tid}))` : ''}`);
+    if (fresh.length) parts.push(`New team lessons:\n${fresh.map(lessonLine).join('\n')}`);
+    return { text: parts.join('\n\n'), seq: M };
   }
 
   // ---------- what an agent sees ----------
@@ -688,7 +766,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in XIAO's Dop hub (several Claude accounts working as one team on the Dop repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop.`;
+  const RULES = `Rules: you are one agent in XIAO's Dop hub (several Claude accounts working as one team on the Dop repo, sharing what they learn). Follow the team lessons above. Keep hub posts short. Call hub_sync between steps (after each commit, test run or finding): it answers at once with anything new (XIAO's replies, questions for you, answers to your questions, new lessons), and every other hub call brings that news too. The moment you learn something another agent would otherwise get wrong (a fix that worked, a mistake to avoid, a rule XIAO stated), save it with hub_learn. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need, and hub_wait only when you can't go on until a reply comes. Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop.`;
 
   async function start(agent, payloadText = '') {
     const p = parse(String(payloadText || '').match(/\{[\s\S]*\}/)?.[0] || '', {}) || {};
@@ -707,9 +785,11 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       t.status = 'working';
       t.lastAgentAt = now();
       await putThread(t);
+      // Marked before reading, so nothing that lands meanwhile is missed.
+      await resetSeen(agent, t.id);
       const role = p.role === 'answer' ? 'Answer the open question addressed to this thread (see messages), then stop.' : p.role === 'resume' ? 'The previous agent stopped. Continue from the last handover; check its branch first.' : 'Do the work in the brief.';
       const more = agent.plan === 'free' ? '\n\nWhen this thread is done, call hub_start again (no payload) for the next piece of work.' : '';
-      return `You are working on thread #${t.id} as ${agent.name}. ${role}\n${THINK_LINE[thinkingOf(t.thinking)]}\n\n${await threadText(t)}\n\n${RULES}${more}`;
+      return `You are working on thread #${t.id} as ${agent.name}. ${role}\n${THINK_LINE[thinkingOf(t.thinking)]}\n\n${await threadText(t)}\n\n${lessonsBlock(await lessons())}\n\n${RULES}${more}`;
     }
     // No payload: an agent checking in (PC agent, or a chat on any plan).
     const pending = await pendingPrompts();
@@ -734,11 +814,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function coordinatorBrief(prompts, s) {
+    // Only XIAO's own lessons matter for routing; agents' ones reach the workers.
+    const rules = (await lessons()).filter((l) => l.by === 'XIAO');
     return [
       `You are the coordinator of XIAO's Dop hub. Be brief: you are the hub's overhead, so spend as few tokens as you can and do not do the work yourself.`,
       `For each prompt below make ONE hub_route call (prompt_id, summary, threads) and then stop. Split a prompt into several threads only when parts can run in parallel or need different models; most prompts are one thread. Each thread: title (a few words), brief (XIAO's words plus anything from the overview it needs), model, code, account (usually empty). To continue an open thread instead, give its id as thread_id with the new brief. summary: one short line for XIAO.`,
       `Models: opus = hard or design work, sonnet = normal coding, haiku = small edits, lookups, checks. code=false for tasks that need no repo (questions, research, writing, reviewing text); the hub gives those to free helper accounts first. Leave account empty to let the hub choose.`,
       `If XIAO picked a model, thinking level or accounts for a prompt (shown after it), the hub applies them to its threads, so you don't need to. Otherwise choose thinking per thread: low for small tasks, medium normally, high, xhigh or max for hard ones.`,
+      ...(rules.length ? [`XIAO's rules (put any that apply into the briefs):\n${rules.map(lessonLine).join('\n')}`] : []),
       `Prompts:\n${prompts.map(promptLine).join('\n') || 'none (nothing to do)'}`,
       await overview(),
     ].join('\n\n');
@@ -831,13 +914,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   async function answerFor(qid) {
-    return (await feed(1500)).find((m) => m.replyTo === qid && m.kind === 'answer') || null;
+    // Answers come soon after their question, so the recent end is enough.
+    return (await feed(400)).find((m) => m.replyTo === qid && m.kind === 'answer') || null;
   }
 
   return {
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
-    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, snapshot, sweep, dispatch,
+    threads, thread, post, feed, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, snapshot, sweep, dispatch,
+    lessons, learn, removeLesson, news, watchQuestion,
     start, route, routed, agentPost, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again.
     version: async () => {

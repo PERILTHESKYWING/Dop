@@ -2,7 +2,21 @@
 // Claude on any account the hub tools: claude.ai chats (web, desktop, phone),
 // cloud Claude Code sessions and routines, and Claude Code on a PC.
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
+// Waiting agents check this often, with one small read (the hub's seq).
+const POLL_MS = 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Sleep until anything new lands in the hub, or until end. Returns the new
+// seq, or 0 when time ran out.
+async function nextChange(hub, from, end) {
+  while (Date.now() < end) {
+    await sleep(Math.min(POLL_MS, end - Date.now()));
+    const s = await hub.nextSeq();
+    if (s !== from) return s;
+  }
+  return 0;
+}
+// Tools whose replies also carry the caller's news, and which argument names its thread.
+const NEWS_ARG = { hub_post: 'thread', hub_checkpoint: 'thread', hub_ask: 'from_thread', hub_learn: 'thread' };
 
 export function toolsFor(hub) {
   const num = { type: 'number' };
@@ -78,31 +92,47 @@ export function toolsFor(hub) {
       run: async (a, x) => {
         const q = await hub.ask(a, x);
         const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 40) * 1000;
-        while (Date.now() < end) {
+        // seq is read before each look, so an answer landing in between still wakes us.
+        let seq = await hub.nextSeq();
+        for (;;) {
           const ans = await hub.answerFor(q.id);
           if (ans) return hub.msgLine(ans);
-          await sleep(2500);
+          if (!(seq = await nextChange(hub, seq, end))) break;
         }
-        return `No answer to #${q.id} yet. Carry on and check later with hub_wait(thread: ${x.from_thread || 0}, after: ${q.id - 1}), or hub_read(${x.to_thread}).`;
+        await hub.watchQuestion(a, x.from_thread, q.id);
+        return `No answer to #${q.id} yet. Carry on: the answer comes with your next hub call (hub_sync between steps), or use hub_wait(thread: ${x.from_thread || 0}) if you can't go on without it.`;
+      },
+    },
+    {
+      name: 'hub_sync',
+      description: 'Call between steps; answers at once. Returns anything new for your thread (XIAO\'s replies, questions for you, answers to questions you asked) and new team lessons, or "Nothing new."',
+      inputSchema: { type: 'object', properties: { thread: num }, required: ['thread'] },
+      run: async (a, x) => {
+        const tid = Number(x.thread) || 0;
+        const [, n] = await Promise.all([tid && hub.heartbeat(tid), hub.news(a, tid)]);
+        return n.text || 'Nothing new.';
       },
     },
     {
       name: 'hub_wait',
-      description: 'Wait up to wait_s (max 45) for new messages in a thread after message id `after` (questions for you, answers, new prompts from XIAO). Returns at once if there are any.',
+      description: 'Wait up to wait_s (max 45) for anything new for your thread: questions for you, answers to your questions, new prompts from XIAO, new team lessons. Returns the moment something arrives.',
       inputSchema: { type: 'object', properties: { thread: num, after: num, wait_s: num }, required: ['thread'] },
       run: async (a, x) => {
         const tid = Number(x.thread) || 0;
-        const after = Number(x.after) || 0;
         const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 20) * 1000;
-        const mine = (m) => m.thread === tid && m.from !== a.name;
-        for (;;) {
-          const list = await hub.messagesSince(after, mine);
-          if (list.length || Date.now() >= end) {
-            if (tid) await hub.heartbeat(tid);
-            return list.length ? list.map(hub.msgLine).join('\n') : 'No new messages.';
-          }
-          await sleep(3000);
-        }
+        // The agent is alive while it waits; marking that first keeps it off the way back.
+        let [, n] = await Promise.all([tid && hub.heartbeat(tid), hub.news(a, tid, { after: x.after })]);
+        while (!n.text && (await nextChange(hub, n.seq, end))) n = await hub.news(a, tid);
+        return n.text || 'No new messages.';
+      },
+    },
+    {
+      name: 'hub_learn',
+      description: 'Teach every account at once. Save a lesson the moment you learn it: something that worked or failed that other agents would otherwise repeat (a command, a repo gotcha, a rule XIAO stated). kind "do" or "dont", one short sentence, and why. Every other agent gets it on its next hub call. Never put keys or passwords in a lesson.',
+      inputSchema: { type: 'object', properties: { lesson: str, kind: { type: 'string', enum: ['do', 'dont'] }, why: str, thread: num }, required: ['lesson', 'kind'] },
+      run: async (a, x) => {
+        const r = await hub.learn({ text: x.lesson, kind: x.kind, why: x.why, by: a.name, thread: x.thread });
+        return r.known ? `Already known as L${r.lesson.id}.` : `Saved as L${r.lesson.id}. Every account gets it on its next hub call.`;
       },
     },
     {
@@ -162,7 +192,11 @@ export async function handleMcp(hub, agent, body) {
     const args = params.arguments || {};
     try {
       await hub.sweep();
-      const text = String(await tool.run(agent, args));
+      let text = String(await tool.run(agent, args));
+      if (NEWS_ARG[tool.name]) {
+        const n = await hub.news(agent, args[NEWS_ARG[tool.name]]);
+        if (n.text) text += `\n\n${n.text}`;
+      }
       await hub.countTraffic(JSON.stringify(args).length + text.length);
       return ok({ content: [{ type: 'text', text }] });
     } catch (e) {
