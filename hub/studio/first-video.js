@@ -12,7 +12,7 @@ const HOME = { kind: 'plain', color: '#e4f5ff' };
 const BUST = (x, extra = {}) => ({ zoom: 4.2, x, y: 0.475, ...extra }); // head and shoulders, cut at the chest
 const CLOSE = (x, extra = {}) => ({ zoom: 5.2, x, y: 0.465, ...extra }); // the face fills the frame (shock, crash-out)
 const CHEST = (x, extra = {}) => ({ zoom: 3.4, x, y: 0.5, ...extra }); // head to the waist: hands in view
-const DESK = (x) => ({ zoom: 2.2, x, y: 0.58 }); // sitting at the desk, the table across the bottom
+const DESK = (x) => ({ zoom: 2.9, x, y: 0.53 }); // sitting at the desk, the table across the bottom
 const nami = (x, beats, facing = 1) => [{ who: 'nami', x, facing, beats }];
 const shot = (id, duration, narration, actors, more = {}) => ({ id, duration, bg: HOME, narration, actors, ...more });
 
@@ -37,11 +37,11 @@ export const FIRST_VIDEO = {
     shot('guys-2', 0.3, 'Guys!', nami(0.5, [{ t: 0, move: 'cheek', face: 'worried', quiet: true }]), { camera: BUST(0.47, { zoom: 4.5 }) }),
     // 0:01.4 Points back at her first video's thumbnail, blank shock.
     shot('three-days', 2.9, 'It literally has been three days!', nami(0.64, [{ t: 0, move: 'point', face: 'shock' }], -1), {
-      camera: CHEST(0.58), marks: [{ kind: 'thumb', x: 0.24, y: 0.42, text: 'MY 1ST VIDEO' }],
+      camera: CHEST(0.58), props: [{ kind: 'thumb', x: 0.22, y: 0.42, scale: 1, text: 'MY 1ST VIDEO' }],
     }),
     // 0:04.3 The stakes: extreme close-up, hands clasped, SHOCK and shock lines.
     shot('subs', 1.5, 'dym I already have like 2k subscribers???', nami(0.5, [{ t: 0, move: 'clasp', face: 'shock' }]), {
-      camera: { zoom: 3.6, x: 0.48, y: 0.5 }, marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.86, y: 0.2 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
+      camera: { zoom: 3.6, x: 0.48, y: 0.5 }, marks: [{ kind: 'sfx', text: 'SHOCK', x: 0.76, y: 0.16 }, { kind: 'lines', x: 0.16, y: 0.4 }, { kind: 'sweat', x: 0.6, y: 0.4, t: 0.3 }],
     }),
     // 0:05.8 Her goal sign, the 1 struck out; she peeks up from the bottom edge.
     shot('sign', 2.5, 'dym I already have like 2k subscribers???', [], {
@@ -84,11 +84,11 @@ export const FIRST_VIDEO = {
     }),
     // 0:33.5 Phone in both hands, amazed.
     shot('comments', 3.9, 'and thank you all for the comments and support', nami(0.5, [{ t: 0, move: 'phone', face: 'surprised' }]), {
-      camera: BUST(0.5), marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.8, y: 0.34, t: 0.4 }],
+      camera: BUST(0.5), props: [{ kind: 'phone', x: 0.5, y: 0.9, scale: 1.3 }], marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34, t: 0.4 }],
     }),
     // 0:37.4 Same, softer, with an "Aww!" bubble.
     shot('motivation', 2.6, 'it gave me so much motivation', nami(0.5, [{ t: 0, move: 'phone', face: 'shy' }]), {
-      camera: BUST(0.5, { zoom: 4.5 }), marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.8, y: 0.34 }],
+      camera: BUST(0.5, { zoom: 4.5 }), props: [{ kind: 'phone', x: 0.5, y: 0.94, scale: 1.4 }], marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34 }],
     }),
     // 0:39.1 The long hold: fist up, eyes squeezed shut.
     shot('cheer', 7.0, 'I even started the next video right away because I was so pumped!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }]), {
