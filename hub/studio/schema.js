@@ -102,6 +102,8 @@ function normalizeBeat(b, where, problems, castIds) {
   if (b.look != null) out.look = Number(b.look) < 0 ? -1 : 1;
   if (b.at && castIds.includes(b.at)) out.at = b.at; // who to point or look at
   if (b.quiet) out.quiet = true; // faceCam: keep the mouth still under the caption
+  if (Number.isFinite(Number(b.roll)) && b.roll != null) out.roll = clamp(b.roll, [-30, 30], 0); // head tilt, degrees
+  if (Number.isFinite(Number(b.turn)) && b.turn != null) out.turn = clamp(b.turn, [-20, 20], 0); // head turn, degrees
   return out;
 }
 

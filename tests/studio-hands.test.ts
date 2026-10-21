@@ -122,9 +122,17 @@ describe('studio hands', () => {
     // Fingers point up in the face poses (the wrist bends).
     for (const move of ['cheek', 'oneup', 'peace', 'cover', 'palms']) expect(held(move).sk.armF.hd[1], move).toBeLessThan(-0.5);
     // Two-handed poses bring both hands together; the phone is held at the chest.
-    for (const move of ['phone', 'palms', 'cover']) {
+    for (const move of ['phone', 'palms']) {
       const { sk, H } = held(move);
       expect(Math.hypot(sk.armF.wr[0] - sk.armB.wr[0], sk.armF.wr[1] - sk.armB.wr[1]) / H, move).toBeLessThan(0.09);
+    }
+    // Hands over the face (f2 still 33): two big cupped hands, wrists apart,
+    // their fingertips meeting at the nose.
+    {
+      const { sk, H } = held('cover');
+      const tipOf = (A: any) => A.wr.map((v: number, i: number) => v + A.hd[i] * 0.105 * H * ch.headSize ** 2 * 1.3);
+      const [f, b] = [tipOf(sk.armF), tipOf(sk.armB)];
+      expect(Math.hypot(f[0] - b[0], f[1] - b[1]) / H, 'cover tips').toBeLessThan(0.06);
     }
     const ph = held('phone').sk;
     expect(ph.armF.wr[1]).toBeGreaterThan(ph.neckBase[1]);

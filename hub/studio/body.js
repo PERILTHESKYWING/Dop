@@ -4,7 +4,7 @@
 // have real shapes. Each part comes back with a depth so the rig can paint
 // back to front and an arm can pass in front of or behind the body.
 import { curve, ellipse, loop, mix } from './draw.js';
-import { add, mul, unit } from './skel.js';
+import { add, dot, mul, unit } from './skel.js';
 
 const TAU = Math.PI * 2;
 
@@ -24,11 +24,13 @@ const n2 = (a) => {
 };
 
 // Points of a horizontal ring (cross-section) of the body, in 3D.
+// w may be [width on the -x side, width on the +x side].
 function ring(c, fr, w, d, n = 18, zOff = 0) {
   const out = [];
   for (let i = 0; i < n; i++) {
     const t = (i / n) * TAU;
-    out.push(add(c, fr([Math.cos(t) * w, 0, Math.sin(t) * d + zOff])));
+    const ww = Array.isArray(w) ? w[Math.cos(t) < 0 ? 0 : 1] : w;
+    out.push(add(c, fr([Math.cos(t) * ww, 0, Math.sin(t) * d + zOff])));
   }
   return out;
 }
@@ -241,7 +243,14 @@ const fingers = (list, gap) => list.flatMap(([vc, w, ut, lean = 0], i) => {
   const a = vc - w / 2;
   const b = vc + w / 2;
   const out = i ? [[gap, a + lean * 0.15]] : [];
-  out.push([ut - w * 1.1, a + lean * 0.6], [ut - w * 0.35, a + lean * 0.95 + w * 0.06], [ut, vc + lean], [ut - w * 0.35, b + lean * 0.95 - w * 0.06], [ut - w * 1.1, b + lean * 0.6]);
+  // A round tip: a half circle of the finger's width.
+  const r = w / 2;
+  const c = ut - r * 0.9;
+  out.push([ut - w * 1.6, a + lean * 0.45], [c, a + lean * 0.95]);
+  for (const t of [0.55]) out.push([c + Math.sin(t * Math.PI / 2) * r * 0.9, vc + lean - Math.cos(t * Math.PI / 2) * r]);
+  out.push([ut, vc + lean]);
+  for (const t of [0.55]) out.push([c + Math.sin(t * Math.PI / 2) * r * 0.9, vc + lean + Math.cos(t * Math.PI / 2) * r]);
+  out.push([c, b + lean * 0.95], [ut - w * 1.6, b + lean * 0.45]);
   return out;
 });
 // A ball fist: a round palm with knuckle bumps across its far side.
@@ -263,8 +272,23 @@ const HANDS = {
   },
   // Index finger out, the others curled, the thumb out to the side.
   point: {
+    size: 0.85,
     out: [[0.05, -0.15], [0.26, -0.31], [0.5, -0.36], [0.68, -0.31], [0.77, -0.19], [0.74, -0.03], ...fingers([[0.06, 0.15, 1.32]], 0), [0.64, 0.16], [0.66, 0.28], [0.66, 0.38], [0.58, 0.42], [0.42, 0.36], [0.26, 0.28], [0.1, 0.16]],
     lines: [[[0.73, -0.2], [0.6, -0.18]], [[0.73, -0.08], [0.6, -0.06]]],
+  },
+  // An "L" (f2 still 37): the index straight up at the thumb side, the thumb
+  // out at about 45 degrees, the other three curled into the palm with a
+  // knuckle line each.
+  one: {
+    out: [[0.05, -0.17], [0.28, -0.29], [0.47, -0.33], [0.6, -0.32], [0.67, -0.26], [0.69, -0.18], [0.72, -0.11], [0.74, -0.04], ...fingers([[0.065, 0.17, 1.36]], 0), [0.62, 0.15], [0.55, 0.2], [0.64, 0.31], [0.76, 0.44], [0.85, 0.56], [0.84, 0.63], [0.76, 0.64], [0.6, 0.52], [0.42, 0.4], [0.22, 0.27], [0.08, 0.17]],
+    lines: [[[0.6, -0.3], [0.56, -0.21], [0.6, -0.13]], [[0.69, -0.18], [0.61, -0.1], [0.66, -0.03]], [[0.5, -0.3], [0.46, -0.1], [0.5, 0.0]], [[0.44, 0.26], [0.54, 0.36], [0.64, 0.44]]],
+  },
+  // A finger on the chin (f2 still 27): a loose curl seen from the palm side,
+  // the thumb up along the outer edge, the index bent toward the chin and the
+  // other three curled into the palm with a knuckle line each.
+  chin: {
+    out: [[0.05, -0.18], [0.3, -0.3], [0.5, -0.33], [0.62, -0.3], [0.7, -0.24], [0.74, -0.15], [0.77, -0.07], [0.82, -0.03], [0.96, -0.08], [1.08, -0.16], [1.15, -0.22], [1.21, -0.19], [1.2, -0.1], [1.11, 0.0], [0.97, 0.09], [0.82, 0.15], [0.68, 0.19], [0.62, 0.22], [0.7, 0.29], [0.77, 0.35], [0.78, 0.41], [0.72, 0.44], [0.58, 0.43], [0.42, 0.37], [0.26, 0.29], [0.1, 0.17]],
+    lines: [[[0.62, -0.28], [0.56, -0.2], [0.6, -0.12]], [[0.72, -0.2], [0.65, -0.12], [0.7, -0.04]], [[0.5, -0.31], [0.47, -0.12], [0.52, 0.0]], [[0.98, 0.04], [1.0, -0.05]], [[0.5, 0.3], [0.58, 0.34]]],
   },
   // Fingers together and straight, the palm toward the camera (hand on a
   // cheek, palms together, hands over the face): four fingers, the thumb apart.
@@ -277,6 +301,33 @@ const HANDS = {
     out: [[0.05, -0.15], [0.28, -0.31], [0.52, -0.35], [0.7, -0.3], [0.76, -0.17], [0.72, -0.08], ...fingers([[-0.0, 0.14, 1.22, -0.16], [0.15, 0.14, 1.26, 0.16]], 0.72), [0.66, 0.26], [0.6, 0.38], [0.44, 0.38], [0.28, 0.3], [0.1, 0.16]],
     lines: [[[0.44, 0.3], [0.6, 0.16], [0.68, 0.0]], [[0.7, -0.2], [0.58, -0.18]]],
   },
+  // A flat hand nearly edge-on (f2 still 0, the hand by her cheek): the four
+  // fingers together in one slim shape with shallow notches at the tips, the
+  // thumb tucked along the palm's edge.
+  edge: {
+    out: [[0.05, -0.15], [0.3, -0.2], [0.6, -0.2], [0.86, -0.19], [0.97, -0.15], [1.0, -0.105], [0.96, -0.08], [1.06, -0.06], [1.1, -0.01], [1.07, 0.03], [1.1, 0.06], [1.08, 0.11], [1.01, 0.13], [0.96, 0.15], [0.86, 0.17], [0.62, 0.2], [0.56, 0.27], [0.48, 0.3], [0.32, 0.27], [0.12, 0.16]],
+    lines: [[[0.98, -0.085], [0.7, -0.08]], [[1.07, 0.035], [0.74, 0.03]], [[0.58, 0.2], [0.36, 0.17]]],
+  },
+  // Cupped over the nose and mouth (f2 still 33): seen from the back, long
+  // fingers together (a crease between each), the thumb tucked out of sight.
+  cup2: {
+    size: 1.3,
+    out: [[0.05, -0.2], [0.3, -0.26], [0.62, -0.27], [0.84, -0.25], [0.93, -0.22], [0.96, -0.17], [0.93, -0.13], [1.01, -0.12], [1.06, -0.08], [1.07, -0.035], [1.04, -0.01], [1.09, 0.01], [1.11, 0.06], [1.09, 0.1], [1.05, 0.12], [1.06, 0.16], [1.02, 0.21], [0.94, 0.25], [0.7, 0.28], [0.4, 0.26], [0.12, 0.2]],
+    lines: [[[0.93, -0.13], [0.62, -0.12]], [[1.04, -0.01], [0.66, -0.01]], [[1.05, 0.12], [0.66, 0.12]], [[0.74, -0.2], [0.78, -0.12]], [[0.78, 0.04], [0.82, 0.1]], [[0.4, 0.22], [0.5, 0.16]]],
+  },
+  // A loose curl seen from the front (f2 still 47, under the chin): four
+  // knuckles across the top, the fingertips tucked in a row under them, the
+  // thumb curled across the front.
+  curl: {
+    out: [[0.05, -0.18], [0.3, -0.27], [0.56, -0.31], [0.72, -0.31], [0.82, -0.26], [0.86, -0.2], [0.9, -0.15], [0.93, -0.09], [0.92, -0.04], [0.95, 0.0], [0.97, 0.05], [0.95, 0.1], [0.94, 0.14], [0.9, 0.2], [0.82, 0.25], [0.7, 0.3], [0.56, 0.34], [0.42, 0.33], [0.26, 0.26], [0.1, 0.17]],
+    lines: [[[0.88, -0.16], [0.72, -0.14]], [[0.92, -0.04], [0.74, -0.03]], [[0.94, 0.09], [0.76, 0.09]], [[0.68, -0.27], [0.62, -0.1], [0.64, 0.08], [0.7, 0.2]], [[0.4, 0.28], [0.5, 0.12], [0.6, 0.02]]],
+  },
+  // Fingers draped over a shoulder (f2 still 6): the back of the hand, four
+  // thin fingers apart from each other, their tips curling down.
+  drape: {
+    out: [[0.05, -0.15], [0.3, -0.27], [0.56, -0.29], ...fingers([[-0.21, 0.095, 0.98, -0.07], [-0.075, 0.1, 1.12, -0.08], [0.06, 0.1, 1.16, -0.07], [0.19, 0.095, 1.06, -0.05]], 0.84), [0.62, 0.26], [0.7, 0.34], [0.72, 0.42], [0.64, 0.45], [0.48, 0.4], [0.3, 0.3], [0.1, 0.16]],
+    lines: [[[0.6, -0.14], [0.64, -0.07]], [[0.62, 0.0], [0.66, 0.06]], [[0.6, 0.13], [0.64, 0.19]], [[0.9, -0.12], [0.94, -0.06]], [[0.98, 0.0], [1.0, 0.07]]],
+  },
   // Fingers curled round something held (a phone, a shoulder).
   hold: {
     out: [[0.05, -0.15], [0.3, -0.31], [0.6, -0.33], ...fingers([[-0.2, 0.13, 0.84], [-0.07, 0.14, 0.93], [0.07, 0.14, 0.94], [0.2, 0.13, 0.86]], 0.76), [0.62, 0.27], [0.66, 0.38], [0.58, 0.46], [0.4, 0.4], [0.24, 0.3], [0.1, 0.16]],
@@ -288,7 +339,9 @@ HANDS.cup = HANDS.relaxed;
 HANDS.open = HANDS.flat;
 HANDS.up = HANDS.point;
 // Grips that show the palm, the thumb on the outer side.
-const PALM = new Set(['open', 'flat', 'peace', 'point', 'up']);
+const PALM = new Set(['open', 'flat', 'peace', 'point', 'up', 'chin', 'edge']);
+// Grips seen from the back of the hand: the thumb toward the body's middle.
+const INNER = new Set(['one']);
 
 // A hand at the wrist W (screen) along dir (screen unit), thumb toward thumb
 // (+1/-1), length Lpx, foreshortened by fs (0.4..1). Returns the outline
@@ -301,10 +354,10 @@ function handShape(W, dir, thumb, Lpx, fs, grip) {
   const V = [-dir[1] * Lpx * thumb, dir[0] * Lpx * thumb];
   const at = ([u, v]) => [W[0] + U[0] * u + V[0] * v, W[1] + U[1] * u + V[1] * v];
   // Rounded through the knuckles and fingertips; the wrist end is open.
-  const open = curve(h.out.filter(([u]) => u >= 0.15).map(at), 4);
+  const open = curve(h.out.filter(([u]) => u >= 0.15).map(at), 6);
   // Drawn on its own (a sleeve, or a forearm pointing at the camera), the
   // hand starts a little inside the arm, so its base covers the wrist.
-  const closed = loop([[-0.1, 0.13], [-0.1, -0.13], ...h.out].map(at), 4);
+  const closed = loop([[-0.1, 0.13], [-0.1, -0.13], ...h.out].map(at), 6);
   return { open, closed, lines: h.lines.map((l) => curve(l.map(at), 3)), V };
 }
 
@@ -405,14 +458,35 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
   // the armhole runs from the neck down into the armpit. Under it, the bare
   // skin of the upper chest and shoulders, sloping from the neck.
   const cutIn = ch.topStyle === 'sleeveless' || ch.topStyle === 'turtleneck';
+  // Arm thickness: a big-headed cartoon gets fuller arms with it (f2's upper
+  // arm is about 0.37 of the face's width), so they never read as sticks.
+  const armK = (ch.headSize || 1) ** 1.6;
+  const shR = 0.036 * lim * armK; // upper arm radius at the shoulder, share of H
+  // The cap is full while an arm hangs and shrinks as it rises (a raised arm
+  // makes the shoulder's line itself). Widths per side [F, B], share of H.
+  const capOf = (s) => {
+    const A = sk['arm' + s];
+    const u = unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]);
+    const hang = Math.max(0, Math.min(1, dot(u, frames.chest([0, 1, 0])) * 1.4));
+    return smooth(hang);
+  };
+  const hangs = { F: capOf('F'), B: capOf('B') };
+  const capF = 0.3 + 0.7 * hangs.F;
+  const capB = 0.3 + 0.7 * hangs.B;
+  const capW = (k) => [(b.sh * 0.88 + k * capF * shR) * H, (b.sh * 0.88 + k * capB * shR) * H];
   const at = (y, z = 0) => add(sk.chest, fC([0, y * H, z * H]));
   const skinTorso = cutIn ? stackOutline([
     ring(sk.neckBase, fC, 0.05 * H, 0.046 * H),
+    // The shoulder rounds over a deltoid cap as wide as the arm's outer
+    // edge (f2: no corner where the slope meets the arm).
     ring(at(-0.064, -0.004), fC, b.sh * 0.62 * H, cd * 0.72 * H),
-    ring(at(-0.042, -0.006), fC, b.sh * 0.9 * H, cd * 0.8 * H),
-    ring(at(-0.014, -0.006), fC, b.sh * 1.05 * H, cd * 0.85 * H),
-    ring(at(0.018), fC, b.sh * 0.88 * H, cd * H),
-    ring(at(0.05), fC, b.sh * 0.6 * H, cd * H),
+    ring(at(-0.048, -0.006), fC, b.sh * 0.8 * H, cd * 0.78 * H),
+    ring(at(-0.034, -0.006), fC, capW(0.6), cd * 0.82 * H),
+    ring(at(-0.016, -0.006), fC, capW(0.9), cd * 0.85 * H),
+    ring(at(0.004), fC, capW(0.98), cd * 0.92 * H),
+    ring(at(0.026), fC, capW(0.9), cd * H),
+    ring(at(0.05), fC, b.sh * 0.72 * H, cd * H),
+    ring(at(0.07), fC, b.sh * 0.55 * H, cd * H),
   ], Pj) : null;
   const shirt = cutIn ? stackOutline([
     ring(sk.neckBase, fC, 0.055 * H, 0.05 * H),
@@ -488,14 +562,16 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       // A high collar hugging the neck: a rolled turtleneck, or the low
       // mock neck of f2's sleeveless top (a soft band in the top's colour,
       // one thin line along its top edge).
-      const high = (hgt, fold) => {
+      // soft: the mock neck, a fill with no outline (its round lower end
+      // would draw a circle on the chest), only the line along its top.
+      const high = (hgt, fold, soft = false) => {
         const rad = 0.041 * H * nw;
         const tn = tube(Pj, add(sk.neckBase, fC([0, 0.012 * H, 0])), add(sk.neckBase, mul(up, hgt * H)), () => rad);
-        solid(pen, 'turtle', tn.pts, top, { axis: tn.axis, width: line * 0.7 });
+        solid(pen, 'turtle', tn.pts, top, { axis: tn.axis, width: soft ? 0 : line * 0.7 });
         if (toCam > -3) pen.stroke('turtleFold', curve(front(ring(add(sk.neckBase, mul(up, (hgt - fold) * H)), fC, rad * 1.02, rad, 24).map(Pj)).filter((_, i) => i % 2 === 0), 3), { width: line * 0.35, color: mix(top, ink, 0.4) });
       };
       if (ch.topStyle === 'turtleneck') high(0.032, 0.04);
-      else if (ch.topStyle === 'sleeveless') high(0.014, 0.011);
+      else if (ch.topStyle === 'sleeveless') high(0.014, 0, true);
       else if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
     },
   });
@@ -511,8 +587,8 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     // The upper arm is thickest at the shoulder and narrows to the elbow; the
     // forearm swells just below the elbow and tapers to a slim wrist,
     // narrower than the hand.
-    const upR = (t) => (0.036 - 0.013 * smooth(t)) * H * lim;
-    const foR = (t) => (0.024 - 0.0115 * smooth(t)) * H * lim;
+    const upR = (t) => (0.036 - 0.011 * smooth(t)) * H * lim * armK;
+    const foR = (t) => (0.024 - 0.0115 * smooth(t)) * H * lim * armK ** 0.8;
     const upB = (t) => 0.08 * bump(t, 0.35, 0.4);
     const foB = (t) => 0.14 * bump(t, 0.2, 0.3);
     const grip = p['grip' + s] || 'relaxed';
@@ -549,11 +625,11 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     // A palm shown to the camera has its thumb on the outer side; a fist or a
     // relaxed hand has it forward.
     const outer = frames.chest([s === 'F' ? -1 : 1, 0, 0]);
-    const th = PALM.has(grip) ? side(outer) : side(fwdChest) || side(outer);
+    const th = PALM.has(grip) ? side(outer) : INNER.has(grip) ? -side(outer) : side(fwdChest) || side(outer);
     const thumb = Math.sign(th) || (s === 'F' ? 1 : -1) * facing;
     // Hands grow with the head, as cartoon hands do: f2's open hand is about
     // the face's height from wrist to fingertips.
-    const Lpx = HAND * H * (ch.headSize || 1) ** 2;
+    const Lpx = HAND * H * (ch.headSize || 1) ** 2 * (HANDS[grip]?.size || 1);
     const hs = handShape(W, dir, thumb, Lpx, fs, grip);
     hands[s] = { wrist: [W[0], W[1]], shape: hs, foreshort };
     // Join the hand to the forearm's sides: start from whichever side the
@@ -565,11 +641,16 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       hands[s].joined = true;
       return pts;
     } : null;
-    const whole = limb(Pj, A.sh, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB, end: joined, crisp: true });
-    const upper = tube(Pj, A.sh, A.el, upR, { toward: fore, bulge: upB });
+    // A bare arm starts a little under the joint, so its round end tucks
+    // under the shoulder's own curve instead of poking above it.
+    const root = skinTorso ? add(A.sh, frames.chest([0, 0.014 * H * hangs[s], 0])) : A.sh;
+    const whole = limb(Pj, root, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB, end: joined, crisp: true });
+    const upper = tube(Pj, root, A.el, upR, { toward: fore, bulge: upB });
     const sleeve = tube(Pj, add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.012 * H)), add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.075 * H)), (t) => (0.039 + 0.003 * t) * H * lim, {});
     const foreT = tube(Pj, A.el, A.wr, foR, { bulge: foB, end: joined });
-    const behind = (z) => z < chestZ - 0.02 * H;
+    // A bare arm raised high grows out of the shoulder's top: drawn over the
+    // torso (its root seam hidden), so the torso's edge never cuts across it.
+    const behind = (z) => z < chestZ - 0.02 * H && !(skinTorso && hangs[s] < 0.35);
     // A hand up at the face (cheek, chin, mouth) is drawn over the head.
     const atFace = Math.hypot(W[0] - headP[0], W[1] - headP[1]) < sk.r * 1.35 * (headP[3] || 1) && W[2] > headP[2] - 0.4 * sk.r;
     const depth = (z) => (atFace ? Math.max(z, headP[2] + 1) : behind(z) ? -7e5 + z : z);
@@ -656,7 +737,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     const up = n2(v2(mid, headP));
     const Lpx = 0.068 * H * (ch.headSize || 1) ** 2 * (headP[3] || 1);
-    const w = Math.max(Lpx * 0.95, Math.hypot(a[0] - b[0], a[1] - b[1]) * 0.62);
+    const w = Math.max(Lpx * 1.3, Math.hypot(a[0] - b[0], a[1] - b[1]) * 0.75);
     const h = w * 1.25;
     const c = [mid[0] + up[0] * Lpx * 0.75, mid[1] + up[1] * Lpx * 0.75];
     const rt = [-up[1], up[0]];
@@ -668,23 +749,41 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       return [c[0] + rt[0] * lx + up[0] * ly, c[1] + rt[1] * lx + up[1] * ly];
     });
     const pts = [...corner(1, 1, 0), ...corner(-1, 1, Math.PI / 2), ...corner(-1, -1, Math.PI), ...corner(1, -1, 1.5 * Math.PI)];
-    // Fingers curl round its long sides and the thumbs rest on its face near the bottom.
+    // The fingers wrap round its long sides onto its face (f2 still 29):
+    // four long rounded fingers per hand lying across the edge, a knuckle
+    // crease on each, and the thumb along the face near the bottom.
     const at = (lx, ly) => [c[0] + rt[0] * lx + up[0] * ly, c[1] + rt[1] * lx + up[1] * ly];
-    const rot = Math.atan2(up[1], up[0]);
+    const capsule = (x0, y0, x1, y1, r) => {
+      const a = at(x0, y0);
+      const b = at(x1, y1);
+      const d = n2(v2(a, b));
+      const nn = [-d[1], d[0]];
+      const half = (q, s0) => Array.from({ length: 7 }, (_, k) => {
+        const t = s0 + (k / 6) * Math.PI;
+        return [q[0] + (nn[0] * Math.cos(t) + d[0] * Math.sin(t)) * r, q[1] + (nn[1] * Math.cos(t) + d[1] * Math.sin(t)) * r];
+      });
+      return [...half(b, 0), ...half(a, Math.PI)];
+    };
     const grips = [];
+    const fw = w * 0.115;
     for (const sx of [-1, 1]) {
-      for (const [i, ly] of [-0.3, -0.12, 0.06].entries()) {
-        const q = at(sx * (w / 2 - w * 0.03), ly * h);
-        grips.push(['fg' + sx + i, ellipse(q[0], q[1], w * 0.09, w * 0.14, { rot: rot + Math.PI / 2, n: 12 })]);
-      }
-      const q = at(sx * w * 0.3, -h * 0.36);
-      grips.push(['th' + sx, ellipse(q[0], q[1], w * 0.1, w * 0.2, { rot: rot - sx * 0.5, n: 14 })]);
+      // Index highest, pinky lowest and shorter; the fingers reach a little
+      // further onto the face toward the bottom where the palm is.
+      [[-0.08, 0.17], [-0.19, 0.2], [-0.3, 0.19], [-0.4, 0.14]].forEach(([ly, reach], k) => {
+        const y = ly * h;
+        const r = fw * (k === 3 ? 0.5 : 0.6);
+        grips.push(['fg' + sx + k, capsule(sx * (w / 2 + w * 0.1), y, sx * (w / 2 - w * reach), y + h * 0.015, r), [at(sx * (w / 2 - w * 0.02), y - r * 0.7), at(sx * (w / 2 - w * 0.02), y + r * 0.7)]]);
+      });
+      grips.push(['th' + sx, capsule(sx * (w / 2 + w * 0.05), -h * 0.5, sx * w * 0.16, -h * 0.3, fw * 0.62), null]);
     }
     parts.push({
       z: Math.max(...parts.map((q) => q.z)) + 1,
       draw: () => {
         solid(pen, 'phone', pts, '#2e3150', { width: line * 0.9, round: 0.5 });
-        for (const [id, g] of grips) solid(pen, 'phone' + id, g, skin, { width: line * 0.7, round: 0.8 });
+        for (const [id, g, crease] of grips) {
+          solid(pen, 'phone' + id, loop(g, 2), skin, { width: line * 0.7, round: 0.8 });
+          if (crease) pen.stroke('phone' + id + 'k', crease, { width: line * 0.35, color: mix(skin, ink, 0.55) });
+        }
       },
     });
   }
