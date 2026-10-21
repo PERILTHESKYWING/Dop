@@ -9,7 +9,7 @@ export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', '
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic', 'yell', 'nervous', 'teary', 'wink'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
-export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek'];
+export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek', 'speed'];
 const TEXT_MARKS = ['label', 'sfx', 'board', 'card', 'shrimp'];
 export const BUILDS = ['slim', 'average', 'round', 'petite'];
 export const EYES = ['dot', 'oval', 'sleepy', 'anime'];
@@ -18,7 +18,7 @@ export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
 export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
 export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge', 'sweat'];
 export const CAP_POS = ['bottom', 'top']; // top = outlined subtitle line at top centre
-export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box'];
+export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box', 'thumb', 'tablet', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp'];
 
 // How the drawing looks. Agents may tune these; XIAO's rules set the defaults.
 export const STYLE_RANGES = {
@@ -155,7 +155,7 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
     const props = (Array.isArray(s.props) ? s.props : [])
       .slice(0, LIMITS.props)
       .filter((p) => p && PROPS.includes(p.kind))
-      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), scale: clamp(p.scale, [0.5, 1.6], 1), ...(p.text ? { text: text(p.text, 24) } : {}) }));
+      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), ...(p.y != null ? { y: clamp(p.y, [0, 1], 0.5) } : {}), scale: clamp(p.scale, [0.5, 1.6], 1), ...(p.cross ? { cross: true } : {}), ...(p.text ? { text: text(p.text, 40) } : {}) }));
     const marks = (Array.isArray(s.marks) ? s.marks : [])
       .filter((m) => m && MARK_KINDS.includes(m.kind) && (TEXT_MARKS.includes(m.kind) ? text(m.text, 40) : true))
       .slice(0, LIMITS.marks)
