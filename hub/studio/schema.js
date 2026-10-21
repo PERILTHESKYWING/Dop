@@ -189,7 +189,6 @@ export function lintProject(p) {
         if (b.say) {
           const read = b.say.length / READ_CHARS_PER_SEC + 0.4;
           if (next - b.t < read) out.push(`${where}: ${a.who} says "${b.say.slice(0, 30)}…" for ${(next - b.t).toFixed(1)} s; needs about ${read.toFixed(1)} s`);
-          if (b.move !== 'talk' && b.move !== 'laugh' && b.move !== 'cheer') out.push(`${where}: ${a.who} speaks at ${b.t} s without move "talk" (mouth won't move)`);
         }
         if ((b.move === 'point' || b.look != null) && b.at === a.who) out.push(`${where}: ${a.who} points at themself`);
       }
@@ -223,7 +222,7 @@ export function schemaText() {
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
     `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
     `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-1.8, x 0-1, y 0-1}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], actors: [Actor] (max ${LIMITS.actors})}.`,
-    `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars, use move talk), to? (walk target x), at? (cast id to point/look at)}]}.`,
+    `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
     `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, paper, ink}. Omit style to use XIAO's defaults.`,
     `A sample is 1-2 scenes under ${SAMPLE_MAX_SECONDS} s.`,
   ].join('\n');
