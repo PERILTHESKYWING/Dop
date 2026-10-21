@@ -45,8 +45,8 @@ function handProblems(ch: any, pose: any, facing: number, where: string) {
     const c = h.shape.closed;
     const mid = [c.reduce((a: number, q: number[]) => a + q[0], 0) / c.length, c.reduce((a: number, q: number[]) => a + q[1], 0) / c.length];
     if (joined && !inside(h.outline, mid)) out.push(`${where} ${s}: hand off the arm`);
-    // A separate hand starts at the wrist: its outline passes within a few px of it.
-    if (!h.joined && Math.min(...c.map((q: number[]) => Math.hypot(q[0] - h.wrist[0], q[1] - h.wrist[1]))) > 4) out.push(`${where} ${s}: hand apart from the wrist`);
+    // A separate hand covers the wrist (or its outline passes within a few px of it).
+    if (!h.joined && !inside(c, h.wrist) && Math.min(...c.map((q: number[]) => Math.hypot(q[0] - h.wrist[0], q[1] - h.wrist[1]))) > 4) out.push(`${where} ${s}: hand apart from the wrist`);
   }
   return out;
 }
@@ -111,10 +111,10 @@ describe('studio hands', () => {
       expect(Math.hypot(open[0] - b[0], open[1] - b[1]) / 600, `${move} opens posed`).toBeLessThan(0.02);
     }
     const held = (move: string) => arms(ch, M.poseFor({ t: 0, move, face: 'happy' }, 1.5, { time: 1.5 }));
-    // Face poses put the hand at the head, in front of the face; fist up raises it above the head.
+    // Face poses put the wrist at the head (the fingers reach the face), in front of the face; fist up raises it above the head.
     for (const move of ['cheek', 'chin', 'cover', 'cheeks', 'peace', 'oneup', 'palms']) {
       const { sk } = held(move);
-      expect(Math.hypot(sk.armF.wr[0] - sk.head[0], sk.armF.wr[1] - sk.head[1]) / sk.r, move).toBeLessThan(1.6);
+      expect(Math.hypot(sk.armF.wr[0] - sk.head[0], sk.armF.wr[1] - sk.head[1]) / sk.r, move).toBeLessThan(2);
       expect(sk.armF.wr[2], move).toBeGreaterThan(sk.head[2]);
     }
     const up = held('fistup').sk;
@@ -128,9 +128,10 @@ describe('studio hands', () => {
     }
     const ph = held('phone').sk;
     expect(ph.armF.wr[1]).toBeGreaterThan(ph.neckBase[1]);
-    // The claw grip lands on the opposite shoulder (the wrist stops short at
-    // full reach; the fingers cover the rest).
+    // The grip lands on the opposite shoulder: the fingers (a hand's length
+    // past the wrist) reach it.
     const cl = held('clasp').sk;
-    expect(Math.hypot(cl.armF.wr[0] - cl.armB.sh[0], cl.armF.wr[1] - cl.armB.sh[1]) / 600).toBeLessThan(0.08);
+    const tip = cl.armF.wr.map((v: number, i: number) => v + cl.armF.hd[i] * 0.068 * 600 * ch.headSize ** 2 * 0.7);
+    expect(Math.hypot(tip[0] - cl.armB.sh[0], tip[1] - cl.armB.sh[1]) / 600).toBeLessThan(0.07);
   });
 });

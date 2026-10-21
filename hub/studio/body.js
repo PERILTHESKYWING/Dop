@@ -207,41 +207,42 @@ const smooth = (x) => x * x * (3 - 2 * x);
 // Hand shapes in hand space: u from the wrist (0) to the fingertips (1),
 // v across, thumb on +v. Outline control points and inner lines.
 const HANDS = {
+  // The wrist end (u < 0.15) is about as wide as the forearm's wrist, so the
+  // hand flares out of the arm; the palm is twice that.
   relaxed: {
-    out: [[0, -0.26], [0.32, -0.33], [0.7, -0.3], [0.95, -0.14], [1.0, 0.04], [0.86, 0.22], [0.62, 0.26], [0.58, 0.42], [0.46, 0.52], [0.3, 0.4], [0.12, 0.26]],
-    lines: [[[0.97, -0.05], [0.8, -0.04]], [[0.92, 0.12], [0.76, 0.1]]],
+    out: [[0.05, -0.15], [0.3, -0.3], [0.62, -0.32], [0.9, -0.25], [1.03, -0.09], [0.99, 0.07], [0.82, 0.17], [0.63, 0.2], [0.62, 0.35], [0.5, 0.42], [0.33, 0.31], [0.12, 0.16]],
+    lines: [[[1.0, -0.16], [0.78, -0.15]], [[1.02, -0.01], [0.8, -0.01]], [[0.94, 0.11], [0.78, 0.1]]],
   },
-  open: {
-    out: [[0, -0.26], [0.4, -0.4], [0.9, -0.4], [1.1, -0.24], [1.14, 0.0], [1.04, 0.2], [0.64, 0.28], [0.78, 0.52], [0.66, 0.62], [0.32, 0.4], [0.08, 0.28]],
-    lines: [[[1.1, -0.13], [0.8, -0.12]], [[1.12, 0.05], [0.8, 0.04]], [[1.04, 0.16], [0.78, 0.16]]],
-  },
+  // A ball fist, as f2 draws it: round knuckles, the thumb across the front.
   fist: {
-    out: [[0, -0.27], [0.3, -0.36], [0.56, -0.34], [0.68, -0.16], [0.7, 0.06], [0.62, 0.26], [0.44, 0.38], [0.24, 0.36], [0.06, 0.27]],
-    lines: [[[0.6, -0.26], [0.64, 0.12]], [[0.3, 0.3], [0.52, 0.16]]],
+    out: [[0.05, -0.15], [0.25, -0.3], [0.5, -0.37], [0.72, -0.31], [0.84, -0.13], [0.84, 0.08], [0.74, 0.26], [0.56, 0.35], [0.36, 0.31], [0.2, 0.21], [0.08, 0.15]],
+    lines: [[[0.78, -0.22], [0.64, -0.19]], [[0.8, -0.04], [0.64, -0.03]], [[0.38, 0.27], [0.64, 0.12]]],
   },
+  // Index finger out, the others curled, the thumb tucked across them.
   point: {
-    out: [[0, -0.27], [0.3, -0.35], [0.56, -0.32], [1.15, -0.28], [1.18, -0.16], [0.66, -0.12], [0.7, 0.1], [0.62, 0.28], [0.44, 0.38], [0.24, 0.36], [0.06, 0.27]],
-    lines: [[[0.6, -0.1], [0.62, 0.16]]],
+    out: [[0.05, -0.15], [0.3, -0.29], [0.6, -0.31], [1.22, -0.27], [1.29, -0.19], [1.23, -0.1], [0.68, -0.09], [0.74, 0.07], [0.68, 0.23], [0.52, 0.32], [0.34, 0.3], [0.18, 0.21], [0.08, 0.15]],
+    lines: [[[0.68, -0.05], [0.72, 0.17]], [[0.36, 0.24], [0.62, 0.12]]],
   },
   // Fingers together and straight, the palm toward the camera (hand on a
-  // cheek, palms together, hands over the face, a wave).
+  // cheek, palms together, hands over the face).
   flat: {
-    out: [[0, -0.24], [0.36, -0.3], [0.84, -0.28], [1.1, -0.2], [1.2, -0.06], [1.16, 0.08], [0.94, 0.17], [0.64, 0.2], [0.6, 0.34], [0.46, 0.44], [0.28, 0.36], [0.1, 0.26]],
-    lines: [[[1.17, -0.09], [0.86, -0.1]], [[1.12, 0.05], [0.84, 0.04]]],
+    out: [[0.05, -0.15], [0.32, -0.3], [0.8, -0.31], [1.08, -0.25], [1.19, -0.13], [1.21, 0.0], [1.13, 0.12], [0.9, 0.18], [0.63, 0.2], [0.67, 0.34], [0.57, 0.43], [0.4, 0.36], [0.2, 0.22], [0.08, 0.15]],
+    lines: [[[1.15, -0.19], [0.84, -0.17]], [[1.2, -0.06], [0.86, -0.05]], [[1.15, 0.07], [0.86, 0.07]]],
   },
   // Index and middle finger up in a V, the others curled under the thumb.
   peace: {
-    out: [[0, -0.26], [0.34, -0.33], [0.6, -0.31], [1.08, -0.44], [1.15, -0.34], [0.72, -0.15], [1.12, -0.05], [1.12, 0.07], [0.66, 0.07], [0.64, 0.27], [0.46, 0.37], [0.25, 0.35], [0.06, 0.27]],
-    lines: [[[0.62, 0.06], [0.6, 0.22]]],
+    out: [[0.05, -0.15], [0.3, -0.3], [0.6, -0.31], [1.12, -0.47], [1.21, -0.39], [0.8, -0.17], [1.19, -0.07], [1.2, 0.05], [0.72, 0.08], [0.72, 0.26], [0.54, 0.36], [0.33, 0.32], [0.12, 0.16]],
+    lines: [[[0.7, 0.1], [0.66, 0.24]]],
   },
-  // Fingers curled round something held (a phone, a pen).
+  // Fingers curled round something held (a phone, a shoulder).
   hold: {
-    out: [[0, -0.26], [0.32, -0.36], [0.66, -0.36], [0.84, -0.2], [0.86, 0.02], [0.74, 0.2], [0.52, 0.24], [0.5, 0.38], [0.36, 0.44], [0.2, 0.36], [0.06, 0.27]],
-    lines: [[[0.8, -0.14], [0.6, -0.1]], [[0.82, 0.02], [0.6, 0.04]]],
+    out: [[0.05, -0.15], [0.3, -0.32], [0.66, -0.37], [0.9, -0.23], [0.94, 0.0], [0.82, 0.18], [0.6, 0.22], [0.62, 0.38], [0.47, 0.46], [0.28, 0.34], [0.1, 0.16]],
+    lines: [[[0.86, -0.14], [0.64, -0.11]], [[0.88, 0.04], [0.64, 0.05]]],
   },
 };
 HANDS.hip = HANDS.fist;
 HANDS.cup = HANDS.relaxed;
+HANDS.open = HANDS.flat;
 HANDS.up = HANDS.point;
 // Grips that show the palm, the thumb on the outer side.
 const PALM = new Set(['open', 'flat', 'peace', 'point', 'up']);
@@ -258,7 +259,10 @@ function handShape(W, dir, thumb, Lpx, fs, grip) {
   const at = ([u, v]) => [W[0] + U[0] * u + V[0] * v, W[1] + U[1] * u + V[1] * v];
   // Rounded through the knuckles and fingertips; the wrist end is open.
   const open = curve(h.out.filter(([u]) => u >= 0.15).map(at), 4);
-  return { open, closed: loop(h.out.map(at), 4), lines: h.lines.map((l) => curve(l.map(at), 3)), V };
+  // Drawn on its own (a sleeve, or a forearm pointing at the camera), the
+  // hand starts a little inside the arm, so its base covers the wrist.
+  const closed = loop([[-0.1, 0.13], [-0.1, -0.13], ...h.out].map(at), 4);
+  return { open, closed, lines: h.lines.map((l) => curve(l.map(at), 3)), V };
 }
 
 // Every body part of one character as { z, draw }; the rig sorts and paints.
@@ -469,8 +473,9 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     const outer = frames.chest([s === 'F' ? -1 : 1, 0, 0]);
     const th = PALM.has(grip) ? side(outer) : side(fwdChest) || side(outer);
     const thumb = Math.sign(th) || (s === 'F' ? 1 : -1) * facing;
-    // Hands grow with the head, as cartoon hands do (big heads, big hands).
-    const Lpx = 0.068 * H * (ch.headSize || 1) ** 0.85;
+    // Hands grow with the head, as cartoon hands do: f2's hand is about half
+    // the face's height.
+    const Lpx = 0.068 * H * (ch.headSize || 1) ** 2;
     const hs = handShape(W, dir, thumb, Lpx, fs, grip);
     hands[s] = { wrist: [W[0], W[1]], shape: hs, foreshort };
     // Join the hand to the forearm's sides: start from whichever side the
