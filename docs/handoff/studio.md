@@ -19,7 +19,7 @@ Hand-drawn style story animations, directed by your Claude accounts, inside the 
 - Every line is a filled pen ribbon that swells, thins and tapers; it wanders a little off the true shape; closed shapes start at a seam and overshoot it.
 - Colour fills are a separate, rougher shape that slips off the outline (like a print or a quick colour pass).
 - Poses are held for `hold` frames (on twos by default at 12 fps). Each new drawing re-seeds part of the line noise ("boil"), cycling three variants as traced frames do, so even a held pose shimmers.
-- 23 reusable moves (idle, talk, walk, wave, nod, shake, shrug, point, jump, think, facepalm, cheer, cry, laugh, sigh, stomp, gasp, fidget, crossarms, hips, bow, slump, lookaround), each a few key poses with anticipation and a held end pose; 8 faces (brows and lids carry most of it, the body the rest); mouths flap irregularly while talking; blinks.
+- 13 faces now: the 8 below plus shock, cat, joy, shy, panic (reference-video expressions). 23 reusable moves (idle, talk, walk, wave, nod, shake, shrug, point, jump, think, facepalm, cheer, cry, laugh, sigh, stomp, gasp, fidget, crossarms, hips, bow, slump, lookaround), each a few key poses with anticipation and a held end pose; 8 faces (brows and lids carry most of it, the body the rest); mouths flap irregularly while talking; blinks.
 - Paper grain on top, simple wobbly backgrounds (8 kinds) and props (10 kinds), speech bubbles with tails, caption banner.
 
 ## Parts

@@ -138,6 +138,25 @@ describe('studio renderer', () => {
     }
   });
 
+  it('has the reference-video faces, each drawn differently and with a posture', async () => {
+    const S = await lib('schema.js');
+    const A = await lib('acting.js');
+    const faces = ['shock', 'cat', 'joy', 'shy', 'panic'];
+    for (const f of faces) {
+      expect(S.FACES).toContain(f);
+      expect(A.POSTURE[f]).toBeTruthy();
+    }
+    expect(S.schemaText()).toContain('panic');
+    const base = project();
+    const draw = (face: string) => {
+      const q = S.validateProject({ ...base, scenes: [{ ...base.scenes[0], actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0, move: 'idle', face }] }] }] }).project;
+      return R.toSVG(R.renderFrame(q, 0, 1), 800);
+    };
+    const drawn = [...faces, 'neutral'].map(draw);
+    expect(new Set(drawn).size).toBe(drawn.length);
+    expect(drawn.every((d) => !/NaN|undefined/.test(d))).toBe(true);
+  });
+
   it('maps time to scenes and quantizes it', () => {
     const p = project();
     expect(R.totalSeconds(p)).toBe(13);
