@@ -134,7 +134,7 @@ describe('studio renderer', () => {
     expect(M.markScale({ t: 2 }, 2.075)).toBeGreaterThan(0.3);
     for (const kind of ['lines', 'heart', 'exclaim', 'sparkle']) {
       const q = S.validateProject({ ...base, scenes: [{ ...base.scenes[0], marks: [{ kind, x: 0.5, y: 0.5 }] }] }).project;
-      expect(R.renderFrame(q, 0, 1).world.length).toBeGreaterThan(R.renderFrame({ ...q, scenes: [{ ...q.scenes[0], marks: [] }] }, 0, 1).world.length);
+      expect(R.renderFrame(q, 0, 1).overlay.length).toBeGreaterThan(R.renderFrame({ ...q, scenes: [{ ...q.scenes[0], marks: [] }] }, 0, 1).overlay.length);
     }
   });
 
@@ -291,5 +291,20 @@ describe('studio 3D characters', () => {
     const whites = (pose: any) => draw(pose).filter((o: any) => o.fill === '#fbf8f2').length;
     expect(whites({ v: 2, yaw: 25 })).toBe(2);
     expect(whites({ v: 2, yaw: 90 })).toBe(1);
+  });
+});
+
+describe('close-ups (talking-head shots like XIAO\'s reference videos)', () => {
+  it('draws a zoomed shot with the same parts and keeps marks on the screen', () => {
+    const wide = one({ move: 'talk', face: 'happy' });
+    const close = one({ move: 'talk', face: 'happy' }, { camera: { zoom: 3.5, x: 0.3, y: 0.4 }, marks: [{ kind: 'sfx', text: 'shock', x: 0.85, y: 0.2 }] });
+    // Same drawing, same parts, only the pen is finer.
+    const w1 = R.renderFrame(wide, 0, 1).world.length;
+    expect(R.renderFrame(close, 0, 1).world.length).toBe(w1);
+    const f = R.renderFrame(close, 0, 1);
+    expect(f.camera.zoom).toBe(3.5);
+    // The mark is an overlay op (not moved by the camera), so it stays in the frame.
+    expect(f.overlay.some((o: any) => o.text === 'SHOCK' || /SHOCK/.test(o.text || ''))).toBe(true);
+    expect(f.world.some((o: any) => /SHOCK/.test(o.text || ''))).toBe(false);
   });
 });

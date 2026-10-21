@@ -330,8 +330,10 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
-  drawMarks(world, scene.marks, tq, st, W, H); // with the shot, so the camera moves them with the actors
   const overlay = [];
+  // Marks sit on the screen (x, y = share of the frame), like labels written on the
+  // finished shot: a close-up never pushes them out of view.
+  drawMarks(overlay, scene.marks, tq, st, W, H);
   if (st.captions && scene.narration) caption(overlay, scene.narration, st);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
