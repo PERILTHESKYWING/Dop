@@ -81,7 +81,7 @@ function stackOutline(rings, Pj, { bottom = null } = {}) {
 
 // A tapered tube from a to b (3D). prof(t) gives the radius; bulge pushes
 // one side out (toward the 3D direction toward). Returns screen outline and depth.
-export function tube(Pj, a, b, prof, { toward = null, bulge = () => 0 } = {}) {
+export function tube(Pj, a, b, prof, { toward = null, bulge = () => 0, end = null } = {}) {
   const A = Pj(a);
   const B = Pj(b);
   const fa = A[3] || 1;
@@ -122,7 +122,8 @@ export function tube(Pj, a, b, prof, { toward = null, bulge = () => 0 } = {}) {
   const angN = Math.atan2(nrm[1], nrm[0]);
   const rB = prof(1) * fb;
   const rA = prof(0) * fa;
-  const pts = [...left, ...cap(B, rB, angN + Math.PI).reverse(), ...[...right].reverse(), ...cap(A, rA, angN).reverse()];
+  const endPts = end ? end(left[N], right[N], nrm) : cap(B, rB, angN + Math.PI).reverse();
+  const pts = [...left, ...endPts, ...[...right].reverse(), ...cap(A, rA, angN).reverse()];
   // Caps go the short way round the far side of each end.
   return { pts: [...pts, pts[0]], z: (A[2] + B[2]) / 2, axis: [[A[0], A[1]], [B[0], B[1]]], A, B };
 }
@@ -131,7 +132,7 @@ export function tube(Pj, a, b, prof, { toward = null, bulge = () => 0 } = {}) {
 // the joint reads as a bend in one arm rather than two pipes. Returns null
 // when the bend is too sharp or a segment points at the camera; the caller
 // then draws the two segments overlapping (a folded arm).
-export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null, bulgeA = () => 0, bulgeB = () => 0 } = {}) {
+export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null, bulgeA = () => 0, bulgeB = () => 0, end = null } = {}) {
   const [A, J, C] = [Pj(a), Pj(j), Pj(c)];
   const l1 = Math.hypot(J[0] - A[0], J[1] - A[1]);
   const l2 = Math.hypot(C[0] - J[0], C[1] - J[1]);
@@ -186,7 +187,8 @@ export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null
   const nS = nrmAt[0];
   const rEnd = profB(1) * (C[3] || 1);
   const rSt = profA(0) * (A[3] || 1);
-  const pts = [...L, ...cap(C, rEnd, Math.atan2(nE[1], nE[0]) + Math.PI).reverse(), ...[...R].reverse(), ...cap(A, rSt, Math.atan2(nS[1], nS[0])).reverse()];
+  const endPts = end ? end(L[L.length - 1], R[R.length - 1], nE) : cap(C, rEnd, Math.atan2(nE[1], nE[0]) + Math.PI).reverse();
+  const pts = [...L, ...endPts, ...[...R].reverse(), ...cap(A, rSt, Math.atan2(nS[1], nS[0])).reverse()];
   return { pts: [...pts, pts[0]], z: (A[2] + J[2] + C[2]) / 3, axis: [[A[0], A[1]], [C[0], C[1]]] };
 }
 
@@ -221,20 +223,42 @@ const HANDS = {
     out: [[0, -0.27], [0.3, -0.35], [0.56, -0.32], [1.15, -0.28], [1.18, -0.16], [0.66, -0.12], [0.7, 0.1], [0.62, 0.28], [0.44, 0.38], [0.24, 0.36], [0.06, 0.27]],
     lines: [[[0.6, -0.1], [0.62, 0.16]]],
   },
+  // Fingers together and straight, the palm toward the camera (hand on a
+  // cheek, palms together, hands over the face, a wave).
+  flat: {
+    out: [[0, -0.24], [0.36, -0.3], [0.84, -0.28], [1.1, -0.2], [1.2, -0.06], [1.16, 0.08], [0.94, 0.17], [0.64, 0.2], [0.6, 0.34], [0.46, 0.44], [0.28, 0.36], [0.1, 0.26]],
+    lines: [[[1.17, -0.09], [0.86, -0.1]], [[1.12, 0.05], [0.84, 0.04]]],
+  },
+  // Index and middle finger up in a V, the others curled under the thumb.
+  peace: {
+    out: [[0, -0.26], [0.34, -0.33], [0.6, -0.31], [1.08, -0.44], [1.15, -0.34], [0.72, -0.15], [1.12, -0.05], [1.12, 0.07], [0.66, 0.07], [0.64, 0.27], [0.46, 0.37], [0.25, 0.35], [0.06, 0.27]],
+    lines: [[[0.62, 0.06], [0.6, 0.22]]],
+  },
+  // Fingers curled round something held (a phone, a pen).
+  hold: {
+    out: [[0, -0.26], [0.32, -0.36], [0.66, -0.36], [0.84, -0.2], [0.86, 0.02], [0.74, 0.2], [0.52, 0.24], [0.5, 0.38], [0.36, 0.44], [0.2, 0.36], [0.06, 0.27]],
+    lines: [[[0.8, -0.14], [0.6, -0.1]], [[0.82, 0.02], [0.6, 0.04]]],
+  },
 };
 HANDS.hip = HANDS.fist;
 HANDS.cup = HANDS.relaxed;
+HANDS.up = HANDS.point;
+// Grips that show the palm, the thumb on the outer side.
+const PALM = new Set(['open', 'flat', 'peace', 'point', 'up']);
 
-// Draw a hand at the wrist w (screen) along direction dir (screen unit),
-// thumb toward thumb (+1/-1), length Lpx, foreshortened by fs (0.4..1).
-function hand(pen, id, W, dir, thumb, Lpx, fs, grip, skin, line) {
+// A hand at the wrist W (screen) along dir (screen unit), thumb toward thumb
+// (+1/-1), length Lpx, foreshortened by fs (0.4..1). Returns the outline
+// without its wrist end (to join the forearm's two sides, so hand and arm
+// are one drawn shape and can never come apart), the closed outline, and
+// the finger lines.
+function handShape(W, dir, thumb, Lpx, fs, grip) {
   const h = HANDS[grip] || HANDS.relaxed;
   const U = [dir[0] * Lpx * fs, dir[1] * Lpx * fs];
   const V = [-dir[1] * Lpx * thumb, dir[0] * Lpx * thumb];
   const at = ([u, v]) => [W[0] + U[0] * u + V[0] * v, W[1] + U[1] * u + V[1] * v];
-  const pts = loop(h.out.map(at), 4);
-  solid(pen, id, pts, skin, { width: line * 0.85, round: 0.8, axis: [W, at([1, 0])] });
-  h.lines.forEach((l, i) => pen.stroke(id + ':l' + i, curve(l.map(at), 3), { width: line * 0.45, color: mix(skin, pen.style.ink, 0.6) }));
+  // Rounded through the knuckles and fingertips; the wrist end is open.
+  const open = curve(h.out.filter(([u]) => u >= 0.15).map(at), 4);
+  return { open, closed: loop(h.out.map(at), 4), lines: h.lines.map((l) => curve(l.map(at), 3)), V };
 }
 
 // Every body part of one character as { z, draw }; the rig sorts and paints.
@@ -397,7 +421,11 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     },
   });
 
-  // ---- arms: one bending outline, or two overlapping segments when folded ----
+  // ---- arms: one bending outline, or two overlapping segments when folded.
+  // The hand is part of the forearm's outline (bare arms), so the two are
+  // one shape in every drawing: no seam across the wrist, no gap.
+  const headP = Pj(sk.head);
+  const hands = {};
   for (const s of ['F', 'B']) {
     const A = sk['arm' + s];
     const fore = unit([A.wr[0] - A.el[0], A.wr[1] - A.el[1], A.wr[2] - A.el[2]]);
@@ -405,26 +433,73 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     const foR = (t) => (0.027 - 0.009 * smooth(t)) * H * lim;
     const upB = (t) => 0.2 * bump(t, 0.5, 0.45);
     const foB = (t) => 0.16 * bump(t, 0.25, 0.35);
-    const whole = limb(Pj, A.sh, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB });
+    const grip = p['grip' + s] || 'relaxed';
+    // The hand on screen: its direction (the wrist bends toward aimF/aimB),
+    // foreshortening and which side the thumb is on.
+    const W = Pj(A.wr);
+    const hd = A.hd || fore;
+    const T = Pj(add(A.wr, mul(hd, 0.1 * H)));
+    const hl = Math.hypot(T[0] - W[0], T[1] - W[1]);
+    let dir = hl > 1e-3 ? [(T[0] - W[0]) / hl, (T[1] - W[1]) / hl] : n2(v2(Pj(A.el), W));
+    if (!Number.isFinite(dir[0]) || (!dir[0] && !dir[1])) dir = [0, 1];
+    // On screen the hand never folds back over its own forearm: at most 80
+    // degrees off it. A forearm pointing at the camera is a short stub; the
+    // hand then sits over its round end instead of joining its sides.
+    const E = Pj(A.el);
+    const fl = Math.hypot(W[0] - E[0], W[1] - E[1]);
+    const foreshort = fl / (0.135 * H * (W[3] || 1));
+    if (foreshort > 0.3) {
+      const f2 = [(W[0] - E[0]) / fl, (W[1] - E[1]) / fl];
+      const cr = f2[0] * dir[1] - f2[1] * dir[0];
+      const ang = Math.atan2(cr, f2[0] * dir[0] + f2[1] * dir[1]);
+      const lim80 = (80 * Math.PI) / 180;
+      if (Math.abs(ang) > lim80) {
+        const a2 = Math.atan2(f2[1], f2[0]) + Math.sign(ang) * lim80;
+        dir = [Math.cos(a2), Math.sin(a2)];
+      }
+    }
+    const fs = Math.max(0.45, Math.min(1, (hl / (0.1 * H * (W[3] || 1))) * 1.1));
+    const nrm = [-dir[1], dir[0]];
+    const side = (v3) => {
+      const q = Pj(add(A.wr, mul(v3, 10)));
+      return (q[0] - W[0]) * nrm[0] + (q[1] - W[1]) * nrm[1];
+    };
+    // A palm shown to the camera has its thumb on the outer side; a fist or a
+    // relaxed hand has it forward.
+    const outer = frames.chest([s === 'F' ? -1 : 1, 0, 0]);
+    const th = PALM.has(grip) ? side(outer) : side(fwdChest) || side(outer);
+    const thumb = Math.sign(th) || (s === 'F' ? 1 : -1) * facing;
+    // Hands grow with the head, as cartoon hands do (big heads, big hands).
+    const Lpx = 0.068 * H * (ch.headSize || 1) ** 0.85;
+    const hs = handShape(W, dir, thumb, Lpx, fs, grip);
+    hands[s] = { wrist: [W[0], W[1]], shape: hs, foreshort };
+    // Join the hand to the forearm's sides: start from whichever side the
+    // first hand point is on, so the outline never crosses itself.
+    const joined = bare && foreshort > 0.3 ? (l, r) => {
+      const o = hs.open;
+      const d = (q, z) => Math.hypot(q[0] - z[0], q[1] - z[1]);
+      const pts = d(o[0], l) + d(o[o.length - 1], r) <= d(o[0], r) + d(o[o.length - 1], l) ? o : [...o].reverse();
+      hands[s].joined = true;
+      return pts;
+    } : null;
+    const whole = limb(Pj, A.sh, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB, end: joined });
     const upper = tube(Pj, A.sh, A.el, upR, { toward: fore, bulge: upB });
     const sleeve = tube(Pj, add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.012 * H)), add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.075 * H)), (t) => (0.039 + 0.003 * t) * H * lim, {});
-    const foreT = tube(Pj, A.el, A.wr, foR, { bulge: foB });
+    const foreT = tube(Pj, A.el, A.wr, foR, { bulge: foB, end: joined });
     const behind = (z) => z < chestZ - 0.02 * H;
+    // A hand up at the face (cheek, chin, mouth) is drawn over the head.
+    const atFace = Math.hypot(W[0] - headP[0], W[1] - headP[1]) < sk.r * 1.35 * (headP[3] || 1) && W[2] > headP[2] - 0.4 * sk.r;
+    const depth = (z) => (atFace ? Math.max(z, headP[2] + 1) : behind(z) ? -7e5 + z : z);
+    const fingers = () => hs.lines.forEach((l, i) => pen.stroke('hand' + s + ':l' + i, l, { width: line * 0.45, color: mix(skin, ink, 0.6) }));
     const drawHand = () => {
-      const W = Pj(A.wr);
-      const E = Pj(A.el);
-      const d3 = Math.hypot(A.wr[0] - A.el[0], A.wr[1] - A.el[1]) / (0.135 * H);
-      const dir = n2(v2(E, W));
-      const thumbV = Pj(add(A.wr, mul(fwdChest, 10)));
-      const nrm = [-dir[1], dir[0]];
-      const t = Math.sign((thumbV[0] - W[0]) * nrm[0] + (thumbV[1] - W[1]) * nrm[1]) || (s === 'F' ? 1 : -1) * facing;
-      hand(pen, 'hand' + s, W, dir, t, 0.068 * H * (ch.headSize || 1) ** 0.4, Math.max(0.45, Math.min(1, d3 * 1.1)), p['grip' + s] || 'relaxed', skin, line);
+      // Sleeved arms: the hand is its own shape, its wrist under the cuff.
+      if (!hands[s].joined) solid(pen, 'hand' + s, hs.closed, skin, { width: line * 0.85, round: 0.8, axis: [W, hs.closed[Math.floor(hs.closed.length / 2)]] });
+      fingers();
     };
     const drawSleeve = () => {
       if (bare) return;
       if (longSleeve) {
         // The arm itself is the sleeve; a cuff line near the wrist.
-        const W = Pj(A.wr);
         const E = Pj(A.el);
         const k = 0.86;
         const c = [E[0] + (W[0] - E[0]) * k, E[1] + (W[1] - E[1]) * k];
@@ -437,8 +512,9 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     };
     const armC = longSleeve ? top : skin;
     if (whole) {
+      hands[s].outline = whole.pts;
       parts.push({
-        z: behind(whole.z) ? -7e5 + whole.z : whole.z,
+        z: depth(whole.z),
         draw: () => {
           solid(pen, 'arm' + s, whole.pts, armC, { axis: whole.axis, width: line * 0.9 });
           drawSleeve();
@@ -447,6 +523,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       });
       continue;
     }
+    hands[s].outline = foreT.pts;
     const zU = Math.max(upper.z, sleeve.z);
     parts.push({
       z: behind(zU) ? -7e5 + zU : zU,
@@ -459,7 +536,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     // The forearm and hand go over the upper arm when they come toward the camera.
     const order = zF >= zU - 0.01 * H ? 0.001 : -0.001;
     parts.push({
-      z: (behind(zF) ? -7e5 + zF : zF) + order,
+      z: depth(zF) + order,
       draw: () => {
         solid(pen, 'farm' + s, foreT.pts, armC, { axis: foreT.axis, width: line * 0.9 });
         drawHand();
@@ -467,7 +544,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     });
   }
 
-  return { parts, chestZ, neck: nk.pts };
+  return { parts, chestZ, neck: nk.pts, hands };
 }
 
 // Convex hull (monotone chain) of 2D points.

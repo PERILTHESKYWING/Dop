@@ -135,14 +135,36 @@ export function skeleton(ch, pose0, H) {
     const elbow = add(root, mul(dir, ua));
     const wrist = add(elbow, mul(fore, fa));
     const hand = p['hand' + s];
-    if (!Array.isArray(hand)) return { sh: root, el: elbow, wr: wrist };
+    if (!Array.isArray(hand)) return aimed({ sh: root, el: elbow, wr: wrist });
     // A hand target (IK), blended from the angle pose by handFw/handBw.
+    // 'face' targets are in head radii in the head's own frame, so a hand on
+    // the cheek stays on the cheek when the head turns or tilts.
     const w = Math.max(0, Math.min(1, p['hand' + s + 'w'] ?? 1));
-    const base = hand[3] === 'head' ? head : root;
-    const goal = add(base, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
+    const goal = hand[3] === 'face' ? add(head, fHead([hand[0] * r, hand[1] * r, (hand[2] || 0) * r]))
+      : add(hand[3] === 'head' ? head : root, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
     const target = add(mul(wrist, 1 - w), mul(goal, w));
     const { joint, end } = ik3(root, target, ua, fa, fChest([out * 0.55, 0.7, -0.5]));
-    return { sh: root, el: joint, wr: end };
+    return aimed({ sh: root, el: joint, wr: end });
+  };
+  // The wrist bends: aimF/aimB is where the fingers point, in the chest frame
+  // (x toward facing, y down, z toward the camera); hd is the hand's direction.
+  const aimed = (A) => {
+    const s = A.sh === shF ? 'F' : 'B';
+    const fore = unit(sub(A.wr, A.el));
+    const aim = p['aim' + s];
+    if (!Array.isArray(aim) || !len(aim)) return { ...A, hd: fore };
+    // It comes in with the hand target (handFw/handBw), so the wrist turns as
+    // the arm travels instead of snapping. At most 75 degrees from the
+    // forearm, as a real wrist bends.
+    const k = Array.isArray(p['hand' + s]) ? Math.max(0, Math.min(1, p['hand' + s + 'w'] ?? 1)) : 1;
+    const want = unit(add(mul(fore, 1 - k), mul(unit(fChest(aim)), k)));
+    const c = Math.max(-1, Math.min(1, dot(fore, want)));
+    const ang = Math.acos(c);
+    const lim = deg(75);
+    if (ang <= lim) return { ...A, hd: want };
+    let perp = sub(want, mul(fore, c));
+    if (len(perp) < 1e-6) perp = fChest([0, -1, 0]);
+    return { ...A, hd: unit(add(mul(fore, Math.cos(lim)), mul(unit(perp), Math.sin(lim)))) };
   };
 
   // Legs: feet planted on the stance (moved by footF/footB), knees by IK.

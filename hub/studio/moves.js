@@ -239,6 +239,104 @@ export const MOVE_SET = {
       [2.0, { headYaw: 26, twist: 6, gaze: 1, weight: 0.3, headPitch: -3 }, 'io'],
     ],
   },
+  // Hand poses from XIAO's reference f2, acted to the camera. Hand targets
+  // marked 'face' are in head radii in the head's own frame (x toward
+  // facing, y down, z toward the camera), so a hand on a cheek stays on it
+  // when the head tilts; aimF/aimB point the fingers (the wrist bends). Each
+  // move keeps one anchor in all its keys, so the hand travels, never jumps.
+  cheek: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-1.0, 1.5, 0.6, 'face'], gripF: 'flat', aimF: [0.1, -1, 0.3], headRoll: -2 }, 'io'],
+      [0.7, { handF: [-0.78, 0.4, 0.78, 'face'], gripF: 'flat', aimF: [0.15, -1, 0.15], headRoll: -10, headPitch: 2, weight: -0.2 }, 'back'],
+      [1.1, { handF: [-0.76, 0.42, 0.78, 'face'], gripF: 'flat', aimF: [0.15, -1, 0.15], headRoll: -8, headPitch: 3, weight: -0.25 }, 'io'],
+    ],
+  },
+  clasp: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [0.05, 0.13, 0.08], handB: [-0.05, 0.13, 0.08], gripF: 'hold', gripB: 'hold', shrug: 0.2, pelvis: [0, 0.008] }, 'io'],
+      [0.7, { handF: [0.075, 0.08, 0.14], handB: [-0.06, 0.075, 0.15], gripF: 'fist', gripB: 'hold', aimF: [1, -0.4, 0.2], aimB: [-1, -0.4, 0.2], shrug: 0.45, slump: -0.3, headRoll: 6, headPitch: -3 }, 'back'],
+      [1, { handF: [0.075, 0.085, 0.14], handB: [-0.06, 0.08, 0.15], gripF: 'fist', gripB: 'hold', aimF: [1, -0.4, 0.2], aimB: [-1, -0.4, 0.2], shrug: 0.35, slump: -0.25, headRoll: 5, headPitch: -2 }, 'io'],
+    ],
+  },
+  chin: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-0.4, 1.5, 0.6, 'face'], gripF: 'point', aimF: [0.2, -1, 0.3], headRoll: -2 }, 'io'],
+      [0.7, { handF: [-0.22, 1.02, 0.78, 'face'], gripF: 'point', aimF: [0.3, -1, 0.2], headRoll: -9, headPitch: -4, weight: -0.3 }, 'back'],
+      [1.4, { handF: [-0.24, 1.04, 0.8, 'face'], gripF: 'point', aimF: [0.3, -1, 0.2], headRoll: -11, headPitch: -5, weight: -0.35 }, 'io'],
+    ],
+  },
+  phone: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [0.06, 0.16, 0.17], handB: [-0.06, 0.16, 0.17], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.5, 0.7], aimB: [-0.5, -0.5, 0.7], headPitch: 8 }, 'io'],
+      [0.7, { handF: [0.065, 0.13, 0.2], handB: [-0.065, 0.13, 0.2], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], headPitch: 10, spine: 4, shrug: 0.25 }, 'back'],
+      [1.6, { handF: [0.065, 0.135, 0.2], handB: [-0.065, 0.135, 0.2], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], headPitch: 9, spine: 4, shrug: 0.2 }, 'io'],
+    ],
+  },
+  fistup: {
+    posture: 0.4,
+    loop: { from: 4, end: 2.1 },
+    keys: [
+      [0, {}],
+      [0.3, { armF: [26, 6, 92], gripF: 'fist', pelvis: [0, 0.015], spine: 4, headPitch: 4, shrug: 0.15 }, 'io'],
+      [0.68, { armF: [105, 10, 100], gripF: 'fist', spine: -2, spineSide: -2, headPitch: -2, weight: 0.15 }, 'io'],
+      [1.05, { armF: [164, -8, 4], gripF: 'fist', spine: -6, spineSide: -5, headPitch: -8, headRoll: 6, weight: 0.3 }, 'back'],
+      [1.4, { armF: [158, -8, 10], gripF: 'fist', spine: -4, spineSide: -4, headPitch: -6, headRoll: 5, weight: 0.3 }, 'io'],
+      [1.75, { armF: [162, -8, 6], gripF: 'fist', spine: -5, spineSide: -5, headPitch: -7, headRoll: 6, weight: 0.3 }, 'io'],
+    ],
+  },
+  cover: {
+    posture: 0.5,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-0.5, 1.6, 0.6, 'face'], handB: [0.5, 1.6, 0.6, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.1, -1, 0.2], aimB: [-0.1, -1, 0.2], headPitch: -4, shrug: 0.3 }, 'io'],
+      [0.7, { handF: [-0.26, 0.62, 1.02, 'face'], handB: [0.26, 0.62, 1.02, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], headPitch: 8, shrug: 0.7, spine: 6 }, 'back'],
+      [1, { handF: [-0.25, 0.64, 1.02, 'face'], handB: [0.25, 0.64, 1.02, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], headPitch: 6, shrug: 0.6, spine: 5 }, 'io'],
+    ],
+  },
+  oneup: {
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-1.1, 1.6, 0.4, 'face'], gripF: 'fist', aimF: [0, -1, 0.2], headPitch: 4 }, 'io'],
+      [0.7, { handF: [-1.4, 0.75, 0.7, 'face'], gripF: 'point', aimF: [0.05, -1, 0.1], headPitch: -4, headRoll: 5, spine: -2 }, 'back'],
+      [1.1, { handF: [-1.38, 0.78, 0.7, 'face'], gripF: 'point', aimF: [0.05, -1, 0.1], headPitch: -3, headRoll: 4, spine: -2 }, 'io'],
+    ],
+  },
+  peace: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-1.0, 1.3, 0.5, 'face'], gripF: 'fist', aimF: [0, -1, 0.2], headRoll: 2 }, 'io'],
+      [0.7, { handF: [-1.25, 0.2, 0.8, 'face'], gripF: 'peace', aimF: [-0.25, -1, 0.1], headRoll: -10, weight: -0.3 }, 'back'],
+      [1.1, { handF: [-1.23, 0.23, 0.8, 'face'], gripF: 'peace', aimF: [-0.25, -1, 0.1], headRoll: -9, weight: -0.3 }, 'io'],
+    ],
+  },
+  palms: {
+    settle: true,
+    keys: [
+      [0, {}],
+      [0.36, { handF: [0.16, 0.13, 0.1], handB: [-0.02, 0.13, 0.11], gripF: 'flat', gripB: 'flat', aimF: [0.4, -1, 0.3], aimB: [0.4, -1, 0.3], headRoll: 3 }, 'io'],
+      [0.7, { handF: [0.15, 0.06, 0.15], handB: [-0.025, 0.06, 0.16], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0.15], aimB: [0.3, -1, 0.15], headRoll: 9, headPitch: 4, shrug: 0.35 }, 'back'],
+      [1.1, { handF: [0.15, 0.065, 0.15], handB: [-0.025, 0.065, 0.16], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0.15], aimB: [0.3, -1, 0.15], headRoll: 8, headPitch: 3, shrug: 0.3 }, 'io'],
+    ],
+  },
+  cheeks: {
+    settle: true,
+    loop: { from: 2, end: 2.0 },
+    keys: [
+      [0, {}],
+      [0.36, { handF: [-0.85, 1.25, 0.6, 'face'], handB: [0.85, 1.25, 0.6, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.2, -1, 0.3], aimB: [-0.2, -1, 0.3], shrug: 0.3 }, 'io'],
+      [0.7, { handF: [-0.7, 0.62, 0.78, 'face'], handB: [0.7, 0.62, 0.78, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.25, -1, 0.15], aimB: [-0.25, -1, 0.15], shrug: 0.55, headRoll: -8, slump: -0.2 }, 'back'],
+      [1.4, { handF: [-0.7, 0.64, 0.78, 'face'], handB: [0.7, 0.64, 0.78, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.25, -1, 0.15], aimB: [-0.25, -1, 0.15], shrug: 0.5, headRoll: 7, slump: -0.2 }, 'io'],
+    ],
+  },
 };
 
 // The key drawings of each move with the neutral posture (cast sheet, tests).
