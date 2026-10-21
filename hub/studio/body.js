@@ -410,18 +410,27 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     z: -4e5,
     draw: () => {
       solid(pen, 'neck', nk.pts, skin, { axis: nk.axis, width: line * 0.85 });
-      const col = ring(add(sk.neckBase, fC([0, 0.004 * H, 0])), fC, 0.052 * H, 0.05 * H, 24).map(Pj);
-      const inner = ring(add(sk.neckBase, fC([0, -0.004 * H, 0])), fC, 0.037 * H, 0.036 * H, 24).map(Pj);
+      // Collar rings grow with the neck, so a wide neck never swallows them.
+      const nw = lim ** 0.5 * (b.neck || 1);
+      const col = ring(add(sk.neckBase, fC([0, 0.004 * H, 0])), fC, 0.052 * H * Math.max(1, nw * 0.9), 0.05 * H * Math.max(1, nw * 0.9), 24).map(Pj);
+      const inner = ring(add(sk.neckBase, fC([0, -0.004 * H, 0])), fC, 0.037 * H * Math.max(1, nw * 0.9), 0.036 * H * Math.max(1, nw * 0.9), 24).map(Pj);
       // Front half of the collar band, as seen from a little above.
       const front = (pts) => pts.filter((_, i) => i >= 2 && i <= 10);
       const band = [...front(col), ...front(inner).reverse()];
       const toCam = Pj(add(sk.neckBase, mul(fwdChest, 10)))[2] - Pj(sk.neckBase)[2];
-      if (ch.topStyle === 'turtleneck') {
-        // A high rolled collar: a tube up the lower neck with a fold line.
-        const tn = tube(Pj, add(sk.neckBase, fC([0, 0.012 * H, 0])), add(sk.neckBase, mul(unit([sk.neckTop[0] - sk.neckBase[0], sk.neckTop[1] - sk.neckBase[1], sk.neckTop[2] - sk.neckBase[2]]), 0.032 * H)), () => 0.041 * H * lim ** 0.5 * (b.neck || 1));
-        solid(pen, 'turtle', tn.pts, top, { axis: tn.axis, width: line * 0.85 });
-        if (toCam > -3) pen.stroke('turtleFold', curve(front(ring(add(sk.neckBase, fC([0, -0.008 * H, 0])), fC, 0.044 * H, 0.043 * H, 24).map(Pj)).filter((_, i) => i % 2 === 0), 3), { width: line * 0.45, color: mix(top, ink, 0.55) });
-      } else if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
+      const up = unit([sk.neckTop[0] - sk.neckBase[0], sk.neckTop[1] - sk.neckBase[1], sk.neckTop[2] - sk.neckBase[2]]);
+      // A high collar hugging the neck: a rolled turtleneck, or the low
+      // mock neck of f2's sleeveless top (a soft band in the top's colour,
+      // one thin line along its top edge).
+      const high = (hgt, fold) => {
+        const rad = 0.041 * H * nw;
+        const tn = tube(Pj, add(sk.neckBase, fC([0, 0.012 * H, 0])), add(sk.neckBase, mul(up, hgt * H)), () => rad);
+        solid(pen, 'turtle', tn.pts, top, { axis: tn.axis, width: line * 0.7 });
+        if (toCam > -3) pen.stroke('turtleFold', curve(front(ring(add(sk.neckBase, mul(up, (hgt - fold) * H)), fC, rad * 1.02, rad, 24).map(Pj)).filter((_, i) => i % 2 === 0), 3), { width: line * 0.35, color: mix(top, ink, 0.4) });
+      };
+      if (ch.topStyle === 'turtleneck') high(0.032, 0.04);
+      else if (ch.topStyle === 'sleeveless') high(0.014, 0.011);
+      else if (band.length > 4 && toCam > -3) solid(pen, 'collar', loop(band.filter((_, i) => i % 2 === 0), 3), top, { width: line * 0.7, round: 0.4 });
     },
   });
 
