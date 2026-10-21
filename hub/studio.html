@@ -259,6 +259,7 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
 
 <script type="module">
 import { validateProject, normalizeStyle, SAMPLE_PROJECT, STYLE_RANGES, DEFAULT_STYLE } from './studio/schema.js';
+import { FIRST_VIDEO } from './studio/first-video.js';
 import { renderFrame, renderBackground, renderCastSheet, paint, paintOps, makeGrain, locate, quantize, timeline, totalSeconds, W, H } from './studio/render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -299,6 +300,7 @@ const S = {
   projects: [], id: ls.get('studio-id') || '', meta: null, notes: [], feedback: [], sheet: null, rules: null,
   project: null, demo: true, rev: -1, seen: 0, styleOver: {}, waiting: false,
 };
+const DEMOS = { cookie: SAMPLE_PROJECT, first: FIRST_VIDEO };
 let P = validateProject(SAMPLE_PROJECT).project; // what is on screen (style overrides applied)
 let base = P; // the same before overrides
 
@@ -483,12 +485,21 @@ async function loadList() {
   const { projects } = await api('studio-list');
   S.projects = projects;
   if (S.id && !projects.some((p) => p.id === S.id)) S.id = '';
-  if (!S.id && projects[0]) S.id = projects[0].id;
-  $('pick').innerHTML = projects.length
-    ? projects.map((p) => `<option value="${p.id}"${p.id === S.id ? ' selected' : ''}>${esc(p.title)}${p.stage === 'full' ? ' · full' : ''}</option>`).join('')
-    : '<option value="">Demo: The Last Cookie</option>';
+  if (!S.id && !S.demoPick && projects[0]) S.id = projects[0].id;
+  const demos = Object.entries(DEMOS).map(([k, d]) => `<option value="demo:${k}"${!S.id && (S.demoPick || 'cookie') === k ? ' selected' : ''}>Demo: ${esc(d.title)}</option>`).join('');
+  $('pick').innerHTML = projects.map((p) => `<option value="${p.id}"${p.id === S.id ? ' selected' : ''}>${esc(p.title)}${p.stage === 'full' ? ' · full' : ''}</option>`).join('') + demos;
 }
-$('pick').onchange = (e) => { S.id = e.target.value; ls.set('studio-id', S.id); S.rev = -1; S.seen = 0; S.styleOver = {}; buildSliders(); refresh(true); };
+$('pick').onchange = (e) => {
+  const v = e.target.value;
+  S.rev = -1; S.seen = 0; S.styleOver = {};
+  if (v.startsWith('demo:')) {
+    // A built-in demo (the drawing style, or the copy of XIAO's reference video).
+    S.id = ''; S.demoPick = v.slice(5); S.demo = true;
+    buildSliders(); showProject(validateProject(DEMOS[S.demoPick] || SAMPLE_PROJECT).project); setStatus();
+    return;
+  }
+  S.id = v; S.demoPick = ''; ls.set('studio-id', S.id); buildSliders(); refresh(true);
+};
 
 async function refresh(full = false) {
   if (!S.id) { S.demo = true; setStatus(); return; }
@@ -522,6 +533,7 @@ function setStatus() {
   $('badge').textContent = S.demo ? (S.id ? 'Demo while your team draws the sample…' : 'Demo story') : '';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
+  if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
   if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one; this demo shows the drawing style.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');

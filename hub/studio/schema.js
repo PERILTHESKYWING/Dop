@@ -31,7 +31,7 @@ export const STYLE_RANGES = {
 export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, fill: 1, paper: '#f7f1e3', ink: '#2a2420', captions: true, capPos: 'bottom' };
 
 const ZOOM = [1, 3.5]; // 3.5 = bust close-up, head and shoulders fill the frame
-const LIMITS = { scenes: 40, actors: 4, beats: 24, props: 6, marks: 6, cast: 6, say: 140, narration: 300, title: 80, idea: 2000, duration: [1, 30] };
+const LIMITS = { scenes: 40, actors: 4, beats: 24, props: 6, marks: 6, cast: 6, say: 140, narration: 300, title: 80, idea: 2000, duration: [0.3, 30] };
 const SAMPLE_MAX_SECONDS = 25;
 const READ_CHARS_PER_SEC = 14; // a comfortable reading speed for captions and bubbles
 
@@ -202,7 +202,7 @@ export function lintProject(p) {
     const where = `scenes[${i}] (${s.id})`;
     const need = s.narration.length / READ_CHARS_PER_SEC + 0.5;
     if (s.narration && need > s.duration) out.push(`${where}: narration needs about ${need.toFixed(1)} s to read but the scene lasts ${s.duration} s`);
-    if (!s.actors.length && !s.narration) out.push(`${where}: empty scene (no actors, no narration)`);
+    if (!s.actors.length && !s.narration && !s.marks?.length && s.duration > 0.6) out.push(`${where}: empty scene (no actors, narration or marks)`);
     const xs = [];
     for (const a of s.actors) {
       used.add(a.who);
@@ -247,7 +247,7 @@ export function schemaText() {
   return [
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
     `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
-    `Scene: {id, duration 1-30 s, bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-3.5 (3 = bust close-up), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], marks? [{kind ${MARK_KINDS.join('|')}, text? (label/sfx, ≤40 chars), x 0-1, y 0-1, to? [x,y] arrow target; x, y are shares of the screen, t? pop-in time s, size? 0.5-2}] (max ${LIMITS.marks}), actors: [Actor] (max ${LIMITS.actors})}.`,
+    `Scene: {id, duration 0.3-30 s (0.3-0.6 s = a blink cut or colour flash), bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-3.5 (3 = bust close-up), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], marks? [{kind ${MARK_KINDS.join('|')}, text? (label/sfx, ≤40 chars), x 0-1, y 0-1, to? [x,y] arrow target; x, y are shares of the screen, t? pop-in time s, size? 0.5-2}] (max ${LIMITS.marks}), actors: [Actor] (max ${LIMITS.actors})}.`,
     `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
     `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, shade 0-1, fill 0-1 (0 = line art only), capPos bottom|top (top = outlined subtitle), paper, ink}. Omit style to use XIAO's defaults.`,
     `A sample is 1-2 scenes under ${SAMPLE_MAX_SECONDS} s.`,
