@@ -8,6 +8,21 @@ import { skillTools } from './tools-skills.js';
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Poll cheaply: one GET of the id counter per tick, and only read the feed
+// when the counter moved past `after`. Returns the new lines (or []).
+async function waitFor(hub, a, tid, after, waitS) {
+  const end = Date.now() + Math.min(WAIT_MAX_S, waitS) * 1000;
+  const mine = (m) => m.thread === tid && m.from !== a.name && m.kind !== 'thinking';
+  for (;;) {
+    if ((await hub.nextSeq()) > after) {
+      const list = await hub.messagesSince(after, mine);
+      if (list.length) return list;
+    }
+    if (Date.now() >= end) return [];
+    await sleep(1500);
+  }
+}
+
 export function toolsFor(hub) {
   const num = { type: 'number' };
   const str = { type: 'string' };
@@ -65,16 +80,33 @@ export function toolsFor(hub) {
       description: 'Post in a thread (thread 0 = the main project chat). kind: progress, question (to XIAO, or to a teammate with to), answer (with reply_to), note, thinking (one or two sentences of your reasoning at a key decision; XIAO\'s page shows it only when asked, and other agents don\'t receive it), done (final result; closes the thread, or only your part if you are a team member). to: a teammate\'s account name, to address one teammate (everyone on the thread still sees it).',
       inputSchema: {
         type: 'object',
-        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'thinking', 'done'] }, reply_to: num, to: str },
+        properties: { thread: num, text: str, kind: { type: 'string', enum: ['progress', 'question', 'answer', 'note', 'thinking', 'done'] }, reply_to: num, to: str, wait_s: { type: 'number', description: 'Optional (max 45): after posting, wait this long for teammates\' replies and return them in the same call (saves a hub_wait).' } },
         required: ['thread', 'text'],
       },
-      run: (a, x) => hub.agentPost(a, x),
+      run: async (a, x) => {
+        const res = await hub.agentPost(a, x);
+        const wait = Number(x.wait_s) || 0;
+        if (!wait || x.kind === 'thinking' || x.kind === 'done') return res;
+        const id = Number(String(res).match(/#(\d+)/)?.[1]) || 0;
+        const list = await waitFor(hub, a, Number(x.thread) || 0, id, wait);
+        return list.length ? `${res}\n${list.map(hub.msgLine).join('\n')}` : `${res} No replies yet.`;
+      },
     },
     {
       name: 'hub_checkpoint',
       description: 'Save a handover for your thread: what is done, the exact next step, and the branch. Another account continues from it if you stop.',
       inputSchema: { type: 'object', properties: { thread: num, done: str, next: str, branch: str }, required: ['thread', 'done', 'next'] },
       run: (a, x) => hub.checkpoint(a, x),
+    },
+    {
+      name: 'hub_agent',
+      description: 'Report a sub-agent you deployed yourself (with your own Agent tool) so XIAO\'s page shows its live progress. action "start" (id, title, optional thread), "update" (id, step, pct 0-100, note), "finish" (id, status done or failed, note). Call it when you start one, at each step, and when it ends. Cheap: no model call.',
+      inputSchema: {
+        type: 'object',
+        properties: { action: { type: 'string', enum: ['start', 'update', 'finish'] }, id: str, thread: num, title: str, step: str, pct: num, note: str, status: { type: 'string', enum: ['done', 'failed'] } },
+        required: ['action', 'id'],
+      },
+      run: (a, x) => hub.agentRun(a, x),
     },
     {
       name: 'hub_ask',
@@ -97,17 +129,9 @@ export function toolsFor(hub) {
       inputSchema: { type: 'object', properties: { thread: num, after: num, wait_s: num }, required: ['thread'] },
       run: async (a, x) => {
         const tid = Number(x.thread) || 0;
-        const after = Number(x.after) || 0;
-        const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 20) * 1000;
-        const mine = (m) => m.thread === tid && m.from !== a.name && m.kind !== 'thinking';
-        for (;;) {
-          const list = await hub.messagesSince(after, mine);
-          if (list.length || Date.now() >= end) {
-            if (tid) await hub.heartbeat(tid, a.name);
-            return list.length ? list.map(hub.msgLine).join('\n') : 'No new messages.';
-          }
-          await sleep(3000);
-        }
+        const list = await waitFor(hub, a, tid, Number(x.after) || 0, x.wait_s ?? 20);
+        if (tid) await hub.heartbeat(tid, a.name);
+        return list.length ? list.map(hub.msgLine).join('\n') : 'No new messages.';
       },
     },
     {
