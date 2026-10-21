@@ -213,9 +213,9 @@ describe('studio renderer', () => {
 describe('studio camera, captions and fill', () => {
   const cam = (camera: any) => project({ scenes: [{ id: 'x', duration: 4, camera, actors: [{ who: 'mia', x: 0.5, beats: [{ t: 0 }] }] }] });
 
-  it('allows a bust close-up and clamps beyond 4', () => {
+  it('allows a bust close-up and clamps beyond 6', () => {
     expect(cam({ zoom: 3 }).scenes[0].camera.zoom).toBe(3);
-    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(4);
+    expect(cam({ zoom: 9 }).scenes[0].camera.zoom).toBe(6);
     expect(cam({}).scenes[0].camera).toEqual({ zoom: 1, x: 0.5, y: 0.6 });
   });
 
@@ -344,7 +344,7 @@ describe('studio female lead options (refs f1/f2)', () => {
     expect(r.project.cast.a).toMatchObject({ eyes: 'anime', jaw: 'round', topStyle: 'tee', bottomStyle: 'longskirt' });
     expect(r.project.cast.a.hair2).toBeUndefined();
     expect(lead().hair2).toBe('#c0507a');
-    expect(r.project.scenes[0].camera.zoom).toBe(4);
+    expect(r.project.scenes[0].camera.zoom).toBe(6);
     expect(S.schemaText()).toMatch(/topStyle tee\|sleeveless\|turtleneck\|long/);
   });
 
