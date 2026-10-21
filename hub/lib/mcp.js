@@ -76,6 +76,16 @@ export function toolsFor(hub) {
       run: (a, x) => hub.checkpoint(a, x),
     },
     {
+      name: 'hub_agent',
+      description: 'Report a sub-agent you deployed yourself (with your own Agent tool) so XIAO\'s page shows its live progress. action "start" (id, title, optional thread), "update" (id, step, pct 0-100, note), "finish" (id, status done or failed, note). Call it when you start one, at each step, and when it ends. Cheap: no model call.',
+      inputSchema: {
+        type: 'object',
+        properties: { action: { type: 'string', enum: ['start', 'update', 'finish'] }, id: str, thread: num, title: str, step: str, pct: num, note: str, status: { type: 'string', enum: ['done', 'failed'] } },
+        required: ['action', 'id'],
+      },
+      run: (a, x) => hub.agentRun(a, x),
+    },
+    {
       name: 'hub_ask',
       description: 'Ask another thread a question and wait (up to wait_s, max 45) for its answer. If nobody is working there, the hub starts a short session to answer.',
       inputSchema: { type: 'object', properties: { from_thread: num, to_thread: num, question: str, wait_s: num }, required: ['to_thread', 'question'] },
