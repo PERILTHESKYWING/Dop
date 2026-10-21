@@ -304,8 +304,8 @@ export function createLibrary(hub) {
         if (!m || m.status !== 'ready') return `No library file "${x.id}". See lib_list.`;
         const head = `${itemLine(m)}${m.tags?.includes('dont') ? '\nThis is a "dont": an example of what NOT to do.' : m.tags?.includes('do') ? '\nThis is a "do": an example to follow.' : ''}`;
         if (m.kind === 'image') {
-          const p = m.hasView ? await piece(m, 'view') : m.chunks === 1 ? await piece(m, 'body', 0) : null;
-          if (!p) return `${head}\nThis picture is too big to show and has no small copy; ask ${owner} to upload it again from the hub page.`;
+          const p = m.hasView ? await piece(m, 'view') : m.chunks === 1 && /^image\/(jpeg|png|gif|webp)$/.test(m.type) ? await piece(m, 'body', 0) : null;
+          if (!p) return `${head}\nThis picture is too big or in a format agents cannot open (HEIC, BMP…), and has no small copy; ask ${owner} to upload it again from the hub page.`;
           return { content: [img(p), { type: 'text', text: head }] };
         }
         if (m.kind === 'video') {
