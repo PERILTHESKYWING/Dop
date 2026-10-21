@@ -51,7 +51,11 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 16px; }
 body { transition: background-color .2s, color .2s; }
-#login, .main { background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
+#login, .app { background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
+/* Panels over the background: frosted, so the wall carries under the sidebars and header. */
+:root { --glass: color-mix(in srgb, var(--panel) 66%, transparent); }
+:root:not([data-bg]), :root[data-bg=""] { --glass: var(--panel); }
+.side, .team, .head, .tabs { background: var(--glass); -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3); }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -81,18 +85,31 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 #login h1 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
 
 /* layout */
-.app { display: grid; grid-template-columns: 272px minmax(0, 1fr) 320px; height: 100vh; height: 100dvh; }
+.app { --sw: 272px; --tw: 320px; display: grid; grid-template-columns: var(--sw) minmax(0, 1fr) var(--tw); height: 100vh; height: 100dvh; transition: grid-template-columns .22s ease; }
 .col { min-height: 0; display: flex; flex-direction: column; }
-.side { border-right: 1px solid var(--line); background: var(--panel); }
-.team { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; }
+.side { border-right: 1px solid var(--line); overflow: hidden; }
+.team { border-left: 1px solid var(--line); overflow: hidden auto; }
+/* Closable sidebars (desktop): the column folds to 0 and its content slides out at full width. */
+.side > *, .team > * { min-width: calc(var(--sw) - 1px); }
+.team > * { min-width: calc(var(--tw) - 1px); }
+.side > .newtask { min-width: calc(var(--sw) - 25px); }
+.app[data-side="off"] { --sw: 0px; }
+.app[data-team="off"] { --tw: 0px; }
+.app[data-side="off"] .side, .app[data-team="off"] .team { visibility: hidden; border-width: 0; transition: visibility 0s .22s; }
+.pbtn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 8px; color: var(--soft); flex: none; }
+.pbtn:hover { color: var(--ink); }
+.pbtn svg { width: 19px; height: 19px; }
+.brand .pbtn, .thead .pbtn { margin-right: -6px; }
+.head .pbtn[aria-pressed="true"] { display: none; }
+@media (prefers-reduced-motion: reduce) { .app { transition: none; } }
 
 /* sidebar */
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
-.brand b { font-size: 19px; }
+.brand b { font-size: 19px; white-space: nowrap; }
 .mark { display: inline-flex; }
 .mark i { width: 14px; height: 14px; border-radius: 50%; display: block; }
 .mark i + i { margin-left: -5px; }
-.live { margin-left: auto; font-size: 14px; color: var(--green); font-weight: 600; }
+.live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 600; }
 .live.off { color: var(--red); }
 .newtask { margin: 4px 12px 8px; text-align: left; display: flex; gap: 8px; align-items: center; }
 .newtask span { font-size: 19px; line-height: 1; }
@@ -116,7 +133,7 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 
 /* main */
 .main { min-width: 0; }
-.head { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--panel); min-height: 60px; flex-wrap: wrap; }
+.head { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-bottom: 1px solid var(--line); min-height: 60px; flex-wrap: wrap; }
 .head h2 { margin: 0; font-size: 19px; flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; background: var(--chip); }
 .head a { color: var(--green); font-size: 15px; font-weight: 600; }
@@ -324,9 +341,12 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tabs { display: none; }
 
-@media (max-width: 1100px) { .app { grid-template-columns: 240px minmax(0, 1fr) 290px; } }
+@media (max-width: 1100px) { .app { --sw: 240px; --tw: 290px; } }
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .app, .app[data-side="off"], .app[data-team="off"] { grid-template-columns: 1fr; grid-template-rows: 1fr auto; transition: none; }
+  .app .side, .app .team { visibility: visible; }
+  .side > *, .team > * { min-width: 0; }
+  .pbtn { display: none !important; }
   .app > .col { grid-row: 1; grid-column: 1; }
   .app[data-tab="threads"] .main, .app[data-tab="threads"] .team { display: none; }
   .app[data-tab="chat"] .side, .app[data-tab="chat"] .team { display: none; }
@@ -338,7 +358,7 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
   .head, .feed { padding-left: 16px; padding-right: 16px; }
   .compose { padding: 0 12px 10px; }
   .row.me .bubble { max-width: 88%; }
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); background: var(--panel); padding-bottom: env(safe-area-inset-bottom); }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .tabs button { border: 0; background: none; padding: 12px 0; font-size: 15px; font-weight: 700; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
@@ -357,7 +377,7 @@ input, select, textarea { background: var(--bg); border: 1px solid var(--line); 
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><span id="clawdMark" title="Clawd"></span><span class="mark" id="mark"></span><b>Dop hub</b><span class="live" id="live">Live</span></div>
+    <div class="brand"><span id="clawdMark" title="Clawd"></span><span class="mark" id="mark"></span><b>Dop hub</b><span class="live" id="live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <button class="btn newtask" id="newTask" type="button"><span>+</span>New task</button>
     <nav class="list" id="threads"></nav>
   </aside>
@@ -634,19 +654,40 @@ async function deleteMsg(id) {
   try { await api('message-delete', { id }); } catch (e) { if (e.message !== 'auth' && e.message !== 'No such message.') alert(e.message); }
   load(false).catch(() => {});
 }
+const ICON = {
+  side: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M7.5 3.5v13"/></svg>',
+  team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M12.5 3.5v13"/></svg>',
+};
+// Which sidebars are open on this device (desktop only; phones use the tabs).
+let panels = { side: true, team: true };
+try { panels = { ...panels, ...JSON.parse(ls.get('hub-panels') || '{}') }; } catch {}
+function applyPanels() {
+  $('app').dataset.side = panels.side ? 'on' : 'off';
+  $('app').dataset.team = panels.team ? 'on' : 'off';
+  document.querySelectorAll('[data-panel]').forEach((b) => {
+    const k = b.dataset.panel, open = panels[k], name = k === 'side' ? 'threads' : 'team';
+    b.setAttribute('aria-pressed', open);
+    b.setAttribute('aria-label', `${open ? 'Close' : 'Open'} ${name}`);
+    b.title = `${open ? 'Close' : 'Open'} ${name} (${k === 'side' ? '[' : ']'})`;
+    if (!b.firstChild) b.innerHTML = ICON[k];
+  });
+}
+function togglePanel(k) { panels[k] = !panels[k]; ls.set('hub-panels', JSON.stringify(panels)); applyPanels(); }
+const panelBtn = (k) => `<button type="button" class="btn quiet pbtn" data-panel="${k}"></button>`;
 function renderHead(t) {
-  const back = '<button class="btn small back" id="back" type="button">Threads</button>';
+  const back = '<button class="btn small back" id="back" type="button">Threads</button>' + panelBtn('side');
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>`;
-    return;
+    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${panelBtn('team')}`;
+    applyPanels(); return;
   }
   $('head').innerHTML = `${back}<h2 title="${esc(t.title)}">${esc(t.title)}</h2><span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : STATUS[t.status])}</span>
     ${t.sessionUrl ? `<a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : t.status === 'done' ? '' : '<button type="button" class="btn small" data-act="done">Mark done</button>'}
     <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
-    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>`;
+    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`;
+  applyPanels();
 }
 function renderFeed() {
   const feed = $('feed');
@@ -830,7 +871,7 @@ function renderTeam() {
   const n = (k) => S.accounts.filter((a) => acctState(a)[0] === k).length;
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
-  $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button></div>
+  $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
     ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${taskList()}
@@ -838,6 +879,7 @@ function renderTeam() {
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
       <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
     </div>`;
+  applyPanels();
 }
 
 function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); }
@@ -859,6 +901,7 @@ document.addEventListener('click', async (e) => {
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
   const tab = e.target.closest('#tabs button'); if (tab) return setTab(tab.dataset.tab);
   if (e.target.closest('#back')) return setTab('threads');
+  const pn = e.target.closest('[data-panel]'); if (pn) return togglePanel(pn.dataset.panel);
   if (e.target.closest('#newTask')) { openThread(0); $('text').focus(); return; }
   const pp = e.target.closest('[data-pop]'); if (pp) { if (popKind === pp.dataset.pop) return closePop(); return openPop(pp.dataset.pop, pp); }
   const tg = e.target.closest('[data-toggle="direct"]'); if (tg) { opts.direct = !opts.direct; saveOpts(); return renderTools(null); }
@@ -871,7 +914,11 @@ document.addEventListener('click', async (e) => {
   if (act) return threadAction(act.dataset.act);
   if (e.target === $('sheet')) closeSheet();
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeSheet(); setOpen(null); } });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closePop(); closeSheet(); setOpen(null); }
+  // [ and ] fold the threads and team sidebars, unless typing.
+  if ((e.key === '[' || e.key === ']') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest('input, textarea, select, [contenteditable]')) togglePanel(e.key === '[' ? 'side' : 'team');
+});
 // Swipe left on a message (touch or pen) to show its Delete button; swipe right or tap elsewhere to hide it.
 let drag = null, swiped = 0;
 $('feed').addEventListener('pointerdown', (e) => {
