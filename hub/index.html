@@ -1145,7 +1145,7 @@ function accountCard(a) {
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const src = u?.source === 'manual' ? 'typed in' : u?.source === 'pc' ? 'from your PC' : u?.source === 'agent' ? 'reported by its agent' : 'from Claude';
-  const sub = a.low ? a.lowNote : '';
+  const sub = a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${until(new Date(a.lowUntil).toISOString()).replace('resets ', '')}, then its threads continue` : ''}` : '';
   const usage = has
     ? `${usageRow('5-hour', u.five_hour_pct, u.five_hour_resets)}${usageRow('Weekly', u.seven_day_pct, u.seven_day_resets)}${u.opus_week_pct != null ? usageRow('Opus wk', u.opus_week_pct) : ''}`
     : `<div class="nouse">${a.usageErr ? `Claude didn't share usage (${esc(a.usageErr)}).` : a.models.length ? 'Usage not read yet.' : 'Free plans don\'t share usage.'} <button class="btn small quiet" data-open="usage" data-name="${esc(a.name)}">Type it in</button></div>`;
