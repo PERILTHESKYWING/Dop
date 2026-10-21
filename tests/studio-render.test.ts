@@ -392,3 +392,31 @@ describe('studio female lead options (refs f1/f2)', () => {
     expect(await locks(0)).toBeGreaterThan(await locks(90));
   });
 });
+
+describe('the reference copy (hub/studio/first-video.js)', () => {
+  it('is a clean, lint-free copy of reference f2 that follows the reference rules', async () => {
+    const { FIRST_VIDEO } = await lib('first-video.js');
+    const { REF_RULES } = await lib('ref-rules.js');
+    const v = S.validateProject(FIRST_VIDEO);
+    expect(v.problems).toEqual([]);
+    expect(S.lintProject(v.project)).toEqual([]);
+    const p = v.project;
+    const total = p.scenes.reduce((s: number, x: any) => s + x.duration, 0);
+    expect(total).toBeGreaterThan(65);
+    expect(total).toBeLessThan(90); // f2 is 76 s
+    expect(p.scenes[0].duration).toBeLessThanOrEqual(1.5); // hook
+    expect(p.scenes.filter((s: any) => s.duration > 1).every((s: any) => s.duration <= 8)).toBe(true);
+    // Crop changes every beat: no two neighbouring shots with the same zoom and the same move.
+    for (let i = 1; i < p.scenes.length; i++) {
+      const [a, b] = [p.scenes[i - 1], p.scenes[i]];
+      if (!a.actors.length || !b.actors.length) continue;
+      expect(a.camera.zoom === b.camera.zoom && a.actors[0].beats[0].move === b.actors[0].beats[0].move).toBe(false);
+    }
+    expect(new Set(p.scenes.map((s: any) => s.camera.zoom)).size).toBeGreaterThanOrEqual(3);
+    expect(p.cast.nami).toMatchObject({ eyes: 'big', hairStyle: 'layered', jaw: 'v' });
+    expect(p.style.capPos).toBe('top');
+    expect(REF_RULES.length).toBeGreaterThanOrEqual(12);
+    // Every frame draws without bad numbers.
+    for (let i = 0; i < p.scenes.length; i++) expect(R.toSVG(R.renderFrame(p, i, p.scenes[i].duration / 2), 320)).not.toMatch(/NaN|Infinity/);
+  });
+});
