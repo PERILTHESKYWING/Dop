@@ -29,6 +29,6 @@ New session? Start with `docs/handoff/START-HERE.md` (state, checklist, next ste
 - `doppel.md` how the copy plays, its mistakes, evolution, measurements
 - `open-items.md` unfinished or unverified things
 - `kami.md` + `kami-*.md` Kami site, explain engine, factory, trainer, library
-- `hub-cloud.md` Dop hub on Vercel (hub/): coordinator, threads, every account and device; `hub.md` the PC-only version (tools/hub/)
+- `hub-cloud.md` Dop hub on Vercel (hub/): coordinator, threads, every account and device; `hub.md` the PC-only version (tools/hub/); `hub-split.md` using the hub for other projects or moving it to its own repo
 - `project-instructions.md` paste-ready project instructions + thread/PR history
 - `.claude/skills/` task checklists (lean session, verify, ship PR, engine change, LLM change, and `/clarify`, which asks 5+ questions in one batch before a task) and two hook mods, `lean-tokens` and `dop-guard`, that load on their own (see `.claude/MODS.md`)

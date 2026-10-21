@@ -1,4 +1,4 @@
-// Dop hub core: accounts, threads, messages, dispatch and handover.
+// The hub core (named after its project, HUB_PROJECT; Dop by default): accounts, threads, messages, dispatch and handover.
 // Storage is a small Redis-like store (lib/store.js). Everything runs inside
 // short serverless calls, so there are no timers: stale work is noticed
 // whenever the page or an agent next talks to the hub.
@@ -79,7 +79,10 @@ export function safeEqual(a, b) {
   return timingSafeEqual(x, y);
 }
 
-export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) {
+export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), project = 'Dop', owner = 'XIAO' }) {
+  // The project this hub serves and the person it works for. Only the words
+  // agents and the page read change; stored messages keep from: 'XIAO'.
+  const slug = project.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'hub';
   async function nextId() {
     return Number(await store.cmd('INCR', K.seq));
   }
@@ -437,7 +440,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
           'anthropic-beta': 'experimental-cc-routine-2026-04-01',
           'content-type': 'application/json',
         },
-        body: json({ text: `${THINK_WORD[thinking] ? THINK_WORD[thinking] + '\n' : ''}${json({ hub: 'dop', ...payload })}` }),
+        body: json({ text: `${THINK_WORD[thinking] ? THINK_WORD[thinking] + '\n' : ''}${json({ hub: slug, ...payload })}` }),
       });
     } catch (e) {
       return { ok: false, reason: `could not reach Claude: ${e.message}` };
@@ -513,7 +516,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     if (a && !underMin(a, s) && !exclude.includes(a.name) && !(a.routines || []).length && (a.plan !== 'free' || t.code === false)) {
       t.status = 'queued';
       await putThread(t);
-      await post({ thread: t.id, from: 'hub', kind: 'alert', text: `Waiting for ${a.name} to check in (open a chat on that account and say "check the Dop hub").` });
+      await post({ thread: t.id, from: 'hub', kind: 'alert', text: `Waiting for ${a.name} to check in (open a chat on that account and say "check the ${project} hub").` });
       return { ok: false, queued: a.name };
     }
     if (a && (underMin(a, s) || exclude.includes(a.name) || !pickRoutine(a, t.model))) a = null;
@@ -523,7 +526,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
       t.status = 'queued';
       await putThread(t);
       const who = t.accounts?.length ? t.accounts.join(', ') : 'no account';
-      await post({ thread: t.id, from: 'hub', kind: 'alert', text: t.accounts?.length ? `Waiting: ${who} can't start a session right now. Pick more accounts, or open a chat on one and say "check the Dop hub".` : `Waiting for an agent: no account can start a ${t.model} session right now. A PC or chat agent can pick it up with hub_start.` });
+      await post({ thread: t.id, from: 'hub', kind: 'alert', text: t.accounts?.length ? `Waiting: ${who} can't start a session right now. Pick more accounts, or open a chat on one and say "check the ${project} hub".` : `Waiting for an agent: no account can start a ${t.model} session right now. A PC or chat agent can pick it up with hub_start.` });
       return { ok: false };
     }
     const r = await fire(a, useModel, { role, thread: t.id }, role, thinkingOf(t.thinking));
@@ -833,7 +836,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in XIAO's Dop hub (several Claude accounts working as one team on the Dop repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (XIAO can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Repo skills in .claude/skills load in your session; use the dop-* one that fits, e.g. dop-verify before a PR.`;
+  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Repo skills in .claude/skills load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
@@ -902,15 +905,15 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   function promptLine(m) {
     const x = m.meta || {};
     const picks = [x.model && `model ${x.model}`, x.thinking && x.thinking !== 'medium' && `thinking ${x.thinking}`, x.accounts?.length && `accounts ${x.accounts.join(', ')}`, x.team && `team of ${x.team}`].filter(Boolean);
-    return msgLine(m) + (picks.length ? `\n  (XIAO picked: ${picks.join('; ')})` : '');
+    return msgLine(m) + (picks.length ? `\n  (${owner} picked: ${picks.join('; ')})` : '');
   }
 
   async function coordinatorBrief(prompts, s) {
     return [
-      `You are the coordinator of XIAO's Dop hub. Be brief: you are the hub's overhead, so spend as few tokens as you can and do not do the work yourself.`,
-      `For each prompt below make ONE hub_route call (prompt_id, summary, threads) and then stop. Split a prompt into several threads only when parts can run in parallel or need different models; most prompts are one thread. Each thread: title (a few words), brief (XIAO's words plus anything from the overview it needs), model, code, account (usually empty). To continue an open thread instead, give its id as thread_id with the new brief. summary: one short line for XIAO.`,
+      `You are the coordinator of ${owner}'s ${project} hub. Be brief: you are the hub's overhead, so spend as few tokens as you can and do not do the work yourself.`,
+      `For each prompt below make ONE hub_route call (prompt_id, summary, threads) and then stop. Split a prompt into several threads only when parts can run in parallel or need different models; most prompts are one thread. Each thread: title (a few words), brief (${owner}'s words plus anything from the overview it needs), model, code, account (usually empty). To continue an open thread instead, give its id as thread_id with the new brief. summary: one short line for ${owner}.`,
       `Models: opus = hard or design work, sonnet = normal coding, haiku = small edits, lookups, checks. code=false for tasks that need no repo (questions, research, writing, reviewing text); the hub gives those to free helper accounts first. Leave account empty to let the hub choose. team (1-${TEAM_MAX}, default 1): how many accounts work one thread together, sharing its messages and handovers; use 2-${TEAM_MAX} only for big tasks that split into parts, since each member costs a session.`,
-      `If XIAO picked a model, thinking level, accounts or team size for a prompt (shown after it), the hub applies them to its threads, so you don't need to. Otherwise choose thinking per thread: low for small tasks, medium normally, high, xhigh or max for hard ones.`,
+      `If ${owner} picked a model, thinking level, accounts or team size for a prompt (shown after it), the hub applies them to its threads, so you don't need to. Otherwise choose thinking per thread: low for small tasks, medium normally, high, xhigh or max for hard ones.`,
       `Prompts:\n${prompts.map(promptLine).join('\n') || 'none (nothing to do)'}`,
       await overview(),
     ].join('\n\n');
@@ -1025,6 +1028,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now() }) 
   }
 
   return {
+    project, owner,
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
     threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, dispatch,

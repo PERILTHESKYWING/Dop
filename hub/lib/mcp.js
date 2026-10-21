@@ -149,8 +149,8 @@ export async function handleMcp(hub, agent, body) {
     return ok({
       protocolVersion: params.protocolVersion || '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dop-hub', version: '2.0.0' },
-      instructions: `You are connected to XIAO's Dop hub as account ${agent.name}. Call hub_start first.`,
+      serverInfo: { name: `${hub.project.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-hub`, version: '2.0.0' },
+      instructions: `You are connected to ${hub.owner}'s ${hub.project} hub as account ${agent.name}. Call hub_start first.`,
     });
   }
   if (id === undefined) return null; // notifications

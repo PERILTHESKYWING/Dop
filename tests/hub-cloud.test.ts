@@ -235,6 +235,25 @@ describe('cloud hub with a single Opus routine', () => {
   });
 });
 
+describe('cloud hub: any project', () => {
+  it('names itself after HUB_PROJECT and HUB_OWNER in what agents and the page read', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const { handleMcp } = await lib('mcp.js');
+    const before = fires.length;
+    const h = createHub({ store: memoryStore(), fetchImpl: fakeFetch, now: () => clock, project: 'Garden App', owner: 'Sam' });
+    await h.upsertAccount({ name: 'P', plan: 'pro', routines: [{ model: 'sonnet', id: 'trig_p', token: 'good-p' }] });
+    const t = await h.createThread({ title: 'x', brief: 'x', model: 'sonnet' });
+    expect(fires.length).toBe(before + 1);
+    expect(fires.at(-1)!.payload).toMatchObject({ hub: 'garden-app', role: 'worker', thread: t.id });
+    const init = await handleMcp(h, { name: 'P' }, { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+    expect(init.result.serverInfo.name).toBe('garden-app-hub');
+    expect(init.result.instructions).toContain("Sam's Garden App hub");
+    const r = await pageApi({ hub: h, password: PW, method: 'GET', query: { op: 'state' }, body: {}, headers: { 'x-hub-password': PW } });
+    expect(r.body).toMatchObject({ project: 'Garden App', owner: 'Sam' });
+  });
+});
+
 describe('cloud hub: thinking level and chosen accounts', () => {
   it('keeps XIAO\'s picks on the coordinator\'s threads and only uses the chosen accounts', async () => {
     const { createHub } = await lib('hub.js');

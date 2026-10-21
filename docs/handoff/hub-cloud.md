@@ -30,6 +30,7 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **New chat** (top of the thread list, next to New task) opens a clean chat. What you send goes straight to one agent as a new thread: no coordinator runs and nothing is added to Project chat. It uses the same Model, Thinking, Accounts and Team picks.
 - Tasks that need code go to paid accounts and start within seconds. Tasks that don't need code wait for a free helper; open a chat on it and type **check the Dop hub**.
 - In a thread you can reply, change its **Model**, **Thinking** or **Accounts**, or press **Mark done**. The **⋯** menu archives a thread (hidden under **Archived** at the bottom of the list, no new sessions, can be restored) or deletes it with its messages.
+- **Copy**: every prompt and reply has a **Copy** button (under your own messages, next to the time on the others); it copies that message's text.
 - **Delete a message**: on a phone, swipe a message left and tap **Delete** (swipe right or tap elsewhere to keep it). On a computer, point at a message and click its **⋯**, then **Delete**. Only that message goes, on every device (they drop it at their next refresh). Deleting a coordinator reply does not make it route the prompt again.
 - Each account card says **✓ Connected** once its connector link has been used with the right key, or **Not connected yet**.
 - The **Team** panel shows each account's 5-hour and weekly limits (% used and when each resets), sorted with the freest first. When an account has less than the **minimum usage left** (Settings, default 15%, so 85% used) of either limit, the hub marks it low and moves new work elsewhere; its threads continue from their last handover. The coordinator sees each account's % left, and among equally busy accounts the one with the most left goes first. **Usage** on a card lets you type the numbers in or mark it **Running low** by hand.
@@ -55,5 +56,6 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - **PC agents (optional)**: `claude mcp add --transport http dop-hub "<link>"`. Set `HUB_MCP_URL` to the link and use `hub/pc-statusline.mjs` as the status line to report low usage automatically.
 - **Speed**: one page refresh is one store round trip (measured with 80 ms per trip: 82 ms, was 1,535 ms and 25 trips), the page only fetches messages it doesn't have, opens from its last view on reload, and shows your message before the hub answers. Settings › Speed shows the last refresh time.
 - **Storage**: the page checks for news every 3 seconds while it's open, and waiting agents check every 3 seconds, well inside Upstash's free allowance.
+- **Other projects / own repo**: `HUB_PROJECT` and `HUB_OWNER` (Vercel env vars) rename the hub for another project; moving its code to its own repo is in `hub-split.md`.
 - **PC-only version**: `tools/hub/` (see `hub.md`) still works offline.
 - Code: `hub/`. Tests: `tests/hub-cloud.test.ts`.
