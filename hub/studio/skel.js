@@ -44,7 +44,7 @@ export function ik3(root, target, a, b, pole) {
 }
 
 // Proportions as a share of height (cartoon: about four heads tall).
-const PRO = { ankle: 0.045, hip: 0.47, pelvis: 0.5, waist: 0.595, chest: 0.685, shoulder: 0.735, neck: 0.765, neckLen: 0.035, thigh: 0.218, shin: 0.218, upper: 0.152, fore: 0.135, stance: 0.115 };
+const PRO = { ankle: 0.045, hip: 0.47, pelvis: 0.5, waist: 0.595, chest: 0.685, shoulder: 0.735, neck: 0.765, neckLen: 0.035, thigh: 0.218, shin: 0.218, upper: 0.165, fore: 0.145, stance: 0.115 };
 // Half-widths [side, depth] per build; limb is a thickness factor.
 export const BUILD = {
   slim: { sh: 0.118, chest: [0.092, 0.064], waist: [0.074, 0.056], hip: [0.088, 0.064], limb: 0.88 },

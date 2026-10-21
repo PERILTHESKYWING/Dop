@@ -132,7 +132,7 @@ export function tube(Pj, a, b, prof, { toward = null, bulge = () => 0, end = nul
 // the joint reads as a bend in one arm rather than two pipes. Returns null
 // when the bend is too sharp or a segment points at the camera; the caller
 // then draws the two segments overlapping (a folded arm).
-export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null, bulgeA = () => 0, bulgeB = () => 0, end = null } = {}) {
+export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null, bulgeA = () => 0, bulgeB = () => 0, end = null, crisp = false } = {}) {
   const [A, J, C] = [Pj(a), Pj(j), Pj(c)];
   const l1 = Math.hypot(J[0] - A[0], J[1] - A[1]);
   const l2 = Math.hypot(C[0] - J[0], C[1] - J[1]);
@@ -151,7 +151,21 @@ export function limb(Pj, a, j, c, profA, profB, { towardA = null, towardB = null
   };
   const sA = sideOf(a, j, towardA, d1);
   const sB = sideOf(j, c, towardB, d2);
-  const path = curve([[A[0], A[1]], [J[0], J[1]], [C[0], C[1]]], 12);
+  // Straight bones with a tight round at the joint (a fillet a fifth of the
+  // limb's width each way), so a bent elbow or knee reads as a bend, not a
+  // rubbery curve; the inside of the bend becomes a crease.
+  let path;
+  if (crisp) {
+    const fil = Math.min(r0 * 0.9, l1 * 0.3, l2 * 0.3);
+    const P1 = [J[0] - d1[0] * fil, J[1] - d1[1] * fil];
+    const P2 = [J[0] + d2[0] * fil, J[1] + d2[1] * fil];
+    const seg = (p, q, n) => Array.from({ length: n }, (_, i) => [p[0] + ((q[0] - p[0]) * i) / n, p[1] + ((q[1] - p[1]) * i) / n]);
+    const arc = Array.from({ length: 6 }, (_, i) => {
+      const t = i / 6;
+      return [0, 1].map((k) => (1 - t) ** 2 * P1[k] + 2 * t * (1 - t) * J[k] + t * t * P2[k]);
+    });
+    path = [...seg([A[0], A[1]], P1, 9), ...arc, ...seg(P2, [C[0], C[1]], 9), [C[0], C[1]]];
+  } else path = curve([[A[0], A[1]], [J[0], J[1]], [C[0], C[1]]], 12);
   const tot = l1 + l2;
   const sJ = l1 / tot;
   const nrmAt = normalsOf(path);
@@ -201,43 +215,72 @@ function normalsOf(pts) {
   });
 }
 
+// Even-odd point in polygon.
+function inPoly(pts, [x, y]) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+
+const HAND = 0.105; // hand length (wrist to the knuckles' end) as a share of height, at headSize 1
 const bump = (t, at, w) => Math.max(0, 1 - Math.abs(t - at) / w);
 const smooth = (x) => x * x * (3 - 2 * x);
 
 // Hand shapes in hand space: u from the wrist (0) to the fingertips (1),
-// v across, thumb on +v. Outline control points and inner lines.
+// v across, thumb on +v. Outline control points and inner lines. Fingers
+// are long tapered shapes with a gap between each pair (never a string of
+// beads); the wrist end (u < 0.15) is about as wide as the forearm's wrist,
+// so the hand flares out of the arm.
+// fingers([[centre v, width, tip u, lean v]], gap u): the outline across
+// the fingertips, pinky side first, with a notch down to `gap` between two.
+const fingers = (list, gap) => list.flatMap(([vc, w, ut, lean = 0], i) => {
+  const a = vc - w / 2;
+  const b = vc + w / 2;
+  const out = i ? [[gap, a + lean * 0.15]] : [];
+  out.push([ut - w * 1.1, a + lean * 0.6], [ut - w * 0.35, a + lean * 0.95 + w * 0.06], [ut, vc + lean], [ut - w * 0.35, b + lean * 0.95 - w * 0.06], [ut - w * 1.1, b + lean * 0.6]);
+  return out;
+});
+// A ball fist: a round palm with knuckle bumps across its far side.
+const ball = (cu, R, bumps) => Array.from({ length: 15 }, (_, i) => {
+  const a = -1.95 + (i / 14) * 3.9;
+  const k = Math.abs(a) < 1.0 ? 1 + bumps * Math.abs(Math.sin(a * 4.7)) : 1;
+  return [cu + Math.cos(a) * R * k, Math.sin(a) * R * k];
+});
 const HANDS = {
-  // The wrist end (u < 0.15) is about as wide as the forearm's wrist, so the
-  // hand flares out of the arm; the palm is twice that.
+  // Fingers loose and a little curled together: a soft mitten with clear gaps.
   relaxed: {
-    out: [[0.05, -0.15], [0.3, -0.3], [0.62, -0.32], [0.9, -0.25], [1.03, -0.09], [0.99, 0.07], [0.82, 0.17], [0.63, 0.2], [0.62, 0.35], [0.5, 0.42], [0.33, 0.31], [0.12, 0.16]],
-    lines: [[[1.0, -0.16], [0.78, -0.15]], [[1.02, -0.01], [0.8, -0.01]], [[0.94, 0.11], [0.78, 0.1]]],
+    out: [[0.05, -0.15], [0.3, -0.29], [0.56, -0.31], ...fingers([[-0.22, 0.13, 0.88], [-0.08, 0.145, 0.99], [0.07, 0.145, 1.01], [0.21, 0.13, 0.93]], 0.8), [0.66, 0.27], [0.74, 0.36], [0.72, 0.45], [0.56, 0.44], [0.34, 0.32], [0.12, 0.16]],
+    lines: [[[0.42, 0.24], [0.6, 0.28]]],
   },
-  // A ball fist, as f2 draws it: round knuckles, the thumb across the front.
+  // A ball fist, as f2 draws it: round, knuckle bumps, the thumb across the front.
   fist: {
-    out: [[0.05, -0.15], [0.25, -0.3], [0.5, -0.37], [0.72, -0.31], [0.84, -0.13], [0.84, 0.08], [0.74, 0.26], [0.56, 0.35], [0.36, 0.31], [0.2, 0.21], [0.08, 0.15]],
-    lines: [[[0.78, -0.22], [0.64, -0.19]], [[0.8, -0.04], [0.64, -0.03]], [[0.38, 0.27], [0.64, 0.12]]],
+    out: [[0.05, -0.16], ...ball(0.47, 0.37, 0.035), [0.06, 0.16]],
+    lines: [[[0.32, 0.27], [0.5, 0.17], [0.66, 0.05]], [[0.84, -0.13], [0.72, -0.12]], [[0.85, 0.06], [0.73, 0.06]]],
   },
-  // Index finger out, the others curled, the thumb tucked across them.
+  // Index finger out, the others curled, the thumb out to the side.
   point: {
-    out: [[0.05, -0.15], [0.3, -0.29], [0.6, -0.31], [1.22, -0.27], [1.29, -0.19], [1.23, -0.1], [0.68, -0.09], [0.74, 0.07], [0.68, 0.23], [0.52, 0.32], [0.34, 0.3], [0.18, 0.21], [0.08, 0.15]],
-    lines: [[[0.68, -0.05], [0.72, 0.17]], [[0.36, 0.24], [0.62, 0.12]]],
+    out: [[0.05, -0.15], [0.26, -0.31], [0.5, -0.36], [0.68, -0.31], [0.77, -0.19], [0.74, -0.03], ...fingers([[0.06, 0.15, 1.32]], 0), [0.64, 0.16], [0.66, 0.28], [0.66, 0.38], [0.58, 0.42], [0.42, 0.36], [0.26, 0.28], [0.1, 0.16]],
+    lines: [[[0.73, -0.2], [0.6, -0.18]], [[0.73, -0.08], [0.6, -0.06]]],
   },
   // Fingers together and straight, the palm toward the camera (hand on a
-  // cheek, palms together, hands over the face).
+  // cheek, palms together, hands over the face): four fingers, the thumb apart.
   flat: {
-    out: [[0.05, -0.15], [0.32, -0.3], [0.8, -0.31], [1.08, -0.25], [1.19, -0.13], [1.21, 0.0], [1.13, 0.12], [0.9, 0.18], [0.63, 0.2], [0.67, 0.34], [0.57, 0.43], [0.4, 0.36], [0.2, 0.22], [0.08, 0.15]],
-    lines: [[[1.15, -0.19], [0.84, -0.17]], [[1.2, -0.06], [0.86, -0.05]], [[1.15, 0.07], [0.86, 0.07]]],
+    out: [[0.05, -0.15], [0.3, -0.29], [0.58, -0.3], ...fingers([[-0.215, 0.125, 1.0], [-0.08, 0.14, 1.15], [0.065, 0.145, 1.2], [0.205, 0.135, 1.1]], 0.74), [0.62, 0.28], [0.7, 0.37], [0.76, 0.47], [0.69, 0.53], [0.5, 0.45], [0.32, 0.33], [0.12, 0.16]],
+    lines: [[[0.36, 0.23], [0.56, 0.3]], [[0.73, -0.15], [0.62, -0.15]], [[0.74, -0.01], [0.62, -0.01]], [[0.74, 0.135], [0.62, 0.13]]],
   },
   // Index and middle finger up in a V, the others curled under the thumb.
   peace: {
-    out: [[0.05, -0.15], [0.3, -0.3], [0.6, -0.31], [1.12, -0.47], [1.21, -0.39], [0.8, -0.17], [1.19, -0.07], [1.2, 0.05], [0.72, 0.08], [0.72, 0.26], [0.54, 0.36], [0.33, 0.32], [0.12, 0.16]],
-    lines: [[[0.7, 0.1], [0.66, 0.24]]],
+    out: [[0.05, -0.15], [0.28, -0.31], [0.52, -0.35], [0.7, -0.3], [0.76, -0.17], [0.72, -0.08], ...fingers([[-0.0, 0.14, 1.22, -0.16], [0.15, 0.14, 1.26, 0.16]], 0.72), [0.66, 0.26], [0.6, 0.38], [0.44, 0.38], [0.28, 0.3], [0.1, 0.16]],
+    lines: [[[0.44, 0.3], [0.6, 0.16], [0.68, 0.0]], [[0.7, -0.2], [0.58, -0.18]]],
   },
   // Fingers curled round something held (a phone, a shoulder).
   hold: {
-    out: [[0.05, -0.15], [0.3, -0.32], [0.66, -0.37], [0.9, -0.23], [0.94, 0.0], [0.82, 0.18], [0.6, 0.22], [0.62, 0.38], [0.47, 0.46], [0.28, 0.34], [0.1, 0.16]],
-    lines: [[[0.86, -0.14], [0.64, -0.11]], [[0.88, 0.04], [0.64, 0.05]]],
+    out: [[0.05, -0.15], [0.3, -0.31], [0.6, -0.33], ...fingers([[-0.2, 0.13, 0.84], [-0.07, 0.14, 0.93], [0.07, 0.14, 0.94], [0.2, 0.13, 0.86]], 0.76), [0.62, 0.27], [0.66, 0.38], [0.58, 0.46], [0.4, 0.4], [0.24, 0.3], [0.1, 0.16]],
+    lines: [[[0.84, -0.13], [0.72, -0.13]], [[0.88, 0.0], [0.74, 0.0]]],
   },
 };
 HANDS.hip = HANDS.fist;
@@ -357,7 +400,29 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     ring(sk.waist, fW, ww * H, wd * H),
     ring(add(sk.pelvis, fP([0, 0.012 * H, 0])), fP, hw * 1.05 * H, hd * 1.08 * H),
   ];
-  const shirt = stackOutline(shirtRings, Pj);
+  // f2's sleeveless mock neck: the armholes are cut in, so the top is about
+  // 60% of the shoulders' width and the round bare shoulders show past it;
+  // the armhole runs from the neck down into the armpit. Under it, the bare
+  // skin of the upper chest and shoulders, sloping from the neck.
+  const cutIn = ch.topStyle === 'sleeveless' || ch.topStyle === 'turtleneck';
+  const at = (y, z = 0) => add(sk.chest, fC([0, y * H, z * H]));
+  const skinTorso = cutIn ? stackOutline([
+    ring(sk.neckBase, fC, 0.05 * H, 0.046 * H),
+    ring(at(-0.064, -0.004), fC, b.sh * 0.62 * H, cd * 0.72 * H),
+    ring(at(-0.042, -0.006), fC, b.sh * 0.9 * H, cd * 0.8 * H),
+    ring(at(-0.014, -0.006), fC, b.sh * 1.05 * H, cd * 0.85 * H),
+    ring(at(0.018), fC, b.sh * 0.88 * H, cd * H),
+    ring(at(0.05), fC, b.sh * 0.6 * H, cd * H),
+  ], Pj) : null;
+  const shirt = cutIn ? stackOutline([
+    ring(sk.neckBase, fC, 0.055 * H, 0.05 * H),
+    ring(at(-0.052, -0.004), fC, b.sh * 0.56 * H, cd * 0.78 * H),
+    ring(at(-0.014, -0.002), fC, b.sh * 0.6 * H, cd * 0.9 * H),
+    ring(at(0.03, 0.004), fC, Math.min(cw, b.sh * 0.66) * H, cd * H, 18),
+    ...shirtRings.slice(3),
+  ], Pj) : stackOutline(shirtRings, Pj);
+  const skinPts = skinTorso && loop(skinTorso.pts.slice(0, -1), 3);
+  const shirtPts = cutIn ? loop(shirt.pts.slice(0, -1), 3) : shirt.pts;
   // A skirt: rings from the waist flaring to a hem at the knee or the ankle.
   let skirtO = null;
   if (skirt) {
@@ -392,7 +457,8 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
           }
         }
       } else solid(pen, 'pants', pants.pts, bottom, { axis: axisT, width: line, round: 0.75 });
-      solid(pen, 'shirt', shirt.pts, top, { axis: axisT, width: line, round: 0.75 });
+      if (skinTorso) solid(pen, 'shoulders', skinPts, skin, { axis: axisT, width: line * 0.9, round: 0.5 });
+      solid(pen, 'shirt', shirtPts, top, { axis: axisT, width: line, round: 0.75 });
       // Hem and a crease where the spine bends.
       const hem = shirt.frontArc(4);
       if (hem.length > 2) pen.stroke('hem', curve(hem.filter((_, i) => i % 2 === 0), 3), { width: line * 0.55, color: mix(top, ink, 0.6) });
@@ -442,11 +508,13 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
   for (const s of ['F', 'B']) {
     const A = sk['arm' + s];
     const fore = unit([A.wr[0] - A.el[0], A.wr[1] - A.el[1], A.wr[2] - A.el[2]]);
-    const upR = (t) => (0.033 - 0.011 * t) * H * lim;
-    // The forearm tapers to a slim wrist, narrower than the hand.
-    const foR = (t) => (0.025 - 0.011 * smooth(t)) * H * lim;
-    const upB = (t) => 0.2 * bump(t, 0.5, 0.45);
-    const foB = (t) => 0.16 * bump(t, 0.25, 0.35);
+    // The upper arm is thickest at the shoulder and narrows to the elbow; the
+    // forearm swells just below the elbow and tapers to a slim wrist,
+    // narrower than the hand.
+    const upR = (t) => (0.036 - 0.013 * smooth(t)) * H * lim;
+    const foR = (t) => (0.024 - 0.0115 * smooth(t)) * H * lim;
+    const upB = (t) => 0.08 * bump(t, 0.35, 0.4);
+    const foB = (t) => 0.14 * bump(t, 0.2, 0.3);
     const grip = p['grip' + s] || 'relaxed';
     // The hand on screen: its direction (the wrist bends toward aimF/aimB),
     // foreshortening and which side the thumb is on.
@@ -461,7 +529,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     // hand then sits over its round end instead of joining its sides.
     const E = Pj(A.el);
     const fl = Math.hypot(W[0] - E[0], W[1] - E[1]);
-    const foreshort = fl / (0.135 * H * (W[3] || 1));
+    const foreshort = fl / (0.145 * H * (W[3] || 1));
     if (foreshort > 0.3) {
       const f2 = [(W[0] - E[0]) / fl, (W[1] - E[1]) / fl];
       const cr = f2[0] * dir[1] - f2[1] * dir[0];
@@ -483,9 +551,9 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     const outer = frames.chest([s === 'F' ? -1 : 1, 0, 0]);
     const th = PALM.has(grip) ? side(outer) : side(fwdChest) || side(outer);
     const thumb = Math.sign(th) || (s === 'F' ? 1 : -1) * facing;
-    // Hands grow with the head, as cartoon hands do: f2's hand is about half
-    // the face's height.
-    const Lpx = 0.068 * H * (ch.headSize || 1) ** 2;
+    // Hands grow with the head, as cartoon hands do: f2's open hand is about
+    // the face's height from wrist to fingertips.
+    const Lpx = HAND * H * (ch.headSize || 1) ** 2;
     const hs = handShape(W, dir, thumb, Lpx, fs, grip);
     hands[s] = { wrist: [W[0], W[1]], shape: hs, foreshort };
     // Join the hand to the forearm's sides: start from whichever side the
@@ -497,7 +565,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       hands[s].joined = true;
       return pts;
     } : null;
-    const whole = limb(Pj, A.sh, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB, end: joined });
+    const whole = limb(Pj, A.sh, A.el, A.wr, upR, foR, { towardA: fore, bulgeA: upB, bulgeB: foB, end: joined, crisp: true });
     const upper = tube(Pj, A.sh, A.el, upR, { toward: fore, bulge: upB });
     const sleeve = tube(Pj, add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.012 * H)), add(A.sh, mul(unit([A.el[0] - A.sh[0], A.el[1] - A.sh[1], A.el[2] - A.sh[2]]), 0.075 * H)), (t) => (0.039 + 0.003 * t) * H * lim, {});
     const foreT = tube(Pj, A.el, A.wr, foR, { bulge: foB, end: joined });
@@ -526,12 +594,34 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
       solid(pen, 'sleeve' + s, sleeve.pts, top, { axis: sleeve.axis, width: line * 0.9 });
     };
     const armC = longSleeve ? top : skin;
+    // A bare arm grows out of the bare shoulder: no line where it lies on the
+    // shoulder's skin, so shoulder and arm are one round shape.
+    const S = Pj(A.sh);
+    const seam = (q) => Math.hypot(q[0] - S[0], q[1] - S[1]) < 0.07 * H * (S[3] || 1) && inPoly(skinPts, q);
+    const armSolid = (id, pts, axis) => {
+      if (!skinTorso) return solid(pen, id, pts, armC, { axis, width: line * 0.9 });
+      solid(pen, id, pts, armC, { axis, width: 0 });
+      const keep = pts.map((q) => !seam(q));
+      if (keep.every(Boolean)) return pen.stroke(id, pts, { width: line * 0.9, closed: true });
+      // Stroke the runs off the shoulder, starting after a dropped point.
+      const n = pts.length - 1;
+      const k0 = keep.findIndex((k) => !k);
+      let run = [];
+      for (let i = 1; i <= n; i++) {
+        const k = (k0 + i) % n;
+        if (keep[k]) run.push(pts[k]);
+        if ((!keep[k] || i === n) && run.length) {
+          if (run.length > 1) pen.stroke(id + ':' + i, run, { width: line * 0.9 });
+          run = [];
+        }
+      }
+    };
     if (whole) {
       hands[s].outline = whole.pts;
       parts.push({
         z: depth(whole.z),
         draw: () => {
-          solid(pen, 'arm' + s, whole.pts, armC, { axis: whole.axis, width: line * 0.9 });
+          armSolid('arm' + s, whole.pts, whole.axis);
           drawSleeve();
           drawHand();
         },
@@ -543,7 +633,7 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     parts.push({
       z: behind(zU) ? -7e5 + zU : zU,
       draw: () => {
-        solid(pen, 'uarm' + s, upper.pts, armC, { axis: upper.axis, width: line * 0.9 });
+        armSolid('uarm' + s, upper.pts, upper.axis);
         drawSleeve();
       },
     });
