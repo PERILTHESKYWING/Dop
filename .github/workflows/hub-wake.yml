@@ -1,0 +1,21 @@
+# Pings the Dop hub every 10 minutes so threads continue on their own once an
+# account's usage limit resets, even with every hub page closed.
+# Needs one repository variable: HUB_URL = the hub's main address
+# (Settings › Secrets and variables › Actions › Variables). Without it, it skips.
+# Free: the repo is public, and each run is one curl of a few seconds.
+name: Hub wake
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  wake:
+    if: ${{ vars.HUB_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Wake the hub
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+        run: curl -fsS -m 60 "${HUB_URL%/}/api/hub?op=tick" || echo "hub did not answer"

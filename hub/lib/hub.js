@@ -20,7 +20,7 @@ const THINK_LINE = {
   max: 'Thinking: Max. Ultrathink: reason as deeply as you can, weigh alternatives and verify before acting.',
 };
 // seq counts messages; rev counts thread and account changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents', gone: 'hub:accounts-gone' };
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents', gone: 'hub:accounts-gone', wake: 'hub:wake' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 const AGENTS_KEEP = 60; // sub-agent records shown on the page
@@ -30,6 +30,14 @@ export const STALL_MS = 15 * 60_000;
 // see new messages itself, so the hub does not start another session for it.
 const ACTIVE_MS = 3 * 60_000;
 const RESUME_GAP_MS = 30 * 60_000;
+// How often the hub checks for accounts whose usage limit has reset and
+// restarts the threads that waited for them (page visits and the hub-wake
+// GitHub workflow both ask; at most once a minute does the work).
+const WAKE_EVERY_MS = 60_000;
+const WAKE_MAX = 8; // threads restarted per check
+// A session the wake check started that never called the hub: the account's
+// limit had not reset. It rests 1, 2, 4 then 5 hours before the next try.
+const NO_SHOW_REST_MS = 3600_000;
 const ROUTINE_FIRES_PER_HOUR = 28; // Claude allows 30; keep a little spare.
 
 export const DEFAULT_SETTINGS = {
@@ -208,12 +216,38 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     if (s.coordinatorAccount === name) await saveSettings({ coordinatorAccount: '' });
   }
 
-  // Past 5 hours the 5-hour number means nothing; the weekly one still helps
-  // (the page shows its age) until its reset passes.
+  // A limit whose reset time has passed starts again from 0, so its old
+  // number is dropped. Without a reset time: the 5-hour number lasts 5 hours,
+  // the weekly one a week. The page shows the age of what is left.
   function freshUsage(u) {
-    if (!u || now() - (u.at || now()) <= FIVE_H) return u || null;
-    const reset = Date.parse(u.seven_day_resets || '') || (u.at || 0) + 7 * 24 * 3600_000;
-    return u.seven_day_pct != null && now() < reset ? { ...u, five_hour_pct: null, five_hour_resets: null } : null;
+    if (!u) return null;
+    const t = now();
+    const at = u.at || t;
+    const past = (iso) => {
+      const r = Date.parse(iso || '');
+      return Number.isFinite(r) && t >= r;
+    };
+    let out = u;
+    if (out.five_hour_pct != null && (past(out.five_hour_resets) || t - at > FIVE_H)) out = { ...out, five_hour_pct: null, five_hour_resets: null };
+    if (out.seven_day_pct != null && (past(out.seven_day_resets) || (!out.seven_day_resets && t - at > 7 * 24 * 3600_000))) out = { ...out, seven_day_pct: null, seven_day_resets: null, opus_week_pct: null };
+    return out.five_hour_pct == null && out.seven_day_pct == null ? null : out;
+  }
+
+  // When a low account is due back: the latest future reset among the limits
+  // at or over lowAt; if none is that full, the 5-hour reset (a usage warning
+  // is usually that one); else the fallback (0 = only by hand).
+  function backAt(u, lowAt, fallback = 0) {
+    const t = now();
+    const at = (x) => {
+      const r = Date.parse(x || '');
+      return Number.isFinite(r) && r > t ? r : 0;
+    };
+    const full = [
+      [u?.five_hour_pct, at(u?.five_hour_resets)],
+      [u?.seven_day_pct, at(u?.seven_day_resets)],
+    ].filter(([p, r]) => p != null && p >= lowAt && r);
+    if (full.length) return Math.max(...full.map(([, r]) => r));
+    return at(u?.five_hour_resets) || fallback;
   }
 
   function publicAccount(a, threads = []) {
@@ -224,6 +258,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       plan: a.plan,
       low: !!a.low,
       lowNote: a.lowNote || '',
+      lowUntil: a.low ? a.lowUntil || 0 : 0,
       usage: freshUsage(a.usage),
       usageErr: a.usageErr || '',
       lastSeen: a.lastSeen || 0,
@@ -249,6 +284,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const quiet = !Object.keys(patch).length && now() - (a.lastSeen || 0) < 60_000;
     Object.assign(a, patch, { lastSeen: now() });
     a.connectedAt ||= now();
+    // Its session reached the hub, so it is not out of usage after all.
+    if (a.noShows) a.noShows = 0;
     await applyUsage(a);
     return putAccount(a, { quiet });
   }
@@ -261,20 +298,26 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   // Marks an account low once less than minLeftPct (default 15%) of either
-  // limit is left, and clears it once 15 points more are free again.
+  // limit is left, and clears it once 15 points more are free again, or once
+  // the time it was due back (lowUntil, its limit's reset) has passed.
   async function applyUsage(a, s = null) {
     a.usage = freshUsage(a.usage);
-    if (a.usage) {
-      const lowAt = 100 - (s || (await settings())).minLeftPct;
-      const pct = usedPct(a) ?? 0;
-      if (pct >= lowAt && !a.low) {
-        a.low = true;
-        a.lowNote = `${Math.round(pct)}% of its limit used`;
-        await announceLow(a);
-      } else if (pct < lowAt - 15 && a.low && a.lowNote?.endsWith('limit used')) {
-        a.low = false;
-        a.lowNote = '';
-      }
+    if (a.low && a.lowUntil && now() >= a.lowUntil) {
+      a.low = false;
+      a.lowNote = '';
+      a.lowUntil = 0;
+    }
+    const lowAt = 100 - (s || (await settings())).minLeftPct;
+    const pct = usedPct(a) ?? 0;
+    if (a.usage && pct >= lowAt && !a.low) {
+      a.low = true;
+      a.lowNote = `${Math.round(pct)}% of its limit used`;
+      a.lowUntil = 0; // the numbers decide; they drop at their reset time
+      await announceLow(a);
+    } else if (pct < lowAt - 15 && a.low && a.lowNote?.endsWith('limit used')) {
+      a.low = false;
+      a.lowNote = '';
+      a.lowUntil = 0;
     }
   }
 
@@ -392,12 +435,16 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return { name: a.name, key: a.key };
   }
 
-  async function setLow(name, low, note = '') {
+  // by: 'page' (XIAO's Running low button: stays low until its known reset,
+  // else until XIAO clears it), 'agent' (a usage warning: back at its known
+  // reset, else in 5 hours), or a number of ms for the hub's own guesses.
+  async function setLow(name, low, note = '', { by = 'page' } = {}) {
     const a = await account(name);
     if (!a) throw new Error('No such account.');
     const was = a.low;
     a.low = !!low;
     a.lowNote = low ? clean(note, 120) || 'marked low' : '';
+    a.lowUntil = !low ? 0 : typeof by === 'number' ? now() + by : backAt(freshUsage(a.usage), 100 - (await settings()).minLeftPct, by === 'agent' ? now() + FIVE_H : 0);
     // "Usage is back": forget the old reading so it does not re-mark the account.
     if (!low) a.usage = null;
     await putAccount(a);
@@ -584,6 +631,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     // keep it there until that account checks in.
     if (a && !underMin(a, s) && !exclude.includes(a.name) && !(a.routines || []).length && (a.plan !== 'free' || t.code === false)) {
       t.status = 'queued';
+      t.wait = 'checkin';
       await putThread(t);
       await post({ thread: t.id, from: 'hub', kind: 'alert', text: `Waiting for ${a.name} to check in (open a chat on that account and say "check the ${project} hub").` });
       return { ok: false, queued: a.name };
@@ -593,6 +641,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     if (!a) ({ a, model: useModel } = await chooseAccountAnyModel(t.model, { prefer: t.account, exclude, code: t.code !== false, only: t.accounts || [] }));
     if (!a) {
       t.status = 'queued';
+      // Nobody has usage left (or the picked accounts can't start): the wake
+      // check restarts it once an account's limit resets.
+      t.wait = 'usage';
       await putThread(t);
       const who = t.accounts?.length ? t.accounts.join(', ') : 'no account';
       await post({ thread: t.id, from: 'hub', kind: 'alert', text: t.accounts?.length ? `Waiting: ${who} can't start a session right now. Pick more accounts, or open a chat on one and say "check the ${project} hub".` : `Waiting for an agent: no account can start a ${t.model} session right now. A PC or chat agent can pick it up with hub_start.` });
@@ -605,6 +656,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     }
     t.account = a.name;
     t.status = 'working';
+    t.wait = '';
     t.lastAgentAt = now();
     t.lastFireAt = now();
     t.sessionUrl = r.url;
@@ -806,7 +858,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // Everything the page shows, read in one round trip. With since, only
   // messages newer than that id come back.
   async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev, del, ag, gone] = await store.multi([
+    const [th, ac, fd, st, fi, tok, seq, rev, del, ag, gone, wk] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
@@ -818,8 +870,14 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       ['LRANGE', K.deleted, -200, -1],
       ['HGETALL', K.agents],
       ['HGETALL', K.gone],
+      ['GET', K.wake],
     ]);
     const t = now();
+    // An open page also checks for limits that have reset.
+    if (t - (Number(wk) || 0) >= WAKE_EVERY_MS) {
+      const w = await wake();
+      if (!w.skipped && (w.back?.length || w.resumed?.length || w.coordinator)) return snapshot({ since, limit });
+    }
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
     // A stopped agent is noticed here; only then is a second read needed.
     if (ths.some((x) => x.status === 'working' && !x.archived && (t - (x.lastAgentAt || 0) >= STALL_MS || quietMembers(x, t).length))) {
@@ -871,6 +929,10 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       if (t - (th.lastAgentAt || 0) < STALL_MS) continue;
       th.status = 'stalled';
       await putThread(th);
+      // Restarted by the wake check but never reached the hub: its limit had
+      // not really reset (the hub guessed the time). Rest the account so the
+      // next wake doesn't start it again at once.
+      if (th.account && th.wokeFire && th.wokeFire === th.lastFireAt && (th.lastAgentAt || 0) <= th.lastFireAt) await noShow(th.account);
       const mins = Math.round((t - (th.lastAgentAt || t)) / 60_000);
       await post({ thread: th.id, from: 'hub', kind: 'alert', text: `${th.account || 'The agent'} has been quiet for ${mins} min (out of usage, or its session ended).` });
       if (s.autoResume && t - (th.lastResumeAt || 0) > RESUME_GAP_MS && !(await overhead()).over) {
@@ -879,6 +941,83 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
         await dispatch(th, 'resume', { exclude: th.account ? [th.account] : [] });
       }
     }
+  }
+
+  async function noShow(name) {
+    const a = await account(name);
+    if (!a || a.low) return;
+    const n = Math.min(3, a.noShows || 0);
+    a.noShows = n + 1;
+    await putAccount(a);
+    await setLow(name, true, 'its session never reached the hub (out of usage?)', { by: Math.min(FIVE_H, NO_SHOW_REST_MS * 2 ** n) });
+  }
+
+  // ---------- continuing after a usage limit resets ----------
+  // Clears accounts whose limit has reset, then restarts what waited for
+  // them: stalled threads, threads queued because nobody had usage, and a
+  // prompt no coordinator has routed. Runs at most once a minute, from page
+  // visits and from the hub-wake workflow (op=tick), so it works with every
+  // page closed. Free accounts can't be started by the hub; their chat-only
+  // work goes to a paid account's routine or waits for a "check the hub".
+  async function wake({ force = false } = {}) {
+    const t = now();
+    if (!force && t - (Number(await store.cmd('GET', K.wake)) || 0) < WAKE_EVERY_MS) return { skipped: true };
+    await store.cmd('SET', K.wake, String(t));
+    const s = await settings();
+    const back = [];
+    for (const a of Object.values(await accounts())) {
+      const before = json([a.usage, a.low]);
+      const was = !!a.low;
+      await applyUsage(a, s);
+      if (json([a.usage, a.low]) !== before) await putAccount(a);
+      if (was && !a.low) back.push(a.name);
+    }
+    if (back.length) await post({ thread: 0, from: 'hub', kind: 'alert', text: `Usage limit reset: ${back.join(', ')} can work again.` });
+    const resumed = [];
+    if (!s.autoResume || (await overhead()).over) return { back, resumed };
+    const waiting = (await threads())
+      .filter((th) => !th.archived && (th.status === 'stalled' || (th.status === 'queued' && th.wait === 'usage')) && t - (th.lastResumeAt || 0) > RESUME_GAP_MS)
+      .sort((x, y) => x.id - y.id);
+    for (const th of waiting) {
+      if (resumed.length >= WAKE_MAX) break;
+      // Only when an account can start it now, so a waiting thread gets no new alert.
+      const { a } = await chooseAccountAnyModel(th.model, { code: th.code !== false, only: th.accounts || [] });
+      if (!a) continue;
+      th.lastResumeAt = t;
+      await putThread(th);
+      if ((await dispatch(th, th.checkpoint ? 'resume' : 'worker')).ok) {
+        resumed.push(th.id);
+        const fresh = await thread(th.id);
+        if (fresh) {
+          fresh.wokeFire = fresh.lastFireAt;
+          await putThread(fresh);
+        }
+      }
+    }
+    // A prompt still waiting for a coordinator (none could start, or it ran out).
+    const pending = await pendingPrompts();
+    let coordinator = '';
+    if (pending.length) {
+      const fires = ((await store.cmd('LRANGE', K.fires, -100, -1)) || []).map((x) => parse(x)).filter(Boolean);
+      const recent = fires.some((f) => f.role === 'coordinator' && t - f.at < 4 * STALL_MS);
+      const { a, model } = recent ? { a: null } : await chooseAccountAnyModel(s.coordinatorModel, { prefer: s.coordinatorAccount });
+      if (a) {
+        const r = await fire(a, model, { role: 'coordinator', prompt: pending[0].id }, 'coordinator');
+        if (r.ok) {
+          coordinator = a.name;
+          await post({ thread: 0, from: 'hub', kind: 'start', text: `Coordinator started on ${a.name} (${model}) for the waiting prompt.` });
+        }
+      }
+    }
+    return { back, resumed, coordinator };
+  }
+
+  // The hub-wake workflow's call: notice stopped agents, then wake.
+  async function tick() {
+    if (now() - (Number(await store.cmd('GET', K.wake)) || 0) < WAKE_EVERY_MS) return { skipped: true };
+    await store.cmd('SET', K.wake, String(now()));
+    await sweep();
+    return wake({ force: true });
   }
 
   // ---------- what an agent sees ----------
@@ -958,6 +1097,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       for (const n of Object.keys(t.crew || {})) if (n !== agent.name && t.crew[n].role === 'lead') t.crew[n].role = 'past';
       t.account = agent.name;
       t.status = 'working';
+      t.wait = '';
       t.lastAgentAt = now();
       t.startedAt = now();
       await putThread(t);
@@ -1153,7 +1293,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     project, owner, store, now, // store + clock for tool modules (tools-files.js)
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
-    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, dispatch,
+    threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, wake, tick, dispatch,
     start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again.
     version: async () => {
