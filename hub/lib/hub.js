@@ -630,7 +630,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   // ---------- XIAO's prompts ----------
-  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false, chat = false }) {
+  async function prompt({ text, thread: tid = 0, model, account: acc, accounts: only, thinking, team, direct = false, chat = false, replyTo = null }) {
     text = clean(text, 20_000);
     if (!text) throw new Error('Empty prompt.');
     // New chat: a clean thread that goes straight to one agent. Nothing is posted in Project chat
@@ -647,7 +647,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       if (THINKING.includes(thinking)) t.thinking = thinking;
       if (Array.isArray(only)) t.accounts = cleanList(only);
       if (team != null) t.team = teamOf(team, t.team);
-      const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text });
+      const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text, replyTo });
       t.archived = false;
       if (t.status === 'done' || t.status === 'waiting' || t.status === 'stalled' || t.status === 'queued') t.status = 'new';
       await putThread(t);
@@ -836,7 +836,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
-  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Repo skills in .claude/skills load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
+  const RULES = `Rules: you are one agent in ${owner}'s ${project} hub (several Claude accounts working as one team on the ${project} repo). Keep hub posts short. Post a hub_checkpoint after each milestone (what is done, exact next step, branch), so another account can continue if you stop. Use hub_ask when another thread knows something you need. Call hub_wait between steps for questions or new prompts in your thread. At each key decision you may post kind "thinking" with one or two sentences of why (${owner} can show these on the page; at most one per milestone). Finish with hub_post kind "done" carrying the result (PR link). If you see a usage warning, call hub_usage("low") and write a checkpoint before you stop. Skills are shared by the hub: when a message is a skill command (like /clarify) or a task matches one, call skill_list, then skill_get and follow it exactly; where it names AskUserQuestion and you have none, use ask_user. Repo skills in .claude/skills also load in your session; ${slug === 'dop' ? 'use the dop-* one that fits, e.g. dop-verify before a PR' : 'use the one that fits, e.g. a verify skill before a PR'}.`;
 
   // How a team shares one thread. me: this session's account.
   function teamText(t, me, replaces = '') {
@@ -953,7 +953,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return 'Noted.';
   }
 
-  async function agentPost(agent, { thread: tid, text, kind = 'note', reply_to, to = '' }) {
+  async function agentPost(agent, { thread: tid, text, kind = 'note', reply_to, to = '', meta = null }) {
     const allowed = ['note', 'progress', 'question', 'answer', 'thinking', 'done'];
     kind = allowed.includes(kind) ? kind : 'note';
     tid = Number(tid) || 0;
@@ -973,7 +973,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       kind = 'progress';
       text = `Part done: ${text}`;
     }
-    const msg = await post({ thread: tid, from: agent.name, kind, text, replyTo: reply_to, to });
+    const msg = await post({ thread: tid, from: agent.name, kind, text, replyTo: reply_to, to, meta });
     if (t) {
       seen(t, agent.name);
       if (kind === 'done') t.status = 'done';
@@ -1024,7 +1024,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   async function answerFor(qid) {
-    return (await feed(1500)).find((m) => m.replyTo === qid && m.kind === 'answer') || null;
+    return (await feed(1500)).find((m) => m.replyTo === qid && (m.kind === 'answer' || (m.kind === 'prompt' && m.from === 'XIAO'))) || null;
   }
 
   return {
