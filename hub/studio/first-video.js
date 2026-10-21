@@ -84,15 +84,15 @@ export const FIRST_VIDEO = {
     }),
     // 0:33.5 Phone in both hands, amazed.
     shot('comments', 3.9, 'and thank you all for the comments and support', nami(0.5, [{ t: 0, move: 'phone', face: 'surprised' }]), {
-      camera: BUST(0.5), props: [{ kind: 'phone', x: 0.5, y: 0.9, scale: 1.3 }], marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34, t: 0.4 }],
+      camera: BUST(0.5), marks: [{ kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34, t: 0.4 }],
     }),
     // 0:37.4 Same, softer, with an "Aww!" bubble.
     shot('motivation', 2.6, 'it gave me so much motivation', nami(0.5, [{ t: 0, move: 'phone', face: 'shy' }]), {
-      camera: BUST(0.5, { zoom: 4.5 }), props: [{ kind: 'phone', x: 0.5, y: 0.94, scale: 1.4 }], marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34 }],
+      camera: BUST(0.5, { zoom: 4.5 }), marks: [{ kind: 'label', text: 'Aww!', x: 0.16, y: 0.4, t: 0.1 }, { kind: 'label', text: 'Woahh!! So many comments!!!', x: 0.82, y: 0.34 }],
     }),
     // 0:39.1 The long hold: fist up, eyes squeezed shut.
-    shot('cheer', 7.0, 'I even started the next video right away because I was so pumped!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }]), {
-      camera: CHEST(0.48), marks: [{ kind: 'sparkle', x: 0.24, y: 0.3, t: 0.5 }],
+    shot('cheer', 7.0, 'I even started the next video right away because I was so pumped!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }], -1), {
+      camera: CHEST(0.52), marks: [{ kind: 'sparkle', x: 0.24, y: 0.3, t: 0.5 }],
     }),
     // 0:47.0 (f2 cuts to a reaction picture) The blank white-eyed shock, shock lines both sides.
     shot('shocked', 3.3, 'but then I saw how long animating takes', nami(0.5, [{ t: 0, move: 'clasp', face: 'yell' }]), {
@@ -119,10 +119,10 @@ export const FIRST_VIDEO = {
       bg: { kind: 'kitchen' }, camera: CHEST(0.6), marks: [{ kind: 'pan', x: 0.3, y: 0.66, size: 1.1 }, { kind: 'label', text: 'next video', x: 0.3, y: 0.86, to: [0.3, 0.74], t: 0.4 }],
     }),
     shot('soon', 1.4, 'It should be out super soon, so stay tuned!', nami(0.5, [{ t: 0, move: 'nod', face: 'nervous' }]), { camera: BUST(0.5, { zoom: 4.6 }) }),
-    shot('tuned', 2.2, 'It should be out super soon, so stay tuned!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }]), { camera: CHEST(0.48) }),
+    shot('tuned', 2.2, 'It should be out super soon, so stay tuned!', nami(0.5, [{ t: 0, move: 'fistup', face: 'joy' }], -1), { camera: CHEST(0.52) }),
     // 1:05.8 The thanks: hands together, blushing, a heart.
     shot('thanks', 5.9, 'Thank you to everyone who subscribed, left a comment or even just watched!', nami(0.55, [{ t: 0, move: 'palms', face: 'shy' }]), {
-      camera: BUST(0.55), marks: [{ kind: 'heart', x: 0.28, y: 0.45, t: 0.4 }],
+      camera: { zoom: 3.8, x: 0.55, y: 0.5 }, marks: [{ kind: 'heart', x: 0.28, y: 0.45, t: 0.4 }],
     }),
     // 1:11.5 The posture PSA, shrimp before and after.
     shot('posture-pls', 1.3, 'fix your posture,', [], {

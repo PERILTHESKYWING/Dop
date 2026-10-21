@@ -91,8 +91,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.18, { handB: [0.1, 0.1, 0.14], gripB: 'fist', aimB: [0.6, -0.4, 0.6], spine: -3, weight: 0.3 }, 'out'],
-      [0.34, { handB: [0.17, -0.08, 0.2], gripB: 'point', aimB: [0.8, -0.35, 0.45], spine: 4, weight: -0.5, twist: 8, yaw: 14, headYaw: 6, fx: 'lines' }, 'back'],
-      [0.58, { handB: [0.16, -0.07, 0.2], gripB: 'point', aimB: [0.8, -0.35, 0.45], spine: 3, weight: -0.45, twist: 7, yaw: 12, headYaw: 5 }, 'io'],
+      [0.34, { armF: [4, 4, 6], handB: [0.17, -0.08, 0.2], gripB: 'point', aimB: [0.8, -0.35, 0.45], spine: 4, weight: -0.5, twist: 8, yaw: 14, headYaw: 6, fx: 'lines' }, 'back'],
+      [0.58, { armF: [4, 4, 6], handB: [0.16, -0.07, 0.2], gripB: 'point', aimB: [0.8, -0.35, 0.45], spine: 3, weight: -0.45, twist: 7, yaw: 12, headYaw: 5 }, 'io'],
     ],
   },
 
@@ -294,9 +294,9 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.22, { armF: [18, 28, 128], gripF: 'fist', spine: 2, headPitch: 3, shrug: 0.15 }, 'io'],
-      [0.46, { armF: [96, 22, 118], gripF: 'fist', spine: -2, headPitch: -2 }, 'io'],
-      [0.75, { armF: [174, -4, 2], gripF: 'fist', shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'out'],
-      [1.0, { armF: [174, -4, 2], gripF: 'fist', shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'io'],
+      [0.46, { armF: [96, 22, 118], gripF: 'fist', handB: [-0.1, 0.11, 0.16], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], spine: -2, headPitch: -2 }, 'io'],
+      [0.75, { armF: [174, -4, 2], gripF: 'fist', handB: [-0.11, 0.09, 0.17], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'out'],
+      [1.0, { armF: [174, -4, 2], gripF: 'fist', handB: [-0.11, 0.09, 0.17], gripB: 'fist', aimB: [0.3, -0.9, 0.3], elbowB: [-0.2, 1, 0], shrugF: 0.6, spine: -6, spineSide: -5, headPitch: -8, headRoll: -6, weight: 0.3 }, 'io'],
     ],
   },
 
@@ -336,8 +336,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [0.3, 2.2, 0.8, 'face'], handB: [0.45, 2.2, 0.75, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0.2], aimB: [0.3, -1, 0.2], shrug: 0.15 }, 'out'],
-      [0.56, { handF: [0.36, 1.5, 0.95, 'face'], handB: [0.62, 1.5, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.25, -1, 0], aimB: [0.1, -1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'out'],
-      [0.82, { handF: [0.36, 1.5, 0.95, 'face'], handB: [0.62, 1.5, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.25, -1, 0], aimB: [0.1, -1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'io'],
+      [0.56, { handF: [0.4, 2.0, 1.0, 'face'], handB: [0.62, 1.95, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'out'],
+      [0.82, { handF: [0.4, 2.0, 1.0, 'face'], handB: [0.62, 1.95, 0.85, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.3, -1, 0], aimB: [0.15, -1, 0], elbowF: [0, 1, 0.1], elbowB: [0.2, 1, 0], headRoll: -10, headPitch: 4, shrug: 0.3 }, 'io'],
     ],
   },
   // Two loose fists tucked under her chin (cute goodbye).

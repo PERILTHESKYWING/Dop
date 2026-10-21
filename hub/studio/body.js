@@ -559,6 +559,28 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     });
   }
 
+  // Both hands holding (the phone move): the phone between them, over the
+  // chest and the palms, with the fingers showing at its sides as in f2.
+  if (p.gripF === 'hold' && p.gripB === 'hold' && hands.F && hands.B) {
+    const a = hands.F.wrist, b = hands.B.wrist;
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const up = n2(v2(mid, headP));
+    const Lpx = 0.068 * H * (ch.headSize || 1) ** 2 * (headP[3] || 1);
+    const w = Math.max(Lpx * 0.95, Math.hypot(a[0] - b[0], a[1] - b[1]) * 0.62);
+    const h = w * 1.25;
+    const c = [mid[0] + up[0] * Lpx * 0.75, mid[1] + up[1] * Lpx * 0.75];
+    const rt = [-up[1], up[0]];
+    const rr = w * 0.14;
+    const corner = (sx, sy, a0) => Array.from({ length: 4 }, (_, i) => {
+      const ang = a0 + (i / 3) * (Math.PI / 2);
+      const lx = sx * (w / 2 - rr) + Math.cos(ang) * rr;
+      const ly = sy * (h / 2 - rr) + Math.sin(ang) * rr;
+      return [c[0] + rt[0] * lx + up[0] * ly, c[1] + rt[1] * lx + up[1] * ly];
+    });
+    const pts = [...corner(1, 1, 0), ...corner(-1, 1, Math.PI / 2), ...corner(-1, -1, Math.PI), ...corner(1, -1, 1.5 * Math.PI)];
+    parts.push({ z: Math.max(...parts.map((q) => q.z)) + 1, draw: () => solid(pen, 'phone', pts, '#2e3150', { width: line * 0.9, round: 0.5 }) });
+  }
+
   return { parts, chestZ, neck: nk.pts, hands };
 }
 
