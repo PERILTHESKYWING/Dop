@@ -122,8 +122,11 @@ export function skeleton(ch, pose0, H) {
   const arm = (s) => {
     const out = s === 'F' ? -1 : 1;
     const root = s === 'F' ? shF : shB;
-    const ua = PRO.upper * H;
-    const fa = PRO.fore * H;
+    // upperF/foreF (and B) stretch the arm a little: a cartoon cheat for a
+    // close bust, e.g. a hand reaching the far shoulder from below, or an
+    // elbow kept down off the frame's bottom edge.
+    const ua = PRO.upper * H * Math.max(0.8, Math.min(1.5, p['upper' + s] ?? 1));
+    const fa = PRO.fore * H * Math.max(0.8, Math.min(1.5, p['fore' + s] ?? 1));
     const [ra, fw, el] = p['arm' + s] || ARM_REST;
     const [r1, f1, e1] = [deg(ra), deg(fw), deg(Math.max(0, Math.min(160, el)))];
     const dir = fChest([out * Math.sin(r1) * Math.cos(f1), Math.cos(r1) * Math.cos(f1), Math.sin(f1)]);

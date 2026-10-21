@@ -242,9 +242,24 @@ export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, t
     const k = Math.floor(time / 0.48);
     if ((k * 5 + seed) % 3 !== 0 && time - k * 0.48 < 0.2) pose.headPitch = (pose.headPitch || 0) + 3.5 * (posture.gesture ?? 1);
   }
+  // A held pose keeps living: the move's small cycle (a wrist wave, a fist
+  // pump, a finger bob) on the drawing clock, faded in as the pose lands.
+  if (move.cycle) {
+    const last = move.keys[move.keys.length - 1][0];
+    const tempo = move.tempo === false ? 1 : posture.tempo || 1;
+    const k = clamp((phase * tempo - (last - 0.3)) / 0.3, 0, 1);
+    if (k > 0) move.cycle(pose, time + (seed % 11) * 0.13, k);
+  }
   breathe(pose, time + (seed % 17) * 0.3, posture);
   if (faceCam) lookAtCamera(pose);
   else pose.yaw = DEFAULT_YAW + (pose.yaw || 0);
+  // The beat's own head tilt (roll) and turn (a yaw the camera look keeps;
+  // the eyes still find the lens).
+  if (isNum(beat.roll)) pose.headRoll = (pose.headRoll || 0) + beat.roll;
+  if (isNum(beat.turn)) {
+    pose.headYaw = (pose.headYaw || 0) + clamp(beat.turn, -20, 20);
+    if (faceCam) pose.gaze = [clamp(-(pose.yaw + pose.headYaw) / 30, -0.7, 0.7), pose.gaze[1]];
+  }
   pose.slump = clamp(pose.slump || 0, -1, 1);
   pose.shrug = clamp(pose.shrug || 0, 0, 1);
   pose.weight = clamp(pose.weight || 0, -1, 1);
