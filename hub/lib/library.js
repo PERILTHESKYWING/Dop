@@ -92,7 +92,7 @@ export async function libSummary(store, threadId, owner = 'XIAO') {
   const repoNames = [];
   for (let i = 0; i < (repos || []).length; i += 2) {
     const r = parse(repos[i + 1]);
-    if (!r || !r.threads?.length || r.threads.includes(threadId)) repoNames.push(repos[i]);
+    if (r && (!r.threads?.length || r.threads.includes(threadId))) repoNames.push(r.repo || repos[i]);
   }
   if (!items.length && !repoNames.length) return '';
   const mine = items.filter((m) => m.threads?.includes(threadId));
@@ -158,7 +158,7 @@ export function createLibrary(hub) {
     // A video over the limit keeps only its frames and sheet.
     const chunks = size > MAX_ITEM ? 0 : Math.max(0, Math.min(Math.ceil((size * 4) / 3 / CHUNK) + 1, Math.floor(Number(body.chunks) || 0)));
     const id = `f${await store.cmd('INCR', K.seq)}`;
-    const m = { id, name, type, kind, size, note: clip(body.note, 600), tags: cleanTags(body.tags), threads: cleanThreads(body.threads), chunks, frames: 0, frameTimes: [], status: 'uploading', at: now(), by: owner };
+    const m = { id, name, type, kind, size, note: clip(body.note, 2000), tags: cleanTags(body.tags), threads: cleanThreads(body.threads), chunks, frames: 0, frameTimes: [], status: 'uploading', at: now(), by: owner };
     await save(m);
     return { id, chunk: CHUNK, keepsBody: chunks > 0 };
   }
@@ -217,7 +217,7 @@ export function createLibrary(hub) {
     const m = await item(body.id);
     if (!m) throw new Error('no such file');
     if (body.name != null) m.name = cleanFileName(body.name);
-    if (body.note != null) m.note = clip(body.note, 600);
+    if (body.note != null) m.note = clip(body.note, 2000);
     if (body.tags != null) m.tags = cleanTags(body.tags);
     if (body.threads != null) m.threads = cleanThreads(body.threads);
     await save(m);

@@ -5,6 +5,7 @@ import { readImage } from './tools-files.js';
 import { studioOf } from './studio.js';
 import { libraryOf } from './library.js';
 import { skillsOf } from './tools-skills.js';
+import { reposOf } from './tools-repos.js';
 import { memoryStore, storeFromEnv } from './store.js';
 
 let devStore = null;
@@ -50,8 +51,10 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (!a) return { status: 404, body: { error: 'No such account.' } };
     return { status: 200, body: { name: a.name, key: a.key } };
   }
-  if (op.startsWith('lib-') || op.startsWith('skill-')) {
-    const out = await (op.startsWith('lib-') ? libraryOf(hub) : skillsOf(hub)).pageOp(method, op, query, body);
+  // The Library page's three tabs: files, skills, repos.
+  const tab = op.startsWith('lib-') ? libraryOf(hub) : op.startsWith('skill-') ? skillsOf(hub) : op.startsWith('repo-') ? reposOf(hub) : null;
+  if (tab) {
+    const out = await tab.pageOp(method, op, query, body);
     if (out) return out;
   }
   if (op.startsWith('studio-')) {
