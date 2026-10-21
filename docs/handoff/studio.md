@@ -26,14 +26,14 @@ Hand-drawn style story animations, directed by your Claude accounts, inside the 
 - `hub/lib/studio.js`: store, page API, MCP tools, the team brief (`studioBrief`).
 
 ## Store keys (`hub:studio:*`)
-`seq`, `index` (hash id → meta), `p:<id>` project JSON (latest), `r:<id>` last 10 revisions, `n:<id>` notes (100), `sheet:<id>` latest PNG (base64 + rev), `log` (feedback / rate / rule / full, 500), `rules` (`{text, style, version}`).
+`seq`, `index` (hash id → meta), `p:<id>` project JSON (latest), `r:<id>` last 10 revisions, `n:<id>` notes (100), `sheet:<id>` latest PNG (base64 + rev), `log` (feedback / rate / rule / full, 500), `rules` (`{text, style, version}`), `refs` (hash id → meta), `refseq`, `refimg:<ref>:<n>` (one key per picture, base64).
 
 ## Page API (password, `/api/hub?op=`)
 GET `studio-list`, `studio-get&id[&since=rev&seen=ts]`, `studio-rules`, `studio-log&since=ts`.
 POST `studio-new {idea,title,team,model,thinking}`, `studio-feedback {id,text,rule}`, `studio-full {id}`, `studio-sheet {id,rev,png}` (PNG base64 or data URL, max 380 KB), `studio-rate {id,rev,good,note}`, `studio-rules {text,style}` (style is a patch; `null` deletes a key).
 
 ## MCP tools (agents)
-`studio_get` (project, format, rules, recent feedback and notes), `studio_put` (saves the cleaned project as a new revision and reports what it fixed plus lint), `studio_look` (latest sheet as an image + lint; `wait_s` up to 30 waits for the newest one), `studio_note`. The brief tells the team: director writes, critic looks, at most 2 critique rounds per request, no branches or PRs, post `done` with one line.
+`studio_get` (project, format, rules, recent feedback and notes), `studio_put` (saves the cleaned project as a new revision and reports what it fixed plus lint), `studio_look` (latest sheet as an image + lint; `wait_s` up to 30 waits for the newest one), `studio_note`, `studio_refs` (XIAO's do / don't references, see below). The brief tells the team: director writes, critic looks, at most 2 critique rounds per request, no branches or PRs, post `done` with one line.
 The critic only gets a picture while the studio page is open somewhere (it draws the sheet). Without it the critic works from lint and the JSON.
 
 ## Nightly learning (your PC, almost no tokens)
@@ -51,3 +51,11 @@ The PC must be on at that time.
 - Not measured yet: how many revisions a story takes, and usage per story.
 
 Tests: `tests/hub-studio.test.ts` (backend, nightly), `tests/studio-render.test.ts` (renderer).
+
+## References (do / don't) for the character look
+XIAO teaches the look with pictures and videos: **DO** = copy this, **DON'T** = avoid this. They are studio-wide (every story), not per project.
+- **Refs tab** on the page: choose DO or DON'T, pick pictures (up to 4) or one video, add title, note, tags, optional link. Pictures are shrunk in the browser to JPEG under 150 KB; a video becomes 4 frames (evenly spaced) in the browser, so no video file is stored. "Tell the team" posts a feedback line so the thread re-reads them. Tap ✕ to delete.
+- **Store**: meta in hash `hub:studio:refs`, each picture in its own key (`refimg:<id>:<n>`), newest 60 references kept.
+- **Page API**: GET `studio-refs`, GET `studio-ref&id&n` (`{mime,data}`), POST `studio-ref-add {kind:'do'|'dont',title,note,tags,url,type,images:[dataURL]}`, POST `studio-ref-del {id}`.
+- **Agents**: `studio_refs(kind?, ref?)` returns the list plus up to 6 pictures; `studio_get` also lists them as text. The brief tells the director to read them once before drawing and follow every DO / avoid every DON'T, and the critic to compare each sheet to them and name the biggest gap. With none added, the tool says so and agents must not invent a look.
+- **Uploads feature (thread #351)**: not built when this was written. Until it exists, the Refs tab is the upload path. When it lands, add its files as `url` or extra image sources in `refAdd` (hub/lib/studio.js); the tool and brief need no change.
