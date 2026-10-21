@@ -351,10 +351,10 @@ const BLINK_EVERY = 3.3;
 // (its end pose starts this one); time: scene time, for breathing and
 // settles. Mouth and blink run on their own clocks so a long line keeps
 // flapping while the body holds.
-export function poseFor(beat, phase, { faceTalk, seed = 0, talking = false, prev = null, time, walking = false }) {
+export function poseFor(beat, phase, { faceTalk, seed = 0, talking = false, prev = null, time, walking = false, faceCam = false }) {
   const m = MOVE_SET[beat.move] || MOVE_SET.idle;
   const from = prev ? endPose(MOVE_SET, prev, beat.t - prev.t) : null;
-  const pose = toLegacy(act(MOVE_SET, beat, phase, { time: time ?? phase, prev: from, seed, talking, walking }));
+  const pose = toLegacy(act(MOVE_SET, beat, phase, { time: time ?? phase, prev: from, seed, talking, walking, faceCam }));
   pose.face = beat.face;
   if ((m.talking || talking) && !pose.mouth && faceTalk?.length) {
     const k = Math.floor(phase / TALK_EVERY);
