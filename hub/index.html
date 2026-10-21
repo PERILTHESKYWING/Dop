@@ -215,6 +215,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .who .when { font-weight: 400; color: var(--soft); }
 .label { font-size: 13px; font-weight: 700; padding: 1px 7px; border-radius: 5px; background: var(--chip); }
 .label.q { background: var(--amber); color: #fff; }
+.ask { display: grid; gap: 10px; margin-top: 8px; }
+.ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
+.ask-h { font-size: 13px; font-weight: 700; color: var(--soft); }
+.ask-o { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 8px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.ask-o small { display: block; color: var(--soft); }
+.ask-o.on { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.ask-t { width: 100%; margin-top: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
+.ask-go { justify-self: start; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--green); color: var(--on-green); font: inherit; font-weight: 700; cursor: pointer; }
+.ask-done { color: var(--soft); font-size: 14px; }
 .label.ok { background: var(--green); color: var(--on-green); }
 .text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.55; }
 .pic { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; background: var(--line); min-height: 40px; }
@@ -714,7 +723,35 @@ function msgHtml(m) {
     return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when} ${copyBtn(m, text)}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
   }
   const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : '';
-  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div><div class="text">${linkify(m.text)}</div>${imgOf(m.meta)}</div></div>`;
+  const card = m.kind === 'question' && m.meta?.questions ? askHtml(m) : '';
+  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div>${card || `<div class="text">${linkify(m.text)}</div>`}${imgOf(m.meta)}</div></div>`;
+}
+// Tappable question card (an agent's ask_user). Picks live in askSel so the 3 s refresh keeps them.
+const askSel = {};
+function askHtml(m) {
+  const done = S.messages.find((x) => x.from === 'XIAO' && x.replyTo === m.id);
+  if (done) return `<div class="text">${linkify(m.text)}</div><div class="ask-done">You answered: ${esc(done.text)}</div>`;
+  const sel = (askSel[m.id] ||= {});
+  const qs = m.meta.questions.map((q, qi) => {
+    const mine = sel[qi] || (sel[qi] = { picks: [], other: '' });
+    const opts = q.options.map((o, oi) => `<button type="button" class="ask-o${mine.picks.includes(o.label) ? ' on' : ''}" data-ask="${m.id}:${qi}:${oi}">${esc(o.label)}${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`).join('');
+    return `<div class="ask-q"><div class="ask-h">${esc(q.header)}</div><div>${esc(q.question)}</div>${opts}<input class="ask-t" data-ask-other="${m.id}:${qi}" placeholder="Other…" value="${esc(mine.other)}"></div>`;
+  }).join('');
+  return `<div class="ask">${qs}<button type="button" class="ask-go" data-ask-go="${m.id}">Send answers</button></div>`;
+}
+async function askSend(id) {
+  const m = S.messages.find((x) => x.id === id); const sel = askSel[id] || {};
+  if (!m) return;
+  const parts = m.meta.questions.map((q, qi) => {
+    const v = sel[qi] || { picks: [], other: '' };
+    const all = [...v.picks, ...(v.other.trim() ? [v.other.trim()] : [])];
+    return `${q.header}: ${all.join(' + ') || q.options[0].label.replace(/ \(Recommended\)$/, '') + ' (default)'}`;
+  });
+  S.messages.push({ id: `tmp${++tmp}`, at: Date.now(), thread: m.thread, from: 'XIAO', kind: 'prompt', text: parts.join('; '), replyTo: id, pending: true });
+  renderFeed();
+  try { await api('prompt', { text: parts.join('; '), thread: m.thread, replyTo: id }); } catch (err) { if (err.message !== 'auth') alert(err.message); }
+  S.messages = S.messages.filter((x) => !x.pending);
+  load(false).catch(() => renderFeed());
 }
 // Pictures agents attach (image_gen with a thread): fetched with the password, cached as data URLs.
 const IMGS = new Map();
@@ -1024,6 +1061,13 @@ document.addEventListener('click', async (e) => {
     setTimeout(() => { cp.textContent = 'Copy'; cp.classList.remove('done'); }, 1500);
     return;
   }
+  const ak = e.target.closest('[data-ask]');
+  if (ak) {
+    const [id, qi, oi] = ak.dataset.ask.split(':').map(Number); const m = S.messages.find((x) => x.id === id); const q = m.meta.questions[qi]; const label = q.options[oi].label;
+    const v = askSel[id][qi]; v.picks = q.multiSelect ? (v.picks.includes(label) ? v.picks.filter((l) => l !== label) : [...v.picks, label]) : v.picks[0] === label ? [] : [label];
+    return renderFeed();
+  }
+  const ag = e.target.closest('[data-ask-go]'); if (ag) return askSend(Number(ag.dataset.askGo));
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
@@ -1077,6 +1121,7 @@ function endDrag() {
 }
 $('feed').addEventListener('pointerup', endDrag);
 $('feed').addEventListener('pointercancel', endDrag);
+$('feed').addEventListener('input', (e) => { const o = e.target.closest?.('[data-ask-other]'); if (o) { const [id, qi] = o.dataset.askOther.split(':').map(Number); askSel[id][qi].other = o.value; } });
 $('text').addEventListener('input', () => { drafts[sel] = $('text').value; grow(); });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); $('compose').requestSubmit(); } });
 $('compose').addEventListener('submit', async (e) => {

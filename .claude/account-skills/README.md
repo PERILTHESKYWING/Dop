@@ -20,3 +20,5 @@ Open a Claude Code session (or a project thread) on that account with this repo,
 > Read every `.claude/account-skills/*/SKILL.md` in the Dop repo and propose each one to me as a new account skill with propose_skills, unchanged, 3 per call. If a call is rate limited, wait and retry later instead of skipping any. Then list which ones I still need to save.
 
 Then tap Save on each card. The taste rules on each account are separate after that: a `/taste add` on one account doesn't reach the other unless you copy it (update `taste/SKILL.md` here too).
+
+The hub shares these skills with every account (`skill_list` / `skill_get`). After editing one here, run `node hub/seed-skills.mjs` and commit `hub/lib/skills-seed.js`.
