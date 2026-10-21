@@ -144,7 +144,10 @@ export function skeleton(ch, pose0, H) {
     const goal = hand[3] === 'face' ? add(head, fHead([hand[0] * r, hand[1] * r, (hand[2] || 0) * r]))
       : add(hand[3] === 'head' ? head : root, [hand[0] * H, hand[1] * H, (hand[2] || 0) * H]);
     const target = add(mul(wrist, 1 - w), mul(goal, w));
-    const { joint, end } = ik3(root, target, ua, fa, fChest([out * 0.55, 0.7, -0.5]));
+    // The elbow points out and down, or where elbowF/elbowB says (chest frame,
+    // x toward this arm's own side), e.g. [0, 1, 0] tucks it in.
+    const ep = p['elbow' + s];
+    const { joint, end } = ik3(root, target, ua, fa, fChest(Array.isArray(ep) ? [out * ep[0], ep[1], ep[2]] : [out * 0.55, 0.7, -0.5]));
     return aimed({ sh: root, el: joint, wr: end });
   };
   // The wrist bends: aimF/aimB is where the fingers point, in the chest frame

@@ -283,8 +283,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [0.14, 0.12, 0.18], handB: [-0.14, 0.12, 0.18], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.5, 0.7], aimB: [-0.5, -0.5, 0.7], headPitch: 4 }, 'out'],
-      [0.56, { handF: [0.14, 0.07, 0.22], handB: [-0.14, 0.07, 0.22], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], headPitch: 8, spine: 4, shrug: 0.25 }, 'out'],
-      [0.82, { handF: [0.14, 0.07, 0.22], handB: [-0.14, 0.07, 0.22], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], headPitch: 8, spine: 4, shrug: 0.25 }, 'io'],
+      [0.56, { handF: [0.14, 0.07, 0.22], handB: [-0.14, 0.07, 0.22], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], elbowF: [0.25, 1, -0.1], elbowB: [0.25, 1, -0.1], headPitch: 8, spine: 4, shrug: 0.25 }, 'out'],
+      [0.82, { handF: [0.14, 0.07, 0.22], handB: [-0.14, 0.07, 0.22], gripF: 'hold', gripB: 'hold', aimF: [0.5, -0.6, 0.6], aimB: [-0.5, -0.6, 0.6], elbowF: [0.25, 1, -0.1], elbowB: [0.25, 1, -0.1], headPitch: 8, spine: 4, shrug: 0.25 }, 'io'],
     ],
   },
   // One fist thrown up high (pumped). The elbow folds first, the fist rises
@@ -306,8 +306,8 @@ export const MOVE_SET = {
     keys: [
       [0, {}],
       [0.3, { handF: [-0.35, 2.1, 0.7, 'face'], handB: [0.35, 2.1, 0.7, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.1, -1, 0.2], aimB: [-0.1, -1, 0.2], shrug: 0.3 }, 'out'],
-      [0.56, { handF: [-0.13, 1.45, 1.05, 'face'], handB: [0.13, 1.45, 1.05, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], headPitch: 6, shrug: 0.6, spine: 5 }, 'out'],
-      [0.82, { handF: [-0.13, 1.45, 1.05, 'face'], handB: [0.13, 1.45, 1.05, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], headPitch: 6, shrug: 0.6, spine: 5 }, 'io'],
+      [0.56, { handF: [-0.13, 1.45, 1.05, 'face'], handB: [0.13, 1.45, 1.05, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], elbowF: [0.1, 1, 0.1], elbowB: [0.1, 1, 0.1], headPitch: 6, shrug: 0.6, spine: 5 }, 'out'],
+      [0.82, { handF: [-0.13, 1.45, 1.05, 'face'], handB: [0.13, 1.45, 1.05, 'face'], gripF: 'flat', gripB: 'flat', aimF: [0.12, -1, 0.1], aimB: [-0.12, -1, 0.1], elbowF: [0.1, 1, 0.1], elbowB: [0.1, 1, 0.1], headPitch: 6, shrug: 0.6, spine: 5 }, 'io'],
     ],
   },
   // Index finger up beside her face, thumb out (an idea).

@@ -443,7 +443,8 @@ export function bodyParts(pen, ch, sk, Pj, facing) {
     const A = sk['arm' + s];
     const fore = unit([A.wr[0] - A.el[0], A.wr[1] - A.el[1], A.wr[2] - A.el[2]]);
     const upR = (t) => (0.036 - 0.01 * t) * H * lim;
-    const foR = (t) => (0.027 - 0.009 * smooth(t)) * H * lim;
+    // The forearm tapers to a slim wrist, narrower than the hand.
+    const foR = (t) => (0.028 - 0.012 * smooth(t)) * H * lim;
     const upB = (t) => 0.2 * bump(t, 0.5, 0.45);
     const foB = (t) => 0.16 * bump(t, 0.25, 0.35);
     const grip = p['grip' + s] || 'relaxed';
