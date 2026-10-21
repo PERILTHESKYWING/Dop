@@ -21,10 +21,10 @@ export const FIRST_VIDEO = {
   style: { fps: 12, hold: 2, boil: 0.35, wobble: 1, line: 3.5, shade: 0, misregister: 0.15, grain: 0.15, paper: '#e4f5ff', ink: '#2a2340', capPos: 'top' },
   cast: {
     nami: {
-      name: 'Nami', height: 1, headSize: 1.4, build: 'slim',
-      skin: '#f7dfd6', hair: '#262b55', hairTips: '#3fb8b0', // the iris takes the tip colour
+      name: 'Nami', height: 1, headSize: 1.4, build: 'petite',
+      skin: '#f7dfd6', hair: '#262b55', hair2: '#3fb8b0', eyeColor: '#2a9d9a',
       top: '#2b3440', bottom: '#3a3f55', shoes: '#2a2340',
-      hairStyle: 'layered', eyes: 'big', jaw: 'v', topStyle: 'sleeveless', bottomStyle: 'skirt',
+      hairStyle: 'shag', eyes: 'anime', jaw: 'v', topStyle: 'sleeveless', bottomStyle: 'skirt',
       extras: ['lashes', 'lips', 'blush', 'blushlines', 'ahoge'],
     },
   },

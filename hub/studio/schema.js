@@ -8,14 +8,14 @@
 export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround'];
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
-export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'layered', 'flowing'];
+export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
 export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim'];
-export const BUILDS = ['slim', 'average', 'round'];
-export const EYES = ['dot', 'oval', 'sleepy', 'big'];
+export const BUILDS = ['slim', 'average', 'round', 'petite'];
+export const EYES = ['dot', 'oval', 'sleepy', 'anime'];
 export const JAWS = ['round', 'v'];
 export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
 export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
-export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge'];
+export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge', 'sweat'];
 export const CAP_POS = ['bottom', 'top']; // top = outlined subtitle line at top centre
 export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box'];
 
@@ -83,7 +83,8 @@ function normalizeCharacter(c, id, problems) {
     jaw: pick(c.jaw, JAWS, 'round'),
     topStyle: pick(c.topStyle, TOPS, 'tee'),
     bottomStyle: pick(c.bottomStyle, BOTTOMS, 'trousers'),
-    ...(HEX.test(String(c.hairTips || '')) ? { hairTips: String(c.hairTips).toLowerCase() } : {}),
+    ...(HEX.test(String(c.hair2 || '')) ? { hair2: String(c.hair2).toLowerCase() } : {}),
+    ...(HEX.test(String(c.eyeColor || '')) ? { eyeColor: String(c.eyeColor).toLowerCase() } : {}),
     extras: [...new Set(extras)],
   };
 }
@@ -253,7 +254,7 @@ function near(a, b) {
 export function schemaText() {
   return [
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
-    `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, hairTips? (ombre ends), top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, jaw ${JAWS.join('|')}, topStyle ${TOPS.join('|')}, bottomStyle ${BOTTOMS.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
+    `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, hair2? (ombre ends), eyeColor? (iris), top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, jaw ${JAWS.join('|')}, topStyle ${TOPS.join('|')}, bottomStyle ${BOTTOMS.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
     `Scene: {id, duration 0.3-30 s (0.3-0.6 s = a blink cut or colour flash), bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-4 (3 = bust close-up, 3.5+ = face), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], marks? [{kind ${MARK_KINDS.join('|')}, text? (label/sfx, ≤40 chars), x 0-1, y 0-1, to? [x,y] arrow target; x, y are shares of the screen, t? pop-in time s, size? 0.5-2}] (max ${LIMITS.marks}), actors: [Actor] (max ${LIMITS.actors})}.`,
     `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
     `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, shade 0-1, fill 0-1 (0 = line art only), capPos bottom|top (top = outlined subtitle), paper, ink}. Omit style to use XIAO's defaults.`,
