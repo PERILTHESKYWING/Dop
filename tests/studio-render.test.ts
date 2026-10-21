@@ -146,3 +146,61 @@ describe('studio renderer', () => {
     expect(Math.min(...xs.map((q: number[]) => q[1]))).toBeGreaterThan(270); // flattened onto the floor
   });
 });
+
+describe('studio 3D characters', () => {
+  const H = 390;
+  const mia = () => S.validateProject(S.SAMPLE_PROJECT).project.cast.mia;
+
+  it('turns the body in 3D: shoulders spread facing the camera, overlap in profile', async () => {
+    const K = await lib('skel.js');
+    const spread = (yaw: number) => Math.abs(K.skeleton(mia(), { yaw }, H).armF.sh[0] - K.skeleton(mia(), { yaw }, H).armB.sh[0]);
+    expect(spread(0)).toBeGreaterThan(0.18 * H);
+    expect(spread(90)).toBeLessThan(0.02 * H);
+    // At the default 3/4 turn the near (F) arm is toward the camera.
+    const s = K.skeleton(mia(), {}, H);
+    expect(s.armF.sh[2]).toBeGreaterThan(s.armB.sh[2]);
+  });
+
+  it('shifts weight: pelvis over the loaded foot, the other hip drops', async () => {
+    const K = await lib('skel.js');
+    const even = K.skeleton(mia(), { yaw: 0 }, H);
+    const onF = K.skeleton(mia(), { yaw: 0, weight: 1 }, H);
+    expect(onF.pelvis[0]).toBeLessThan(even.pelvis[0] - 0.03 * H); // F foot is body side -1
+    expect(onF.legB.hip[1]).toBeGreaterThan(onF.legF.hip[1]); // free hip lower (y down)
+    expect(onF.legB.knee[0]).not.toBeCloseTo(even.legB.knee[0], 1);
+  });
+
+  it('reads old pose fields and v2 fields, ignoring old ones when v is 2', async () => {
+    const K = await lib('skel.js');
+    expect(K.normalizePose({ lean: 10, bob: 0.02, F: [140, 35] })).toMatchObject({ spine: 9, pelvis: [0, 0.02], armF: [140, 10, 35] });
+    expect(K.normalizePose({ v: 2, lean: 10 }).spine).toBeUndefined();
+    const up = K.skeleton(mia(), { v: 2, armF: [170, 0, 0] }, H);
+    expect(up.armF.wr[1]).toBeLessThan(up.armF.sh[1] - 0.2 * H); // raised overhead
+    const sl = K.skeleton(mia(), { v: 2, slump: 1 }, H);
+    const st = K.skeleton(mia(), { v: 2, slump: -1 }, H);
+    expect(sl.head[1]).toBeGreaterThan(st.head[1]); // slumped head is lower
+  });
+
+  it('paints a hand reaching the face over the head, and hides the far eye in profile', async () => {
+    const D = await lib('draw.js');
+    const G = await lib('rig.js');
+    const style = { ...S.DEFAULT_STYLE, boil: 0 };
+    const draw = (pose: any) => {
+      const ops: any[] = [];
+      G.drawCharacter(new D.Pen({ style, seed: 3, ops }), mia(), pose, { x: 400, ground: 700 });
+      return ops;
+    };
+    // The far arm hangs behind the body, so the face is painted after it;
+    // brought up to the face it is painted over the face.
+    const skin = mia().skin;
+    const order = (pose: any) => {
+      const fills = draw(pose).map((o: any) => o.fill);
+      return fills.slice(fills.lastIndexOf('#fbf8f2')).filter((f: string) => f === skin).length;
+    };
+    expect(order({ v: 2, handB: [0.03, 0.06, 0.14, 'head'] })).toBeGreaterThan(order({ v: 2 }));
+    // White of the eye: two at 3/4, one in profile.
+    const whites = (pose: any) => draw(pose).filter((o: any) => o.fill === '#fbf8f2').length;
+    expect(whites({ v: 2, yaw: 25 })).toBe(2);
+    expect(whites({ v: 2, yaw: 90 })).toBe(1);
+  });
+});
