@@ -1028,7 +1028,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   return {
-    project, owner,
+    project, owner, store, now, // store + clock for tool modules (tools-files.js)
     settings, saveSettings, accounts, account, upsertAccount, removeAccount, newKey, publicAccount, authAgent, touchAccount, markConnected, setLow, refreshUsage, setUsage,
     logConn, connLog,
     threads, thread, post, feed, messagesSince, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, dispatch,
