@@ -5,7 +5,7 @@
 // every shot) and a list of scenes. Each scene places actors and gives each
 // one beats: at time t, do this move with this face (and maybe say a line).
 
-export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround'];
+export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround', 'cheek', 'clasp', 'chin', 'phone', 'fistup', 'cover', 'oneup', 'peace', 'palms', 'cheeks'];
 export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic', 'yell', 'nervous', 'teary', 'wink'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
