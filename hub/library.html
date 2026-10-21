@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ec">
+<title>Hub library</title>
+<link rel="icon" href="/logo.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<script>
+try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
+</script>
+<style>
+:root {
+  --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
+  --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --chip: #f1ece4; --sel: #ebe5da;
+  --shadow: 0 6px 24px rgba(40, 30, 10, .12);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
+    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
+  --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; }
+.btn:hover { background: var(--sel); }
+.btn.go { background: var(--green); color: var(--on-green); border-color: transparent; font-weight: 600; }
+.btn.go:hover { filter: brightness(1.08); }
+.btn.bad { color: var(--red); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.quiet { border-color: transparent; background: transparent; }
+.top { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.top h1 { font: 400 26px/1 "Patrick Hand", cursive; margin: 0; white-space: nowrap; }
+.top .back { text-decoration: none; color: var(--soft); font-size: 14px; white-space: nowrap; }
+.top .sub { color: var(--faint); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spacer { flex: 1; }
+.tabs { display: flex; gap: 4px; max-width: 1200px; margin: 0 auto; padding: 10px 16px 0; overflow-x: auto; }
+.tabs button { border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; font-size: 15px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.pane { max-width: 1200px; margin: 0 auto; padding: 12px 16px 32px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
+.empty { color: var(--faint); font-size: 14px; padding: 18px 4px; }
+.check { display: inline-flex; gap: 7px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--green); }
+textarea, input[type=text], input[type=search], select { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 8px 10px; min-height: 40px; }
+textarea { width: 100%; resize: vertical; min-height: 70px; }
+dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--ink); padding: 18px; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+dialog h2 { margin: 0 0 6px; font: 400 26px/1.1 "Patrick Hand", cursive; overflow-wrap: anywhere; }
+dialog label.f { display: block; font-size: 14px; color: var(--soft); margin: 12px 0 4px; }
+dialog input[type=text], dialog select { width: 100%; }
+.login { max-width: 360px; margin: 18vh auto 0; padding: 22px; text-align: center; }
+.login input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; margin: 12px 0; min-height: 42px; }
+.err { color: var(--red); font-size: 14px; min-height: 1.2em; }
+.toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; z-index: 30; max-width: calc(100vw - 32px); }
+.toast:empty { display: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 600px) { .top h1 { font-size: 22px; } .top .sub { display: none; } .tabs button { flex: 1; } }
+</style>
+</head>
+<body>
+<div id="app" hidden>
+  <header class="top">
+    <a class="back" href="/" title="Back to the hub">‹ Hub</a>
+    <h1>Library</h1>
+    <span class="sub">Files, repos and skills every agent can read</span>
+    <span class="spacer"></span>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Library">
+    <button role="tab" aria-selected="true" data-tab="files">Files</button>
+    <button role="tab" aria-selected="false" data-tab="repos">Repos</button>
+    <button role="tab" aria-selected="false" data-tab="skills">Skills</button>
+  </nav>
+  <main>
+    <section class="pane" data-pane="files"></section>
+    <section class="pane" data-pane="repos" hidden></section>
+    <section class="pane" data-pane="skills" hidden></section>
+  </main>
+</div>
+<div id="loginBox" class="card login" hidden>
+  <h1 style="font:400 30px/1 'Patrick Hand',cursive;margin:0 0 4px">Library</h1>
+  <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" style="width:100%">Open</button></form>
+  <div class="err" id="loginErr"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module">
+// The page is a shell: each tab is its own module in /library/ with
+// `export function mount(el, ctx)`, loaded the first time the tab opens.
+const $ = (id) => document.getElementById(id);
+const ls = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+let toastTimer = 0;
+const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => ($('toast').textContent = ''), 3600); };
+
+let pw = ls.get('hubpw') || '';
+async function api(op, body, query = '') {
+  const res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await res.json().catch(() => ({}));
+  if (res.status === 401) { showLogin('Wrong password.'); throw new Error('Wrong password.'); }
+  if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+  return j;
+}
+
+// Open threads, so files, repos and skills can be pointed at one.
+const threads = [];
+async function loadThreads() {
+  const s = await api('state', null, '&limit=1');
+  threads.splice(0, threads.length, ...(s.threads || []).filter((t) => !t.archived && t.status !== 'done').map((t) => ({ id: t.id, title: t.title, status: t.status })).sort((a, b) => b.id - a.id));
+}
+const ctx = { api, toast, threads, esc };
+
+const TABS = ['files', 'repos', 'skills'];
+const mounted = {};
+async function show(tab) {
+  if (!TABS.includes(tab)) tab = 'files';
+  for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+  for (const p of document.querySelectorAll('[data-pane]')) p.hidden = p.dataset.pane !== tab;
+  ls.set('library-tab', tab);
+  if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+  if (mounted[tab]) return mounted[tab].show?.();
+  const el = document.querySelector(`[data-pane="${tab}"]`);
+  mounted[tab] = {};
+  try {
+    const mod = await import(`./library/${tab}.js`);
+    mounted[tab] = (await mod.mount(el, ctx)) || {};
+  } catch (e) {
+    console.error(e);
+    delete mounted[tab];
+    el.innerHTML = `<p class="empty">This tab could not load (${esc(e.message)}). Reload to try again.</p>`;
+  }
+}
+for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => show(b.dataset.tab);
+addEventListener('hashchange', () => show(location.hash.slice(1)));
+
+function showLogin(err = '') { $('app').hidden = true; $('loginBox').hidden = false; $('loginErr').textContent = err; $('pw').focus(); }
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  pw = $('pw').value;
+  try { await loadThreads(); ls.set('hubpw', pw); start(); } catch (err) { $('loginErr').textContent = err.message; }
+};
+let started = false;
+async function start() {
+  $('loginBox').hidden = true; $('app').hidden = false;
+  if (started) return;
+  started = true;
+  if (!threads.length) await loadThreads().catch(() => {});
+  show(location.hash.slice(1) || ls.get('library-tab') || 'files');
+  setInterval(() => { if (!document.hidden) loadThreads().catch(() => {}); }, 60000);
+}
+if (pw) start(); else showLogin();
+</script>
+</body>
+</html>

@@ -3,6 +3,9 @@ import { createHub, safeEqual } from './hub.js';
 import { handleMcp } from './mcp.js';
 import { readImage } from './tools-files.js';
 import { studioOf } from './studio.js';
+import { libraryOf } from './library.js';
+import { skillsOf } from './tools-skills.js';
+import { reposOf } from './tools-repos.js';
 import { memoryStore, storeFromEnv } from './store.js';
 
 let devStore = null;
@@ -47,6 +50,12 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     const a = await hub.account(String(query.account || ''));
     if (!a) return { status: 404, body: { error: 'No such account.' } };
     return { status: 200, body: { name: a.name, key: a.key } };
+  }
+  // The Library page's three tabs: files, skills, repos.
+  const tab = op.startsWith('lib-') ? libraryOf(hub) : op.startsWith('skill-') ? skillsOf(hub) : op.startsWith('repo-') ? reposOf(hub) : null;
+  if (tab) {
+    const out = await tab.pageOp(method, op, query, body);
+    if (out) return out;
   }
   if (op.startsWith('studio-')) {
     const out = await studioOf(hub).pageOp(method, op, query, body);

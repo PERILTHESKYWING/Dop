@@ -48,6 +48,7 @@ The PC must be on at that time.
 - Video has no sound (browser recording of the canvas only). Voice preview uses the device's speech voice.
 - One body plan (front-facing with a 3/4 face turn); no side or back views, no hands with fingers, no lip sync to audio.
 - The contact sheet needs the page open; agents cannot see drawings otherwise.
+- Reference pictures and videos: XIAO uploads them in the hub **Library** (`/library.html`) with the tag `studio` and `do` (copy this) or `dont` (avoid this). The studio brief tells the team to look at them (`lib_list(tag: "studio")`, `lib_get`) before the first sample; a video reaches agents as a contact sheet of 16 frames. See hub-cloud.md › Library.
 - Not measured yet: how many revisions a story takes, and usage per story.
 
 Tests: `tests/hub-studio.test.ts` (backend, nightly), `tests/studio-render.test.ts` (renderer).
