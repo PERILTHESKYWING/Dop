@@ -303,7 +303,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     const ch = p.cast[a.who];
     const sd = seedFor(a.who);
     const beat = s.walking ? s.beat : s.beat.move === 'walk' ? { ...s.beat, move: 'idle' } : s.beat;
-    const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking: !!beat.say && beat.move !== 'walk' });
+    const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking: !!beat.say && beat.move !== 'walk', prev: a.beats[s.beatIndex - 1], time: tq, walking: s.walking });
     const at = { x: s.x * W, ground: GROUND, scale: a.scale, facing: s.facing };
     drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) }), ch, pose, at);
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
