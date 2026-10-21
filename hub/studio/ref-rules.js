@@ -3,7 +3,7 @@
 // docs/handoff/studio-ref-f1.md, -f2.md and -deep.md, thread #425). They ship with the
 // code so every studio team gets them, next to the rules XIAO teaches on the
 // page (hub:studio:rules). Keep each line short: agents read all of them.
-export const REF_RULES_VERSION = 1;
+export const REF_RULES_VERSION = 2;
 
 export const REF_RULES = [
   'Format: an animated talking-head vlog. One narrator character speaks to the viewer; each spoken line is its own short scene (shot) with its own caption.',
@@ -20,7 +20,9 @@ export const REF_RULES = [
   'Motion is smooth and clean: held poses with small loops (blinks, breathing, a hand wiggle, hair sway), one clear pose change per beat with ease in and out. Big motion only at shock or peak beats. No jitter, no popping features. A held shot is never frozen: keep line boil on so it is redrawn while it holds.',
   'Captions: one style and one place for the whole video (top centre or bottom centre), white with a dark outline, one or two lines, changing with each phrase, never covering the face.',
   'The lead in the schema: hairStyle shag (or flowing) with hair2 for the faded ends, eyes anime with eyeColor, jaw v, build petite, headSize 1.4, topStyle sleeveless or turtleneck, extras lashes, lips, blush, blushlines, ahoge (sweat for nervous beats). Faces shock, cat, joy, shy and panic carry the gags.',
-  'Framing in the schema (for a height 1, headSize 1.4 lead): bust = camera {zoom 3, x: her x, y 0.49}; extreme close-up = zoom 3.5, y 0.475; waist-up = zoom 2.2, y 0.57. Labels, SFX words, sweat, sparkles = scene marks (screen x, y). Flash = a 0.3 s scene, dark plain bg, no actors. Style capPos "top", shade 0 (flat, as in the refs). Worked example: the "What is happening?! (ref copy)" demo (hub/studio/first-video.js).',
+  'She talks to the camera: square to the viewer and looking into the lens in every shot, never at something off-screen (XIAO, #490). In the schema: style faceCam true (the mouth also moves while her caption is up; beat quiet:true keeps it shut).',
+  'Hands are the first AI tell: one clear hand pose per shot (hand on cheek, clasped, finger on chin, phone in both hands, fist up, palms over the face, one finger up, peace sign, hands together, hands on cheeks), held, with the hand always joined to its arm. Motion in a shot is mostly the mouth, blinks, a little sway and the line boil.',
+  'Framing in the schema (for a height 1, headSize 1.4 lead): bust = camera {zoom 4.2, x: her x, y 0.475}; face = zoom 5.2, y 0.465; chest-up (hands in view) = zoom 3.4, y 0.5. Labels, SFX words, sweat, sparkles = scene marks (screen x, y). Flash = a 0.3 s scene, dark plain bg, no actors. Style capPos "top", shade 0 (flat, as in the refs). Worked example: the "What is happening?! (ref copy)" demo (hub/studio/first-video.js).',
   'Bookend: end in the same outfit and crop family as the start, on a cute or waving pose and a goodbye line ("See you in the next video! Bye!").',
 ];
 

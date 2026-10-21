@@ -216,7 +216,7 @@ export function endPose(moves, prevBeat, duration) {
 // The full pose for one drawing. moves: the move set; beat: {move, face};
 // phase: seconds into the beat; time: scene time (breathing, settles);
 // prev: endPose of the previous beat or null; seed: per actor.
-export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, talking = false, walking = false } = {}) {
+export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, talking = false, walking = false, faceCam = false } = {}) {
   const name = moves[beat.move] ? beat.move : 'idle';
   const move = moves[name];
   const posture = POSTURE[beat.face] || POSTURE.neutral;
@@ -242,13 +242,27 @@ export function act(moves, beat, phase, { time = phase, prev = null, seed = 0, t
     if ((k * 5 + seed) % 3 !== 0 && time - k * 0.48 < 0.2) pose.headPitch = (pose.headPitch || 0) + 3.5 * (posture.gesture ?? 1);
   }
   breathe(pose, time + (seed % 17) * 0.3, posture);
-  pose.yaw = DEFAULT_YAW + (pose.yaw || 0);
+  if (faceCam) lookAtCamera(pose);
+  else pose.yaw = DEFAULT_YAW + (pose.yaw || 0);
   pose.slump = clamp(pose.slump || 0, -1, 1);
   pose.shrug = clamp(pose.shrug || 0, 0, 1);
   pose.weight = clamp(pose.weight || 0, -1, 1);
   if (pose.toe != null) pose.toe = clamp(pose.toe, 0, 1);
   for (const s of ['armF', 'armB']) if (pose[s]) pose[s] = [pose[s][0], pose[s][1], clamp(pose[s][2], 0, 150)];
   pose.v = 2;
+  return pose;
+}
+
+// Talking to the camera (a vlog, style faceCam): the body stays square to the
+// viewer with only a small sway left of each turn, the head turns at most a
+// few degrees, and the eyes turn back against both, so she looks into the
+// lens in every drawing. Rolls, pitches and arm poses keep their acting.
+export const CAM_YAW = 7;
+export function lookAtCamera(pose) {
+  pose.yaw = clamp((pose.yaw || 0) * 0.3, -CAM_YAW, CAM_YAW);
+  pose.headYaw = clamp((pose.headYaw || 0) * 0.3, -5, 5);
+  pose.twist = clamp((pose.twist || 0) * 0.3, -6, 6);
+  pose.gaze = [clamp(-(pose.yaw + pose.headYaw) / 30, -0.5, 0.5), clamp(-(pose.headPitch || 0) / 40, -0.4, 0.4)];
   return pose;
 }
 
