@@ -90,7 +90,9 @@ export function parseDuckDuckGo(html, limit) {
   return out;
 }
 
-export function webTools(f = fetch) {
+import { saveImage } from './tools-files.js';
+
+export function webTools(f = fetch, hub = null) {
   const str = { type: 'string' };
   const num = { type: 'number' };
   return [
@@ -133,9 +135,9 @@ export function webTools(f = fetch) {
     },
     {
       name: 'image_gen',
-      description: 'Make an image from a text prompt (free, via Pollinations, no key). Returns the picture. Optional width/height (256-1024, default 768), seed, model (default flux).',
-      inputSchema: { type: 'object', properties: { prompt: str, width: num, height: num, seed: num, model: str }, required: ['prompt'] },
-      run: async (_a, x) => {
+      description: 'Make an image from a text prompt (free, via Pollinations, no key). Returns the picture. Pass thread (your thread id) to also show it inline in that thread on the hub page. Optional width/height (256-1024, default 768), seed, model (default flux).',
+      inputSchema: { type: 'object', properties: { prompt: str, width: num, height: num, seed: num, model: str, thread: num }, required: ['prompt'] },
+      run: async (a, x) => {
         const dim = (v) => Math.max(256, Math.min(1024, Math.round(Number(v) || 768)));
         const seed = Number.isFinite(Number(x.seed)) && x.seed !== undefined ? `&seed=${Math.floor(Number(x.seed))}` : '';
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(x.prompt).slice(0, 1000))}?width=${dim(x.width)}&height=${dim(x.height)}&nologo=true&enhance=true&model=${encodeURIComponent(String(x.model || 'flux').slice(0, 30))}${seed}`;
@@ -143,7 +145,18 @@ export function webTools(f = fetch) {
         const type = String(res.headers.get('content-type') || '');
         if (!res.ok || !/^image\//i.test(type)) return `Image service said HTTP ${res.status} (${type || 'no type'}). Try again in a minute.`;
         const buf = Buffer.from(new Uint8Array(await res.arrayBuffer()));
-        return { content: [{ type: 'image', data: buf.toString('base64'), mimeType: type.split(';')[0] }, { type: 'text', text: `Image for: ${x.prompt}` }] };
+        const mimeType = type.split(';')[0];
+        let note = '';
+        // Show it on the hub page too: keep it in the file space and attach it to the thread.
+        if (hub && a?.name && Number(x.thread) > 0) {
+          if (buf.length > 380 * 1024) note = ' (too big to show on the hub page; try a smaller width/height)';
+          else {
+            const name = `images/${hub.now()}.${mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1].replace(/[^a-z0-9]/g, '') || 'img'}`;
+            await saveImage(hub, a.name, name, buf, mimeType);
+            await hub.post({ thread: Number(x.thread), from: a.name, kind: 'progress', text: `Image: ${String(x.prompt).slice(0, 200)}`, meta: { image: { account: a.name, name } } });
+          }
+        }
+        return { content: [{ type: 'image', data: buf.toString('base64'), mimeType }, { type: 'text', text: `Image for: ${x.prompt}${note}` }] };
       },
     },
   ];

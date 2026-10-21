@@ -1,6 +1,7 @@
 // Request handling shared by the Vercel functions and the tests.
 import { createHub, safeEqual } from './hub.js';
 import { handleMcp } from './mcp.js';
+import { readImage } from './tools-files.js';
 import { memoryStore, storeFromEnv } from './store.js';
 
 let devStore = null;
@@ -31,6 +32,14 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     await hub.refreshUsage({ force: query.force === '1' });
     const threads = await hub.threads();
     return { status: 200, body: { accounts: Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads)) } };
+  }
+  if (method === 'GET' && op === 'image') {
+    try {
+      const img = await readImage(hub, query.account, query.name);
+      return img ? { status: 200, body: img } : { status: 404, body: { error: 'No such image.' } };
+    } catch (e) {
+      return { status: 400, body: { error: e.message } };
+    }
   }
   if (method === 'GET' && op === 'connect') {
     // The connector link for one account, shown once on the page when asked.
