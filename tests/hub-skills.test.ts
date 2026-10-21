@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const lib = (p: string) => import(/* @vite-ignore */ `../hub/lib/${p}` as string) as Promise<any>;
 
-let hub: any, tools: any[], t: number;
+let hub: any, tools: any[], t: number, sk: any;
 const A = { name: 'ME' };
 const B = { name: 'Dad' };
 const run = (who: any, name: string, args: any = {}) => tools.find((x) => x.name === name).run(who, args) as Promise<string>;
@@ -12,7 +12,7 @@ const qs = (n = 2) => [{ header: 'Scope', question: 'What is in scope?', options
 beforeAll(async () => {
   const { createHub } = await lib('hub.js');
   const { memoryStore } = await lib('store.js');
-  const sk = await lib('tools-skills.js');
+  sk = await lib('tools-skills.js');
   hub = createHub({ store: memoryStore(), fetchImpl: (async () => { throw new Error('offline'); }) as any });
   await hub.upsertAccount({ name: 'ME', plan: 'max' });
   await hub.upsertAccount({ name: 'Dad', plan: 'max' });
@@ -41,6 +41,41 @@ describe('shared skills', () => {
     expect(await run(B, 'skill_list')).toContain('/mine: Does a thing.');
     expect(await run(B, 'skill_put', { name: 'mine', content: '---\ndescription: v2\n---\nx' })).toContain('Replaced');
     expect(await run(A, 'skill_get', { name: 'mine' })).toContain('v2');
+  });
+});
+
+describe('skills page ops', () => {
+  const page = async (method: string, op: string, body: any = {}) => (await sk.skillsOf(hub).pageOp(method, op, {}, body)) as any;
+
+  it('ignores other ops', async () => {
+    expect(await page('GET', 'repo-list')).toBeNull();
+  });
+
+  it('lists with bundled and overridden flags', async () => {
+    const r = await page('GET', 'skill-list');
+    const c = r.body.skills.find((s: any) => s.name === 'clarify');
+    expect(c).toMatchObject({ bundled: true, overridden: false, by: 'bundled' });
+    expect(c.text).toContain('---');
+  });
+
+  it('saves, overrides a bundled skill, and reverts it on delete', async () => {
+    const mk = (d: string) => `---\nname: clarify\ndescription: ${d}\n---\nx`;
+    expect((await page('POST', 'skill-save', { name: 'clarify', content: mk('mine') })).body).toMatchObject({ name: 'clarify', replaced: true });
+    let c = (await page('GET', 'skill-list')).body.skills.find((s: any) => s.name === 'clarify');
+    expect(c).toMatchObject({ overridden: true, by: 'XIAO', description: 'mine' });
+    expect((await page('POST', 'skill-delete', { name: 'clarify' })).body).toMatchObject({ reverted: true });
+    c = (await page('GET', 'skill-list')).body.skills.find((s: any) => s.name === 'clarify');
+    expect(c).toMatchObject({ overridden: false, by: 'bundled' });
+  });
+
+  it('removes a custom skill and rejects bad input', async () => {
+    await page('POST', 'skill-save', { name: 'tmp', content: '---\ndescription: t\n---\nx' });
+    expect((await page('POST', 'skill-delete', { name: 'tmp' })).body.reverted).toBe(false);
+    expect(await run(A, 'skill_get', { name: 'tmp' })).toContain('No skill');
+    expect((await page('POST', 'skill-delete', { name: 'tmp' })).status).toBe(400);
+    expect((await page('POST', 'skill-delete', { name: 'premortem' })).status).toBe(400);
+    expect((await page('POST', 'skill-save', { name: 'Bad Name', content: '---\n---' })).status).toBe(400);
+    expect((await page('POST', 'skill-save', { name: 'x', content: 'nope' })).status).toBe(400);
   });
 });
 
