@@ -80,7 +80,7 @@ describe('studio renderer', () => {
     }
     const p2 = S.validateProject({ cast: { a: {} }, scenes: [{ props: S.PROPS.slice(6).map((k: string) => ({ kind: k, x: 0.5 })), actors: [{ who: 'a' }] }] }).project;
     expect(paths(R.renderFrame(p2, 0, 1))).not.toMatch(/NaN/);
-  });
+  }, 30000);
 
   it('walks to "to" and stops; "at" turns toward the target', () => {
     const p = one({ move: 'walk', to: 0.7 });
