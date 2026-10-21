@@ -99,6 +99,45 @@ describe('studio renderer', () => {
     expect(R.actorState(flipped, mia, 2).facing).toBe(-1);
   });
 
+  it('validates scene marks and clamps them', async () => {
+    const S = await lib('schema.js');
+    const base = project();
+    base.scenes[0].marks = [
+      { kind: 'sfx', text: 'RAHHH', x: 2, y: -1, size: 9, t: 1 },
+      { kind: 'label', text: 'Never animated before', x: 0.2, y: 0.3, to: [0.5, 0.6] },
+      { kind: 'label', x: 0.2, y: 0.3 },
+      { kind: 'bogus', x: 0.5, y: 0.5 },
+      ...Array.from({ length: 9 }, () => ({ kind: 'sparkle', x: 0.5, y: 0.5 })),
+    ];
+    const v = S.validateProject(base);
+    const marks = v.project.scenes[0].marks;
+    expect(marks.length).toBe(6);
+    expect(marks[0]).toMatchObject({ kind: 'sfx', x: 1, y: 0, size: 2, t: 1 });
+    expect(marks[1].to).toEqual([0.5, 0.6]);
+    expect(marks.some((m: any) => m.kind === 'bogus' || (m.kind === 'label' && !m.text))).toBe(false);
+    expect(S.schemaText()).toContain('marks?');
+  });
+
+  it('draws marks through the SVG painter and pops them in at t', async () => {
+    const S = await lib('schema.js');
+    const M = await lib('marks.js');
+    const base = project();
+    base.scenes[0].marks = [{ kind: 'sfx', text: 'shock', x: 0.5, y: 0.3, t: 2 }, { kind: 'sweat', x: 0.3, y: 0.3, t: 2 }, { kind: 'label', text: 'Embarrased', x: 0.2, y: 0.8, to: [0.4, 0.5] }];
+    const p = S.validateProject(base).project;
+    const svgAt = (t: number) => R.toSVG(R.renderFrame(p, 0, t), 800);
+    expect(svgAt(1)).not.toContain('SHOCK');
+    expect(svgAt(1)).toContain('Embarrased');
+    expect(svgAt(2.5)).toContain('SHOCK');
+    expect(M.markScale({ t: 2 }, 1.9)).toBe(0);
+    expect(M.markScale({ t: 2 }, 2)).toBeCloseTo(0.3, 5);
+    expect(M.markScale({ t: 2 }, 2.15)).toBe(1);
+    expect(M.markScale({ t: 2 }, 2.075)).toBeGreaterThan(0.3);
+    for (const kind of ['lines', 'heart', 'exclaim', 'sparkle']) {
+      const q = S.validateProject({ ...base, scenes: [{ ...base.scenes[0], marks: [{ kind, x: 0.5, y: 0.5 }] }] }).project;
+      expect(R.renderFrame(q, 0, 1).world.length).toBeGreaterThan(R.renderFrame({ ...q, scenes: [{ ...q.scenes[0], marks: [] }] }, 0, 1).world.length);
+    }
+  });
+
   it('maps time to scenes and quantizes it', () => {
     const p = project();
     expect(R.totalSeconds(p)).toBe(13);

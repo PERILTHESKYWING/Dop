@@ -2,6 +2,7 @@
 // gives layers of ops; paint() draws them on a canvas, toSVG() makes an SVG.
 import { LIGHT, Pen, curve, ellipse, hash, loop, mix, pathOf, rng, wrap } from './draw.js';
 import { drawCharacter, headSpot, seedFor, FACE } from './rig.js';
+import { drawMarks } from './marks.js';
 import { poseFor, MOVE_SET, WALK_SPEED } from './moves.js';
 
 export const W = 1600;
@@ -329,6 +330,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
+  drawMarks(world, scene.marks, tq, st, W, H); // with the shot, so the camera moves them with the actors
   const overlay = [];
   if (st.captions && scene.narration) caption(overlay, scene.narration, st);
   const z = cam.zoom;
