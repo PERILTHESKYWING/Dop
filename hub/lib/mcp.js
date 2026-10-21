@@ -147,17 +147,18 @@ export function toolsFor(hub) {
     },
     {
       name: 'hub_usage',
-      description: 'Report your account\'s usage: state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset, "report" to just share numbers. Optional percent (5-hour), five_hour_pct, seven_day_pct.',
-      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok', 'report'] }, percent: num, five_hour_pct: num, seven_day_pct: num, five_hour_resets: str, seven_day_resets: str, note: str }, required: ['state'] },
+      description: 'Report your account\'s usage. To read it: run `node hub/usage-probe.mjs` and pass what it prints (five_hour_pct, seven_day_pct, *_resets) with state "report". state "low" when you see a usage warning (new work then goes to other accounts), "ok" when it has reset.',
+      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: ['low', 'ok', 'report'] }, percent: num, five_hour_pct: num, seven_day_pct: num, five_hour_resets: str, seven_day_resets: str, source: { type: 'string', enum: ['agent', 'pc'] }, note: str }, required: ['state'] },
       run: async (a, x) => {
         const five = typeof x.five_hour_pct === 'number' ? x.five_hour_pct : typeof x.percent === 'number' ? x.percent : null;
         const week = typeof x.seven_day_pct === 'number' ? x.seven_day_pct : null;
+        // Low/ok first: "ok" forgets the old reading, so fresh numbers go on after it.
+        if (x.state !== 'report') await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         if (five != null || week != null) {
-          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: Date.now(), source: 'pc' };
+          const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: hub.now(), source: x.source === 'pc' ? 'pc' : 'agent' };
           await hub.touchAccount(a.name, { usage, usageErr: '' });
         }
         if (x.state === 'report') return 'Thanks.';
-        await hub.setLow(a.name, x.state === 'low', x.note || (five != null ? `${five}% used` : ''));
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
     },

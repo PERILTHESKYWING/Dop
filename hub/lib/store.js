@@ -83,7 +83,7 @@ export function memoryStore() {
       for (let i = 0; i < fv.length; i += 2) hash(k).set(fv[i], String(fv[i + 1]));
       return fv.length / 2;
     },
-    HDEL: (k, f) => (hash(k).delete(f) ? 1 : 0),
+    HDEL: (k, ...fs) => fs.filter((f) => hash(k).delete(f)).length,
     HGETALL: (k) => [...hash(k).entries()].flat(),
   };
   const run = ([op, ...args]) => {
