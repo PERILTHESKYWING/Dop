@@ -1,6 +1,9 @@
 // Remote MCP server (Streamable HTTP, stateless JSON replies) that gives any
 // Claude on any account the hub tools: claude.ai chats (web, desktop, phone),
 // cloud Claude Code sessions and routines, and Claude Code on a PC.
+import { webTools } from './tools-web.js';
+import { fileTools } from './tools-files.js';
+
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -132,6 +135,8 @@ export function toolsFor(hub) {
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
     },
+    ...webTools(),
+    ...fileTools(hub),
   ];
 }
 
@@ -163,7 +168,14 @@ export async function handleMcp(hub, agent, body) {
     const args = params.arguments || {};
     try {
       await hub.sweep();
-      const text = String(await tool.run(agent, args));
+      const out = await tool.run(agent, args);
+      if (out && typeof out === 'object' && Array.isArray(out.content)) {
+        // Rich result (images). Only the text parts count as hub traffic.
+        const t = out.content.map((c) => c.text || '').join('');
+        await hub.countTraffic(JSON.stringify(args).length + t.length);
+        return ok({ content: out.content });
+      }
+      const text = String(out);
       await hub.countTraffic(JSON.stringify(args).length + text.length);
       return ok({ content: [{ type: 'text', text }] });
     } catch (e) {
