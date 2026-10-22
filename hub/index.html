@@ -334,8 +334,8 @@ button.fchip:hover { border-color: var(--faint); }
 .thead { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px; }
 .thead h3 { margin: 0; font-size: 19px; flex: 1; }
 .cap { padding: 0 16px 10px; margin: 0; font-size: 15px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 12px 12px; }
-.stats div { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: grid; gap: 0; background: var(--bg); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; padding: 0 12px 12px; }
+.stats div { border: 1px solid var(--line); border-radius: 10px; padding: 9px 8px; display: grid; gap: 0; background: var(--bg); }
 .stats b { font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stats b.ready { color: var(--green); } .stats b.low { color: var(--red); }
 .stats span { font-size: 14px; font-weight: 600; }
@@ -357,8 +357,9 @@ button.fchip:hover { border-color: var(--faint); }
 .aname .nm { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--chip); }
 .atop .state { font-size: 14px; font-weight: 700; white-space: nowrap; }
-.state.ready, .state.busy { color: var(--green); } .state.low { color: var(--red); } .state.chat { color: var(--soft); }
+.state.ready, .state.busy { color: var(--green); } .state.low, .state.fix { color: var(--red); } .state.chat, .state.paused { color: var(--soft); }
 .acard .sub { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
+.acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
 .use .lbl { font-weight: 600; }
 .use .pct { text-align: right; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
@@ -599,7 +600,7 @@ function apply(d, t0) {
   const ids = new Set(threads.map((t) => t.id));
   // A message still sending stays until the hub has it.
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
-  S = { ...S, threads, accounts: d.accounts, agents: d.agents || [], lessons: d.lessons || [], settings: d.settings, overhead: d.overhead, loading: false,
+  S = { ...S, threads, accounts: d.accounts, agents: d.agents || [], lessons: d.lessons || [], settings: d.settings, overhead: d.overhead, timedWake: !!d.timedWake, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => m.pending || !m.thread || ids.has(m.thread)) };
   if (d.project) setProject(d.project, d.owner);
   // A removed account also leaves the saved picks on this device.
@@ -679,7 +680,9 @@ const avList = (names, size = 's') => names.length ? `<span class="avs">${names.
 const meter = (lvl) => `<span class="meter">${THINK.map((t, i) => `<i class="${i <= THINK.indexOf(lvl) ? 'on' : ''}"></i>`).join('')}</span>`;
 const pctMax = (a) => Math.max(a.usage?.five_hour_pct ?? 0, a.usage?.seven_day_pct ?? 0);
 function acctState(a) {
+  if (a.problem) return ['fix', 'Needs you'];
   if (a.low) return ['low', 'Running low'];
+  if (a.pausedUntil > Date.now()) return ['paused', 'Paused'];
   if (a.working) return ['busy', 'Working'];
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
@@ -1218,17 +1221,18 @@ function accountCard(a) {
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const src = u?.source === 'manual' ? 'typed in' : u?.source === 'pc' ? 'from your PC' : u?.source === 'agent' ? 'reported by its agent' : 'from Claude';
-  const sub = a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${until(new Date(a.lowUntil).toISOString()).replace('resets ', '')}, then its threads continue` : ''}` : '';
+  const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
+  const sub = a.problem || (a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${back(a.lowUntil)}, then its threads continue` : ''}` : a.pausedUntil > Date.now() ? `${a.pausedNote} · tries again ${back(a.pausedUntil) === 'now' ? 'now' : 'at ' + back(a.pausedUntil)}` : '');
   const usage = has
     ? `${usageRow('5-hour', u.five_hour_pct, u.five_hour_resets)}${usageRow('Weekly', u.seven_day_pct, u.seven_day_resets)}${u.opus_week_pct != null ? usageRow('Opus wk', u.opus_week_pct) : ''}`
     : `<div class="nouse">${a.usageErr ? `Claude didn't share usage (${esc(a.usageErr)}).` : a.models.length ? 'Usage not read yet.' : 'Free plans don\'t share usage.'} <button class="btn small quiet" data-open="usage" data-name="${esc(a.name)}">Type it in</button></div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name, 'l')}<div class="aname"><div class="nmrow"><span class="nm">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>${a.connected ? '<span class="conn">✓ Connected</span>' : '<span class="conn no">Not connected yet</span>'}</div><span class="state ${cls}">${esc(st)}</span></div>
-    ${sub ? `<div class="sub" title="${esc(sub)}">${esc(sub)}</div>` : ''}
+    <div class="atop">${av(a.name, 'l')}<div class="aname"><div class="nmrow"><span class="nm">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>${a.oldLink ? '<span class="conn no">Old link</span>' : a.connected ? '<span class="conn">✓ Connected</span>' : '<span class="conn no">Not connected yet</span>'}</div><span class="state ${cls}">${esc(st)}</span></div>
+    ${sub ? `<div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>` : ''}
     ${activityOf(a)}
     ${usage}
     <div class="afoot">${a.models.map((m) => `<span class="mdl">${MODEL_NAME[m]}</span>`).join('')}${has ? `<span class="upd">${ago(Date.now() - u.at)}${ago(Date.now() - u.at) === 'just now' ? '' : ' ago'}, ${src}</span>` : ''}</div>
-    <div class="aacts"><button class="btn small ${a.connected ? '' : 'primary'}" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-open="usage" data-name="${esc(a.name)}">Usage</button>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>
+    <div class="aacts"><button class="btn small ${a.connected && !a.oldLink ? '' : 'primary'}" data-open="connect" data-name="${esc(a.name)}">Connect</button><button class="btn small" data-open="edit" data-name="${esc(a.name)}">Edit</button><button class="btn small" data-open="usage" data-name="${esc(a.name)}">Usage</button>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>
   </div>`;
 }
 // ---------- task list (like Projects in Claude) ----------
@@ -1266,13 +1270,14 @@ function agentPanel() {
   return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run} running</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
 }
 function renderTeam() {
-  const rank = (a) => (a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
+  // Accounts that need XIAO come first.
+  const rank = (a) => (a.problem ? -1 : a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
   const n = (k) => S.accounts.filter((a) => acctState(a)[0] === k).length;
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
   $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
+    ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') + n('paused') ? 'low' : ''}">${n('low') + n('paused')}</b><span>Low</span></div>${n('fix') ? `<div><b class="low">${n('fix')}</b><span>Needs you</span></div>` : ''}</div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
@@ -1499,6 +1504,8 @@ async function openSheet(kind, name) {
       <p>An account with less than this much of its 5-hour or weekly limit left gets no new work or team places, and its running threads hand over to other accounts.</p>
       <label class="field"><span><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}> Continue stopped threads on another account</span></label>
       <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>
+      <div class="sect">After a usage limit resets</div>
+      <p>${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours. For always within a minute: in Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.'}</p>
       <div class="sect">Speed</div>
       <p>Last refresh took ${speed.rtt} ms, of which ${speed.ms} ms inside the hub.</p>
       <div class="sect">Connection log (newest first)</div>

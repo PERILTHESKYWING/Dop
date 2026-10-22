@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 process.env.HUB_DEV_MEMORY ||= '1';
 process.env.HUB_PASSWORD ||= 'dev';
-// HUB_FAKE_CLAUDE=1: pretend every routine start works (for trying the page).
+// HUB_FAKE_CLAUDE=1: pretend every routine start works (for trying the page),
+// except a token containing "refused" (401) or "busy" (429, retry in 15 min).
 if (process.env.HUB_FAKE_CLAUDE === '1') {
   const real = globalThis.fetch;
   let n = 0;
@@ -20,6 +21,9 @@ if (process.env.HUB_FAKE_CLAUDE === '1') {
       const k = [...String(init?.headers?.authorization || '')].reduce((x, c) => x + c.charCodeAt(0), 0);
       return Promise.resolve(new Response(JSON.stringify({ five_hour: { utilization: (k * 7) % 96, resets_at: later(2) }, seven_day: { utilization: (k * 3) % 90, resets_at: later(80) } })));
     }
+    const auth = String(init?.headers?.authorization || '');
+    if (auth.includes('refused')) return Promise.resolve(new Response('{}', { status: 401 }));
+    if (auth.includes('busy')) return Promise.resolve(new Response('{}', { status: 429, headers: { 'retry-after': '900' } }));
     return Promise.resolve(new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_url: `https://claude.ai/code/session_demo${++n}` })));
   };
 }
