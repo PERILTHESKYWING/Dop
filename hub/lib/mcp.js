@@ -7,21 +7,44 @@ import { skillTools } from './tools-skills.js';
 import { studioTools } from './studio.js';
 import { libraryTools } from './library.js';
 import { repoTools } from './tools-repos.js';
+import { nextChange, waitAnswer, wakeWaiters } from './wake.js';
 
 const WAIT_MAX_S = 45; // stays under the 60 s function limit on Vercel Hobby
-// Waiting agents check this often, with one small read (the hub's seq).
-const POLL_MS = 1000;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-// Sleep until anything new lands in the hub, or until end. Returns the new
-// seq, or 0 when time ran out.
-async function nextChange(hub, from, end) {
-  while (Date.now() < end) {
-    await sleep(Math.min(POLL_MS, end - Date.now()));
-    const s = await hub.nextSeq();
-    if (s !== from) return s;
-  }
-  return 0;
+
+// What a warm function instance remembers between calls (a cold one starts
+// empty, which is always safe). Keyed by project: production makes a new
+// hub and store object for every request.
+// The stopped-agent check (sweep: reads every thread) runs at most this
+// often per instance; stalls take 15 minutes, and open pages and the
+// hub-wake workflow check too.
+const SWEEP_MS = 30_000;
+const lastSweep = new Map();
+// Hub traffic (the overhead budget estimate) is counted in the background:
+// a call's characters are added to the next call's store work instead of
+// costing a round trip of their own. Big replies are counted at once.
+const TRAFFIC_FLUSH = 8000;
+const pendingTraffic = new Map();
+
+function sweepDue(hub) {
+  const t = hub.now();
+  const last = lastSweep.get(hub.project);
+  if (last != null && t >= last && t - last < SWEEP_MS) return false;
+  lastSweep.set(hub.project, t);
+  return true;
 }
+function flushTraffic(hub) {
+  const n = pendingTraffic.get(hub.project) || 0;
+  if (!n) return null;
+  pendingTraffic.set(hub.project, 0);
+  return hub.countTraffic(n).catch(() => pendingTraffic.set(hub.project, (pendingTraffic.get(hub.project) || 0) + n));
+}
+function addTraffic(hub, chars) {
+  pendingTraffic.set(hub.project, (pendingTraffic.get(hub.project) || 0) + chars);
+  return pendingTraffic.get(hub.project) >= TRAFFIC_FLUSH ? flushTraffic(hub) : null;
+}
+// Tools that post something a waiting teammate may want: their waiters on
+// this instance check at once.
+const WAKES = new Set(['hub_post', 'hub_learn', 'hub_checkpoint', 'hub_route', 'hub_routed', 'hub_create_thread', 'image_gen']);
 // Tools whose replies also carry the caller's news, and which argument names its thread.
 const NEWS_ARG = { hub_post: 'thread', hub_checkpoint: 'thread', hub_ask: 'from_thread', hub_learn: 'thread' };
 
@@ -91,6 +114,7 @@ export function toolsFor(hub) {
         if (!wait || x.kind === 'thinking' || x.kind === 'done') return res;
         const tid = Number(x.thread) || 0;
         const end = Date.now() + Math.min(WAIT_MAX_S, wait) * 1000;
+        wakeWaiters();
         let n = await hub.news(a, tid);
         while (!n.text && (await nextChange(hub, n.seq, end))) n = await hub.news(a, tid);
         return n.text ? `${res}\n\n${n.text}` : `${res} No replies yet.`;
@@ -118,14 +142,11 @@ export function toolsFor(hub) {
       inputSchema: { type: 'object', properties: { from_thread: num, to_thread: num, question: str, wait_s: num }, required: ['to_thread', 'question'] },
       run: async (a, x) => {
         const q = await hub.ask(a, x);
+        wakeWaiters();
         const end = Date.now() + Math.min(WAIT_MAX_S, x.wait_s ?? 40) * 1000;
-        // seq is read before each look, so an answer landing in between still wakes us.
-        let seq = await hub.nextSeq();
-        for (;;) {
-          const ans = await hub.answerFor(q.id);
-          if (ans) return hub.msgLine(ans);
-          if (!(seq = await nextChange(hub, seq, end))) break;
-        }
+        // Reads only messages newer than the last look, not 400 each time.
+        const ans = await waitAnswer(hub, q.id, end);
+        if (ans) return hub.msgLine(ans);
         await hub.watchQuestion(a, x.from_thread, q.id);
         return `No answer to #${q.id} yet. Carry on: the answer comes with your next hub call (hub_sync between steps), or use hub_wait(thread: ${x.from_thread || 0}) if you can't go on without it.`;
       },
@@ -226,24 +247,40 @@ export async function handleMcp(hub, agent, body) {
     const tool = tools.find((t) => t.name === params.name);
     if (!tool) return fail(-32602, `Unknown tool ${params.name}`);
     const args = params.arguments || {};
+    const flushing = flushTraffic(hub);
+    // News rides along with these tools. hub_post that waited has already
+    // read it; hub_ask reads it after its wait; the rest read it while the
+    // tool runs (both are independent store work).
+    const newsArg = NEWS_ARG[tool.name];
+    const waited = tool.name === 'hub_post' && Number(args.wait_s) > 0 && args.kind !== 'thinking' && args.kind !== 'done';
+    const newsNow = newsArg && !waited && tool.name !== 'hub_ask';
+    let news = null;
     try {
-      await hub.sweep();
+      if (sweepDue(hub)) await hub.sweep();
+      news = newsNow ? hub.news(agent, args[newsArg]) : null;
+      // A failed tool must not lose the news it already marked as seen.
+      if (news) news.catch(() => {});
       const out = await tool.run(agent, args);
+      if (WAKES.has(tool.name)) wakeWaiters();
       if (out && typeof out === 'object' && Array.isArray(out.content)) {
         // Rich result (images). Only the text parts count as hub traffic.
         const t = out.content.map((c) => c.text || '').join('');
-        await hub.countTraffic(JSON.stringify(args).length + t.length);
+        await Promise.all([flushing, addTraffic(hub, JSON.stringify(args).length + t.length)]);
         return ok({ content: out.content });
       }
       let text = String(out);
-      if (NEWS_ARG[tool.name]) {
-        const n = await hub.news(agent, args[NEWS_ARG[tool.name]]);
+      if (newsArg && !waited) {
+        const n = news ? await news.catch(() => ({ text: '' })) : await hub.news(agent, args[newsArg]);
         if (n.text) text += `\n\n${n.text}`;
       }
-      await hub.countTraffic(JSON.stringify(args).length + text.length);
+      await Promise.all([flushing, addTraffic(hub, JSON.stringify(args).length + text.length)]);
       return ok({ content: [{ type: 'text', text }] });
     } catch (e) {
-      return ok({ content: [{ type: 'text', text: `Hub error: ${e.message}` }], isError: true });
+      let text = `Hub error: ${e.message}`;
+      const n = news && (await news.catch(() => null));
+      if (n?.text) text += `\n\n${n.text}`;
+      await flushing;
+      return ok({ content: [{ type: 'text', text }], isError: true });
     }
   }
   return fail(-32601, `Method ${method} not supported`);
