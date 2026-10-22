@@ -118,7 +118,7 @@ export function mount(el, ctx) {
     const del = s && !s.bundled;
     $('[data-ed]').innerHTML = `
       <div class="sk-bar">
-        <button class="btn quiet sk-back" data-a="back">‹ All skills</button>
+        <button class="btn quiet sk-back" data-a="back">${icon('chevron-left', 16)}All skills</button>
         <input class="sk-name" data-nm placeholder="skill-name" value="${esc(name)}" ${s ? 'readonly' : ''} aria-label="Skill name">
         <button class="btn go" data-a="save" ${text == null ? 'disabled' : ''}>Save for everyone</button>
         ${revert ? '<button class="btn" data-a="del">Revert to bundled</button>' : ''}
