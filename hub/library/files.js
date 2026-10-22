@@ -472,6 +472,7 @@ const THUMB_CACHE = 'hub-lib-thumbs-1';
 const cacheOpen = () => (globalThis.caches ? caches.open(THUMB_CACHE).catch(() => null) : Promise.resolve(null));
 const SHOW = 120; // cards drawn at once; "Show all" draws the rest
 const STALE = 30_000; // a tab switch or window focus reloads the list only after this long
+const LIST_KEY = 'library-files-list'; // the last list, shown at once on the next visit
 const day = (t) => {
   if (!t) return '';
   const d = new Date(t), now = new Date();
@@ -644,16 +645,20 @@ export function mount(el, ctx) {
   addEventListener('beforeunload', (e) => { if (S.busy) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- list ----------
-  async function load() {
-    const r = await api('lib-list');
+  function useList(r) {
     S.items = (r.items || []).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
     S.bytes = r.bytes || 0;
     S.max = r.max || 0;
-    S.loaded = true;
-    S.at = Date.now();
     S.sig = JSON.stringify(S.items.map((it) => [it.id, it.at, it.status, it.name, it.note, it.tags, it.hasThumb]));
     ctx.count?.('files', S.items.filter(ready).length);
     render();
+  }
+  async function load() {
+    const r = await api('lib-list');
+    S.loaded = true;
+    S.at = Date.now();
+    useList(r);
+    ls.set(LIST_KEY, JSON.stringify({ items: r.items || [], bytes: r.bytes || 0, max: r.max || 0 }));
   }
   const ready = (it) => !it.status || it.status === 'ready' || it.status === 'done';
   function matches(it) {
@@ -897,6 +902,8 @@ export function mount(el, ctx) {
   };
   q('empty').hidden = false;
   q('empty').textContent = 'Loading…';
+  // The list from the last visit draws at once (its thumbnails are in the browser's cache); the hub's answer replaces it.
+  try { const c = JSON.parse(ls.get(LIST_KEY) || 'null'); if (c && Array.isArray(c.items) && c.items.length) useList(c); } catch {}
   load().catch(failed);
   // A tab switch or window focus reloads only when the list may be out of date.
   const refresh = () => { if (!S.busy && Date.now() - S.at > STALE) load().catch(failed); };
