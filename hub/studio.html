@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
 <script>
 try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
 </script>
@@ -58,50 +58,54 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .spacer { flex: 1; }
 .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
 @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); padding: 10px 16px 24px; gap: 12px; } .top h1 { font-size: 22px; } }
-@media (max-width: 600px) { .top { flex-wrap: wrap; } .top h1 { flex: 1; } .top select { order: 5; flex-basis: 100%; max-width: none; } }
+@media (max-width: 600px) {
+  .wrap { padding: 0 0 24px; gap: 12px; }
+  .card.stage { border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
+  .side { padding: 0 12px; }
+  .top { flex-wrap: wrap; } .top h1 { flex: 1; } .top select { order: 5; flex-basis: 100%; max-width: none; }
+}
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .stage { overflow: hidden; }
 .screen { position: relative; background: #f7f1e3; aspect-ratio: 16 / 9; }
 .screen canvas { display: block; width: 100%; height: 100%; }
-.badge { position: absolute; left: 10px; top: 10px; background: rgba(29, 27, 24, .78); color: #fff; font-size: 12.5px; padding: 4px 9px; border-radius: 99px; pointer-events: none; }
+.badge { position: absolute; left: 10px; top: 10px; max-width: calc(100% - 20px); background: rgba(29, 27, 24, .78); color: #fff; font-size: 14px; padding: 4px 9px; border-radius: 99px; pointer-events: none; }
 .badge:empty { display: none; }
-.flash { animation: flash 1.6s ease-out; }
-@keyframes flash { 0% { box-shadow: 0 0 0 4px var(--green); } 100% { box-shadow: var(--shadow); } }
 .controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
 .controls .bar { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
 .controls input[type=range] { flex: 1; min-width: 100px; height: 44px; margin: 0; accent-color: var(--green); }
 .controls .group { display: flex; gap: 8px; flex-wrap: wrap; }
-.time { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 13px; min-width: 76px; text-align: right; }
+.time { font-variant-numeric: tabular-nums; color: var(--soft); font-size: 14px; min-width: 84px; text-align: right; }
 .play { width: 48px; min-width: 48px; padding: 0; font-size: 16px; }
 .scenes { display: flex; gap: 6px; padding: 0 12px 12px; overflow-x: auto; scrollbar-width: thin; }
 .scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
 .scenes button:hover { border-color: var(--soft); }
 .scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--green); }
 .dot.busy { background: var(--amber); }
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (min-width: 901px) { .side { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 92px); overflow-y: auto; } }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.tabs button { flex: 1; border: 0; background: none; padding: 11px 6px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; }
+.tabs button { flex: 1 0 auto; border: 0; background: none; padding: 11px 8px; font-size: 14px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 .pane { padding: 14px; display: none; }
 .pane.on { display: block; }
 textarea { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px; resize: vertical; min-height: 92px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-.row .lbl { font-size: 14px; color: var(--soft); margin-right: 2px; }
+.row .lbl { font-size: 15px; color: var(--soft); margin-right: 2px; }
 .split { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 4px; }
-.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; min-height: 44px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); cursor: pointer; min-height: 44px; }
 .check input { width: 18px; height: 18px; accent-color: var(--green); }
-.hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
-.notes { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
-.note { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 14px; background: var(--bg); overflow-wrap: anywhere; }
+.hint { color: var(--soft); font-size: 14px; margin: 8px 0 0; }
+.notes { display: flex; flex-direction: column; gap: 8px; max-height: min(480px, 60vh); overflow-y: auto; }
+.note { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 15px; line-height: 1.4; background: var(--bg); overflow-wrap: anywhere; }
 .note.me { background: var(--sel); }
-.note small { display: block; color: var(--faint); font-size: 12px; margin-bottom: 2px; }
-.empty { color: var(--faint); font-size: 14px; }
-.slider { display: grid; grid-template-columns: 92px minmax(0, 1fr) 42px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+.note small { display: block; color: var(--soft); font-size: 13px; margin-bottom: 2px; }
+.empty { color: var(--soft); font-size: 15px; margin: 0; }
+.slider { display: grid; grid-template-columns: 100px minmax(0, 1fr) 44px; gap: 8px; align-items: center; margin: 0; min-height: 44px; font-size: 15px; }
 .slider input { accent-color: var(--green); width: 100%; }
-.slider output { font-variant-numeric: tabular-nums; color: var(--soft); text-align: right; font-size: 13px; }
+.slider output { font-variant-numeric: tabular-nums; color: var(--soft); text-align: right; font-size: 14px; }
 pre.rules { white-space: pre-wrap; font: 13.5px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 0; max-height: 360px; overflow: auto; }
 .castcv { width: 100%; aspect-ratio: 16 / 9; display: block; border-radius: 10px; border: 1px solid var(--line); }
 dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--ink); padding: 18px; width: min(560px, calc(100vw - 32px)); box-shadow: var(--shadow); }
@@ -116,10 +120,10 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 .err { color: var(--red); font-size: 14px; min-height: 1.2em; }
 .toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; z-index: 20; max-width: calc(100vw - 32px); }
 .toast:empty { display: none; }
-.export { font-size: 13.5px; color: var(--soft); }
+.export { font-size: 14px; color: var(--soft); }
 .export a { color: var(--green); font-weight: 600; }
 .refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 12px; }
-.ref { border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 13px; position: relative; }
+.ref { border: 1px solid var(--line); border-radius: 10px; padding: 8px; font-size: 14px; overflow-wrap: anywhere; position: relative; }
 .ref.do { border-color: var(--green); }
 .ref.dont { border-color: var(--red); }
 .ref img { width: 100%; display: block; border-radius: 6px; margin-bottom: 4px; }
@@ -156,14 +160,14 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
         </div>
       </div>
       <div class="scenes" id="scenes"></div>
-      <div class="status"><span class="dot" id="liveDot"></span><span id="statusText" style="flex:1;min-width:0">Loading…</span></div>
+      <div class="status"><span class="dot" id="liveDot"></span><span id="statusText" role="status" style="flex:1;min-width:0">Loading…</span></div>
       <div class="status export" id="exportOut" hidden></div>
     </section>
     <aside class="side">
       <section class="card">
-        <div class="tabs" role="tablist">
+        <div class="tabs" role="tablist" aria-label="Studio panels">
           <button role="tab" aria-selected="true" data-tab="fb">Feedback</button>
-          <button role="tab" aria-selected="false" data-tab="notes">Team</button>
+          <button role="tab" aria-selected="false" data-tab="notes">Notes</button>
           <button role="tab" aria-selected="false" data-tab="cast">Cast</button>
           <button role="tab" aria-selected="false" data-tab="style">Look</button>
           <button role="tab" aria-selected="false" data-tab="refs">Refs</button>
@@ -215,7 +219,7 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
           <p class="hint">The director follows every DO and avoids every DON'T; the critic compares each sheet to them. Pictures are shrunk here; a video becomes 4 frames. Longer videos: upload them in the hub's <a href="/library.html">Library</a> with the tags <b>studio</b> and <b>do</b> or <b>dont</b> (it keeps 16 frames); the team reads those too.</p>
         </div>
         <div class="pane" data-pane="rules">
-          <pre class="rules" id="rulesText">…</pre>
+          <pre class="rules" id="rulesText">Loading…</pre>
           <p class="hint">Your rules and feedback. A nightly job on your PC folds new feedback into these (one small Claude call, none when nothing is new). See docs/handoff/studio.md.</p>
         </div>
       </section>
@@ -309,7 +313,7 @@ const cv = $('cv');
 const ctx = cv.getContext('2d');
 const grain = makeGrain(document);
 const bgCache = new Map();
-let t = 0, playing = false, playFrom = 0, playAt = 0, lastKey = '', total = totalSeconds(P);
+let styleKey = '', t = 0, playing = false, playFrom = 0, playAt = 0, lastKey = '', total = totalSeconds(P);
 
 function sizeCanvas() {
   const r = cv.getBoundingClientRect();
@@ -334,7 +338,7 @@ function draw(force = false) {
   if (!P.scenes.length) return;
   const at = locate(P, Math.min(t, total - 1e-3));
   const q = quantize(P.style, at.t);
-  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${JSON.stringify(P.style)}`;
+  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${styleKey}`;
   if (!force && key === lastKey) return;
   lastKey = key;
   const f = renderFrame(P, at.scene, at.t, { withBg: false });
@@ -367,7 +371,7 @@ $('scrub').addEventListener('input', (e) => { scrubbing = true; t = (Number(e.ta
 $('scrub').addEventListener('change', () => (scrubbing = false));
 $('playBtn').onclick = () => setPlaying(!playing);
 $('screen').onclick = () => setPlaying(!playing);
-document.addEventListener('keydown', (e) => { if (e.key === ' ' && !/TEXTAREA|INPUT|SELECT/.test(document.activeElement?.tagName)) { e.preventDefault(); setPlaying(!playing); } });
+document.addEventListener('keydown', (e) => { if (e.key === ' ' && !/TEXTAREA|INPUT|SELECT|BUTTON|A|SUMMARY/.test(document.activeElement?.tagName) && !document.querySelector('dialog[open]')) { e.preventDefault(); setPlaying(!playing); } });
 
 function showProject(project, { keepTime = false } = {}) {
   base = project;
@@ -384,9 +388,11 @@ function showProject(project, { keepTime = false } = {}) {
 $('scenes').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; t = timeline(P)[Number(b.dataset.i)].start + 0.01; if (playing) setPlaying(true); draw(true); };
 function applyStyle() {
   P = { ...base, style: normalizeStyle({ ...base.style, ...S.styleOver }, base.style) };
+  styleKey = JSON.stringify(P.style);
   lastKey = '';
 }
 function drawCast() {
+  if (!document.querySelector('.pane[data-pane="cast"].on')) return;
   const c = $('castCv');
   const w = Math.min(1200, Math.round((c.getBoundingClientRect().width || 360) * Math.min(2, devicePixelRatio || 1)));
   c.width = w; c.height = Math.round((w * H) / W);
@@ -516,7 +522,7 @@ async function refresh(full = false) {
     S.demo = !v.ok;
     if (v.ok) {
       showProject(v.project, { keepTime: prevRev >= 0 });
-      if (prevRev >= 0) { $('screen').parentElement.classList.remove('flash'); void $('screen').offsetWidth; $('screen').parentElement.classList.add('flash'); toast(`Revision ${g.meta.rev} is in.`); }
+      if (prevRev >= 0) { toast(`Revision ${g.meta.rev} is in.`); }
     }
   } else if (!g.project) {
     S.demo = true;
@@ -530,7 +536,7 @@ async function refresh(full = false) {
 function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
-  $('badge').textContent = S.demo ? (S.id ? 'Demo while your team draws the sample…' : 'Demo story') : '';
+  $('badge').textContent = S.demo ? (S.id ? 'Demo until the first drawing' : 'Demo story') : '';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
@@ -555,7 +561,7 @@ function renderNotes() {
     ...S.notes.map((n) => ({ at: n.at, who: n.by || 'team', text: n.text, me: false })),
     ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? '👍' : '👎'} rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
   ].sort((a, b) => a.at - b.at);
-  $('notes').innerHTML = items.length ? items.map((n) => `<div class="note${n.me ? ' me' : ''}"><small>${esc(n.who)} · ${ago(n.at)}</small>${esc(n.text)}</div>`).join('') : '<p class="empty">Notes from the director and critic appear here as they work.</p>';
+  $('notes').innerHTML = items.length ? items.map((n) => `<div class="note${n.me ? ' me' : ''}"><small>${esc(n.who)} · ${ago(n.at)}</small>${esc(n.text)}</div>`).join('') : '<p class="empty">No notes yet. The director and critic write here as they work.</p>';
   $('notes').scrollTop = $('notes').scrollHeight;
 }
 async function loadRules() {
@@ -715,15 +721,25 @@ $('refAdd').onclick = () => busy($('refAdd'), 'Adding…', async () => {
 });
 
 // ---------- tabs ----------
-document.querySelector('.tabs').onclick = (e) => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  for (const x of document.querySelectorAll('.tabs button')) x.setAttribute('aria-selected', String(x === b));
+const tabBtns = [...document.querySelectorAll('.tabs button')];
+function openTab(b) {
+  for (const x of tabBtns) { x.setAttribute('aria-selected', String(x === b)); x.tabIndex = x === b ? 0 : -1; }
   for (const p of document.querySelectorAll('.pane')) p.classList.toggle('on', p.dataset.pane === b.dataset.tab);
   if (b.dataset.tab === 'cast') drawCast();
   if (b.dataset.tab === 'rules') loadRules();
   if (b.dataset.tab === 'refs') loadRefs();
+  b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+document.querySelector('.tabs').onclick = (e) => { const b = e.target.closest('button'); if (b) openTab(b); };
+document.querySelector('.tabs').onkeydown = (e) => {
+  const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+  if (d === undefined && e.key !== 'Home' && e.key !== 'End') return;
+  e.preventDefault();
+  const i = tabBtns.indexOf(document.activeElement);
+  const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabBtns.length - 1 : (i + d + tabBtns.length) % tabBtns.length;
+  tabBtns[n].focus(); openTab(tabBtns[n]);
 };
+for (const x of tabBtns) x.tabIndex = x.getAttribute('aria-selected') === 'true' ? 0 : -1;
 
 // ---------- new story ----------
 $('newBtn').onclick = () => { $('newErr').textContent = ''; $('newDlg').showModal(); $('newIdea').focus(); };
