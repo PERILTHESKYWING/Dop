@@ -13,6 +13,14 @@ Copies of XIAO's claude.ai account skills, kept here so any Claude account can a
 | design-critic-panel | automatically when running design critics | anchored, pairwise, median-scored critics |
 | dop-dev | automatically on Dop/Kiai work | hard rules, lean session, verify, ship a ready PR |
 | clarify | `/clarify` | 5-8 questions as tappable choices (AskUserQuestion, or cards in project threads) before work |
+| be-ambitious | `/be-ambitious`, and automatically at the start of big or open-ended tasks | goal behind the goal, pick altitude/depth/range, outside check, then do it |
+| altitude | `/altitude`, and on recurring streams of tasks | climb task → outcome (understand, decide, redesign), set up to own it |
+| depth | `/depth`, `/deeper`, and on work with a right answer | four expert questions, raw material, real tools, hard targets |
+| range | `/range`, `/crew`, and on important open-ended work | nouns → verbs, five fields with two critics, methods not role-play |
+| outside-judge | automatically on anything checkable | a judge that isn't Claude's opinion, pass line set first, its numbers reported |
+| keep-going | automatically before "impossible" or "good enough" | untried routes, prior art, ship then improve, honest numbers |
+
+The last six come from Felix Rieseberg's "How to be more ambitious" (Oct 2026), rewritten in our own words for Dop's rules (free tiers, honest numbers, no invented analysis).
 
 ## Add them to another Claude account
 Open a Claude Code session (or a project thread) on that account with this repo, and send:
