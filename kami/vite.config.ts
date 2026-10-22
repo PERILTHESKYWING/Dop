@@ -116,33 +116,38 @@ function kiaiLoader(): Plugin {
   };
 }
 
-/** First visit only: preload the landing's lazy chunks so they download beside the entry. */
+/**
+ * Preload the first screen's lazy chunks so they download beside the entry instead of one after
+ * another as each import runs: the landing's on a first visit (or #welcome), the app's on a return
+ * visit (same rule as main.tsx). The landing's 3D scene (Stage, three.js) is left out on purpose:
+ * it loads once the landing has painted (Landing.tsx), and not at all on a software-only WebGL.
+ */
 function landingPreload(bundle: Rollup.OutputBundle | undefined): string {
   if (!bundle) return '';
   const chunks = Object.values(bundle).filter((c): c is Rollup.OutputChunk => c.type === 'chunk');
   const entry = chunks.find((c) => c.isEntry);
   const landing = chunks.find((c) => c.facadeModuleId?.endsWith('/kami/src/ui/Landing.tsx'));
-  if (!entry || !landing) return '';
-  const have = new Set([entry.fileName, ...entry.imports]);
-  const js: string[] = [];
-  const css = new Set<string>();
-  const add = (c: Rollup.OutputChunk | undefined) => {
-    if (!c || have.has(c.fileName)) return;
-    have.add(c.fileName);
-    js.push(c.fileName);
-    c.viteMetadata?.importedCss.forEach((f) => css.add(f));
-    c.imports.forEach((f) => add(chunks.find((x) => x.fileName === f)));
+  const app = chunks.find((c) => c.facadeModuleId?.endsWith('/kami/src/App.tsx'));
+  if (!entry) return '';
+  const list = (root: Rollup.OutputChunk | undefined) => {
+    if (!root) return '[]';
+    const have = new Set([entry.fileName, ...entry.imports]);
+    const js: string[] = [];
+    const css = new Set<string>();
+    const add = (c: Rollup.OutputChunk | undefined) => {
+      if (!c || have.has(c.fileName)) return;
+      have.add(c.fileName);
+      js.push(c.fileName);
+      c.viteMetadata?.importedCss.forEach((f) => css.add(f));
+      c.imports.forEach((f) => add(chunks.find((x) => x.fileName === f)));
+    };
+    add(root);
+    return JSON.stringify([...css].map((f) => '/' + f).concat(js.map((f) => '/' + f)));
   };
-  add(landing);
-  // Stage (the 3D landing scene) is Landing's own lazy import and gates the loader's fade.
-  landing.dynamicImports.forEach((f) => {
-    const c = chunks.find((x) => x.fileName === f);
-    if (c?.facadeModuleId?.endsWith('/landing/Stage.tsx')) add(c);
-  });
-  const list = JSON.stringify([...css].map((f) => '/' + f).concat(js.map((f) => '/' + f)));
   return (
-    `<script>try{var h=location.hash;if(h==='#welcome'||(localStorage.getItem('kiai.entered')!=='1'&&h!=='#annotate'))` +
-    `${list}.forEach(function(u){var l=document.createElement('link'),c=/\\.css$/.test(u);l.rel=c?'preload':'modulepreload';if(c)l.as='style';l.crossOrigin='';l.href=u;document.head.appendChild(l)})}catch(e){}</script>`
+    `<script>try{var h=location.hash,e=true;try{e=localStorage.getItem('kiai.entered')==='1'}catch(x){}` +
+    `(h==='#annotate'?[]:h==='#welcome'||!e?${list(landing)}:${list(app)})` +
+    `.forEach(function(u){var l=document.createElement('link'),c=/\\.css$/.test(u);l.rel=c?'preload':'modulepreload';if(c)l.as='style';l.crossOrigin='';l.href=u;document.head.appendChild(l)})}catch(e){}</script>`
   );
 }
 
