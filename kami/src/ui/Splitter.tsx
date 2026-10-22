@@ -3,6 +3,13 @@ import { useEffect, useRef } from 'react';
 const KEY_W = 'kami.boardWidth';
 const KEY_H = 'kami.boardHeight';
 const phone = () => window.matchMedia('(max-width: 899px)').matches;
+/** The board column. Its phone height lives on it, so a drag restyles only the board. */
+const boardOf = (split: HTMLElement) => (split.querySelector('.board-panel') as HTMLElement | null) ?? split;
+/** Forget both sizes (the CSS defaults take over again). */
+const clear = (split: HTMLElement) => {
+  split.style.removeProperty('--board-w');
+  boardOf(split).style.removeProperty('--board-h');
+};
 
 const read = (k: string) => {
   try {
@@ -29,13 +36,13 @@ export function Splitter() {
   const ref = useRef<HTMLDivElement>(null);
 
   // Wide: a board width in px. Phone: the board's share of the height (0.25 to 0.75).
-  const apply = (split: HTMLElement, value: number, isPhone: boolean) => {
+  // `total` lets a drag pass the width it measured once, so a move never reads layout.
+  const apply = (split: HTMLElement, value: number, isPhone: boolean, total = split.clientWidth) => {
     if (isPhone) {
       const f = Math.min(0.75, Math.max(0.25, value));
-      split.style.setProperty('--board-h', `${(f * 100).toFixed(1)}dvh`);
+      boardOf(split).style.setProperty('--board-h', `${(f * 100).toFixed(1)}dvh`);
       return f;
     }
-    const total = split.clientWidth;
     const w = Math.round(Math.min(total - 380, Math.max(300, value)));
     split.style.setProperty('--board-w', `${w}px`);
     return w;
@@ -48,21 +55,12 @@ export function Splitter() {
       const p = phone();
       const saved = read(p ? KEY_H : KEY_W);
       if (saved) apply(split, saved, p);
-      else {
-        split.style.removeProperty('--board-w');
-        split.style.removeProperty('--board-h');
-      }
+      else clear(split);
     };
     restore();
     window.addEventListener('resize', restore);
     return () => window.removeEventListener('resize', restore);
   }, []);
-
-  const valueAt = (split: HTMLElement, x: number, y: number, p: boolean) => {
-    const r = split.getBoundingClientRect();
-    const top = (split.querySelector('.board-panel') as HTMLElement | null)?.getBoundingClientRect().top ?? r.top;
-    return p ? (y - top) / window.innerHeight : r.right - x;
-  };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const split = ref.current?.parentElement;
@@ -72,11 +70,27 @@ export function Splitter() {
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
     split.classList.add('dragging');
+    // Measure once: the split's own box and the board's top edge do not move during a drag.
+    const r = split.getBoundingClientRect();
+    const top = (split.querySelector('.board-panel') as HTMLElement | null)?.getBoundingClientRect().top ?? r.top;
+    const total = split.clientWidth;
+    const vh = window.innerHeight;
+    // Pointer events can come faster than frames: keep the newest and write it once per frame.
     let last = 0;
+    let pending: number | null = null;
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      if (pending !== null) last = apply(split, pending, p, total);
+      pending = null;
+    };
     const move = (ev: PointerEvent) => {
-      last = apply(split, valueAt(split, ev.clientX, ev.clientY, p), p);
+      pending = p ? (ev.clientY - top) / vh : r.right - ev.clientX;
+      if (!frame) frame = requestAnimationFrame(flush);
     };
     const up = () => {
+      if (frame) cancelAnimationFrame(frame);
+      flush();
       split.classList.remove('dragging');
       if (last) write(p ? KEY_H : KEY_W, last);
       el.removeEventListener('pointermove', move);
@@ -116,8 +130,7 @@ export function Splitter() {
       onDoubleClick={() => {
         const split = ref.current?.parentElement;
         if (!split) return;
-        split.style.removeProperty('--board-w');
-        split.style.removeProperty('--board-h');
+        clear(split);
         try {
           localStorage.removeItem(phone() ? KEY_H : KEY_W);
         } catch {

@@ -1,6 +1,10 @@
 /* Kiai. A high-altitude look: cloud-white paper, sumi-black ink, one clear sky blue, one seal red.
  * Light and dark come from the tokens below; nothing else names a colour except the board. */
 :root {
+  /* motion: short and physical. --spring settles with a small overshoot (menus, the split line),
+   * --glide decelerates like a thrown card (the phone drawer). */
+  --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --glide: cubic-bezier(0.3, 0.7, 0.2, 1);
   --bg: #f6f8fb;
   --side: #eef2f7;
   --panel: #e8eef5;
@@ -365,13 +369,22 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow-pop);
-  animation: pop-in 0.12s ease-out;
+  animation: pop-in 0.16s var(--spring);
 }
 @keyframes pop-in {
   from {
     opacity: 0;
     transform: translateY(4px) scale(0.98);
   }
+}
+/* menus that open above their trigger grow from below, the ones below from above */
+.pop-up,
+.pop-up-stretch,
+.menu-pop {
+  transform-origin: 50% 100%;
+}
+.pop-down-end {
+  transform-origin: 100% 0;
 }
 .pop-up {
   bottom: calc(100% + 6px);
@@ -430,6 +443,16 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- layout */
+/* The splitter writes these on every drag frame. Not inherited, so a change restyles only the
+ * element that reads it (the split grid, the phone board), not the whole chat and board inside. */
+@property --board-w {
+  syntax: '*';
+  inherits: false;
+}
+@property --board-h {
+  syntax: '*';
+  inherits: false;
+}
 .kami-app {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
@@ -517,12 +540,12 @@ kbd {
   background: var(--line);
   transition:
     background-color 0.12s,
-    width 0.12s;
+    transform 0.18s var(--spring);
 }
 .splitter:hover > span,
 .splitter:focus-visible > span,
 .split.dragging .splitter > span {
-  width: 3px;
+  transform: scaleX(3);
   background: var(--accent-line);
 }
 .splitter:focus-visible {
@@ -1297,9 +1320,7 @@ kbd {
   background: var(--card);
   padding: 12px 12px 10px 16px;
   box-shadow: var(--shadow);
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  transition: border-color 0.15s;
 }
 .composer:focus-within {
   border-color: var(--line-strong);
@@ -1361,7 +1382,7 @@ kbd {
   box-shadow: var(--shadow-pop);
   padding: 6px;
   z-index: 30;
-  animation: pop-in 0.12s ease-out;
+  animation: pop-in 0.16s var(--spring);
 }
 .menu-item {
   display: flex;
@@ -1593,9 +1614,8 @@ kbd {
   position: absolute;
   inset: 0;
   background: #0f0f0e;
-  /* Black's share as scaleX (set inline): composited, no layout per frame */
-  transform-origin: left center;
-  transition: transform 0.35s ease;
+  transform-origin: 0 50%;
+  transition: transform 0.35s var(--glide);
 }
 .ev-mid {
   position: absolute;
@@ -2473,7 +2493,7 @@ kbd {
     width: min(300px, 85vw);
     z-index: 40;
     transform: translateX(-102%);
-    transition: transform 0.22s ease;
+    transition: transform 0.26s var(--glide);
     align-items: stretch;
     padding: 0;
     gap: 0;
@@ -2660,5 +2680,26 @@ kbd {
   .ultrago,
   .think-live.ultra .ultrago {
     animation: none;
+  }
+}
+
+/* Reduced motion: menus, tips and dialogs appear in place; the drawer, split line, eval bar
+ * and small icon turns jump straight to their end state. */
+@media (prefers-reduced-motion: reduce) {
+  .pop,
+  .menu-pop,
+  .term-tip,
+  .modal,
+  .modal-wrap,
+  .thoughts.live summary .icon:first-child {
+    animation: none;
+  }
+  .splitter > span,
+  .sidebar,
+  .new-dot,
+  .ev-fill,
+  .thoughts summary .icon,
+  .facts summary .icon {
+    transition: none;
   }
 }
