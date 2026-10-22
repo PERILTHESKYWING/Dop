@@ -301,20 +301,32 @@ async function ensureSize(boardSize) {
   await loadNet(got.bytes, boardSize);
 }
 
-function writeMoves(moves) {
-  const n = Math.min(moves.length, MAX_MOVES);
+/**
+ * The move list into the engine's buffers: packed Int32Arrays msg.locs / msg.cols (sent as
+ * transferables, no per-move objects to clone), or msg.moves as { loc, color } objects.
+ */
+function writeMoves(msg) {
   const mi = bufs.ml >> 2;
   const ci = bufs.mc >> 2;
+  const H = M.HEAP32;
+  if (msg.locs) {
+    const n = Math.min(msg.locs.length, MAX_MOVES);
+    H.set(n < msg.locs.length ? msg.locs.subarray(0, n) : msg.locs, mi);
+    H.set(n < msg.cols.length ? msg.cols.subarray(0, n) : msg.cols, ci);
+    return n;
+  }
+  const moves = msg.moves;
+  const n = Math.min(moves.length, MAX_MOVES);
   for (let i = 0; i < n; i++) {
-    M.HEAP32[mi + i] = moves[i].loc;
-    M.HEAP32[ci + i] = moves[i].color;
+    H[mi + i] = moves[i].loc;
+    H[ci + i] = moves[i].color;
   }
   return n;
 }
 
 async function evaluate(msg) {
   await ensureSize(msg.size);
-  const n = writeMoves(msg.moves);
+  const n = writeMoves(msg);
   const hw = size * size;
   const t0 = performance.now();
   const ok = await M.ccall(
@@ -345,8 +357,7 @@ async function evaluateBatch(msg) {
   if (!list.length || list.length > BATCH_CAP) throw new Error('batch size out of range');
   const si = bufs.bStones >> 2;
   for (let j = 0; j < list.length; j++) {
-    const st = list[j].stones;
-    for (let p = 0; p < hw; p++) M.HEAP32[si + j * hw + p] = st[p];
+    M.HEAP32.set(list[j].stones.subarray(0, hw), si + j * hw);
     M.HEAP32[(bufs.bPlas >> 2) + j] = list[j].toPlay;
   }
   const ok = await M.ccall(
@@ -416,7 +427,7 @@ async function evaluateSeqBatch(msg) {
 
 async function search(msg) {
   await ensureSize(msg.size);
-  const n = writeMoves(msg.moves);
+  const n = writeMoves(msg);
   const ok = await M.ccall(
     'kgeSearch',
     'number',

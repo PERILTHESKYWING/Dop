@@ -10,7 +10,7 @@ export const ENGINE_BUILD = 'katago-webgpu@d5ad1c0';
  * Changes whenever public/engine changes, so browsers holding the old files (the host
  * caches /engine/ for a week) load the new worker and WebAssembly together.
  */
-const ENGINE_FILES = 'simd-2';
+const ENGINE_FILES = 'simd-3-js';
 
 export interface Capabilities {
   webgpu: boolean;
@@ -560,10 +560,14 @@ export class BrowserEngine implements EngineBackend {
   async evalRaw(req: EngineRequest, ownership: boolean): Promise<RawNetOutput> {
     this.size = req.size;
     const r = await this.track(
-      this.pickLane().call<{ policy: Float32Array; value: Float32Array; ownership: Float32Array | null }>(
-        { type: 'eval', size: req.size, komi: req.komi, moves: req.moves, toPlay: req.toPlay, ownership },
-        EVAL_TIMEOUT_MS,
-      ),
+      (() => {
+        const { locs, cols } = packMoves(req.moves);
+        return this.pickLane().call<{ policy: Float32Array; value: Float32Array; ownership: Float32Array | null }>(
+          { type: 'eval', size: req.size, komi: req.komi, locs, cols, toPlay: req.toPlay, ownership },
+          EVAL_TIMEOUT_MS,
+          [locs.buffer, cols.buffer],
+        );
+      })(),
       1,
     );
     return { policyLogits: r.policy, value: r.value, ownership: r.ownership };
@@ -580,14 +584,14 @@ export class BrowserEngine implements EngineBackend {
     const cols = new Int32Array(total);
     const offsets = new Int32Array(reqs.length + 1);
     let k = 0;
-    reqs.forEach((r, i) => {
+    for (let i = 0; i < reqs.length; i++) {
       offsets[i] = k;
-      for (const m of r.moves) {
-        locs[k] = m.loc;
-        cols[k] = m.color;
-        k++;
+      const ms = reqs[i].moves;
+      for (let j = 0; j < ms.length; j++, k++) {
+        locs[k] = ms[j].loc;
+        cols[k] = ms[j].color;
       }
-    });
+    }
     offsets[reqs.length] = k;
     const toPlay = Int32Array.from(reqs, (r) => r.toPlay);
     const syms = Int32Array.from(reqs, (r) => (r.symmetry ?? 0) & 7);
@@ -647,9 +651,11 @@ export class BrowserEngine implements EngineBackend {
   async evalBatchRaw(size: number, komi: number, positions: StonesPosition[]): Promise<RawNetOutput[]> {
     this.size = size;
     const hw = size * size;
+    const list = positions.map((p) => ({ stones: Int8Array.from(p.stones), toPlay: p.toPlay }));
     const r = await this.lanes[0].call<{ policy: Float32Array; value: Float32Array }>(
-      { type: 'evalBatch', size, komi, positions: positions.map((p) => ({ stones: Int8Array.from(p.stones), toPlay: p.toPlay })) },
+      { type: 'evalBatch', size, komi, positions: list },
       EVAL_TIMEOUT_MS,
+      list.map((p) => p.stones.buffer),
     );
     return positions.map((_, j) => ({
       policyLogits: r.policy.subarray(j * (hw + 1), (j + 1) * (hw + 1)),
@@ -660,9 +666,11 @@ export class BrowserEngine implements EngineBackend {
 
   searchRaw(req: EngineRequest, visits: number, maxMs: number): Promise<RawSearchResult> {
     this.size = req.size;
+    const { locs, cols } = packMoves(req.moves);
     return this.lanes[0].call<RawSearchResult>(
-      { type: 'search', size: req.size, komi: req.komi, moves: req.moves, toPlay: req.toPlay, visits, maxMs },
+      { type: 'search', size: req.size, komi: req.komi, locs, cols, toPlay: req.toPlay, visits, maxMs },
       maxMs + SEARCH_GRACE_MS,
+      [locs.buffer, cols.buffer],
     );
   }
 
@@ -677,6 +685,20 @@ export class BrowserEngine implements EngineBackend {
   terminate() {
     this.kill('stopped');
   }
+}
+
+/**
+ * A move list as two Int32Arrays, sent to the worker as transferables: structured-cloning
+ * a few hundred { color, loc } objects cost about 0.15-0.25 ms per call on both threads.
+ */
+function packMoves(moves: EngineRequest['moves']) {
+  const locs = new Int32Array(moves.length);
+  const cols = new Int32Array(moves.length);
+  for (let i = 0; i < moves.length; i++) {
+    locs[i] = moves[i].loc;
+    cols[i] = moves[i].color;
+  }
+  return { locs, cols };
 }
 
 function argmax(a: ArrayLike<number>) {

@@ -252,6 +252,22 @@ interface Leaf {
 const sv = (x: number) => (2 / Math.PI) * Math.atan(x);
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+/** More than the points of any board plus pass (19x19 + 1 = 362). */
+const KEY_SPAN = 1024;
+
+/**
+ * The positive entries of a policy as sortable numbers, ascending: the float's bits times
+ * KEY_SPAN plus (KEY_SPAN - 1 - point), so equal priors put the lower point last (first
+ * when read from the end). Exact in a double (bits < 2^31).
+ */
+function sortKeys(policy: Float32Array): Float64Array {
+  const bits = new Uint32Array(policy.buffer, policy.byteOffset, policy.length);
+  const keys = new Float64Array(policy.length);
+  let n = 0;
+  for (let i = 0; i < policy.length; i++) if (policy[i] > 0) keys[n++] = bits[i] * KEY_SPAN + (KEY_SPAN - 1 - i);
+  return keys.subarray(0, n).sort();
+}
+
 export class Search {
   readonly params: SearchParams;
   private evaluator: LeafEvaluator;
@@ -796,9 +812,13 @@ export class Search {
 
   private expand(node: SNode, policy: Float32Array, isRoot: boolean) {
     const hw = policy.length - 1;
-    const idx: number[] = [];
-    for (let i = 0; i <= hw; i++) if (policy[i] > 0) idx.push(i);
-    idx.sort((a, b) => policy[b] - policy[a]);
+    // Moves by prior, highest first, ties by point (as a stable sort would leave them). A
+    // positive float's bits order like its value, so (bits, reversed point) packed into one
+    // number sorts natively in a typed array, instead of a comparator call per comparison
+    // (that was about a third of the search's own time).
+    const keys = sortKeys(policy);
+    const idx = new Int32Array(keys.length);
+    for (let j = 0; j < keys.length; j++) idx[j] = KEY_SPAN - 1 - (keys[keys.length - 1 - j] % KEY_SPAN);
     let keep = idx.length;
     if (!isRoot) {
       let mass = 0;
