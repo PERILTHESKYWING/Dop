@@ -18,12 +18,12 @@ const MAX_ENTRIES = 64;
 const cache = new Map<string, { at: number; result: LlmHttpResult }>();
 
 /** The cache key of a kami-write body, or null for every other request (never cached). */
-export function cacheKey(body: string | undefined): string | null {
+export function cacheKey(body: string | undefined): { key: string; fresh: boolean } | null {
   if (!body || !body.includes('"kami-write"')) return null;
   try {
-    const r = JSON.parse(body) as { task?: string; kind?: string; prompt?: string };
+    const r = JSON.parse(body) as { task?: string; kind?: string; prompt?: string; fresh?: boolean };
     if (r.task !== 'kami-write' || typeof r.prompt !== 'string') return null;
-    return createHash('sha256').update(`${r.kind ?? 'explain'}\n${r.prompt}`).digest('base64url');
+    return { key: createHash('sha256').update(`${r.kind ?? 'explain'}\n${r.prompt}`).digest('base64url'), fresh: r.fresh === true };
   } catch {
     return null;
   }
@@ -62,8 +62,9 @@ async function readBody(req: IncomingMessage & { body?: unknown }): Promise<stri
 export default async function handler(req: IncomingMessage & { body?: unknown }, res: ServerResponse) {
   const body = req.method === 'POST' ? await readBody(req) : undefined;
   const url = new URL(req.url ?? '/', 'http://localhost');
-  const key = req.method === 'POST' ? cacheKey(body) : null;
-  let result = key ? cacheGet(key) : null;
+  const c = req.method === 'POST' ? cacheKey(body) : null;
+  // Regenerate (fresh) skips the lookup; its new answer then replaces the cached one.
+  let result = c && !c.fresh ? cacheGet(c.key) : null;
   if (!result) {
     // The browser left (Stop, or the student moved on): stop the model call too.
     const gone = new AbortController();
@@ -76,7 +77,7 @@ export default async function handler(req: IncomingMessage & { body?: unknown },
       return fetch(input, { ...init, signal: init.signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([init.signal, gone.signal]) : (init.signal ?? gone.signal) });
     }) as never;
     result = await handleLlmRequest(req.method ?? 'GET', body, process.env, fetchGone, Object.fromEntries(url.searchParams));
-    if (key) cachePut(key, result);
+    if (c) cachePut(c.key, result);
   }
   res.statusCode = result.status;
   res.setHeader('content-type', 'application/json');

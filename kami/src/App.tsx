@@ -185,7 +185,8 @@ export function App() {
       : (false as const);
 
   /** Ask in conversation `convId` and fill message `kamiId` with the answer. */
-  const run = async (convId: string, kamiId: string, text: string, board: BoardState) => {
+  /** `fresh`: Regenerate, so the writer is asked again instead of answering from a cache. */
+  const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false) => {
     const ctrl = new AbortController();
     controller.current = ctrl;
     setRunning({ convId, msgId: kamiId, stage: 'thinking', steps: [], t0: Date.now() });
@@ -216,6 +217,7 @@ export function App() {
             illustrate: positionSettings,
             writerDiagrams: () => getSetting<boolean>('positions.writerDiagrams'),
             student: studentProfile,
+            fresh,
           },
           { onThought, onStage, onDraft },
           ctrl.signal,
@@ -268,7 +270,7 @@ export function App() {
       title: i === 0 && newText ? titleFrom(text) : c.title,
       messages: [...c.messages.slice(0, i), { ...c.messages[i], text }, kami],
     }));
-    void run(current.id, kami.id, text, current.board);
+    void run(current.id, kami.id, text, current.board, true);
   };
 
   const stop = () => controller.current?.abort();

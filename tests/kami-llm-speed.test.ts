@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import handler, { cacheKey } from '../kami/api/llm';
 import { answerQuestion } from '../kami/src/lib/answer';
-import { callKamiWrite, clearLlmCache, requestKey } from '../kami/src/lib/llm';
+import { callKamiWrite, clearLlmCache, requestKey, type CallLlm } from '../kami/src/lib/llm';
 import { emptyBoard, playAt } from '../kami/src/lib/position';
 import { NOTES } from '../kami/src/lib/writer';
 import type { Answer } from '../kami/src/lib/store';
@@ -79,6 +79,29 @@ describe('client cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(requestKey(req)).toBe(requestKey({ ...req }));
     expect(requestKey(req)).not.toBe(requestKey({ ...req, prompt: 'Facts:\n- y' }));
+  });
+
+  it('Regenerate (fresh) skips the cache and tells the server to skip its own', async () => {
+    const bodies: string[] = [];
+    const fetchMock = vi.fn(async (_u: string, init: { body: string }) => {
+      bodies.push(init.body);
+      return new Response(JSON.stringify({ text: `T${bodies.length}.` }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const req = { kind: 'explain' as const, prompt: 'fresh-test' };
+    expect((await callKamiWrite(req)).text).toBe('T1.');
+    expect((await callKamiWrite({ ...req, fresh: true })).text).toBe('T2.');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(bodies[0]).fresh).toBeUndefined();
+    expect(JSON.parse(bodies[1]).fresh).toBe(true);
+    // The new wording is what a later plain ask reuses.
+    expect((await callKamiWrite(req)).text).toBe('T2.');
+  });
+
+  it('Regenerate reaches the writer call as fresh', async () => {
+    const callLlm = vi.fn<CallLlm>(async () => ({ text: 'Q16 [[v1]] takes the corner.' }));
+    await answerQuestion('What should White play?', game, 'myoshu', 'high', { explain: (async () => explanation()) as ExplainFn, getProber: async () => ({}) as Prober, findConcepts: () => [], callLlm, checkAnswer: pass, fresh: true });
+    expect(callLlm.mock.calls[0][0]).toMatchObject({ fresh: true });
   });
 
   it('never caches an error', async () => {
@@ -161,6 +184,10 @@ describe('server cache and abort (kami/api/llm.ts)', () => {
     expect(JSON.parse(b.res.out)).toEqual(JSON.parse(a.res.out));
     expect(b.res.statusCode).toBe(200);
     expect(cacheKey(JSON.stringify({ task: 'chat', messages: [] }))).toBeNull();
+    // Regenerate: the server asks the model again and keeps the new answer.
+    const c = reqRes(JSON.stringify({ ...JSON.parse(body), fresh: true }));
+    await handler(c.req, c.res as never);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     vi.unstubAllEnvs();
   });
 

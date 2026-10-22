@@ -48,7 +48,7 @@ export async function answerQuestion(
     if (pick !== 'myoshu' || !route.entries.length) return { type: 'concept', ids };
     ev.onStage?.('writing');
     ev.onDraft?.({ type: 'concept', ids });
-    const expansion = await expandConcept(route.entries[0], text, deps.callLlm, signal);
+    const expansion = await expandConcept(route.entries[0], text, deps.callLlm, signal, deps.fresh);
     return { type: 'concept', ids, expansion };
   }
   const { pos, question, upTo } = askFor(board, route.parsed);

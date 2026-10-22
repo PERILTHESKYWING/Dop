@@ -4,7 +4,8 @@ import type { KamiWriteKind, KamiWriteResponse } from '../../../shared/kami';
 /** No model on this server (no key, or a static host without /api). The answer uses engine text. */
 export class LlmUnavailable extends Error {}
 
-export type CallLlm = (req: { kind: KamiWriteKind; prompt: string }, signal?: AbortSignal) => Promise<KamiWriteResponse>;
+/** `fresh`: Regenerate, so skip every cache (this tab's and the server's) and ask the model again. */
+export type CallLlm = (req: { kind: KamiWriteKind; prompt: string; fresh?: boolean }, signal?: AbortSignal) => Promise<KamiWriteResponse>;
 
 /**
  * Identical requests (same kind, same prompt: the same engine read) are answered from this tab's
@@ -69,14 +70,14 @@ export function clearLlmCache() {
 
 export const callKamiWrite: CallLlm = async (req, signal) => {
   const key = requestKey(req);
-  const hit = cached(key);
+  const hit = req.fresh ? null : cached(key);
   if (hit) return hit;
   let res: Response;
   try {
     res = await fetch('/api/llm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ task: 'kami-write', ...req }),
+      body: JSON.stringify({ task: 'kami-write', kind: req.kind, prompt: req.prompt, ...(req.fresh ? { fresh: true } : {}) }),
       signal,
     });
   } catch (e) {

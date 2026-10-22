@@ -55,6 +55,8 @@ export interface WriterDeps {
   /** Checks a diagram the writer asked for (illustrate.ts, KataGo's final read last). Absent: such diagrams are dropped. */
   verifyDiagram?: (spec: DiagramSpec, id: string) => Promise<Verified>;
   signal?: AbortSignal;
+  /** Regenerate: ask the model again instead of reusing a cached wording. */
+  fresh?: boolean;
   /** The student's level (Settings › Profile), passed to the writer's prompt. */
   level?: string;
 }
@@ -148,7 +150,7 @@ export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDep
     }
   }
   try {
-    const r = await deps.callLlm({ kind: 'explain', prompt }, deps.signal);
+    const r = await deps.callLlm({ kind: 'explain', prompt, ...(deps.fresh ? { fresh: true } : {}) }, deps.signal);
     return await finish(r.text, 'gemini', r.model);
   } catch (e) {
     if (isAbort(e)) throw e;
@@ -171,9 +173,9 @@ export interface Expansion {
 }
 
 /** Myoshu on a concept question: one call may go deeper than the entry; any board coordinate rejects it. */
-export async function expandConcept(entry: ConceptEntry, question: string, callLlm: CallLlm, signal?: AbortSignal): Promise<Expansion> {
+export async function expandConcept(entry: ConceptEntry, question: string, callLlm: CallLlm, signal?: AbortSignal, fresh?: boolean): Promise<Expansion> {
   try {
-    const r = await callLlm({ kind: 'concept', prompt: conceptPrompt(entry, question) }, signal);
+    const r = await callLlm({ kind: 'concept', prompt: conceptPrompt(entry, question), ...(fresh ? { fresh: true } : {}) }, signal);
     if (hasCoordinates(r.text)) return { note: 'The extra wording named board points, so it was left out.' };
     return { text: r.text, model: r.model };
   } catch (e) {

@@ -38,6 +38,8 @@ export interface KamiWriteRequest {
   kind?: KamiWriteKind;
   /** buildLmPrompt(explanation) for 'explain'; the library entry and question for 'concept'. */
   prompt: string;
+  /** Regenerate: the site wants new wording, so a server cache must not answer. */
+  fresh?: boolean;
 }
 
 export interface KamiWriteResponse {
