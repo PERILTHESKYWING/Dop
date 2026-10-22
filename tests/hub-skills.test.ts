@@ -25,6 +25,7 @@ describe('shared skills', () => {
     const out = await run(A, 'skill_list');
     expect(out).toContain('/clarify');
     expect(out).toContain('/premortem');
+    for (const n of ['be-ambitious', 'altitude', 'depth', 'range', 'outside-judge', 'keep-going']) expect(out).toMatch(new RegExp(`^/${n}[ :]`, 'm'));
     expect(await run(B, 'skill_list')).toBe(out);
   });
 
