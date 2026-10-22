@@ -235,6 +235,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .picks span { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
 /* swipe a message left (or use its ⋯ on a computer) to show Delete */
 .sw { position: relative; overflow: hidden; flex: none; }
+/* Long threads: messages off screen skip layout and paint (.sw already clips, so nothing looks different). */
+.feed > .sw { content-visibility: auto; contain-intrinsic-size: auto 120px; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
 .sw.open .sw-in { transform: translateX(-104px); }
@@ -535,8 +537,22 @@ const routinePrompt = () => `You are an agent in ${proj.owner}'s ${proj.project}
 const STARTERS = [['Fix a bug', 'Fix this bug: '], ['Review a PR', 'Review the latest PR and list anything that needs fixing.'], ['Research', 'Research this and give me a short answer with sources: '], ['Write docs', 'Write or update the docs for: ']];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
-const clock = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+// Memoised: every refresh redraws the same texts, so each is escaped once.
+const LINKS = new Map();
+const linkify = (s) => {
+  const k = String(s ?? ''); let h = LINKS.get(k);
+  if (h === undefined) { h = esc(k).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`); if (LINKS.size > 4000) LINKS.clear(); LINKS.set(k, h); }
+  return h;
+};
+// Memoised per day (toLocaleString builds a formatter on every call).
+const CLOCKS = new Map(); let clockDay = '';
+const clock = (t) => {
+  const day = new Date().toDateString(); if (day !== clockDay) { clockDay = day; CLOCKS.clear(); }
+  let s = CLOCKS.get(t); if (s !== undefined) return s;
+  const d = new Date(t); const today = day === d.toDateString();
+  s = d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (CLOCKS.size > 4000) CLOCKS.clear(); CLOCKS.set(t, s); return s;
+};
 const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h` : `${Math.round(ms / 86400e3)} d`;
 const until = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const ms = d - Date.now(); if (ms <= 0) return 'resets now'; const sameDay = d.toDateString() === new Date().toDateString(); return 'resets ' + (sameDay ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })); };
 const ls = {
@@ -615,9 +631,14 @@ function apply(d, t0) {
   const names = new Set(d.accounts.map((a) => a.name));
   if (opts.accounts.some((n) => !names.has(n))) { opts.accounts = opts.accounts.filter((n) => names.has(n)); saveOpts(); }
   seq = d.seq; render();
-  ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) }));
+  saveCache();
   return true;
 }
+// The reload cache is written when the page is idle, not inside the refresh.
+let cacheT = 0;
+const writeCache = () => { cacheT = 0; ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) })); };
+function saveCache() { if (!cacheT) cacheT = (window.requestIdleCallback || setTimeout)(writeCache, { timeout: 2000 }); }
+addEventListener('pagehide', () => { if (cacheT) writeCache(); });
 // One request per poll: the hub answers { same } when nothing changed since
 // the version held, else the new messages and current threads at once.
 async function poll() {
@@ -725,7 +746,7 @@ function clawd(cls = '') {
 // One live line per agent at work: the text stays fixed so the feed only
 // redraws on news; the spinner and clock tick in place.
 function thinkingLine(who, since, key) {
-  return `<div class="thinking">${clawd('s busy')}${spin()}<span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(<span data-since="${since}"></span> · ${esc(who)})</span></div>`;
+  return `<div class="thinking">${clawd('s busy')}${spin()}<span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(<span class="since" data-since="${since}"></span> · ${esc(who)})</span></div>`;
 }
 // Who is working in this view right now.
 function liveLines(t, msgs) {
@@ -742,16 +763,22 @@ function liveLines(t, msgs) {
   return out.join('');
 }
 let verbStep = Math.floor(Date.now() / VERB_MS);
-setInterval(() => {
-  if (document.hidden) return;
+// Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
+const SPINS = document.getElementsByClassName('spin'), VERB_ELS = document.getElementsByClassName('verb'), SINCE_ELS = document.getElementsByClassName('since');
+let spinTimer = 0;
+function spinTick() {
+  if (!SPINS.length && !SINCE_ELS.length) return;
   spinI = (spinI + 1) % SPIN_LOOP.length;
-  for (const el of document.querySelectorAll('.spin')) el.innerHTML = SPIN_LOOP[spinI];
+  for (const el of SPINS) el.innerHTML = SPIN_LOOP[spinI];
   if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
     verbStep = Math.floor(Date.now() / VERB_MS);
-    for (const el of document.querySelectorAll('[data-verb]')) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+    for (const el of VERB_ELS) if (el.dataset.verb) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
   }
-  for (const el of document.querySelectorAll('[data-since]')) el.textContent = span(Date.now() - Number(el.dataset.since));
-}, 120);
+  for (const el of SINCE_ELS) el.textContent = span(Date.now() - Number(el.dataset.since));
+}
+function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, 120); if (!document.hidden) spinTick(); }
+document.addEventListener('visibilitychange', spinRun);
+spinRun();
 // Agents' thinking notes: hidden, folded (default) or open, and per account.
 let think = { mode: 'fold', hide: [] };
 try { think = { ...think, ...JSON.parse(ls.get('hub-think') || '{}') }; } catch {}
@@ -771,8 +798,9 @@ $('feed').addEventListener('toggle', (e) => {
 }, true);
 
 // ---------- sidebar ----------
+let lastByThread = new Map();
 function threadRow(t) {
-  const last = S.messages.filter((m) => m.thread === t.id).at(-1);
+  const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
   return `<button class="trow st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}">
     <span class="ttl">${esc(t.title)}</span>
@@ -780,7 +808,8 @@ function threadRow(t) {
   </button>`;
 }
 function renderSide() {
-  $('clawdMark').innerHTML = clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'busy' : '');
+  lastByThread = new Map(); for (const m of S.messages) lastByThread.set(m.thread, m);
+  setHtml($('clawdMark'), clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'busy' : ''));
   $('newChat').setAttribute('aria-pressed', sel === NEW_CHAT);
   const live = S.threads.filter((t) => !t.archived);
   const archived = S.threads.filter((t) => t.archived).reverse();
@@ -792,10 +821,10 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
-  $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
+  setHtml($('threads'), `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
     + (S.accounts.length ? `<button class="trow" data-open="lessons"><span class="ttl">Team lessons · ${S.lessons.length}</span><span class="tsub"><span class="lsub">${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}</span></span></button>` : '')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group">${g[0]} · ${g[1].length}</div>${g[1].map(threadRow).join('')}`).join('')
-    + (archived.length ? `<button type="button" class="group arch" data-archived>${showArchived ? '▾' : '▸'} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+    + (archived.length ? `<button type="button" class="group arch" data-archived>${showArchived ? '▾' : '▸'} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : ''));
   const need = live.filter((t) => t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
@@ -932,20 +961,20 @@ const panelBtn = (k) => `<button type="button" class="btn quiet pbtn" data-panel
 function renderHead(t) {
   const back = '<button class="btn small back" id="back" type="button">Threads</button>' + panelBtn('side');
   if (!t && sel === NEW_CHAT) {
-    $('head').innerHTML = `${back}<h2>New chat</h2><span class="pill wide">One agent · no coordinator</span>`;
+    setHtml($('head'), `${back}<h2>New chat</h2><span class="pill wide">One agent · no coordinator</span>`);
     return;
   }
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    $('head').innerHTML = `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${panelBtn('team')}`;
+    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${panelBtn('team')}`);
     applyPanels(); return;
   }
-  $('head').innerHTML = `${back}<h2 title="${esc(t.title)}">${esc(t.title)}</h2><span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : STATUS[t.status])}</span>
+  setHtml($('head'), `${back}<h2 title="${esc(t.title)}">${esc(t.title)}</h2><span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : STATUS[t.status])}</span>
     ${t.sessionUrl ? `<a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : t.status === 'done' ? '' : '<button type="button" class="btn small" data-act="done">Mark done</button>'}
     <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
-    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`;
+    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`);
   applyPanels();
 }
 function renderFeed() {
@@ -955,32 +984,62 @@ function renderFeed() {
   if (sel > 0 && !t) sel = 0;
   renderHead(t);
   const msgs = S.messages.filter((m) => m.thread === sel);
-  let html = msgs.map((m) => swipeable(m, msgHtml(m))).join('');
+  // Blocks keyed by message id, so a refresh touches only what changed.
+  const blocks = msgs.map((m) => ['m' + m.id, swipeable(m, msgHtml(m))]);
+  let html = '';
   const recentHandover = msgs.slice(-4).some((m) => m.kind === 'handover');
-  if (t && t.checkpoint && !recentHandover) html += msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` });
+  if (t && t.checkpoint && !recentHandover) blocks.push(['ckpt', msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` })]);
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
-  if (hid) html += `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>`;
-  html += liveLines(t, msgs);
-  if (!html && S.loading) html = '<div class="note">Loading…</div>';
-  if (!html && sel === NEW_CHAT) html = `<div class="hello">
+  if (hid) blocks.push(['hid', `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>`]);
+  // The spinner frame and verb tick in place, so they don't count as a change.
+  const live = liveLines(t, msgs);
+  blocks.push(['live', live, live.replace(/<span class="spin">.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1')]);
+  const any = blocks.some((b) => b[1]);
+  if (!any && S.loading) html = '<div class="note">Loading…</div>';
+  if (!any && sel === NEW_CHAT) html = `<div class="hello">
       <i class="logo hero" aria-hidden="true"></i>
       <h3>New chat</h3>
       <p>Goes straight to one agent. No coordinator, and nothing is added to Project chat. It becomes its own thread once you send.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (!html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
+  if (!any && !html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
       <span class="stroll">${clawd('l wave')}</span>
       <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
       <h3>What should the team work on?</h3>
       <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; hydrateImgs(feed); hydrateThumbs(feed); }
+  if (html) blocks.push(['empty', html]);
+  if (patchKeyed(feed, blocks)) { hydrateImgs(feed); hydrateThumbs(feed); }
   if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
   feed.dataset.sel = String(sel);
   renderTools(t);
 }
 
+// Sets innerHTML only when the markup changed (keeps scroll, focus and open <details>).
+function setHtml(el, html) { if (el.__h !== html) { el.innerHTML = html; el.__h = html; } }
+// Puts keyed blocks [key, html, compare?] into root in order, reusing the nodes of any
+// block whose markup is unchanged. Returns true when something new was added.
+const tpl = document.createElement('template');
+function patchKeyed(root, blocks) {
+  const was = root.__blocks || new Map(), now = new Map();
+  let added = false, at = root.firstChild;
+  if (!root.__blocks) root.textContent = '';
+  for (const [k, h, same = h] of blocks) {
+    if (!h) continue;
+    let b = was.get(k);
+    was.delete(k);
+    if (!b || b.h !== same) {
+      if (b) for (const n of b.nodes) { if (n === at) at = at.nextSibling; n.remove(); }
+      tpl.innerHTML = h; b = { h: same, nodes: [...tpl.content.children] }; added = true;
+    }
+    now.set(k, b);
+    for (const n of b.nodes) { if (n !== at) root.insertBefore(n, at); else at = at.nextSibling; }
+  }
+  for (const b of was.values()) for (const n of b.nodes) n.remove();
+  root.__blocks = now;
+  return added;
+}
 // ---------- files in the chat box ----------
 // Picked, dropped or pasted files go into the Library at once (library/files.js
 // does the chunks, picture copies and video frames), so Send only has to wait
@@ -1280,7 +1339,7 @@ function renderTeam() {
   const n = (k) => S.accounts.filter((a) => acctState(a)[0] === k).length;
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
-  $('team').innerHTML = `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
+  setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
     ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') ? 'low' : ''}">${n('low')}</b><span>Low</span></div></div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
@@ -1288,7 +1347,7 @@ function renderTeam() {
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
       <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
-    </div>`;
+    </div>`);
   applyPanels();
 }
 
@@ -1302,7 +1361,7 @@ function lessonRows() {
     return `<div class="lrow">${kindTag(l)}<div><div class="lt">${linkify(l.text)}</div>${l.why ? `<div class="lt">Why: ${linkify(l.why)}</div>` : ''}<div class="lby">${l.by === 'XIAO' ? '' : av(l.by, 's')}<span>${esc(who)}${th ? ` in ${esc(th.title)}` : ''} · ${ago(Date.now() - l.at)}${ago(Date.now() - l.at) === 'just now' ? '' : ' ago'}</span></div></div><button class="btn small quiet" data-dellesson="${Number(l.id)}">Delete</button></div>`;
   }).join('');
 }
-function fillLessons() { const el = $('lList'); if (el) el.innerHTML = lessonRows(); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
+function fillLessons() { const el = $('lList'); if (el) setHtml(el, lessonRows()); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
 
 function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); fillLessons(); }
 function setTab(tab) {
