@@ -4,7 +4,7 @@
   "installCommand": "cd .. && npm ci",
   "buildCommand": "cd .. && npm run kami:build",
   "outputDirectory": "dist",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ':/' ':(exclude,top)docs' ':(exclude,top).claude' ':(exclude,top).claude-plugin' ':(exclude,top).github' ':(exclude,top)hub' ':(exclude,top)eval' ':(exclude,top)data' ':(exclude,top)README.md' ':(exclude,top)CLAUDE.md' ':(exclude,top)THIRD_PARTY_NOTICES.md' ':(exclude,top)public/student' ':(exclude,top)public/book' ':(exclude,top)public/level' ':(exclude,top)public/coach' ':(exclude,top)public/problems' ':(exclude,top)public/broadcast' ':(exclude,top)public/pc-helper' ':(exclude,top)public/downloads' ':(exclude,top)tools' ':(exclude,top)scripts' ':(exclude,top)tests'",
+  "ignoreCommand": "sh vercel-ignore.sh",
   "rewrites": [
     {
       "source": "/katago-models/:path*",
