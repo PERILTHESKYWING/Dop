@@ -77,6 +77,18 @@ function jpegFit(src, sw, sh, maxPx) {
   return null;
 }
 
+// The small picture the page's list shows (agents never read it).
+const THUMB_PX = 320;
+const MAX_THUMB = 60_000;
+export function thumbJpeg(src, sw, sh) {
+  const c = drawScaled(src, sw, sh, THUMB_PX);
+  for (const q of [0.72, 0.55, 0.4]) {
+    const s = c.toDataURL('image/jpeg', q).split(',')[1] || '';
+    if (s && s.length <= MAX_THUMB) return s;
+  }
+  return null;
+}
+
 async function decodeImage(file) {
   try {
     const b = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -98,8 +110,9 @@ async function imageView(file) {
   const img = await decodeImage(file);
   if (!img) return { warn: file.size > VIEW_BYTES ? 'this browser could not open the picture, so agents get the original only' : '' };
   try {
-    if (file.size <= VIEW_BYTES && Math.max(img.w, img.h) <= VIEW_PX) return {};
-    return { view: jpegFit(img.src, img.w, img.h, VIEW_PX) };
+    const thumb = thumbJpeg(img.src, img.w, img.h);
+    if (file.size <= VIEW_BYTES && Math.max(img.w, img.h) <= VIEW_PX) return { thumb };
+    return { view: jpegFit(img.src, img.w, img.h, VIEW_PX), thumb };
   } finally {
     img.close();
   }
@@ -239,6 +252,8 @@ async function videoFrames(file, step) {
     const starts = new Set(shots.map((s) => times.find((t) => t >= s.start) ?? -1));
     const frames = [];
     const sheets = [];
+    let thumb = null;
+    const mid = Math.floor((times.length - 1) / 2);
     const groups = sheetGroups(times.length);
     const g0 = sheetGrid(Math.min(SHEET_FRAMES, times.length), vw, vh);
     const canvases = groups.map((grp) => {
@@ -257,6 +272,7 @@ async function videoFrames(file, step) {
       const f = jpegFit(v, vw, vh, FRAME_PX);
       if (!f) throw new Error('could not save a frame');
       frames.push(f);
+      if (i === mid) thumb = thumbJpeg(v, vw, vh);
       const { g } = canvases[Math.floor(i / SHEET_FRAMES)];
       const k = i % SHEET_FRAMES;
       const x = (k % g0.cols) * g0.cw, y = Math.floor(k / g0.cols) * g0.ch;
@@ -286,7 +302,7 @@ async function videoFrames(file, step) {
       audio: sound.audio || null,
       noAudio: sound.why || '',
     };
-    return { frames, frameTimes: times, sheet: sheets[0], sheets, duration, timeline };
+    return { frames, frameTimes: times, sheet: sheets[0], sheets, duration, timeline, thumb };
   } finally {
     v.removeAttribute('src');
     v.load();
@@ -334,6 +350,7 @@ async function upload(api, p, meta, report) {
   }
   const chunks = p.keepBody ? Math.ceil(p.file.size / RAW_CHUNK) : 0;
   const parts = [];
+  if (extra.thumb) parts.push({ part: 'thumb', i: 0, data: extra.thumb });
   if (extra.view) parts.push({ part: 'view', i: 0, data: extra.view });
   (extra.sheets || (extra.sheet ? [extra.sheet] : [])).forEach((data, i) => parts.push({ part: 'sheet', i, data }));
   (extra.frames || []).forEach((data, i) => parts.push({ part: 'frame', i, data }));
@@ -378,16 +395,19 @@ export { size as sizeText };
 
 // ---------- page ----------
 const CSS = `
-.lf-drop { padding: 18px; border: 2px dashed var(--line); text-align: center; transition: border-color .15s, background .15s; }
+.lf-drop { padding: 14px 16px; border: 2px dashed var(--line); transition: border-color .15s, background .15s; }
 .lf-drop.over { border-color: var(--green); background: color-mix(in srgb, var(--green) 8%, var(--panel)); }
-.lf-drop p { margin: 0 0 10px; color: var(--soft); }
-.lf-drop .row { justify-content: center; }
+.lf-add { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; }
+.lf-add .what { flex: 1; min-width: 200px; }
+.lf-add .what b { display: block; font-size: 16px; }
+.lf-add .what span { color: var(--soft); font-size: 14px; }
+.lf-drop .hint { font-size: 13px; color: var(--soft); }
 .lf-stage { margin-top: 12px; padding: 14px; }
 .lf-stage h3, .lf-edit h3 { margin: 0 0 8px; font-size: 15px; }
 .lf-picked { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
 .lf-picked li { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 10px; background: var(--bg); min-width: 0; }
-.lf-picked .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lf-picked small { color: var(--faint); display: block; white-space: normal; }
+.lf-picked .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lf-picked small { color: var(--soft); display: block; font-size: 13px; }
 .lf-ref { display: flex; flex-wrap: wrap; gap: 6px; }
 .lf-ref label { border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; cursor: pointer; font-size: 14px; background: var(--panel); min-height: 34px; display: inline-flex; align-items: center; gap: 6px; }
 .lf-ref input { position: absolute; opacity: 0; pointer-events: none; }
@@ -398,27 +418,27 @@ const CSS = `
 .lf-ths label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-ths input { accent-color: var(--green); }
 .lf-f { display: block; font-size: 14px; color: var(--soft); margin: 12px 0 4px; }
-.lf-prog { margin-top: 12px; padding: 12px 14px; }
+.lf-prog { margin-top: 12px; padding: 12px 14px; overflow-wrap: anywhere; }
 .lf-bar { height: 8px; border-radius: 99px; background: var(--chip); overflow: hidden; margin-top: 8px; }
 .lf-bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
-.lf-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 18px 0 10px; }
-.lf-tools input[type=search] { flex: 1; min-width: 160px; }
-.lf-used { color: var(--faint); font-size: 13px; }
-.lf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.lf-item { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; overflow: hidden; cursor: pointer; text-align: left; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.lf-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; margin: 16px 0 6px; }
+.lf-sum { color: var(--soft); font-size: 14px; margin: 0 0 10px; }
+.lf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.lf-item { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; overflow: hidden; cursor: pointer; text-align: left; padding: 0; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
 .lf-item:hover { border-color: var(--soft); }
 .lf-item:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.lf-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--chip); display: grid; place-items: center; color: var(--faint); font: 600 18px/1 ui-monospace, Menlo, monospace; overflow: hidden; }
-.lf-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lf-kind { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.66); color: #fff; font: 12px/1 system-ui, sans-serif; padding: 4px 7px; border-radius: 99px; }
-.lf-cap { padding: 7px 9px 9px; min-width: 0; }
-.lf-cap b { display: block; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lf-cap small { color: var(--faint); font-size: 12px; }
+.lf-thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; background: var(--chip); color: var(--soft); font: 600 17px/1 ui-monospace, Menlo, monospace; overflow: hidden; }
+.lf-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.lf-kind { position: absolute; left: 6px; bottom: 6px; z-index: 1; background: rgba(0,0,0,.66); color: #fff; font: 12px/1 system-ui, sans-serif; padding: 4px 7px; border-radius: 99px; }
+.lf-cap { display: block; padding: 8px 10px 10px; min-width: 0; }
+.lf-cap b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-weight: 600; font-size: 14px; line-height: 1.3; }
+.lf-cap small { display: block; color: var(--soft); font-size: 13px; margin-top: 2px; }
 .lf-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-.lf-tag { font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--chip); color: var(--soft); }
+.lf-tag { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--chip); color: var(--soft); }
 .lf-tag.do { background: color-mix(in srgb, var(--green) 18%, var(--panel)); color: var(--green); font-weight: 600; }
 .lf-tag.dont { background: color-mix(in srgb, var(--red) 16%, var(--panel)); color: var(--red); font-weight: 600; }
 .lf-tag.warn { background: color-mix(in srgb, var(--amber) 18%, var(--panel)); color: var(--amber); }
+.lf-more { display: flex; justify-content: center; margin-top: 12px; }
 .lf-dlg { width: min(860px, calc(100vw - 32px)); }
 .lf-dlg .head { display: flex; gap: 10px; align-items: flex-start; }
 .lf-dlg .head h2 { flex: 1; min-width: 0; }
@@ -428,12 +448,36 @@ const CSS = `
 .lf-media pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 0; max-height: 50vh; overflow: auto; }
 .lf-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
 .lf-strip figure { margin: 0; flex: none; width: 128px; }
-.lf-strip img { width: 128px; height: auto; max-height: none; border-radius: 6px; }
-.lf-strip figcaption { font-size: 11.5px; color: var(--faint); text-align: center; }
-.lf-meta { color: var(--soft); font-size: 13px; }
+.lf-strip img { width: 128px; height: 72px; object-fit: cover; max-height: none; border-radius: 6px; }
+.lf-strip figcaption { font-size: 12px; color: var(--soft); text-align: center; }
+.lf-meta { color: var(--soft); font-size: 14px; }
 .lf-edit { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .lf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+@media (max-width: 600px) {
+  .lf-drop .hint { display: none; }
+  .lf-add .row { width: 100%; }
+  .lf-add .row .btn { flex: 1; }
+  .lf-tools { grid-template-columns: 1fr 1fr; }
+  .lf-tools input[type=search] { grid-column: 1 / -1; }
+  .lf-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .lf-item { grid-template-rows: none; grid-template-columns: 76px minmax(0, 1fr); }
+  .lf-thumb { width: 76px; height: 100%; min-height: 76px; aspect-ratio: auto; font-size: 13px; }
+  .lf-kind { display: none; }
+  .lf-cap { padding: 8px 10px; }
+}
 `;
+
+// Thumbnails are kept in the browser's cache, so a revisit downloads none.
+const THUMB_CACHE = 'hub-lib-thumbs-1';
+const cacheOpen = () => (globalThis.caches ? caches.open(THUMB_CACHE).catch(() => null) : Promise.resolve(null));
+const SHOW = 120; // cards drawn at once; "Show all" draws the rest
+const STALE = 30_000; // a tab switch or window focus reloads the list only after this long
+const day = (t) => {
+  if (!t) return '';
+  const d = new Date(t), now = new Date();
+  if (d.toDateString() === now.toDateString()) return `today ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+};
 
 export function mount(el, ctx) {
   const { api, toast, threads, esc } = ctx;
@@ -444,14 +488,16 @@ export function mount(el, ctx) {
   };
   el.innerHTML = `
     <div class="card lf-drop" data-drop>
-      <p><b>Add files for the team.</b> Drop them here, paste, or pick them.</p>
-      <div class="row">
-        <button class="btn go" type="button" data-pick="any">Choose files</button>
-        <button class="btn" type="button" data-pick="media">Photos &amp; videos</button>
+      <div class="lf-add">
+        <div class="what"><b>Add files for the team</b><span>Drop them here, paste, or pick them.</span></div>
+        <div class="row">
+          <button class="btn go" type="button" data-pick="any">Upload files</button>
+          <button class="btn" type="button" data-pick="media">Photos &amp; videos</button>
+        </div>
       </div>
       <input type="file" multiple hidden data-in="any">
       <input type="file" multiple hidden accept="image/*,video/*" data-in="media">
-      <p class="hint">Images, videos, text and any other file. Agents see pictures; for a video, stills, cuts and sound, and Gemini can watch it. Videos over ${size(VIDEO_KEEP)} keep the stills only.</p>
+      <p class="hint">Agents see pictures, and for a video its stills, cuts and sound (Gemini can watch it). Videos over ${size(VIDEO_KEEP)} keep the stills only.</p>
     </div>
     <div class="card lf-stage" data-stage hidden>
       <h3 data-count></h3>
@@ -474,13 +520,14 @@ export function mount(el, ctx) {
       <select aria-label="Tag" data-tag>
         <option value="">All tags</option><option value="studio">Studio</option><option value="do">Do (copy this)</option><option value="dont">Don't (avoid this)</option><option value="-">No tags</option>
       </select>
-      <span class="lf-used" data-used></span>
     </div>
+    <p class="lf-sum" data-used></p>
     <div class="lf-grid" data-grid></div>
-    <p class="empty" data-empty hidden></p>
+    <div class="lf-more" data-more hidden><button class="btn" type="button" data-all></button></div>
+    <div class="empty" data-empty hidden></div>
     <dialog class="lf-dlg" data-dlg></dialog>`;
   const q = (sel) => el.querySelector(`[data-${sel}]`);
-  const S = { items: [], bytes: 0, max: 0, picked: [], busy: false, thumbs: new Map(), urls: new Map(), loaded: false };
+  const S = { items: [], bytes: 0, max: 0, picked: [], busy: false, thumbs: new Map(), urls: new Map(), loaded: false, at: 0, sig: '', drawn: '', all: false };
 
   // ---------- note, tags and threads (shared by upload and edit) ----------
   let formN = 0;
@@ -538,6 +585,7 @@ export function mount(el, ctx) {
     const fresh = !S.picked.length;
     S.picked.push(...files.map(plan));
     renderStage(fresh);
+    if (fresh) q('stage').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   function renderStage(fresh) {
     q('stage').hidden = !S.picked.length;
@@ -545,7 +593,7 @@ export function mount(el, ctx) {
     const total = S.picked.reduce((s, p) => s + p.file.size, 0);
     q('count').textContent = `${S.picked.length} file${S.picked.length > 1 ? 's' : ''} to upload (${size(total)})`;
     q('picked').innerHTML = S.picked
-      .map((p, i) => `<li><span class="nm" title="${esc(p.name)}">${esc(p.name)}<small>${KIND_LABEL[p.kind]} · ${size(p.file.size)}${p.notes.length ? ` · ${esc(p.notes.join(', '))}` : ''}</small></span><button class="btn quiet" type="button" data-rm="${i}" aria-label="Remove ${esc(p.name)}">✕</button></li>`)
+      .map((p, i) => `<li><span class="nm">${esc(p.name)}<small>${KIND_LABEL[p.kind]} · ${size(p.file.size)}${p.notes.length ? ` · ${esc(p.notes.join(', '))}` : ''}</small></span><button class="btn quiet" type="button" data-rm="${i}" aria-label="Remove ${esc(p.name)}">✕</button></li>`)
       .join('');
     for (const b of q('picked').querySelectorAll('[data-rm]')) b.onclick = () => { S.picked.splice(Number(b.dataset.rm), 1); renderStage(false); };
     if (fresh) {
@@ -602,6 +650,9 @@ export function mount(el, ctx) {
     S.bytes = r.bytes || 0;
     S.max = r.max || 0;
     S.loaded = true;
+    S.at = Date.now();
+    S.sig = JSON.stringify(S.items.map((it) => [it.id, it.at, it.status, it.name, it.note, it.tags, it.hasThumb]));
+    ctx.count?.('files', S.items.filter(ready).length);
     render();
   }
   const ready = (it) => !it.status || it.status === 'ready' || it.status === 'done';
@@ -615,25 +666,36 @@ export function mount(el, ctx) {
   const tagChips = (it) =>
     (it.tags || []).map((t) => `<span class="lf-tag ${t === 'do' || t === 'dont' ? t : ''}">${t === 'do' ? 'Do' : t === 'dont' ? "Don't" : esc(t)}</span>`).join('') +
     (ready(it) ? '' : `<span class="lf-tag warn">${esc(it.status === 'uploading' ? 'unfinished' : it.status)}</span>`);
+  const card = (it) => {
+    const badge = it.kind === 'video' ? `▶ ${it.frames ? `${it.frames} frames` : 'video'}` : '';
+    return `<button class="lf-item" type="button" data-id="${esc(it.id)}"><span class="lf-thumb" data-thumb="${esc(it.id)}"><span data-ext>${esc((extOf(it.name) || it.kind || 'file').toUpperCase().slice(0, 4))}</span>${badge ? `<span class="lf-kind">${esc(badge)}</span>` : ''}</span><span class="lf-cap"><b title="${esc(it.name)}">${esc(it.name)}</b><small>${size(it.size || 0)}${it.at ? ` · ${day(it.at)}` : ''}</small><span class="lf-tags">${tagChips(it)}</span></span></button>`;
+  };
+  // Draws the cards only when the list or the filters changed, so a reload
+  // with nothing new keeps every picture already on screen.
   function render() {
-    q('used').textContent = S.max ? `${size(S.bytes)} of ${size(S.max)} used` : '';
+    const n = S.items.filter(ready).length;
+    q('used').textContent = S.items.length ? `${n} file${n === 1 ? '' : 's'}${S.max ? ` · ${size(S.bytes)} of ${size(S.max)} used` : ''}` : '';
     const list = S.items.filter(matches);
+    const shown = S.all ? list : list.slice(0, SHOW);
+    const key = `${S.sig}|${q('q').value}|${q('kind').value}|${q('tag').value}|${shown.length}`;
     q('empty').hidden = !!list.length;
-    q('empty').textContent = S.items.length ? 'No files match.' : 'No files yet. Add reference pictures, clips or notes above; agents read them with lib_list and lib_get.';
-    q('grid').innerHTML = list
-      .map((it) => {
-        const badge = it.kind === 'video' ? `▶ ${it.frames ? `${it.frames} frames` : 'video'}` : KIND_LABEL[it.kind] || 'File';
-        return `<button class="lf-item" type="button" data-id="${esc(it.id)}"><span class="lf-thumb" data-thumb="${esc(it.id)}"><span data-ext>${esc((extOf(it.name) || it.kind || 'file').toUpperCase().slice(0, 5))}</span><span class="lf-kind">${esc(badge)}</span></span><span class="lf-cap"><b title="${esc(it.name)}">${esc(it.name)}</b><small>${size(it.size || 0)}</small><span class="lf-tags">${tagChips(it)}</span></span></button>`;
-      })
-      .join('');
-    for (const b of q('grid').querySelectorAll('[data-id]')) b.onclick = () => open(b.dataset.id);
+    q('empty').textContent = S.items.length ? 'No files match. Clear the search or pick another kind or tag.' : 'No files yet. Upload reference pictures, clips or notes above; agents read them with lib_list and lib_get.';
+    q('more').hidden = shown.length >= list.length;
+    q('all').textContent = `Show all ${list.length} files`;
+    if (key === S.drawn) return;
+    S.drawn = key;
+    seen.disconnect();
+    q('grid').innerHTML = shown.map(card).join('');
     for (const t of q('grid').querySelectorAll('[data-thumb]')) seen.observe(t);
   }
-  for (const k of ['q', 'kind', 'tag']) q(k).addEventListener('input', render);
+  for (const k of ['q', 'kind', 'tag']) q(k).addEventListener('input', () => { S.all = false; render(); });
+  q('all').onclick = () => { S.all = true; render(); };
+  q('grid').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b) open(b.dataset.id); });
 
   // ---------- pictures ----------
-  // Which small picture stands for an item: its view, a middle frame, or a small image itself.
+  // Which picture stands for an item: its small thumb, else (older uploads) its view, a middle frame, or a small image itself.
   function thumbPart(it) {
+    if (it.hasThumb) return { part: 'thumb', i: 0 };
     if (it.hasView) return { part: 'view', i: 0 };
     if (it.kind === 'video' && it.frames) return { part: 'frame', i: Math.floor((it.frames - 1) / 2) };
     if (it.kind === 'video' && it.hasSheet) return { part: 'sheet', i: 0 };
@@ -648,6 +710,30 @@ export function mount(el, ctx) {
     }
     return S.thumbs.get(key);
   }
+  const cacheKey = (it) => `/lib-thumb/${encodeURIComponent(it.id)}/${it.at || 0}`;
+  async function thumbUrl(it, tp) {
+    const cache = await cacheOpen();
+    const hit = await cache?.match(cacheKey(it)).catch(() => null);
+    if (hit) return URL.createObjectURL(await hit.blob());
+    let src = await picture(it, tp.part, tp.i);
+    if (tp.part !== 'thumb') {
+      // An older upload: shrink its big picture once and give the hub the
+      // small copy, so the next visit (on any device) loads only that.
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const small = thumbJpeg(img, img.naturalWidth || 320, img.naturalHeight || 240);
+      if (small) {
+        src = `data:image/jpeg;base64,${small}`;
+        if (ready(it) && (it.kind === 'image' || it.kind === 'video')) api('lib-thumb', { id: it.id, data: small }).then(() => { it.hasThumb = true; }).catch(() => {});
+      }
+      S.thumbs.delete(`${it.id}:${it.at}:${tp.part}:${tp.i}`);
+    }
+    const blob = await (await fetch(src)).blob();
+    cache?.put(cacheKey(it), new Response(blob, { headers: { 'content-type': blob.type } })).catch(() => {});
+    return URL.createObjectURL(blob);
+  }
+  const shownThumbs = new Map(); // id:at -> object URL already made this visit
   const seen = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -655,10 +741,11 @@ export function mount(el, ctx) {
       const it = S.items.find((x) => x.id === e.target.dataset.thumb);
       const tp = it && thumbPart(it);
       if (!tp) continue;
-      picture(it, tp.part, tp.i).then((src) => {
+      const k = `${it.id}:${it.at}`;
+      if (!shownThumbs.has(k)) shownThumbs.set(k, thumbUrl(it, tp).catch((err) => { shownThumbs.delete(k); throw err; }));
+      shownThumbs.get(k).then((src) => {
         const img = new Image();
         img.alt = '';
-        img.loading = 'lazy';
         img.src = src;
         e.target.querySelector('[data-ext]')?.replaceWith(img);
       }).catch(() => {});
@@ -689,7 +776,7 @@ export function mount(el, ctx) {
     const times = it.frameTimes || [];
     dlg.innerHTML = `
       <div class="head"><h2>${esc(it.name)}</h2><button class="btn quiet" type="button" data-x aria-label="Close">✕</button></div>
-      <div class="lf-meta">${KIND_LABEL[it.kind] || 'File'} · ${size(it.size || 0)}${it.type ? ` · ${esc(it.type)}` : ''}${it.at ? ` · ${new Date(it.at).toLocaleString()}` : ''}${it.hasBody ? '' : it.kind === 'video' ? ' · original not kept (too big), agents see the frames' : ''}</div>
+      <div class="lf-meta">${KIND_LABEL[it.kind] || 'File'} · ${size(it.size || 0)}${it.type ? ` · ${esc(it.type)}` : ''}${it.at ? ` · added ${esc(new Date(it.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}` : ''}${it.by ? ` by ${esc(it.by)}` : ''}${it.hasBody ? '' : it.kind === 'video' ? ' · original not kept (too big), agents see the frames' : ''}</div>
       <div class="lf-tags">${tagChips(it)}</div>
       <div class="lf-media" data-media><p class="lf-meta">Loading…</p></div>
       <div class="lf-actions">
@@ -721,7 +808,7 @@ export function mount(el, ctx) {
     });
     dlg.querySelector('[data-del]').onclick = async () => {
       if (!confirm(`Delete ${it.name}? Agents will no longer see it.`)) return;
-      try { await api('lib-delete', { id: it.id }); dlg.close(); toast(`Deleted ${it.name}.`); load(); } catch (err) { toast(err.message); }
+      try { await api('lib-delete', { id: it.id }); dlg.close(); toast(`Deleted ${it.name}.`); load().catch(() => {}); } catch (err) { toast(err.message); }
     };
     dlg.querySelector('[data-edit]').onsubmit = async (e) => {
       e.preventDefault();
@@ -731,7 +818,7 @@ export function mount(el, ctx) {
         await api('lib-edit', { id: it.id, name, ...readForm(f) });
         toast('Saved.');
         dlg.close();
-        load();
+        load().catch(() => {});
       } catch (err) { toast(err.message); }
     };
     if (!dlg.open) dlg.showModal();
@@ -754,11 +841,25 @@ export function mount(el, ctx) {
     }
     if (it.kind === 'video') {
       if (it.hasBody) html.push('<div class="row" style="justify-content:center"><button class="btn go" type="button" data-play>▶ Play video</button></div><div data-player></div>');
-      if (it.hasSheet) html.push(`<img alt="Contact sheet of ${esc(it.name)}" src="${await picture(it, 'sheet')}">`);
+      if (it.hasSheet) html.push(`<img alt="Contact sheet of ${esc(it.name)}" data-sheet>`);
       if (it.frames) html.push(`<div class="lf-strip" data-strip>${Array.from({ length: it.frames }, (_, i) => `<figure><img alt="" data-fi="${i}"><figcaption>${times[i] != null ? secs(times[i]) : `#${i + 1}`}</figcaption></figure>`).join('')}</div>`);
       if (!html.length) html.push('<p class="lf-meta">Nothing to show yet.</p>');
       media.innerHTML = html.join('');
-      for (const img of media.querySelectorAll('[data-fi]')) picture(it, 'frame', Number(img.dataset.fi)).then((s) => (img.src = s)).catch(() => {});
+      const sheet = media.querySelector('[data-sheet]');
+      if (sheet) picture(it, 'sheet').then((s) => (sheet.src = s)).catch(() => sheet.remove());
+      // Stills load as they scroll into the strip, not all 48 at once.
+      const strip = media.querySelector('[data-strip]');
+      if (strip) {
+        const io = new IntersectionObserver((es) => {
+          for (const x of es) {
+            if (!x.isIntersecting) continue;
+            io.unobserve(x.target);
+            picture(it, 'frame', Number(x.target.dataset.fi)).then((s) => (x.target.src = s)).catch(() => {});
+          }
+        }, { root: strip, rootMargin: '0px 400px' });
+        for (const img of strip.querySelectorAll('[data-fi]')) io.observe(img);
+        dlg.addEventListener('close', () => io.disconnect(), { once: true });
+      }
       media.querySelector('[data-play]')?.addEventListener('click', async (e) => {
         const b = e.currentTarget;
         b.disabled = true;
@@ -788,10 +889,17 @@ export function mount(el, ctx) {
     media.innerHTML = '<p class="lf-meta">Agents can read this file with lib_get. Download it to open it here.</p>';
   }
 
-  load().catch((e) => {
+  const failed = (e) => {
+    if (S.loaded) return;
     q('empty').hidden = false;
-    q('empty').textContent = `Could not load the files (${e.message}).`;
-  });
-  addEventListener('focus', () => { if (S.loaded && !S.busy && !el.hidden) load().catch(() => {}); });
-  return { show: () => (S.busy ? null : load().catch(() => {})) };
+    q('empty').innerHTML = `Could not load the files (${esc(e.message)}). <button class="btn" type="button" data-retry>Try again</button>`;
+    q('empty').querySelector('[data-retry]').onclick = () => { q('empty').textContent = 'Loading…'; load().catch(failed); };
+  };
+  q('empty').hidden = false;
+  q('empty').textContent = 'Loading…';
+  load().catch(failed);
+  // A tab switch or window focus reloads only when the list may be out of date.
+  const refresh = () => { if (!S.busy && Date.now() - S.at > STALE) load().catch(failed); };
+  addEventListener('focus', () => { if (S.loaded && !el.closest('[hidden]')) refresh(); });
+  return { show: refresh };
 }

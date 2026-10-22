@@ -91,15 +91,20 @@ export function skillsOf(hub) {
       .sort(([p], [q]) => p.localeCompare(q))
       .map(([n, s]) => {
         const i = skillInfo(s.text);
-        return { name: n, description: i.description, argumentHint: i.argumentHint, by: s.by, at: s.at || 0, bundled: n in SEED_SKILLS, overridden: n in SEED_SKILLS && !!over[n]?.text, text: s.text };
+        return { name: n, description: i.description, argumentHint: i.argumentHint, by: s.by, at: s.at || 0, bundled: n in SEED_SKILLS, overridden: n in SEED_SKILLS && !!over[n]?.text, size: s.text.length };
       });
   };
 
-  // The page's side (password): GET skill-list, POST skill-save, POST skill-delete.
+  // The page's side (password): GET skill-list (no texts, so it stays small),
+  // GET skill-get (one text), POST skill-save, POST skill-delete.
   async function pageOp(method, op, query, body) {
     if (!op.startsWith('skill-')) return null;
     try {
       if (method === 'GET' && op === 'skill-list') return { status: 200, body: { skills: await list() } };
+      if (method === 'GET' && op === 'skill-get') {
+        const s = (await all())[cleanSkillName(query?.name)];
+        return s ? { status: 200, body: { name: cleanSkillName(query.name), text: s.text } } : { status: 404, body: { error: 'No such skill.' } };
+      }
       if (method === 'POST' && op === 'skill-save') return { status: 200, body: await put(body?.name, body?.content, hub.owner || 'XIAO') };
       if (method === 'POST' && op === 'skill-delete') return { status: 200, body: await remove(body?.name) };
     } catch (e) {

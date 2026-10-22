@@ -118,6 +118,27 @@ describe('hub library', () => {
     expect(await tool('lib_get', { id: pose.id })).toContain('No library file');
   });
 
+  it('keeps a small list thumb: sent with an upload, or added later by the page', async () => {
+    const put = await page('lib-put', { name: 'thumbed.jpg', type: 'image/jpeg', size: 5, chunks: 1 });
+    await page('lib-chunk', { id: put.body.id, part: 'body', i: 0, data: b64('pixel') });
+    await page('lib-chunk', { id: put.body.id, part: 'thumb', i: 0, data: b64('tiny') });
+    expect((await page('lib-done', { id: put.body.id })).body.hasThumb).toBe(true);
+    expect((await page('lib-raw', undefined, { id: put.body.id, part: 'thumb' })).body).toMatchObject({ data: b64('tiny'), type: 'image/jpeg' });
+    expect((await page('lib-chunk', { id: put.body.id, part: 'thumb', data: 'A'.repeat(60_004) })).status).toBe(400);
+    // An older picture without one gets it once from the page.
+    const old = await page('lib-put', { name: 'old.jpg', type: 'image/jpeg', size: 5, chunks: 1 });
+    await page('lib-chunk', { id: old.body.id, part: 'body', i: 0, data: b64('pixel') });
+    expect((await page('lib-done', { id: old.body.id })).body.hasThumb).toBe(false);
+    const bytes = Number(await store.cmd('GET', 'hub:lib:bytes'));
+    expect((await page('lib-thumb', { id: old.body.id, data: b64('small') })).status).toBe(200);
+    expect(Number(await store.cmd('GET', 'hub:lib:bytes'))).toBe(bytes + b64('small').length);
+    expect((await page('lib-list')).body.items.find((m: any) => m.id === old.body.id).hasThumb).toBe(true);
+    const txt = (await page('lib-list')).body.items.find((m: any) => m.kind === 'text');
+    expect((await page('lib-thumb', { id: txt.id, data: b64('x') })).status).toBe(400);
+    expect((await page('lib-delete', { id: old.body.id })).status).toBe(200);
+    expect(Number(await store.cmd('GET', 'hub:lib:bytes'))).toBe(bytes - b64('pixel').length);
+  });
+
   it('drops uploads left unfinished for an hour', async () => {
     const put = await page('lib-put', { name: 'half.txt', type: 'text/plain', size: 10, chunks: 1 });
     clock += 2 * 3600e3;

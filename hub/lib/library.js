@@ -4,6 +4,7 @@
 // chunks (a Vercel function takes at most 4.5 MB a request). For pictures it
 // also sends a small 'view' copy, and for videos a few frames plus one
 // contact 'sheet', because agents can look at images but cannot watch video.
+// A tiny 'thumb' JPEG is only for the page's list, so it never pulls a big copy.
 import { cleanTimeline, clock, timelineText } from '../library/video-scan.js';
 import { geminiWatch, KEY_HELP, watchHeader, watchKey, watchModels, watchPrompt, youtubeUrl } from './watch.js';
 const CHUNK = 900_000; // base64 characters per stored piece (one Upstash request stays under 1 MB)
@@ -23,7 +24,8 @@ const K = {
   part: (id, p) => `hub:lib:part:${id}:${p}`,
   repos: 'hub:repos',
 };
-const PARTS = ['body', 'view', 'sheet', 'frame'];
+const PARTS = ['body', 'view', 'sheet', 'frame', 'thumb'];
+const MAX_THUMB = 60_000; // base64 characters of a list thumbnail
 // Text pieces the server writes itself: 'timeline' (numbers from the page) and 'watch' (Gemini's notes).
 const TEXT_EXT = /\.(md|markdown|txt|text|sgf|csv|tsv|json|jsonl|ya?ml|toml|ini|js|mjs|cjs|ts|tsx|jsx|py|sh|html?|css|svg|xml|log|srt|vtt)$/i;
 
@@ -75,11 +77,13 @@ export function publicItem(m) {
     hasBody: !!m.hasBody,
     hasView: !!m.hasView,
     hasSheet: !!m.hasSheet,
+    hasThumb: !!m.hasThumb,
     sheets: m.sheets || (m.hasSheet ? 1 : 0),
     hasTimeline: !!m.hasTimeline,
     watched: !!m.watched,
     status: m.status,
     at: m.at,
+    by: m.by || '',
   };
 }
 
@@ -248,20 +252,39 @@ export function createLibrary(hub) {
     if (part === 'sheet' && (i < 0 || i >= MAX_SHEETS)) throw new Error(`sheet must be 0-${MAX_SHEETS - 1}`);
     if (part !== 'body' && !['image', 'video'].includes(m.kind)) throw new Error(`${part} is only for pictures and videos`);
     const data = String(body.data || '');
-    if (!data || data.length > CHUNK) throw new Error(`data must be 1-${CHUNK} base64 characters`);
+    if (!data || data.length > (part === 'thumb' ? MAX_THUMB : CHUNK)) throw new Error(`data must be 1-${part === 'thumb' ? MAX_THUMB : CHUNK} base64 characters`);
     if (!/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new Error('data is not base64');
     if (part === 'body' && i < m.chunks - 1 && data.length % 4) throw new Error('every body piece but the last must be a multiple of 4 characters');
+    await putPiece(m, part, i, data, body.type);
+    return { ok: true };
+  }
+
+  async function putPiece(m, part, i, data, bodyType) {
     const p = pieceKey(part, i);
     const old = Number(await store.cmd('HGET', K.got(m.id), p)) || 0;
     const total = Number((await store.cmd('GET', K.bytes)) || 0);
     if (total - old + data.length > MAX_LIB) throw new Error(`the library is full (${kb(MAX_LIB)}); delete some files first`);
-    const type = part === 'body' ? m.type : /^image\/(jpeg|png|webp|gif)$/.test(String(body.type || '')) ? body.type : 'image/jpeg';
+    const type = part === 'body' ? m.type : /^image\/(jpeg|png|webp|gif)$/.test(String(bodyType || '')) ? bodyType : 'image/jpeg';
     await store.multi([
       ['SET', K.part(m.id, p), data],
       ['HSET', K.got(m.id), p, data.length],
       ['INCRBY', K.bytes, data.length - old],
       ...(part === 'body' ? [] : [['HSET', K.got(`${m.id}:type`), p, type]]),
     ]);
+  }
+
+  // A thumbnail the page makes later for a file uploaded before thumbs existed.
+  async function addThumb(body) {
+    const m = await item(body.id);
+    if (!m || m.status !== 'ready') throw new Error('no such file');
+    if (!['image', 'video'].includes(m.kind)) throw new Error('thumbs are only for pictures and videos');
+    if (m.hasThumb) return { ok: true };
+    const data = String(body.data || '');
+    if (!data || data.length > MAX_THUMB || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new Error(`data must be 1-${MAX_THUMB} base64 characters`);
+    await putPiece(m, 'thumb', 0, data, 'image/jpeg');
+    m.hasThumb = true;
+    m.stored = (m.stored || 0) + data.length;
+    await save(m);
     return { ok: true };
   }
 
@@ -277,6 +300,7 @@ export function createLibrary(hub) {
     m.hasBody = m.chunks > 0;
     m.hasView = !!pieces.view;
     m.hasSheet = !!pieces.sheet;
+    m.hasThumb = !!pieces.thumb;
     m.sheets = m.hasSheet ? 1 + Object.keys(pieces).filter((p) => /^sheet:\d+$/.test(p)).length : 0;
     m.frames = frames;
     m.frameTimes = (Array.isArray(body.frameTimes) ? body.frameTimes : []).slice(0, frames).map((s) => Math.round(Number(s) * 100) / 100 || 0);
@@ -351,6 +375,7 @@ export function createLibrary(hub) {
       if (op === 'lib-chunk') return { status: 200, body: await chunk(body) };
       if (op === 'lib-done') return { status: 200, body: await done(body) };
       if (op === 'lib-edit') return { status: 200, body: await edit(body) };
+      if (op === 'lib-thumb') return { status: 200, body: await addThumb(body) };
       if (op === 'lib-delete') {
         if (!(await item(body.id))) return { status: 404, body: { error: 'No such file.' } };
         await remove(String(body.id));
