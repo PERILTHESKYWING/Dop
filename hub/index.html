@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Dop hub">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" href="/fonts/alegreya-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <title>Dop hub</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -16,23 +17,38 @@
 try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; if (l.bg) document.documentElement.dataset.bg = l.bg; } catch {}
 </script>
 <style>
+/* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-500-normal.woff2) format("woff2"); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-800-normal.woff2) format("woff2"); font-weight: 800 900; font-display: swap; }
 :root {
-  --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
-  --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --me: #ebe4d8; --sel: #ebe5da; --chip: #f1ece4;
-  --shadow: 0 6px 24px rgba(40, 30, 10, .12);
+  --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
+  --kaya: #e8c88f; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #c9a465; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
+  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
+  --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --shadow: 0 8px 28px rgba(60, 40, 10, .16);
   --clay: rgb(217, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font);
 }
-/* Dark: follows the device under Auto, or forced by Look › Theme (data-theme on <html>). */
+/* Dark: follows the device under Auto, or forced by Look › Theme (data-theme on <html>). White stones, dark wood. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --me: #2b2925; --sel: #2c2a26; --chip: #282622;
-    --shadow: 0 6px 24px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+    --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+    --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
-:root[data-theme="dark"], :root[data-bg="night"] { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-  --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --me: #2b2925; --sel: #2c2a26; --chip: #282622;
-  --shadow: 0 6px 24px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
+:root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+  --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+  --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
+/* Over a background picture the sidebar goes back to frosted glass, so the wood tokens fall back to plain ones. */
+:root[data-bg]:not([data-bg=""]) { --kaya: var(--sel); --kaya-ink: var(--ink); --kaya-line: var(--line); --kaya-amber: var(--amber); --kaya-green: var(--green); }
 
 /* walls:start (written by node hub/walls.mjs) */
 /* Backgrounds (Look › Background): painted behind the whole app and the sign-in page. Dots, Grid and Stones are tinted from the theme; the scenes have their own light and dark versions. */
@@ -66,6 +82,114 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root[data-theme="dark"][data-bg="sea"], :root[data-theme="dark"] [data-bg-demo="sea"] { --wall-bg: #122435; --wall: var(--w-sea-dark); }
 :root[data-theme="dark"][data-bg="forest"], :root[data-theme="dark"] [data-bg-demo="forest"] { --wall-bg: #14201a; --wall: var(--w-forest-dark); }
 /* walls:end */
+/* ===== Kaya look: component rules (T1 Looks). Colours come from the tokens above. =====
+   Flat, 6 px radius, a 2 px bottom edge on pressable things, one black stone per area, nothing under 14 px.
+   The :root prefix lifts each rule over the plain class rules further down, so no !important is needed. */
+:root body { font-variant-numeric: lining-nums; -webkit-font-smoothing: antialiased; }
+:root :focus-visible { outline-color: var(--stone); }
+:root input:focus-visible, :root select:focus-visible, :root textarea:focus-visible { border-color: var(--stone); box-shadow: 0 0 0 1px var(--stone); }
+:root input, :root select, :root textarea { border-radius: var(--r); border-color: var(--line-2); }
+/* Alegreya has a small x-height, so small print moves up to 14-15 px. */
+:root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
+:root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
+:root .walls button, :root .sect, :root .md pre code, :root .sheet code, :root .copyline, :root #connLog { font-size: 14px; }
+:root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+:root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state, :root .pseg button { font-size: 15px; }
+/* Desktop: one step up again, since Alegreya's x-height is ~12% smaller than the old system font. */
+@media (min-width: 861px) {
+  :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
+  :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan, :root .trow.t1 .when { font-size: 15px; }
+  :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+  :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state { font-size: 16px; }
+}
+
+/* buttons: flat with a 2 px bottom edge; the main one is a black stone (white in dark) */
+:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 700; font-size: 16px; }
+:root .btn.primary, :root .ask-go, :root .send { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; box-shadow: none; }
+@media (hover: hover) { :root .btn.primary:hover, :root .ask-go:hover, :root .send:hover:not(:disabled) { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; } }
+:root .send { border-radius: 50%; }
+:root .attach { border-radius: 50%; background: var(--panel); border-color: var(--line-2); }
+:root .pbtn { border-radius: var(--r); }
+:root .chip { border-radius: var(--r); background: var(--panel); border-color: var(--line-2); font-size: 15px; font-weight: 700; }
+:root .chip[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); border-color: var(--stone); }
+:root .pill { border-radius: var(--r); background: var(--chip); }
+:root .label.q, :root .tabs .badge { background: var(--amber); color: var(--on-amber); }
+
+/* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
+:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
+:root .app > .side .pbtn, :root .app > .side .live, :root .app > .side .live.off { color: var(--kaya-ink); }
+:root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
+@media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
+:root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
+@media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
+:root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
+:root .brand b { font-weight: 800; font-size: 22px; letter-spacing: -.01em; }
+:root .app > .side .group { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); letter-spacing: .07em; }
+:root .trow { border-radius: var(--r); padding: 10px 12px; }
+:root .trow .ttl { font-size: 16px; font-weight: 700; }
+:root .trow .tsub { font-size: 15px; }
+:root .app > .side .trow { color: var(--kaya-ink); }
+:root .app > .side .trow:hover { background: color-mix(in srgb, var(--panel) 35%, var(--kaya)); }
+:root .app > .side .trow.on { background: var(--panel); color: var(--ink); box-shadow: 0 2px 0 var(--kaya-line); }
+:root .app > .side .trow .tsub .when, :root .app > .side .st-done .stx, :root .app > .side .trow .lsub { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
+:root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
+:root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+:root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
+:root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
+:root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
+:root .app > .side .trow.on.st-waiting .stx, :root .app > .side .trow.on.st-queued .stx { color: var(--amber); }
+:root .app > .side .trow.on.st-working .stx, :root .app > .side .trow.on.st-new .stx { color: var(--green); }
+:root .app > .side .trow.on.st-stalled .stx { color: var(--red); }
+
+/* header + feed */
+:root .head { min-height: 64px; }
+:root .head h2 { font-size: 22px; font-weight: 800; }
+:root .head a, :root .text a, :root .bubble a { color: var(--ink); text-decoration-thickness: 2px; text-decoration-color: var(--kaya-2); }
+:root .feed { gap: 18px; }
+:root .bubble { border-radius: 10px; box-shadow: none; padding: 12px 16px; }
+:root .row.me .bubble { border-radius: 10px; }
+:root .text { font-size: 17px; line-height: 1.5; }
+:root .who .nm { font-weight: 800; }
+:root .task, :root .handover { box-shadow: none; border-radius: 10px; }
+:root .task { border-left-color: var(--kaya-2); }
+:root .tcard { border-radius: 10px; background: var(--panel); border-bottom-width: 2px; }
+:root .tcard:hover { transform: none; }
+:root .tcard .go { color: var(--ink); }
+:root .cbox { border-radius: 12px; box-shadow: none; border-color: var(--line-2); border-bottom-width: 2px; }
+:root .cbox:focus-within { border-color: var(--stone); }
+:root .cbox textarea { font-size: 17px; }
+:root .hello h3 { font-weight: 800; font-size: 32px; }
+:root .ask-o { border-radius: var(--r); }
+
+/* team panel: type and colour only (its layout belongs to the sidebar + team work) */
+:root .thead h3 { font-weight: 800; font-size: 22px; }
+:root .stats div, :root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
+:root .stats b { font-size: 34px; font-weight: 800; }
+:root .aname .nm { font-size: 18px; font-weight: 800; }
+:root .track { background: var(--chip); }
+
+/* compose Options popup, sheets, Look sheet */
+:root .pop { border-radius: 10px; }
+:root .opt { border-radius: var(--r); }
+:root .opt.on { background: var(--sel); }
+:root .opt.on .box { background: var(--stone); border-color: var(--stone); color: var(--on-stone); }
+:root .opt .tick { color: var(--ink); }
+:root .sheet .sbox { border-radius: 12px; }
+:root .sheet h3 { font-size: 22px; font-weight: 800; }
+:root .seg, :root .pseg { border-radius: var(--r); border-color: var(--line-2); }
+:root .seg button, :root .pseg button { border-radius: 4px; }
+:root .seg button[aria-pressed="true"], :root .pseg button[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); font-weight: 700; box-shadow: none; }
+:root .walls i { border-radius: var(--r); }
+:root .walls button[aria-pressed="true"] i { border-color: var(--stone); box-shadow: none; }
+
+/* phone tab bar */
+:root .tabs button { font-size: 16px; }
+:root .tabs button[aria-current="true"] { box-shadow: inset 0 3px 0 var(--stone); }
+:root .tabs .badge { font-size: 14px; }
+@media (max-width: 600px) { :root .sheet .sbox { border-radius: 12px 12px 0 0; } }
+/* ===== end Kaya look ===== */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-size: 16px; }
 body { transition: background-color .2s, color .2s; }
@@ -132,6 +256,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
 :root[data-bg]:not([data-bg=""]) .hello { background: var(--glass); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
+:root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
+:root .note.hubn .nt { white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 600; }
 .live.off { color: var(--red); }
@@ -268,6 +394,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .md strong, .md .mh { font-weight: 700; }
 .md code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .md pre { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; overflow-x: auto; }
+@media (max-width: 860px) { :root .md pre, :root .md pre code { white-space: pre-wrap; overflow-wrap: anywhere; } }
 .md pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
 .md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--soft); }
 .showmore { display: block; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--green); font-size: 14px; font-weight: 700; }
@@ -293,6 +420,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .sw { position: relative; overflow: hidden; flex: none; }
 /* Long feeds: skip layout and paint for messages far off screen (T3 render speed). */
 #feed > .sw { content-visibility: auto; contain-intrinsic-size: auto 96px; }
+#feed > .sw:nth-last-child(-n+8) { content-visibility: visible; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
 .sw.open .sw-in { transform: translateX(-104px); }
@@ -600,7 +728,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .side, .team { border: 0; }
   .back { display: inline-flex; }
   .head > .avs, .wide { display: none; }
-  .head h2 { flex-basis: 0; }
+  /* Title gets the first row next to Threads; status and actions wrap under it. */
+  .head { row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .head h2 { flex: 1 1 calc(100% - 120px); }
   .head, .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .compose { padding: 0 max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .app { height: var(--vvh, 100dvh); }
@@ -1038,7 +1168,7 @@ function helloHtml() {
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} · ${clock(m.at)}</span></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
   if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
@@ -1215,6 +1345,13 @@ function patchFeed(feed, items) {
   feedItems = items;
   return add;
 }
+// Off-screen messages use a guessed height (content-visibility), so the bottom moves once they
+// are measured: scroll again each frame until scrollHeight stops changing (at most 6 frames).
+function feedToBottom(f) {
+  let h = -1, n = 0;
+  const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
+  go();
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
@@ -1249,7 +1386,7 @@ function renderFeed() {
   if (feed.dataset.sel !== String(sel)) { feedItems = []; feed.textContent = ''; }
   const added = patchFeed(feed, items);
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
-  if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
+  if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed);
   feed.dataset.sel = String(sel);
   renderTools(t);
 }
@@ -1653,7 +1790,7 @@ function setTab(tab) {
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab));
   if (tab === 'chat' && was !== 'chat') toBottom();
 }
-const toBottom = () => { const f = $('feed'); f.scrollTop = f.scrollHeight; };
+const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
 function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; sel = id; delete feedEarly[id]; closePop(); setTab('chat'); render(); toBottom(); }
 $('feed').addEventListener('click', (e) => {
