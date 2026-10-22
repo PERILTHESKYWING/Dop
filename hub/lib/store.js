@@ -99,6 +99,15 @@ export function memoryStore() {
       for (let i = 0; i < fv.length; i += 2) hash(k).set(fv[i], String(fv[i + 1]));
       return fv.length / 2;
     },
+    HSETNX: (k, f, v) => (hash(k).has(f) ? 0 : (hash(k).set(f, String(v)), 1)),
+    SADD: (k, ...vs) => {
+      const set = kv.has(k) ? kv.get(k) : (kv.set(k, new Set()), kv.get(k));
+      const before = set.size;
+      vs.forEach((v) => set.add(v));
+      return set.size - before;
+    },
+    SREM: (k, ...vs) => (kv.has(k) ? vs.filter((v) => kv.get(k).delete(v)).length : 0),
+    SMEMBERS: (k) => (kv.has(k) ? [...kv.get(k)] : []),
     HDEL: (k, ...fs) => fs.filter((f) => hash(k).delete(f)).length,
     HGETALL: (k) => [...hash(k).entries()].flat(),
     EVAL: (lua, n, ...rest) => {

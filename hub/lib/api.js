@@ -120,27 +120,24 @@ export async function mcpApi({ hub, method, query, body, headers }) {
     key = raw.slice(i + 1);
   }
   const agent = await hub.authAgent(name, key);
-  try {
-    await hub.logConn({
+  // The log write runs alongside the rest of the request (not on its path).
+  const logging = hub.logConn({
       http: method,
       account: String(name || '').slice(0, 24),
       keyOk: !!agent,
       rpc: String(body?.method || '').slice(0, 40),
       via: auth ? 'header' : key ? 'link' : 'none',
       ua: String(headers['user-agent'] || '').slice(0, 60),
-    }, { later: true });
-  } catch {}
-  if (method === 'GET' || !agent) await hub.flush().catch(() => {});
+    }).catch(() => {});
   const bad ='Unknown account or key. Copy the link again from the hub page.';
   // Opening the link in a browser shows whether it works.
-  if (method === 'GET') return { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
-  if (!agent) return fail(bad);
+  if (method === 'GET') return await logging, { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
+  if (!agent) return await logging, fail(bad);
   try {
     await hub.markConnected(agent);
   } catch {}
   const reply = await handleMcp(hub, agent, body);
-  // Writes held back for the request's last store call (connection log, news markers).
-  await hub.flush().catch(() => {});
+  await logging;
   return reply ? { status: 200, body: reply } : { status: 202, body: null };
 }
 
