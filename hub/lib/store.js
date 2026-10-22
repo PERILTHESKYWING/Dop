@@ -44,6 +44,7 @@ export function memoryStore() {
   const idx = (arr, i) => (i < 0 ? arr.length + i : i);
   const ops = {
     GET: (k) => (kv.has(k) ? kv.get(k) : null),
+    MGET: (...ks) => ks.map((k) => (kv.has(k) ? kv.get(k) : null)),
     SET: (k, v) => (kv.set(k, String(v)), 'OK'),
     DEL: (k) => (kv.delete(k) ? 1 : 0),
     INCR: (k) => {

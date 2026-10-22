@@ -35,7 +35,13 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   if (method === 'GET' && op === 'seq') return { status: 200, body: { seq: await hub.version() } };
   if (method === 'GET' && op === 'state') {
     const t0 = Date.now();
-    const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600 });
+    // v: the version the page already holds. Unchanged costs one store
+    // command and a few bytes; changed sends the update in the same request.
+    if (query.v) {
+      const seq = await hub.version();
+      if (seq === query.v) return { status: 200, body: { same: true, seq } };
+    }
+    const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600, threadsAfter: Number(query.tu) || 0 });
     return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, ms: Date.now() - t0 } };
   }
   // Reading usage from Claude can take seconds, so the page asks for it on its own.
