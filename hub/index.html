@@ -166,7 +166,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; background: var(--chip); }
 .head a { color: var(--green); font-size: 15px; font-weight: 600; }
 .back { display: none; }
-.feed { flex: 1; overflow-y: auto; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
+.feed { flex: 1; overflow-y: auto; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 16px; container: feed / inline-size; }
 .feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; animation: rise .18s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .feed > * { animation: none; } }
@@ -181,13 +181,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 .trow .spin { font-size: 14px; width: 9px; }
 /* agents' thinking notes, folded like Claude's "Thought process" */
-.thought { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; color: var(--soft); }
-.thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; }
+.thought { border-left: 2px solid var(--line); padding: 0 0 0 12px; color: var(--soft); }
+.thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; min-height: 32px; }
 .thought summary::-webkit-details-marker { display: none; }
 .thought summary::after { content: '›'; font-size: 16px; transition: transform .15s; }
 .thought[open] summary::after { transform: rotate(90deg); }
 .thought summary b { color: var(--ink); font-weight: 600; }
-.thought .text { font-size: 15px; margin-top: 4px; }
+.thought .text { font-size: 15px; margin: 0 0 6px; }
 .thoughts-hidden { font-size: 13px; }
 /* Clawd, Claude Code's mascot, redrawn from its terminal sprite */
 .clawd { width: 36px; height: 20px; flex: none; overflow: visible; }
@@ -214,12 +214,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (prefers-reduced-motion: reduce) { .clawd *, .stroll, .thinking .verb { animation: none !important; } }
 .row { display: flex; gap: 10px; align-items: flex-start; }
 .row.me { justify-content: flex-end; }
-.bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 4px 14px 14px 14px; padding: 11px 15px; min-width: 0; max-width: 100%; box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 12px -6px rgba(0, 0, 0, .12); }
-.row.me .bubble { background: var(--me); border-color: transparent; border-radius: 14px 4px 14px 14px; max-width: 78%; box-shadow: none; }
-.who { font-size: 14px; font-weight: 700; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 3px; }
-.who .when { font-weight: 400; color: var(--soft); }
-.label { font-size: 13px; font-weight: 700; padding: 1px 7px; border-radius: 5px; background: var(--chip); }
+.row > .av { margin-top: 3px; }
+.av-gap { width: 26px; flex: none; }
+.bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 4px 10px 10px 10px; padding: 9px 14px 10px; min-width: 0; max-width: 100%; box-shadow: 0 1px 2px rgba(0, 0, 0, .05); }
+.row:not(.me) > .bubble { flex: 0 1 auto; }
+.row > .bubble.bwide { flex: 1 1 auto; }
+.row.me .bubble { background: var(--me); border-color: transparent; border-radius: 10px 4px 10px 10px; max-width: 78%; box-shadow: none; }
+/* sender line: name, kind, time, then Copy at the right */
+.who { font-size: 14px; line-height: 20px; display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; margin-bottom: 3px; color: var(--soft); }
+.who .nm { color: var(--ink); font-weight: 700; }
+.who .when { font-size: 13px; font-variant-numeric: tabular-nums; }
+.who .av.in { display: none; }
+.who.mini { float: right; margin: 0 0 0 12px; }
+.feed > .cont { margin-top: -10px; }
+.label { font-size: 12px; font-weight: 700; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
 .label.q { background: var(--amber); color: #fff; }
+/* message kinds: a question waiting for XIAO and a finished job carry a side bar; notes sit quieter */
+.k-question:not(.answered) > .bubble { border-left: 3px solid var(--amber); }
+.k-done > .bubble { border-left: 3px solid var(--green); }
+.k-note > .bubble { box-shadow: none; background: color-mix(in srgb, var(--panel) 72%, transparent); }
 .ask { display: grid; gap: 10px; margin-top: 8px; }
 .ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
 .ask-h { font-size: 13px; font-weight: 700; color: var(--soft); }
@@ -231,6 +244,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .ask-done { color: var(--soft); font-size: 14px; }
 .label.ok { background: var(--green); color: var(--on-green); }
 .text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.55; }
+/* agents' text: mini markdown (ui/md.js), kept to a readable line length */
+.text.md { white-space: normal; max-width: 68ch; line-height: 1.5; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md pre, .md blockquote { margin: 0 0 8px; }
+.md ul, .md ol { padding-left: 1.3em; }
+.md li + li { margin-top: 2px; }
+.md li.sub { margin-left: 1.2em; list-style-type: circle; }
+.md strong, .md .mh { font-weight: 700; }
+.md code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.md pre { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; overflow-x: auto; }
+.md pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
+.md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--soft); }
+.showmore { display: block; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--green); font-size: 14px; font-weight: 700; }
+.showmore:hover { text-decoration: underline; }
+/* a PR link in a "done" message, as a small card */
+.bubble a.prc { display: flex; align-items: center; gap: 10px; max-width: 420px; min-height: 44px; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); text-decoration: none; }
+.bubble a.prc:hover { border-color: var(--faint); }
+.prc b { white-space: nowrap; }
+.prc span { flex: 1; min-width: 0; color: var(--soft); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prc i { font-style: normal; font-size: 14px; font-weight: 700; color: var(--green); }
+/* narrow feed (phones, or a computer with both sidebars open on a small screen): avatar moves into the sender line */
+@container feed (max-width: 560px) {
+  .row:not(.me) { gap: 0; }
+  .row > .av, .row > .av-gap { display: none; }
+  .who .av.in { display: inline-grid; }
+  .bubble { padding: 8px 12px 9px; }
+}
 .pic { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; background: var(--line); min-height: 40px; }
 .text a, .bubble a { color: var(--green); }
 .picks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
@@ -249,19 +290,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .sw.open .sw-x { opacity: 0; pointer-events: none; }
 @media (hover: none) { .sw-x { display: none; } }
 /* Copy on every prompt and reply */
-.cp { border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; background: transparent; color: var(--soft); font: inherit; font-size: 12px; font-weight: 600; line-height: 1.6; cursor: pointer; }
-.cp:hover, .cp:focus-visible { color: var(--ink); border-color: var(--soft); }
-.cp.done { color: var(--green); border-color: var(--green); }
-.row.me .cp { border-color: rgba(0, 0, 0, .12); }
-.me-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
-.note { text-align: center; font-size: 14px; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; }
-.note.alert { color: var(--amber); font-weight: 600; }
+/* quiet text button; the padding makes a 32 px tap area without growing the line */
+.cp { border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--soft); font: inherit; font-size: 13px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.cp:hover, .cp:focus-visible { color: var(--ink); background: var(--chip); }
+.cp.done { color: var(--green); }
+.who .cp { margin-left: auto; }
+.who.mini .cp { margin-left: 0; }
+.me-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+/* hub notices: small and calm; an alert only gets an amber dot */
+.note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
+.note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
+.task .who, .handover .who { font-weight: 700; }
+.handover .who { color: var(--ink); }
 .handover { border: 1px solid var(--line); border-left: 4px solid var(--green); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .handover dl { margin: 6px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
 .handover dt { font-weight: 700; }
 .handover dd { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+.handover dd.md { white-space: normal; }
 .cards { display: grid; gap: 8px; margin-top: 10px; }
 .tcard { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 11px 13px; width: 100%; transition: background-color .15s, border-color .15s, transform .12s; }
 .tcard:hover { background: var(--sel); border-color: var(--faint); transform: translateY(-1px); }
@@ -272,7 +319,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* empty project chat */
 .hello { margin: auto; text-align: center; max-width: 560px; padding: 24px 8px; display: grid; gap: 14px; justify-items: center; }
 .hello h3 { margin: 0; font-size: 28px; line-height: 1.2; }
-.hello p { margin: 0; font-size: 17px; line-height: 1.5; color: var(--soft); }
+.hello p { margin: 0; font-size: 17px; line-height: 1.5; max-width: 44ch; }
+.empty { margin: auto; text-align: center; display: grid; gap: 6px; max-width: 40ch; padding: 24px 8px; font-size: 16px; line-height: 1.5; }
+.empty b { font-size: 18px; }
 .starters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* composer */
@@ -527,6 +576,7 @@ button.fchip:hover { border-color: var(--faint); }
 <div id="pop" class="pop hidden"></div>
 <div id="sheet" class="sheet hidden"><div class="sbox" id="sheetBox"></div></div>
 
+<script src="/ui/md.js"></script>
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
@@ -543,6 +593,9 @@ const STARTERS = [['Fix a bug', 'Fix this bug: '], ['Review a PR', 'Review the l
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+// Agents' text as safe mini markdown (ui/md.js); plain linked text if that file did not load.
+const MD = window.hubMd || null;
+const mdHtml = (s) => (MD ? MD.md(s) : `<p style="white-space:pre-wrap">${linkify(s)}</p>`);
 const clock = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
 const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h` : `${Math.round(ms / 86400e3)} d`;
 const until = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const ms = d - Date.now(); if (ms <= 0) return 'resets now'; const sameDay = d.toDateString() === new Date().toDateString(); return 'resets ' + (sameDay ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })); };
@@ -771,13 +824,21 @@ function thoughtHtml(m) {
   const a = acctOf(m.from);
   if (think.mode === 'hide' || !thoughtShown(a?.name || m.from)) return '';
   const open = think.mode === 'open' || openThoughts.has(m.id);
-  return `<details class="thought" data-tid="${m.id}"${open ? ' open' : ''}><summary>${av(a?.name, 's')}<b>${esc(m.from)}</b> thought <span class="when">${clock(m.at)}</span></summary><div class="text">${linkify(m.text)}</div></details>`;
+  return `<details class="thought" data-tid="${m.id}"${open ? ' open' : ''}><summary>${av(a?.name, 's')}<b>${esc(m.from)}</b> thought <span class="when">${clock(m.at)}</span></summary><div class="text md">${mdHtml(m.text)}</div></details>`;
 }
 $('feed').addEventListener('toggle', (e) => {
   const d = e.target; if (!d.matches?.('details.thought')) return;
   const id = Number(d.dataset.tid);
   if (d.open) openThoughts.add(id); else openThoughts.delete(id);
 }, true);
+// "Show more" on a long message; the open ones stay open across refreshes.
+const openMore = new Set();
+$('feed').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-more]'); if (!b || Date.now() - swiped < 400) return;
+  const id = Number(b.dataset.more);
+  if (openMore.has(id)) openMore.delete(id); else openMore.add(id);
+  renderFeed();
+});
 
 // ---------- sidebar ----------
 function threadRow(t) {
@@ -834,16 +895,57 @@ async function copyToClipboard(text) {
   let ok = false; try { ok = document.execCommand('copy'); } catch {}
   ta.remove(); return ok;
 }
+// Consecutive posts from one agent (note, progress, answer within 15 min) read as one group:
+// the later ones drop the avatar and name. prev/last-reply maps are rebuilt only when the list changes.
+const GROUP = new Set(['note', 'progress', 'answer']);
+let feedIx = { arr: null, n: 0, prev: new Map(), me: new Map() };
+function feedIndex() {
+  if (feedIx.arr === S.messages && feedIx.n === S.messages.length) return feedIx;
+  const prev = new Map(), me = new Map(), last = new Map();
+  for (const m of S.messages) {
+    if (m.kind === 'thinking') continue;
+    prev.set(m, last.get(m.thread) || null); last.set(m.thread, m);
+    if (m.from === 'XIAO') me.set(m.thread, m.at);
+  }
+  return (feedIx = { arr: S.messages, n: S.messages.length, prev, me });
+}
+function contOf(m) {
+  if (!GROUP.has(m.kind) || m.from === 'XIAO' || m.from === 'hub') return false;
+  const p = feedIndex().prev.get(m);
+  return !!p && p.from === m.from && GROUP.has(p.kind) && m.at - p.at < 15 * 60e3;
+}
+const answered = (m) => (feedIndex().me.get(m.thread) || 0) > m.at;
+// Message body; a long one shows its start and a Show more button.
+function bodyHtml(m, text) {
+  const short = MD && typeof m.id === 'number' ? MD.fold(text) : null;
+  if (short == null) return `<div class="text md">${mdHtml(text)}</div>`;
+  const open = openMore.has(m.id);
+  return `<div class="text md">${mdHtml(open ? text : short)}</div><button type="button" class="showmore" data-more="${m.id}" aria-expanded="${open}">${open ? 'Show less' : 'Show more'}</button>`;
+}
+const prCard = (p) => `<a class="prc" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><b>PR #${p.n}</b><span>${esc(p.repo)}</span><i>Open</i></a>`;
+// Empty views: a thread with nothing in it yet, and the first Project chat.
+function emptyHtml(t) {
+  return `<div class="empty"><b>No messages yet</b><span>${esc(t?.account || 'The agent')} will post updates here as it works.</span></div>`;
+}
+function helloHtml() {
+  return `<div class="hello">
+      <span class="stroll">${clawd('l wave')}</span>
+      <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
+      <h3>What should the team work on?</h3>
+      <p>Write a task below. The coordinator splits it into threads and gives each one to an account.</p>
+      ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
+    </div>`;
+}
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}">${esc(m.text)} · ${clock(m.at)}</div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} · ${clock(m.at)}</span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}</div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
-    return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd>${linkify(get('Done'))}</dd><dt>Next</dt><dd>${linkify(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
+    return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd class="md">${mdHtml(get('Done'))}</dd><dt>Next</dt><dd class="md">${mdHtml(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
   }
   if (m.kind === 'routed') {
     const cut = m.text.endsWith(')') ? m.text.lastIndexOf(' (#') : -1;
@@ -851,18 +953,25 @@ function msgHtml(m) {
     const ids = [...new Set([...tail.matchAll(/#(\d+)/g)].map((x) => Number(x[1])))];
     const cards = ids.map((id) => S.threads.find((t) => t.id === id)).filter(Boolean);
     const text = (cut >= 0 ? m.text.slice(0, cut) : m.text).replace(/^One thread$/, 'Started one thread.');
-    return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when} ${copyBtn(m, text)}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
+    return `<div class="row k-routed"><span class="av hub">C</span><div class="bubble bwide"><div class="who"><span class="av hub s in">C</span><b class="nm">Coordinator</b>${a ? `<span>via ${esc(a.name)}</span>` : ''}${when}${copyBtn(m, text)}</div>${bodyHtml(m, text)}${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
   }
-  const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
-  const text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
+  const kind = ['question', 'done', 'progress', 'answer', 'lesson'].includes(m.kind) ? m.kind : 'note';
+  const ans = m.kind === 'question' && answered(m);
+  const label = m.kind === 'question' ? (ans ? '<span class="label">Answered</span>' : '<span class="label q">Question for you</span>') : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
+  let text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
+  // A "done" shows its PR links as small cards; a link at the very end leaves the text.
+  const prs = m.kind === 'done' && MD ? MD.prLinks(text) : [];
+  if (prs.length) text = MD.withoutTrailingPr(text);
   const card = m.kind === 'question' && m.meta?.questions ? askHtml(m) : '';
-  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div>${card || `<div class="text">${linkify(text)}</div>`}${imgOf(m.meta)}</div></div>`;
+  const cont = contOf(m);
+  const head = cont ? `<div class="who mini" title="${esc(clock(m.at))}">${copyBtn(m)}</div>` : `<div class="who">${a ? av(a.name, 's in') : ''}<b class="nm">${esc(m.from)}</b>${label}${when}${copyBtn(m)}</div>`;
+  return `<div class="row k-${kind}${ans ? ' answered' : ''}${cont ? ' cont' : ''}">${cont ? '<span class="av-gap"></span>' : a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble${card ? ' bwide' : ''}">${head}${card || (text ? bodyHtml(m, text) : '')}${prs.map(prCard).join('')}${imgOf(m.meta)}</div></div>`;
 }
 // Tappable question card (an agent's ask_user). Picks live in askSel so the 3 s refresh keeps them.
 const askSel = {};
 function askHtml(m) {
   const done = S.messages.find((x) => x.from === 'XIAO' && x.replyTo === m.id);
-  if (done) return `<div class="text">${linkify(m.text)}</div><div class="ask-done">You answered: ${esc(done.text)}</div>`;
+  if (done) return `<div class="text md">${mdHtml(m.text)}</div><div class="ask-done">You answered: ${esc(done.text)}</div>`;
   const sel = (askSel[m.id] ||= {});
   const qs = m.meta.questions.map((q, qi) => {
     const mine = sel[qi] || (sel[qi] = { picks: [], other: '' });
@@ -907,7 +1016,7 @@ function hydrateImgs(root) {
 let openMsg = null;
 function swipeable(m, h) {
   if (!h || typeof m.id !== 'number' || m.pending) return h;
-  return `<div class="sw${openMsg === m.id ? ' open' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">⋯</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
+  return `<div class="sw${openMsg === m.id ? ' open' : ''}${contOf(m) ? ' cont' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">⋯</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
 }
 function setOpen(id) {
   openMsg = id;
@@ -977,9 +1086,10 @@ function msgItem(m, ctx) {
   if (live) return swipeable(m, msgHtml(m));
   const open = m.kind === 'thinking' && openThoughts.has(m.id);
   const c = msgMemo.get(m);
-  if (c && c.ctx === ctx && c.text === m.text && c.open === open) return c.h;
+  const cont = contOf(m);
+  if (c && c.ctx === ctx && c.text === m.text && c.open === open && c.cont === cont) return c.h;
   const h = swipeable(m, msgHtml(m));
-  msgMemo.set(m, { ctx, text: m.text, open, h });
+  msgMemo.set(m, { ctx, text: m.text, open, cont, h });
   return h;
 }
 function patchFeed(feed, items) {
@@ -1032,13 +1142,7 @@ function renderFeed() {
       <p>Goes straight to one agent. No coordinator, and nothing is added to Project chat. It becomes its own thread once you send.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-    if (!html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
-      <span class="stroll">${clawd('l wave')}</span>
-      <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
-      <h3>What should the team work on?</h3>
-      <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
-      ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
-    </div>`;
+    if (!html) html = sel ? emptyHtml(t) : helloHtml();
     items.push({ k: 'empty:' + sel, h: html });
   }
   // A different view starts from scratch; the same view keeps its nodes.
