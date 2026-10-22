@@ -547,8 +547,9 @@ let lessonKind = 'do';
 try { opts = { ...opts, ...JSON.parse(localStorage.getItem('hub-opts') || '{}') }; } catch {}
 const saveOpts = () => { try { localStorage.setItem('hub-opts', JSON.stringify(opts)); } catch {} };
 
-async function api(op, body) {
-  const res = await fetch(`/api/hub?op=${op}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+// timeout (ms): give up on a hung read so the Live dot can say so.
+async function api(op, body, timeout) {
+  const res = await fetch(`/api/hub?op=${op}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: timeout ? AbortSignal.timeout(timeout) : undefined });
   const j = await res.json().catch(() => ({}));
   // Only a wrong password asks again; anything else just retries.
   if (res.status === 401) { ls.del('hubpw'); showLogin(pw ? 'The hub password changed. Type the new one.' : ''); throw new Error('auth'); }
@@ -569,19 +570,36 @@ function setProject(name, owner) {
   for (const b of document.querySelectorAll('.brand b, #login h1')) b.lastChild.textContent = t;
 }
 const maxId = () => S.messages.reduce((x, m) => (typeof m.id === 'number' && m.id > x ? m.id : x), 0);
-// full: the whole recent window; otherwise only messages newer than the last one held.
+// What to ask for: only messages newer than the last one held, and only
+// threads changed since the newest held (a minute early, for clock drift
+// between servers). full: the whole recent window.
+const delta = (full) => {
+  const since = full ? 0 : maxId();
+  const tu = S.threads.reduce((x, t) => Math.max(x, t.updatedAt || 0), 0);
+  return since ? `&since=${since}` + (tu ? `&tu=${tu - 60_000}` : '') : '';
+};
 async function load(full) {
   const t0 = performance.now();
-  const since = full ? 0 : maxId();
-  const d = await api('state' + (since ? `&since=${since}` : ''));
+  if (!apply(await api('state' + delta(full)), t0)) await load(true);
+}
+// Merges a state read into S; false when a thread it names isn't held (read in full then).
+function apply(d, t0) {
   speed = { rtt: Math.round(performance.now() - t0), ms: d.ms || 0 };
+  let threads = d.threads;
+  if (d.threadIds) {
+    const byId = new Map([...S.threads, ...d.threads].map((t) => [t.id, t]));
+    if (d.threadIds.some((id) => !byId.has(id))) return false;
+    threads = d.threadIds.map((id) => byId.get(id));
+  }
+  if (d.seq !== seq) lastChange = Date.now();
+  lastOk = Date.now();
   const gone = new Set(d.deleted || []);
   const held = d.full ? [] : S.messages.filter((m) => !m.pending && !gone.has(m.id));
   const have = new Set(held.map((m) => m.id));
-  const ids = new Set(d.threads.map((t) => t.id));
+  const ids = new Set(threads.map((t) => t.id));
   // A message still sending stays until the hub has it.
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
-  S = { ...S, threads: d.threads, accounts: d.accounts, agents: d.agents || [], lessons: d.lessons || [], settings: d.settings, overhead: d.overhead, loading: false,
+  S = { ...S, threads, accounts: d.accounts, agents: d.agents || [], lessons: d.lessons || [], settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => m.pending || !m.thread || ids.has(m.thread)) };
   if (d.project) setProject(d.project, d.owner);
   // A removed account also leaves the saved picks on this device.
@@ -589,19 +607,59 @@ async function load(full) {
   if (opts.accounts.some((n) => !names.has(n))) { opts.accounts = opts.accounts.filter((n) => names.has(n)); saveOpts(); }
   seq = d.seq; render();
   ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) }));
+  return true;
 }
-async function poll() { const s = await api('seq'); if (s.seq !== seq) await load(false); }
-function setLive(ok) { $('live').textContent = ok ? 'Live' : 'Offline'; $('live').classList.toggle('off', !ok); }
+// One request per poll: the hub answers { same } when nothing changed since
+// the version held, else the new messages and current threads at once.
+async function poll() {
+  const t0 = performance.now();
+  const d = await api(`state&v=${encodeURIComponent(seq)}` + delta(false), null, 20_000);
+  if (d.same) speed = { ...speed, rtt: Math.round(performance.now() - t0) };
+  else if (!apply(d, t0)) await load(true);
+}
+// Each poll costs a function call and a store command on free tiers, so the
+// pace follows activity: every 3 s just after a change or a tap, then slower
+// while the hub is quiet. A hidden tab doesn't poll; showing it, focusing it
+// or coming back online checks at once.
+let lastChange = Date.now(), lastInput = Date.now(), lastOk = 0, fails = 0, timer = 0, polling = false, again = false;
+const busy = () => S.threads.some((t) => !t.archived && ['new', 'working', 'queued'].includes(t.status)) || (S.agents || []).some((g) => g.status === 'running');
+function pace() {
+  const quiet = Date.now() - Math.max(lastChange, lastInput);
+  return quiet < 60_000 ? 3000 : quiet < 5 * 60_000 ? 6000 : busy() ? 10_000 : 30_000;
+}
+// Live only while the last check succeeded and is recent (the slowest pace is
+// 30 s, so older means the page is behind, e.g. just shown again); the tooltip says when.
+function setLive(ok) {
+  const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
+  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
+  el.classList.toggle('off', !ok || stale);
+  el.title = lastOk ? `Checked ${new Date(lastOk).toLocaleTimeString()}` : '';
+}
 async function tick() {
+  clearTimeout(timer); timer = 0;
   if (document.hidden || !pw || $('app').classList.contains('hidden')) return;
-  try { await poll(); setLive(true); } catch (e) { if (e.message !== 'auth') setLive(false); }
+  // Asked again mid-poll (the hub may have changed after it read): one more right after.
+  if (polling) return void (again = true);
+  polling = true; again = false;
+  setLive(true);
+  try { await poll(); fails = 0; lastOk = Date.now(); setLive(true); }
+  catch (e) { if (e.message === 'auth') return; fails++; setLive(false); }
+  finally { polling = false; }
+  // After a failure: 3, 6, 12 … 60 s.
+  timer = setTimeout(tick, again ? 0 : fails ? Math.min(60_000, 3000 * 2 ** (fails - 1)) : pace());
 }
 // Usage is read from Claude in the background, so nothing waits on it.
-async function readUsage(force) { try { await api('usage' + (force ? '&force=1' : '')); await load(false); } catch {} }
-setInterval(tick, 3000);
+async function readUsage(force) {
+  // Polling doesn't wait for Claude's answer.
+  if (!timer && !polling) timer = setTimeout(tick, 3000);
+  try { await api('usage' + (force ? '&force=1' : '')); } catch {} tick(); }
 setInterval(() => { if (!document.hidden && (S.agents || []).some((g) => g.status === 'running')) renderTeam(); }, 15_000);
 setInterval(() => { if (!document.hidden && pw) readUsage(); }, 5 * 60_000);
 document.addEventListener('visibilitychange', tick);
+addEventListener('focus', tick);
+addEventListener('online', tick);
+// The first tap or key after a quiet spell checks at once.
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { const was = lastInput; lastInput = Date.now(); if (lastInput - was > 30_000) tick(); }, { passive: true, capture: true });
 
 // ---------- accounts and avatars ----------
 function assignColors() {

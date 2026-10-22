@@ -856,17 +856,18 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   // Everything the page shows, read in one round trip. With since, only
-  // messages newer than that id come back.
-  async function snapshot({ since = 0, limit = 600 } = {}) {
-    const [th, ac, fd, st, fi, tok, seq, rev, del, ag, gone, le, wk] = await store.multi([
+  // messages newer than that id come back; with threadsAfter too (an
+  // updatedAt the page holds), only threads changed since then, plus every
+  // thread id so the page can drop deleted ones.
+  async function snapshot({ since = 0, limit = 600, threadsAfter = 0 } = {}) {
+    const [th, ac, fd, st, fi, tok, [seq, rev], del, ag, gone, le, wk] = await store.multi([
       ['HGETALL', K.threads],
       ['HGETALL', K.accounts],
       ['LRANGE', K.feed, since ? -150 : -limit, -1],
       ['GET', K.settings],
       ['LRANGE', K.fires, 0, -1],
       ['GET', `hub:tok:${Math.floor(now() / FIVE_H)}`],
-      ['GET', K.seq],
-      ['GET', K.rev],
+      ['MGET', K.seq, K.rev],
       ['LRANGE', K.deleted, -200, -1],
       ['HGETALL', K.agents],
       ['HGETALL', K.gone],
@@ -877,13 +878,13 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     // An open page also checks for limits that have reset.
     if (t - (Number(wk) || 0) >= WAKE_EVERY_MS) {
       const w = await wake();
-      if (!w.skipped && (w.back?.length || w.resumed?.length || w.coordinator)) return snapshot({ since, limit });
+      if (!w.skipped && (w.back?.length || w.resumed?.length || w.coordinator)) return snapshot({ since, limit, threadsAfter });
     }
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
     // A stopped agent is noticed here; only then is a second read needed.
     if (ths.some((x) => x.status === 'working' && !x.archived && (t - (x.lastAgentAt || 0) >= STALL_MS || quietMembers(x, t).length))) {
       await sweep();
-      return snapshot({ since, limit });
+      return snapshot({ since, limit, threadsAfter });
     }
     let messages = (fd || []).map((x) => parse(x)).filter(Boolean);
     // Too far behind for the short read: send the full window instead.
@@ -896,7 +897,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     return {
       seq: `${Number(seq || 0)}.${Number(rev || 0)}`,
       full: !since,
-      threads: ths,
+      ...(since && threadsAfter ? { threads: ths.filter((x) => (x.updatedAt || 0) >= threadsAfter), threadIds: ths.map((x) => x.id) } : { threads: ths }),
       accounts: Object.values(live(ac, gone)).map((a) => publicAccount(a, ths)),
       messages,
       deleted: (del || []).map((x) => parse(x)?.id).filter(Boolean),
@@ -1384,9 +1385,10 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     threads, thread, post, feed, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, wake, tick, dispatch,
     lessons, learn, removeLesson, news, watchQuestion,
     start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
-    // What the page compares to know whether to fetch again.
+    // What the page compares to know whether to fetch again. One store
+    // command (MGET), since an open page asks for it on every poll.
     version: async () => {
-      const [seq, rev] = await store.multi([['GET', K.seq], ['GET', K.rev]]);
+      const [seq, rev] = await store.cmd('MGET', K.seq, K.rev);
       return `${Number(seq || 0)}.${Number(rev || 0)}`;
     },
   };

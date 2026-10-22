@@ -660,3 +660,56 @@ describe('cloud hub: usage reported by agents', () => {
     expect((await h.account('Probe')).usage).toBeNull();
   });
 });
+
+describe('cloud hub: cheap page polls', () => {
+  it('answers an unchanged poll with one store command and sends changes in the same request', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore, upstashStore } = await lib('store.js');
+    const inner = memoryStore();
+    let cmds = 0;
+    const store = { cmd: (...a: any[]) => (cmds++, inner.cmd(...a)), multi: (c: any[]) => ((cmds += c.length), inner.multi(c)) };
+    const h = createHub({ store, fetchImpl: fakeFetch, now: () => clock });
+    const t = await h.createThread({ title: 'poll', brief: 'x', model: 'sonnet' });
+    const get = (q: string) => pageApi({ hub: h, password: PW, method: 'GET', query: Object.fromEntries(new URLSearchParams(`op=state&${q}`)), body: {}, headers: { 'x-hub-password': PW } });
+    const first = (await get('')).body;
+    const since = first.messages.at(-1).id;
+    cmds = 0;
+    const same = await get(`v=${first.seq}&since=${since}`);
+    expect(same.body).toEqual({ same: true, seq: first.seq });
+    expect(cmds).toBe(1);
+    // A new message: the delta comes back at once, with the new version.
+    await h.post({ thread: t.id, from: 'Main', kind: 'progress', text: 'step two' });
+    const next = (await get(`v=${first.seq}&since=${since}`)).body;
+    expect(next.same).toBeUndefined();
+    expect(next.full).toBe(false);
+    expect(next.messages.map((m: any) => m.text)).toEqual(['step two']);
+    expect(next.seq).not.toBe(first.seq);
+    // Thread changes bump the version too, so a poll never misses them.
+    await h.updateThread(t.id, { archived: true });
+    const arch = (await get(`v=${next.seq}&since=${next.messages.at(-1).id}`)).body;
+    expect(arch.same).toBeUndefined();
+    expect(arch.threads.find((x: any) => x.id === t.id).archived).toBe(true);
+    // The old op=seq still answers the same version (pages opened before an update).
+    expect((await pageApi({ hub: h, password: PW, method: 'GET', query: { op: 'seq' }, body: {}, headers: { 'x-hub-password': PW } })).body.seq).toBe(arch.seq);
+    // Only threads changed since the page's newest updatedAt come back, with every id.
+    const u = await h.createThread({ title: 'other', brief: 'y', model: 'sonnet' });
+    const held = (await get('')).body;
+    const tu = Math.max(...held.threads.map((x: any) => x.updatedAt));
+    clock += 5000;
+    await h.updateThread(u.id, { status: 'done' });
+    const part = (await get(`v=${held.seq}&since=${held.messages.at(-1).id}&tu=${tu + 1}`)).body;
+    expect(part.threads.map((x: any) => x.id)).toEqual([u.id]);
+    expect(part.threadIds).toEqual([t.id, u.id]);
+    await h.deleteThread(u.id);
+    const del = (await get(`v=${part.seq}&since=${held.messages.at(-1).id}&tu=${clock + 1}`)).body;
+    expect(del.threads).toEqual([]);
+    expect(del.threadIds).toEqual([t.id]);
+    // A full read (no since) always sends every thread.
+    expect((await get(`tu=${clock + 1}`)).body.threadIds).toBeUndefined();
+    // Upstash gets MGET as one command.
+    const sent: any[] = [];
+    const up = upstashStore('https://kv.example', 't', async (_u: string, init: any) => (sent.push(JSON.parse(init.body)), new Response(JSON.stringify({ result: ['7', null] }))));
+    expect(await createHub({ store: up, fetchImpl: fakeFetch }).version()).toBe('7.0');
+    expect(sent).toEqual([['MGET', 'hub:seq', 'hub:rev']]);
+  });
+});
