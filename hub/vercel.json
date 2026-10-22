@@ -11,5 +11,25 @@
       "source": "/.well-known/:path*",
       "destination": "/api/wk?p=:path*"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)\\.(js|mjs|svg|png)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/(|.*\\.html)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }
