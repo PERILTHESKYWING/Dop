@@ -339,8 +339,8 @@ button.fchip:hover { border-color: var(--faint); }
 .stats b { font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stats b.ready { color: var(--green); } .stats b.low { color: var(--red); }
 .stats span { font-size: 14px; font-weight: 600; }
-.acards { display: grid; gap: 10px; padding: 0 12px; }
-.acard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--bg); display: grid; gap: 9px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); transition: border-color .15s, box-shadow .15s; }
+.acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0 12px; }
+.acard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); transition: border-color .15s, box-shadow .15s; }
 .acard:hover { box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .18); }
 .acard.low { border-color: var(--red); }
 .atop { display: flex; gap: 10px; align-items: center; min-width: 0; }
@@ -366,10 +366,10 @@ button.fchip:hover { border-color: var(--faint); }
 .track { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
 .fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .4s ease; }
 .fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
-.act { display: grid; gap: 2px; font-size: 14px; border-left: 3px solid var(--line); padding-left: 9px; }
+.act { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 14px; border-left: 3px solid var(--line); padding-left: 9px; }
 .act-top { display: flex; gap: 8px; justify-content: space-between; }
-.act .ttl { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.act small { color: var(--soft); font-size: 12px; }
+.act .ttl { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act small { color: var(--soft); font-size: 12px; flex: none; white-space: nowrap; }
 .act-last { color: var(--soft); line-height: 1.35; }
 .act.idle { color: var(--soft); border-left-color: transparent; padding-left: 0; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
@@ -406,6 +406,17 @@ button.fchip:hover { border-color: var(--faint); }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
 .tk small { color: var(--soft); font-size: 12px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
+/* team lessons */
+.lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
+.lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
+.trow .lsub { color: var(--soft); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.lk.do { background: var(--green); color: var(--on-green); }
+.lk.dont { background: var(--red); color: var(--bg); }
+.lempty { margin: 0; font-size: 15px; line-height: 1.45; }
+.lsheet { display: grid; gap: 10px; }
+.lby { display: flex; gap: 6px; align-items: center; font-size: 14px; margin-top: 4px; color: var(--soft); min-width: 0; }
+.lby span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* sheets */
 .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; z-index: 7; }
@@ -417,6 +428,7 @@ button.fchip:hover { border-color: var(--faint); }
 .routine { display: grid; grid-template-columns: 110px 1fr; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .routine input { min-width: 0; }
 .field { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 9px; background: var(--chip); border: 1px solid var(--line); justify-self: start; }
 .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 14px; font-weight: 600; color: var(--soft); }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
@@ -524,13 +536,14 @@ const ls = {
   del: (k) => { try { localStorage.removeItem(k); } catch {} },
 };
 let pw = ls.get('hubpw') || '';
-let S = { threads: [], accounts: [], messages: [], agents: [], settings: {}, overhead: {}, loading: true };
+let S = { threads: [], accounts: [], messages: [], agents: [], lessons: [], settings: {}, overhead: {}, loading: true };
 // Last view, so a reload paints at once and then catches up.
 try { const c = JSON.parse(ls.get('hub-cache') || 'null'); if (c && pw) S = { ...c, loading: false }; } catch {}
 // sel: 0 is Project chat, a thread id, or NEW_CHAT for a clean chat that has no thread yet.
 const NEW_CHAT = -1;
 let seq = '', sel = 0, drafts = {}, colors = {}, initials = {}, showArchived = false, tmp = 0, speed = { rtt: 0, ms: 0 };
 let opts = { model: '', thinking: 'medium', accounts: [], team: 1, direct: false };
+let lessonKind = 'do';
 try { opts = { ...opts, ...JSON.parse(localStorage.getItem('hub-opts') || '{}') }; } catch {}
 const saveOpts = () => { try { localStorage.setItem('hub-opts', JSON.stringify(opts)); } catch {} };
 
@@ -568,7 +581,7 @@ async function load(full) {
   const ids = new Set(d.threads.map((t) => t.id));
   // A message still sending stays until the hub has it.
   const sending = S.messages.filter((m) => m.pending && !d.messages.some((x) => x.from === 'XIAO' && x.text === m.text));
-  S = { ...S, threads: d.threads, accounts: d.accounts, agents: d.agents || [], settings: d.settings, overhead: d.overhead, loading: false,
+  S = { ...S, threads: d.threads, accounts: d.accounts, agents: d.agents || [], lessons: d.lessons || [], settings: d.settings, overhead: d.overhead, loading: false,
     messages: [...held, ...d.messages.filter((m) => !have.has(m.id)), ...sending].filter((m) => m.pending || !m.thread || ids.has(m.thread)) };
   if (d.project) setProject(d.project, d.owner);
   // A removed account also leaves the saved picks on this device.
@@ -713,6 +726,7 @@ function renderSide() {
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
   $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
+    + (S.accounts.length ? `<button class="trow" data-open="lessons"><span class="ttl">Team lessons · ${S.lessons.length}</span><span class="tsub"><span class="lsub">${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}</span></span></button>` : '')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group">${g[0]} · ${g[1].length}</div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${showArchived ? '▾' : '▸'} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   const need = live.filter((t) => t.status === 'waiting').length;
@@ -763,9 +777,10 @@ function msgHtml(m) {
     const text = (cut >= 0 ? m.text.slice(0, cut) : m.text).replace(/^One thread$/, 'Started one thread.');
     return `<div class="row"><span class="av hub">C</span><div class="bubble" style="flex:1"><div class="who">Coordinator${a ? ` <span style="font-weight:400;color:var(--soft)">via ${esc(a.name)}</span>` : ''} ${when} ${copyBtn(m, text)}</div><div class="text">${linkify(text)}</div>${cards.length ? `<div class="cards">${cards.map(threadCard).join('')}</div>` : ''}</div></div>`;
   }
-  const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : '';
+  const label = m.kind === 'question' ? '<span class="label q">Question for you</span>' : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
+  const text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
   const card = m.kind === 'question' && m.meta?.questions ? askHtml(m) : '';
-  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div>${card || `<div class="text">${linkify(m.text)}</div>`}${imgOf(m.meta)}</div></div>`;
+  return `<div class="row">${a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble" style="flex:1"><div class="who">${esc(m.from)} ${label} ${when} ${copyBtn(m)}</div>${card || `<div class="text">${linkify(text)}</div>`}${imgOf(m.meta)}</div></div>`;
 }
 // Tappable question card (an agent's ask_user). Picks live in askSel so the 3 s refresh keeps them.
 const askSel = {};
@@ -1210,7 +1225,19 @@ function renderTeam() {
   applyPanels();
 }
 
-function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); }
+// ---------- team lessons ----------
+const kindTag = (l) => `<span class="lk ${l.kind === 'dont' ? 'dont' : 'do'}">${l.kind === 'dont' ? 'Don\'t' : 'Do'}</span>`;
+function lessonRows() {
+  if (!S.lessons.length) return '<p class="lempty">No lessons yet.</p>';
+  return S.lessons.slice().reverse().map((l) => {
+    const th = l.thread && S.threads.find((t) => t.id === l.thread);
+    const who = l.by === 'XIAO' ? 'You' : l.by;
+    return `<div class="lrow">${kindTag(l)}<div><div class="lt">${linkify(l.text)}</div>${l.why ? `<div class="lt">Why: ${linkify(l.why)}</div>` : ''}<div class="lby">${l.by === 'XIAO' ? '' : av(l.by, 's')}<span>${esc(who)}${th ? ` in ${esc(th.title)}` : ''} · ${ago(Date.now() - l.at)}${ago(Date.now() - l.at) === 'just now' ? '' : ' ago'}</span></div></div><button class="btn small quiet" data-dellesson="${Number(l.id)}">Delete</button></div>`;
+  }).join('');
+}
+function fillLessons() { const el = $('lList'); if (el) el.innerHTML = lessonRows(); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
+
+function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); fillLessons(); }
 function setTab(tab) {
   const was = $('app').dataset.tab;
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab));
@@ -1393,6 +1420,16 @@ async function openSheet(kind, name) {
       <div class="sect">Or just tell the hub</div>
       <p>${a?.low ? `${esc(name)} is marked as running low, so new work goes to other accounts.` : `Running low marks ${esc(name)} as nearly out, so new work goes to other accounts.`}</p>
       <div class="acts"><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Usage is back' : 'Running low'}</button></div>`;
+  } else if (kind === 'lessons') {
+    html = `<h3>Team lessons</h3>
+      <p>A new lesson reaches every agent on its next hub call, and every new session starts with all of them. Yours win if two disagree.</p>
+      <label class="field">New lesson<textarea id="lText" rows="2" maxlength="280" placeholder="Something every account should know"></textarea></label>
+      <div class="acts"><button type="button" class="chip" data-lkind="do" aria-pressed="${lessonKind === 'do'}">Do</button><button type="button" class="chip" data-lkind="dont" aria-pressed="${lessonKind === 'dont'}">Don't</button></div>
+      <label class="field">Why (optional)<input id="lWhy" maxlength="200" autocomplete="off"></label>
+      <div class="err" id="lErr"></div>
+      <div class="acts"><button class="btn primary" data-addlesson>Add lesson</button><button class="btn" data-close>Close</button></div>
+      <div class="sect" id="lCount"></div>
+      <div class="lsheet" id="lList"></div>`;
   } else if (kind === 'settings') {
     const s = S.settings;
     html = `<h3>Settings</h3>
@@ -1415,6 +1452,7 @@ async function openSheet(kind, name) {
     }).catch((e) => { const el = $('connLog'); if (el) el.textContent = e.message; });
   }
   box.innerHTML = html; $('sheet').classList.remove('hidden');
+  fillLessons();
 }
 function routineRow(r) {
   return `<div class="routine"><select class="rModel">${MODELS.map((m) => `<option value="${m}" ${r.model === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>
@@ -1444,6 +1482,24 @@ $('sheetBox').addEventListener('click', async (e) => {
     const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--green)'; out.style.fontWeight = '600';
     out.textContent = 'New link made. The old one no longer works.';
     return;
+  }
+  if (t.closest('[data-lkind]')) { lessonKind = t.closest('[data-lkind]').dataset.lkind; document.querySelectorAll('[data-lkind]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lkind === lessonKind)); return; }
+  if (t.closest('[data-addlesson]')) {
+    const text = $('lText').value.trim(); if (!text) { $('lText').focus(); return; }
+    try {
+      const r = await api('lesson', { text, kind: lessonKind, why: $('lWhy').value.trim() });
+      $('lText').value = ''; $('lWhy').value = '';
+      $('lErr').textContent = r.known ? 'The team already has that lesson.' : '';
+      await load(false);
+    } catch (err) { if (err.message !== 'auth') $('lErr').textContent = err.message; }
+    return;
+  }
+  if (t.closest('[data-dellesson]')) {
+    if (!confirm('Delete this lesson? New sessions won\'t get it. Agents that already read it keep it until their session ends.')) return;
+    const id = Number(t.closest('[data-dellesson]').dataset.dellesson);
+    S.lessons = S.lessons.filter((l) => l.id !== id); render();
+    await api('lesson-delete', { id }).catch(() => {});
+    return load(false).catch(() => {});
   }
   if (t.closest('[data-addrow]')) return $('fRoutines').insertAdjacentHTML('beforeend', routineRow({ model: 'sonnet', id: '' }));
   if (t.closest('[data-remove]')) { if (confirm('Remove this account from the hub?')) { await api('account-remove', { name: t.dataset.remove }); closeSheet(); load(true); } return; }

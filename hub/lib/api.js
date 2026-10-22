@@ -88,6 +88,8 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     }
     if (op === 'account-usage') return { status: 200, body: hub.publicAccount(await hub.setUsage(String(body.name), body)) };
     if (op === 'connlog') return { status: 200, body: await hub.connLog() };
+    if (op === 'lesson') return { status: 200, body: await hub.learn({ text: body.text, kind: body.kind, why: body.why, by: 'XIAO' }) };
+    if (op === 'lesson-delete') return (await hub.removeLesson(Number(body.id))), { status: 200, body: { ok: true } };
     if (op === 'settings') return { status: 200, body: await hub.saveSettings(body) };
   } catch (e) {
     return { status: 400, body: { error: e.message } };

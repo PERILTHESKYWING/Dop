@@ -95,7 +95,7 @@ describe('cloud hub', () => {
     const init = await mcp('A', 'initialize', { protocolVersion: '2025-06-18' });
     expect(init.body.result.serverInfo.name).toBe('dop-hub');
     const list = await mcp('A', 'tools/list');
-    expect(list.body.result.tools.length).toBe(34); // + lib_watch, studio_new, studio_rules
+    expect(list.body.result.tools.length).toBe(36); // + lib_watch, studio_new, studio_rules, hub_sync, hub_learn
 
     const brief = await tool('A', 'hub_start', { payload: JSON.stringify(last().payload) });
     expect(brief).toContain('You are the coordinator');
@@ -158,6 +158,60 @@ describe('cloud hub', () => {
     const q = (await hub.feed()).filter((m: any) => m.kind === 'question').at(-1);
     await tool('A', 'hub_post', { thread: slider.id, kind: 'answer', reply_to: q.id, text: 'PR #60' });
     expect(await asking).toContain('PR #60');
+  }, 15_000);
+
+  it('shares what one agent learns with every other agent on its next hub call', async () => {
+    const t1 = await hub.createThread({ title: 'Lessons one', brief: 'a', model: 'sonnet' });
+    const t2 = await hub.createThread({ title: 'Lessons two', brief: 'b', model: 'sonnet' });
+    const start = (who: string, id: number) => tool(who, 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: id }) });
+    expect(await start('A', t1.id)).toContain('Team lessons: none yet.');
+    await start('B', t2.id);
+    expect(await tool('A', 'hub_learn', { thread: t1.id, kind: 'dont', lesson: 'Run vitest with --watch in CI', why: 'it never exits' })).toMatch(/^Saved as L\d+/);
+    // B gets it with its very next call, whatever that call is.
+    const r = await tool('B', 'hub_post', { thread: t2.id, kind: 'progress', text: 'half way' });
+    expect(r).toContain('New team lessons');
+    expect(r).toContain("Don't: Run vitest with --watch in CI (why: it never exits)");
+    // Once only, and never back to the agent that wrote it.
+    expect(await tool('B', 'hub_sync', { thread: t2.id })).toBe('Nothing new.');
+    expect(await tool('A', 'hub_sync', { thread: t1.id })).toBe('Nothing new.');
+    expect((await hub.feed()).some((m: any) => m.thread === t1.id && m.kind === 'lesson')).toBe(true);
+    // Duplicates are ignored, keys are refused, and new sessions start with every lesson.
+    expect(await tool('B', 'hub_learn', { thread: t2.id, kind: 'dont', lesson: 'run vitest with --watch in CI!' })).toMatch(/^Already known as L\d+/);
+    expect(await tool('B', 'hub_learn', { thread: t2.id, kind: 'do', lesson: 'Use the token sk-ant-oat01-abc' })).toContain('looks like a key');
+    expect(await start('B', t1.id)).toContain("Don't: Run vitest with --watch in CI");
+    // XIAO's lessons come from the page, reach running agents and the coordinator, and can be deleted.
+    const mine = (await page('lesson', { text: 'Mark PRs ready, not draft', kind: 'do' })).body.lesson;
+    expect((await page('state')).body.lessons.map((l: any) => l.text)).toContain('Mark PRs ready, not draft');
+    expect(await tool('A', 'hub_sync', { thread: t1.id })).toContain(`L${mine.id} [XIAO] Do: Mark PRs ready, not draft`);
+    const coord = await tool('B', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'coordinator', prompt: 0 }) });
+    expect(coord).toContain("XIAO's rules");
+    expect(coord).toContain('Mark PRs ready');
+    expect(coord).not.toContain('Run vitest');
+    await page('lesson-delete', { id: mine.id });
+    expect((await page('state')).body.lessons.some((l: any) => l.id === mine.id)).toBe(false);
+  });
+
+  it('brings replies and answers with the next hub call, and wakes a waiting agent at once', async () => {
+    const t1 = (await hub.threads()).find((x: any) => x.title === 'Lessons one');
+    const t2 = (await hub.threads()).find((x: any) => x.title === 'Lessons two');
+    await tool('A', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: t1.id }) });
+    await tool('B', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: t2.id }) });
+    // XIAO's reply rides along on the agent's next hub call.
+    await page('prompt', { text: 'Use the blue icon', thread: t1.id });
+    expect(await tool('A', 'hub_checkpoint', { thread: t1.id, done: 'icon picked', next: 'commit' })).toContain('XIAO prompt: Use the blue icon');
+    // A question nobody answers in time: the answer reaches the asker later.
+    expect(await tool('A', 'hub_ask', { from_thread: t1.id, to_thread: t2.id, question: 'Which icon file?', wait_s: 1 })).toContain('No answer');
+    const q = (await hub.feed()).filter((m: any) => m.kind === 'question').at(-1);
+    expect(await tool('B', 'hub_sync', { thread: t2.id })).toContain('Which icon file?');
+    await tool('B', 'hub_post', { thread: t2.id, kind: 'answer', reply_to: q.id, text: 'public/icon.svg' });
+    expect(await tool('A', 'hub_sync', { thread: t1.id })).toContain('public/icon.svg');
+    expect(await tool('A', 'hub_sync', { thread: t1.id })).toBe('Nothing new.');
+    // A waiting agent wakes as soon as something arrives.
+    const t0 = Date.now();
+    const waiting = tool('B', 'hub_wait', { thread: t2.id, wait_s: 10 });
+    setTimeout(() => page('prompt', { text: 'Ship it', thread: t2.id }), 300);
+    expect(await waiting).toContain('Ship it');
+    expect(Date.now() - t0).toBeLessThan(2500);
   }, 15_000);
 
   it('moves new work away from an account that is low on usage', async () => {
@@ -421,6 +475,7 @@ describe('cloud hub: usage per account', () => {
     const msg = (await hub.feed()).find((m: any) => m.id === id);
     expect(msg.kind).toBe('thinking');
     expect((await hub.thread(t.id)).status).toBe(before);
+    await tool('B', 'hub_sync', { thread: t.id }); // a first call also brings the team lessons
     expect(await tool('B', 'hub_wait', { thread: t.id, after: id - 1, wait_s: 0 })).toBe('No new messages.');
     const brief = await tool('B', 'hub_start', { payload: JSON.stringify({ hub: 'dop', role: 'worker', thread: t.id }) });
     expect(brief).not.toContain('Debounce beats throttle');
