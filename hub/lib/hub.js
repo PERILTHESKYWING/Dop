@@ -118,8 +118,11 @@ return id`,
     return id;
   },
 );
-// What one agent hasn't seen: its marker, the counters, and only the reads
-// they call for (new lessons, the new end of the feed). ARGV: marker field, after.
+// What one agent hasn't seen, claimed in the same command so two calls in
+// parallel never both deliver it: the marker (KEYS[1] field ARGV[1]), the
+// counters, the questions it watches (their own set, KEYS[6], so no marker
+// write can drop one), and only the reads they call for. The marker moves to
+// the newest counters at once (never back). ARGV[2]: read from this seq instead.
 const NEWS_READ = defineScript(
   `local raw = redis.call('HGET', KEYS[1], ARGV[1])
 local L = tonumber(redis.call('GET', KEYS[2]) or '0') or 0
@@ -129,12 +132,16 @@ if raw then
   l = tonumber(string.match(raw, '"l":(%d+)') or '0') or 0
   m = tonumber(string.match(raw, '"m":(%d+)') or M) or M
 end
+if (not raw) or L > l or M > m then
+  local oldq = raw and string.match(raw, '"q":(%[[%d,]*%])') or '[]'
+  redis.call('HSET', KEYS[1], ARGV[1], '{"l":' .. math.max(L, l) .. ',"m":' .. math.max(M, m) .. ',"q":' .. oldq .. '}')
+end
 if ARGV[2] ~= '' then m = tonumber(ARGV[2]) end
 local les, fd = false, false
 if L > l then les = redis.call('HGETALL', KEYS[4]) end
 if M > m then fd = redis.call('LRANGE', KEYS[5], -math.min(400, M - m), -1) end
-return {raw, tostring(L), tostring(M), les, fd}`,
-  (call, [seenK, lsK, seqK, lesK, feedK], [field, after]) => {
+return {raw, tostring(L), tostring(M), les, fd, redis.call('SMEMBERS', KEYS[6])}`,
+  (call, [seenK, lsK, seqK, lesK, feedK, qK], [field, after]) => {
     const raw = call('HGET', seenK, field);
     const L = Number(call('GET', lsK) || 0);
     const M = Number(call('GET', seqK) || 0);
@@ -144,8 +151,12 @@ return {raw, tostring(L), tostring(M), les, fd}`,
       l = Number(/"l":(\d+)/.exec(raw)?.[1] || 0);
       m = Number(/"m":(\d+)/.exec(raw)?.[1] ?? M);
     }
+    if (!raw || L > l || M > m) {
+      const oldq = (raw && /"q":(\[[\d,]*\])/.exec(raw)?.[1]) || '[]';
+      call('HSET', seenK, field, `{"l":${Math.max(L, l)},"m":${Math.max(M, m)},"q":${oldq}}`);
+    }
     if (after !== '') m = Number(after);
-    return [raw, String(L), String(M), L > l ? call('HGETALL', lesK) : null, M > m ? call('LRANGE', feedK, -Math.min(400, M - m), -1) : null];
+    return [raw, String(L), String(M), L > l ? call('HGETALL', lesK) : null, M > m ? call('LRANGE', feedK, -Math.min(400, M - m), -1) : null, call('SMEMBERS', qK)];
   },
 );
 // Everything the page shows, in one command; only the version when the page
@@ -190,15 +201,6 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // agents and the page read change; stored messages keep from: 'XIAO'.
   const slug = project.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'hub';
   const mem = memoOf(store);
-  // Writes that can wait for this request's last store call (connection log,
-  // news markers). flush() sends them; countTraffic sends them with its own.
-  const pending = [];
-  const marks = new Map(); // news markers written this request, not yet flushed
-  async function flush(extra = []) {
-    const cmds = [...pending.splice(0), ...extra];
-    marks.clear();
-    return cmds.length ? store.multi(cmds) : [];
-  }
 
   async function nextId() {
     return Number(await store.cmd('INCR', K.seq));
@@ -217,7 +219,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   async function saveSettings(patch) {
-    const s = await settings();
+    // Fresh from the store: the change is compared with what is really saved.
+    const s = cacheSettings(await store.cmd('GET', K.settings));
     const out = { ...s };
     if (MODELS.includes(patch.coordinatorModel)) out.coordinatorModel = patch.coordinatorModel;
     if (typeof patch.coordinatorAccount === 'string') out.coordinatorAccount = clean(patch.coordinatorAccount, 24);
@@ -681,11 +684,11 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   // Connection log: what each connector request looked like, to debug claude.ai setup.
-  // later: send it with the request's last store call (see flush).
-  async function logConn(entry, { later = false } = {}) {
-    const cmds = [['RPUSH', K.conn, json({ at: now(), ...entry })], ['LTRIM', K.conn, -40, -1]];
-    if (later) pending.push(...cmds);
-    else await store.multi(cmds);
+  async function logConn(entry) {
+    await store.multi([
+      ['RPUSH', K.conn, json({ at: now(), ...entry })],
+      ['LTRIM', K.conn, -40, -1],
+    ]);
   }
   async function connLog() {
     return (await store.cmd('LRANGE', K.conn, 0, -1)).map((s) => parse(s)).filter(Boolean).reverse();
@@ -709,7 +712,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
 
   async function countTraffic(chars) {
     const key = `hub:tok:${Math.floor(now() / FIVE_H)}`;
-    await flush([['INCRBY', key, Math.ceil(chars / 4)]]);
+    await store.cmd('INCRBY', key, Math.ceil(chars / 4));
   }
 
   // ---------- starting cloud sessions ----------
@@ -1255,17 +1258,18 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // hub call it makes can carry what is new: messages in its thread from
   // others, answers to questions it asked elsewhere, and new team lessons.
   const seenKey = (agent, tid) => `${agent.name}|${Number(tid) || 0}`;
+  // Questions an agent waits on live in a set of their own, added and
+  // removed one by one, so parallel calls never overwrite each other's.
+  const watchKey = (field) => `${K.seen}:q:${field}`;
   async function resetSeen(agent, tid) {
     const [ls, ms] = await store.multi([['GET', K.lessonSeq], ['GET', K.seq]]);
-    marks.delete(seenKey(agent, tid));
-    await store.cmd('HSET', K.seen, seenKey(agent, tid), json({ l: Number(ls || 0), m: Number(ms || 0), q: [] }));
+    const field = seenKey(agent, tid);
+    await store.multi([['HSET', K.seen, field, json({ l: Number(ls || 0), m: Number(ms || 0), q: [] })], ['DEL', watchKey(field)]]);
   }
   async function watchQuestion(agent, tid, qid) {
     const field = seenKey(agent, tid);
-    const mark = parse(marks.get(field) ?? (await store.cmd('HGET', K.seen, field))) || { l: 0, m: Number(qid), q: [] };
-    marks.delete(field);
-    mark.q = [...new Set([...(mark.q || []), Number(qid)])].slice(-20);
-    await store.cmd('HSET', K.seen, field, json(mark));
+    // First contact: the marker starts at the question, so its answer is read.
+    await store.multi([['HSETNX', K.seen, field, json({ l: 0, m: Number(qid), q: [] })], ['SADD', watchKey(field), String(Number(qid))]]);
   }
   // XIAO can answer a question with a plain reply to it.
   const isAnswer = (m) => m.kind === 'answer' || (m.kind === 'prompt' && m.from === 'XIAO');
@@ -1275,29 +1279,25 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     tid = Number(tid) || 0;
     const field = seenKey(agent, tid);
     const aft = after != null && after !== '' && Number.isFinite(Number(after)) ? String(Number(after)) : '';
-    // One command: the marker, the counters and only the reads they call for.
-    // A marker this request already moved (not flushed yet) wins over the store's.
-    const known = marks.get(field);
-    const [stored, ls, ms, les, fd] = await store.cmd(...evalCmd(NEWS_READ, [K.seen, K.lessonSeq, K.seq, K.lessons, K.feed], [field, aft || (known ? String(parse(known)?.m ?? '') : '')]));
-    const raw = known ?? stored;
+    // One command reads and claims it (see NEWS_READ).
+    const [raw, ls, ms, les, fd, watched] = await store.cmd(...evalCmd(NEWS_READ, [K.seen, K.lessonSeq, K.seq, K.lessons, K.feed, watchKey(field)], [field, aft]));
     const L = Number(ls || 0);
     const M = Number(ms || 0);
     // First contact (no hub_start): no old messages, but every lesson.
-    const mark = { l: 0, m: M, q: [], ...parse(raw, {}) };
+    const mark = { l: 0, m: M, ...parse(raw, {}) };
+    // Watched questions: the set, plus any an older marker still lists.
+    mark.q = [...new Set([...(Array.isArray(mark.q) ? mark.q : []), ...(watched || [])].map(Number))];
     if (aft) mark.m = Number(aft);
     if (L <= mark.l && M <= mark.m) return { text: '', seq: M };
-    // The script read the lessons by the store's marker; one held here may need them too.
-    const out = [L > mark.l ? les || (await store.cmd('HGETALL', K.lessons)) : null, M > mark.m ? fd || (await store.cmd('LRANGE', K.feed, -Math.min(400, M - mark.m), -1)) : null];
+    const out = [L > mark.l ? les || [] : null, M > mark.m ? fd || [] : null];
     const fresh = L > mark.l ? Object.values(hashToObj(out.shift())).filter((l) => l.id > mark.l && !(l.by === agent.name && l.thread === tid)).sort((a, b) => a.id - b.id) : [];
     // Thinking notes are for the page only; lessons arrive as lessons.
     const mine = (m) => tid && m.thread === tid && m.from !== agent.name && !['lesson', 'thinking'].includes(m.kind) && !(m.from === 'hub' && m.kind === 'start');
     if (L <= mark.l) out.shift();
     const msgs = M > mark.m ? (out.shift() || []).map((x) => parse(x)).filter((m) => m && m.id > mark.m && (mine(m) || (isAnswer(m) && mark.q.includes(m.replyTo)))) : [];
-    const q = mark.q.filter((id) => !msgs.some((m) => isAnswer(m) && m.replyTo === id));
-    // Saved with this request's last store call (flush / countTraffic).
-    const next = json({ l: L, m: M, q });
-    marks.set(field, next);
-    pending.push(['HSET', K.seen, field, next]);
+    // Answered questions stop being watched (the marker already moved past them).
+    const answered = mark.q.filter((id) => msgs.some((m) => isAnswer(m) && m.replyTo === id));
+    if (answered.length) await store.cmd('SREM', watchKey(field), ...answered.map(String));
     const parts = [];
     if (msgs.length) parts.push(`New messages for you:\n${msgs.slice(-12).map(msgLine).join('\n')}${msgs.length > 12 ? `\n(${msgs.length - 12} older ones: hub_read(${tid}))` : ''}`);
     if (fresh.length) parts.push(`New team lessons:\n${fresh.map(lessonLine).join('\n')}`);
@@ -1686,7 +1686,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     logConn, connLog,
     threads, thread, post, feed, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, wake, wakeIfDue, tick, dispatch,
     lessons, learn, removeLesson, news, watchQuestion,
-    flush, start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
+    start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again. One store
     // command (MGET), since an open page asks for it on every poll.
     version: async () => {
