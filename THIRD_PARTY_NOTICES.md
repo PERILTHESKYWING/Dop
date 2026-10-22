@@ -36,7 +36,7 @@ blocked, and it is the default on the CPU.
 Bundled from the `@fontsource` / `@fontsource-variable` npm packages. The full licence texts ship in `public/licenses/`.
 
 - **Archivo** (Dop), Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
-- **Alegreya Sans** (Kiai), Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans). Kiai's loading screen also carries "Kiai" and one line of text in it as outlines (`kami/src/ui/brand/glyphs.ts`).
+- **Alegreya Sans** (Kiai, Dop hub), Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans). Kiai's loading screen also carries "Kiai" and one line of text in it as outlines (`kami/src/ui/brand/glyphs.ts`).
 - **Yuji Syuku** (Kiai), Copyright 2021 The Yuji Project Authors (https://github.com/Kinutafontfactory/Yuji). Not shipped as a font: the outlines of 気 and 合 are taken from it for the 気合 calligraphy and the seal (`kami/src/ui/brand/glyphs.ts`, made by `tools/brand/kiai_brush.py`), which the OFL allows for artwork.
 
 ### Artwork (original, no third-party images)
@@ -101,6 +101,7 @@ first use and caches them locally.
   export optimum and optimum-onnx (Apache 2.0), ONNX and onnx-ir (Apache 2.0) and ONNX Runtime (MIT). The
   optional writing judge sends answers to Google's Gemini API under the user's own key.
 - The **Dop hub** (`hub/`) uses icons from **Lucide** (ISC, plus MIT for the Feather-derived ones); the licence text is in `hub/THIRD_PARTY_NOTICES.md`.
+- The **Dop hub** (`hub/`) self-hosts the **Alegreya Sans** font (SIL OFL 1.1) in `hub/fonts/`; the licence text is in `hub/THIRD_PARTY_NOTICES.md`.
 
 ## Demo data
 
