@@ -34,9 +34,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Buttons match the hub's .btn: 8 px radius, 600 weight, flat. 44 px tall so they are easy to tap.
    One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: background-color .15s, border-color .15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: transform .12s ease-out; }
 .btn:hover { background: var(--sel); }
-.btn:active { transform: translateY(1px); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
 .btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
 .btn.ok { color: var(--green); border-color: var(--green); }
@@ -135,6 +134,10 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 input[type=file]::file-selector-button { font: inherit; font-weight: 600; color: var(--ink); border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 0 14px; min-height: 44px; margin-right: 10px; cursor: pointer; }
 input[type=file]::file-selector-button:hover { background: var(--sel); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* press: instant on touch-down, eases back on release */
+button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.btn:active:not(:disabled), .scenes button:active, .tabs button:active, .top .back:active { transform: translateY(1px); transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
 </style>
 </head>
 <body>

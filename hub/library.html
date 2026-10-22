@@ -31,7 +31,7 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
-.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; transition: transform .12s ease-out; }
 .btn:hover { background: var(--sel); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: transparent; font-weight: 600; }
 .btn.go:hover { filter: brightness(1.08); }
@@ -70,6 +70,10 @@ dialog input[type=text], dialog select { width: 100%; }
 .toast:empty { display: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 @media (max-width: 600px) { .top { padding-left: 10px; padding-right: 10px; } .top h1 { font-size: 24px; } .top .sub { display: none; } .tabs { padding: 4px 10px 0; } .tabs button { flex: 1; padding: 10px 6px; } .pane { padding: 12px 12px 32px; } }
+/* press: instant on touch-down, eases back on release */
+button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.btn:active:not(:disabled), .tabs button:active { transform: translateY(1px); transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
 </style>
 </head>
 <body>
