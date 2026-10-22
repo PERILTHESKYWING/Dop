@@ -715,7 +715,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .side, .team { border: 0; }
   .back { display: inline-flex; }
   .head > .avs, .wide { display: none; }
-  .head h2 { flex-basis: 0; }
+  /* Title gets the first row next to Threads; status and actions wrap under it. */
+  .head { row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .head h2 { flex: 1 1 calc(100% - 120px); }
   .head, .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .compose { padding: 0 max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .app { height: var(--vvh, 100dvh); }

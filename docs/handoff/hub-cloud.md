@@ -89,3 +89,16 @@ To put a helper to work, open a chat on it and type: **check the Dop hub**. It d
 - Gotcha: a skipped build shows as canceled or ignored on the PR, which is expected. A docs-only commit never redeploys production; the next code push does.
 - Threads push once, when done (CLAUDE.md and dop-ship-pr).
 
+
+## Page code map (hub UI pass, 2026-10-22, PRs #102-#113)
+- Look: default is "Kaya" (honey sidebar and headers, cream middle, black-stone main buttons, white stones in dark, Alegreya Sans self-hosted in `hub/fonts`, 6 px radius, 2 px bottom edge on pressable things). Tokens and one marked component block sit at the top of each page's CSS; change colours there. With a Look › Background picture the sidebar goes back to frosted glass. The studio still loads Patrick Hand because `studio/render.js` draws captions in it.
+- Icons: `hub/ui/icons.js` is the only source (Lucide, ISC, some Feather-derived MIT; both texts in `hub/THIRD_PARTY_NOTICES.md`). Add a path to `P`, then `icon('name', size)` in JS or `<i data-ico="name" data-size="16">` in HTML. `dev.mjs` serves `/ui/*.js`; Vercel serves it with no config.
+- Feed: agent text goes through `hub/ui/md.js` (escape first, then mini markdown, http(s) links only; tests in `tests/hub-md.test.ts`). The feed is patched by item key (`patchFeed`) and `msgHtml` output is cached per message in `msgItem`: if `msgHtml` reads new outside state, add it to `feedCtx()` or the memo key. A thread draws its newest 100 messages; "Show earlier messages" adds 100 (`feedEarly`).
+- Polling: the page asks `op=state&v=<seq>&since=<id>&tu=<updatedAt>`; an unchanged poll is 1 Upstash command. Pace 3 s → 6 s → 10 s (work running) / 30 s (none), paused while hidden, refreshed on focus. Every thread write must go through `putThread` (sets `updatedAt`) or open pages miss it. The 5-min usage read (~32 commands) is now the biggest per-tab cost.
+- Compose and sheets: only changed picks show as chips; the Options popup (`openPop('opts')`) holds all of them. Drafts in localStorage `hub-drafts`, send state in `sendSt[sel]`. Sheets use `sHead()` / `sFoot()` / `fld()` / `fieldErr()`.
+- Threads and team: rows are one line (`.trow.t1`); the filter box `#tFind` shows from 8 threads. Amber means only "Needs you". Team cards keep rare actions in a ⋯ menu (`openPop('amenu:<name>')`, `acctMenu`).
+- Phone: sizing, safe-area and keyboard rules are in the `@media (max-width: 860px)` block and the `visualViewport` listener (`html.kb` while the keyboard is open). `hub/manifest.webmanifest` is the home-screen manifest.
+- Library: files carry a small `thumb` piece (`hasThumb`, made at upload or once via `lib-thumb`), cached in the Cache API. Page op `skill-list` has no texts; `skill-get&name=` reads one. Tabs refetch on switch or focus only after 30 s.
+- Studio page: tabs are keyboard-navigable (`openTab`); `drawCast()` runs only while the Cast tab is open.
+- Caching: `hub/vercel.json` caches js/mjs/svg/png/woff2 for 5 min with stale-while-revalidate (files are not hashed); html is `no-cache`.
+- Class names already taken: `.wide` (hidden on phones), `.fill` (usage bars), `.more` (header ⋯). Pick new names for new parts.
