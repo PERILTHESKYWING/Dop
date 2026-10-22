@@ -100,6 +100,7 @@ first use and caches them locally.
   peft, trl, accelerate, datasets, tokenizers, safetensors and huggingface_hub (Apache 2.0), and for the
   export optimum and optimum-onnx (Apache 2.0), ONNX and onnx-ir (Apache 2.0) and ONNX Runtime (MIT). The
   optional writing judge sends answers to Google's Gemini API under the user's own key.
+- The **Dop hub** (`hub/`) uses icons from **Lucide** (ISC, plus MIT for the Feather-derived ones); the licence text is in `hub/THIRD_PARTY_NOTICES.md`.
 
 ## Demo data
 

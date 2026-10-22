@@ -140,23 +140,23 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
 <body>
 <div id="app" hidden>
   <header class="top">
-    <a class="back" href="/" title="Back to the hub">‹ Hub</a>
+    <a class="back" href="/" title="Back to the hub"><i data-ico="chevron-left" data-size="16"></i>Hub</a>
     <h1>Storytime studio</h1>
     <select id="pick" aria-label="Story" title="Pick a story"></select>
-    <button class="btn go" id="newBtn" type="button"><span class="ic" aria-hidden="true">+</span>New story</button>
+    <button class="btn go" id="newBtn" type="button"><i data-ico="plus" data-size="16"></i>New story</button>
   </header>
   <div class="wrap">
     <section class="card stage" aria-label="Preview">
       <div class="screen" id="screen"><canvas id="cv" aria-label="Animation preview" role="img"></canvas><span class="badge" id="badge"></span></div>
       <div class="controls">
         <div class="bar">
-          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)">▶</button>
+          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)"><i data-ico="play" data-size="18"></i></button>
           <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Time">
           <span class="time" id="time">0.0 / 0.0 s</span>
         </div>
         <div class="group">
           <button class="btn seg" id="voiceBtn" type="button" aria-pressed="false" title="Read narration and lines aloud while playing (your device's voice; not in the saved video)">Read aloud</button>
-          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><span class="ic" aria-hidden="true">⤓</span>Save video</button>
+          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><i data-ico="download" data-size="16"></i>Save video</button>
         </div>
       </div>
       <div class="scenes" id="scenes"></div>
@@ -183,8 +183,8 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
           <div class="split">
             <div class="row" role="group" aria-label="Rate this version">
               <span class="lbl">This version:</span>
-              <button class="btn" id="rateGood" type="button" title="This version works"><span class="ic" aria-hidden="true">👍</span>Good</button>
-              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><span class="ic" aria-hidden="true">👎</span>Not yet</button>
+              <button class="btn" id="rateGood" type="button" title="This version works"><i data-ico="thumbs-up" data-size="16"></i>Good</button>
+              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><i data-ico="thumbs-down" data-size="16"></i>Not yet</button>
             </div>
           </div>
           <div class="split" id="fullBox" hidden>
@@ -235,7 +235,7 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
 
 <dialog id="newDlg">
   <form method="dialog" id="newForm">
-    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close">✕</button></div>
+    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close"><i data-ico="x" data-size="18"></i></button></div>
     <p class="hint" style="margin-top:0">Your Claude team writes a short sample first. You review it, give feedback, then ask for the full video.</p>
     <label for="newIdea">What's the story?</label>
     <textarea id="newIdea" required placeholder="e.g. The time my little brother convinced me our cat could talk."></textarea>
@@ -261,6 +261,7 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
 </dialog>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="ui/icons.js"></script>
 <script type="module">
 import { validateProject, normalizeStyle, SAMPLE_PROJECT, STYLE_RANGES, DEFAULT_STYLE } from './studio/schema.js';
 import { FIRST_VIDEO } from './studio/first-video.js';
@@ -361,7 +362,7 @@ function setPlaying(on) {
   playing = on;
   playFrom = t;
   playAt = performance.now();
-  $('playBtn').textContent = on ? '❚❚' : '▶';
+  $('playBtn').innerHTML = icon(on ? 'pause' : 'play', 18);
   $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play');
   $('playBtn').title = on ? 'Pause (space)' : 'Play (space)';
   if (!on) { speech.cancel(); spoken.clear(); }
@@ -559,7 +560,7 @@ function updateButtons() {
 function renderNotes() {
   const items = [
     ...S.notes.map((n) => ({ at: n.at, who: n.by || 'team', text: n.text, me: false })),
-    ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? '👍' : '👎'} rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
+    ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? 'Good' : 'Not yet'}, rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
   ].sort((a, b) => a.at - b.at);
   $('notes').innerHTML = items.length ? items.map((n) => `<div class="note${n.me ? ' me' : ''}"><small>${esc(n.who)} · ${ago(n.at)}</small>${esc(n.text)}</div>`).join('') : '<p class="empty">No notes yet. The director and critic write here as they work.</p>';
   $('notes').scrollTop = $('notes').scrollHeight;
@@ -804,7 +805,7 @@ $('exportBtn').onclick = async () => {
   const name = `${(P.title || 'story').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'story'}.${ext}`;
   const url = URL.createObjectURL(blob);
   out.innerHTML = `Video ready: <a href="${url}" download="${name}">${esc(name)}</a> (${(blob.size / 1048576).toFixed(1)} MB, captions, no sound; add a voice in any editor).`;
-  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = '<span class="ic" aria-hidden="true">⤓</span>Save video';
+  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = icon('download', 16) + 'Save video';
 };
 
 // ---------- start ----------
