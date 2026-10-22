@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEvent } from './lib/useEvent';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { untilAborted } from './lib/untilAborted';
@@ -9,12 +10,12 @@ import { NOTES } from './lib/writer';
 import { boardFromSgf, emptyBoard, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
 import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
-import { BoardPanel, type Preview } from './ui/BoardPanel';
-import { Composer } from './ui/Composer';
+import { BoardPanel as BoardPanelView, type Preview } from './ui/BoardPanel';
+import { Composer as ComposerView } from './ui/Composer';
 import { Icon } from './ui/Icon';
-import { Messages, type Running } from './ui/Messages';
+import { Messages as MessagesView, type Running } from './ui/Messages';
 import type { SettingsPage } from './ui/Settings';
-import { Sidebar } from './ui/Sidebar';
+import { Sidebar as SidebarView } from './ui/Sidebar';
 import { Splitter } from './ui/Splitter';
 import { markReady } from './lib/ready';
 import { getSetting, useSetting } from './lib/settings';
@@ -45,6 +46,15 @@ function lsSet(k: string, v: string) {
   }
 }
 
+/**
+ * The big panes skip re-rendering unless their own props change: a keystroke in the composer
+ * or a hover over a board point no longer redraws the chat, the board and the sidebar.
+ */
+const BoardPanel = memo(BoardPanelView);
+const Composer = memo(ComposerView);
+const Messages = memo(MessagesView);
+const Sidebar = memo(SidebarView);
+
 /** The server said it has no key: skip the call and use engine text. */
 const noLlm: CallLlm = async () => {
   throw new LlmUnavailable('not configured');
@@ -64,18 +74,21 @@ export function App() {
   const [hover, setHover] = useState<Preview | null>(null);
   const [pinned, setPinned] = useState<Preview | null>(null);
   const preview = hover ?? pinned;
-  const clearPreview = () => {
+  const clearPreview = useCallback(() => {
     setHover(null);
     setPinned(null);
-  };
+  }, []);
   const [drawer, setDrawer] = useState(false);
   const [boardHidden, setBoardHidden] = useState(false);
   const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') === '1');
-  const fold = () =>
-    setFolded((f) => {
-      lsSet('kami.sideFolded', f ? '0' : '1');
-      return !f;
-    });
+  const fold = useCallback(
+    () =>
+      setFolded((f) => {
+        lsSet('kami.sideFolded', f ? '0' : '1');
+        return !f;
+      }),
+    [],
+  );
   const [settings, setSettings] = useState<SettingsPage | null>(null);
   const theme = useSetting<string>('theme');
   const answerFont = useSetting<string>('answerFont');
@@ -148,14 +161,14 @@ export function App() {
     );
   }, []);
 
-  const setBoard = useCallback((b: BoardState) => update(current.id, (c) => ({ ...c, board: b }), false), [current.id, update]);
+  const setBoard = useEvent((b: BoardState) => update(current.id, (c) => ({ ...c, board: b }), false));
 
-  const setLevel = (id: LevelId) => {
+  const setLevel = useCallback((id: LevelId) => {
     setLevelState(id);
     lsSet('kiai.level', id);
-  };
+  }, []);
 
-  const loadSgfText = (text: string) => {
+  const loadSgfText = useEvent((text: string) => {
     try {
       const b = boardFromSgf(text);
       clearPreview();
@@ -166,12 +179,15 @@ export function App() {
       setToast(`Could not read that SGF: ${(e as Error).message}`);
       return false;
     }
-  };
+  });
 
-  const loadSgfFile = async (file: File) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    loadSgfText(decodeSgfBytes(bytes));
-  };
+  const loadSgfFile = useCallback(
+    async (file: File) => {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      loadSgfText(decodeSgfBytes(bytes));
+    },
+    [loadSgfText],
+  );
 
   /** Settings › Positions, read at ask time; the thinking tier still decides whether diagrams run. */
   const positionSettings = () =>
@@ -190,7 +206,19 @@ export function App() {
     const ctrl = new AbortController();
     controller.current = ctrl;
     setRunning({ convId, msgId: kamiId, stage: 'thinking', steps: [], t0: Date.now() });
-    const onThought = (t: ThoughtStep) => setRunning((r) => (r && r.msgId === kamiId ? { ...r, steps: [...r.steps, t] } : r));
+    // Steps that land in the same frame are drawn together: one render per frame at most.
+    let queued: ThoughtStep[] = [];
+    let frame = 0;
+    const flushThoughts = () => {
+      frame = 0;
+      const add = queued;
+      queued = [];
+      if (add.length) setRunning((r) => (r && r.msgId === kamiId ? { ...r, steps: [...r.steps, ...add] } : r));
+    };
+    const onThought = (t: ThoughtStep) => {
+      queued.push(t);
+      frame ||= requestAnimationFrame(flushThoughts);
+    };
     const onStage = (stage: Running['stage']) => setRunning((r) => (r && r.msgId === kamiId ? { ...r, stage } : r));
     // The engine's answer shows as soon as it is ready; the checked wording replaces it.
     let draft: Answer | null = null;
@@ -241,7 +269,7 @@ export function App() {
     setRunning(null);
   };
 
-  const send = (raw: string) => {
+  const send = useEvent((raw: string) => {
     const text = raw.trim();
     if (!text || running) return;
     if (looksLikeSgf(text)) {
@@ -253,10 +281,10 @@ export function App() {
     const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({ ...c, title: c.messages.length ? c.title : titleFrom(text), messages: [...c.messages, user, kami] }));
     void run(current.id, kami.id, text, current.board);
-  };
+  });
 
   /** Run the last question again (regenerate), or with new words (edit). */
-  const rerun = (newText?: string) => {
+  const rerun = useEvent((newText?: string) => {
     if (running) return;
     const msgs = current.messages;
     let i = msgs.length - 1;
@@ -271,11 +299,11 @@ export function App() {
       messages: [...c.messages.slice(0, i), { ...c.messages[i], text }, kami],
     }));
     void run(current.id, kami.id, text, current.board, true);
-  };
+  });
 
-  const stop = () => controller.current?.abort();
+  const stop = useCallback(() => controller.current?.abort(), []);
 
-  const newChat = () => {
+  const newChat = useEvent(() => {
     setDrawer(false);
     clearPreview();
     if (!current.messages.length) {
@@ -285,19 +313,19 @@ export function App() {
     const c = newConversation();
     setConvs((cs) => [c, ...cs.filter((x) => x.messages.length)]);
     setCurrentId(c.id);
-  };
+  });
 
-  const select = (id: string) => {
+  const select = useEvent((id: string) => {
     if (running) stop();
     clearPreview();
     setDrawer(false);
     setConvs((cs) => cs.filter((x) => x.messages.length || x.id === id));
     setCurrentId(id);
-  };
+  });
 
-  const rename = (id: string, title: string) => update(id, (c) => ({ ...c, title: title.trim() || c.title }), false);
+  const rename = useCallback((id: string, title: string) => update(id, (c) => ({ ...c, title: title.trim() || c.title }), false), [update]);
 
-  const remove = (id: string) => {
+  const remove = useEvent((id: string) => {
     if (running?.convId === id) stop();
     void deleteConversation(id);
     if (id !== current.id) {
@@ -308,7 +336,7 @@ export function App() {
     clearPreview();
     setConvs((cs) => [fresh, ...cs.filter((c) => c.id !== id)]);
     setCurrentId(fresh.id);
-  };
+  });
 
   const removeAll = () => {
     if (running) stop();
@@ -320,7 +348,40 @@ export function App() {
     setToast('All chats deleted');
   };
 
-  const listed = convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated);
+  const listed = useMemo(() => convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated), [convs]);
+  const closeDrawer = useCallback(() => setDrawer(false), []);
+  const openSettings = useCallback((page?: SettingsPage) => {
+    setDrawer(false);
+    setSettings(page ?? 'general');
+  }, []);
+  const pinnedKey = pinned?.key ?? null;
+  const link = useMemo(() => ({ onHover: setHover, onPin: setPinned, pinnedKey }), [pinnedKey]);
+  const regenerate = useCallback(() => rerun(), [rerun]);
+  const editLast = useCallback((text: string) => rerun(text), [rerun]);
+  const showBoard = useCallback(
+    (b: BoardState) => {
+      setBoard(b);
+      setBoardHidden(false);
+    },
+    [setBoard],
+  );
+  const onBoard = useCallback(
+    (b: BoardState) => {
+      clearPreview();
+      setBoard(b);
+    },
+    [clearPreview, setBoard],
+  );
+  const onPlay = useEvent((loc: number, fromCandidate?: boolean) => {
+    if (preview) return clearPreview();
+    const b = playAt(current.board, loc);
+    if (!b) return;
+    // A move the student chose (not KataGo's disc): Kami learns their style from many of these.
+    if (!fromCandidate) observeMove(current.board, loc);
+    setBoard(b);
+  });
+  const onUndo = useEvent(() => setBoard(undo(current.board)));
+  const boardSettings = useCallback((page?: SettingsPage) => setSettings(page ?? 'board'), []);
 
   return (
     <div className={`kami-app${drawer ? ' drawer-open' : ''}${boardHidden ? ' board-hidden' : ''}${folded ? ' side-folded' : ''} font-${answerFont}`}>
@@ -333,11 +394,8 @@ export function App() {
         onNew={newChat}
         onRename={rename}
         onDelete={remove}
-        onClose={() => setDrawer(false)}
-        onSettings={(page) => {
-          setDrawer(false);
-          setSettings(page ?? 'general');
-        }}
+        onClose={closeDrawer}
+        onSettings={openSettings}
       />
       <div className="scrim" onClick={() => setDrawer(false)} />
       <div className="work split">
@@ -363,15 +421,12 @@ export function App() {
           <Messages
             messages={current.messages}
             running={running?.convId === current.id ? running : null}
-            board={current.board}
-            link={{ onHover: setHover, onPin: setPinned, pinnedKey: pinned?.key ?? null }}
+            board={current.messages.length ? null : current.board}
+            link={link}
             onAsk={send}
-            onRegenerate={() => rerun()}
-            onEdit={(text) => rerun(text)}
-            onShowBoard={(b) => {
-              setBoard(b);
-              setBoardHidden(false);
-            }}
+            onRegenerate={regenerate}
+            onEdit={editLast}
+            onShowBoard={showBoard}
             busy={!!running}
           />
           <Composer
@@ -390,23 +445,13 @@ export function App() {
           <BoardPanel
             board={current.board}
             preview={preview}
-            onBoard={(b) => {
-              clearPreview();
-              setBoard(b);
-            }}
-            onPlay={(loc, fromCandidate) => {
-              if (preview) return clearPreview();
-              const b = playAt(current.board, loc);
-              if (!b) return;
-              // A move the student chose (not KataGo's disc): Kami learns their style from many of these.
-              if (!fromCandidate) observeMove(current.board, loc);
-              setBoard(b);
-            }}
-            onUndo={() => setBoard(undo(current.board))}
+            onBoard={onBoard}
+            onPlay={onPlay}
+            onUndo={onUndo}
             onClearPreview={clearPreview}
             onSgfText={loadSgfText}
             onSgfFile={loadSgfFile}
-            onSettings={(page) => setSettings(page ?? 'board')}
+            onSettings={boardSettings}
           />
         )}
       </div>

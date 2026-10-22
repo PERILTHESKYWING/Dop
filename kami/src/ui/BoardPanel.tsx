@@ -12,6 +12,7 @@ import { useGameRating } from '../lib/rating';
 import { reviewMoves } from '../lib/review';
 import { setSetting, useSetting } from '../lib/settings';
 import { splitRich } from '../lib/terms';
+import { useEvent } from '../lib/useEvent';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { BOOK_SKIN, KIAI_SKIN } from './skin';
@@ -217,7 +218,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
   const hovered = !preview && hoverPv?.length ? lineOf(hoverPv, toPlay) : null;
   const variation = preview ? view.variation : hovered;
-  const candidates = !preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null;
+  const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
   const ownership = !preview && territoryOn && read ? read.ownership : null;
 
   const play = (loc: Loc, fromCandidate = false) => {
@@ -316,7 +317,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     return () => document.removeEventListener('keydown', key);
   }, []);
 
-  const onCandidateHover = (l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null));
+  // Stable handlers keep the memoised Board from redrawing on unrelated panel renders (engine status, tabs).
+  const onCandidateHover = useEvent((l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null)));
+  const onBoardPlay = useEvent((l: Loc) => play(l));
+  const onCandidateClick = useEvent((l: Loc) => play(l, true));
   const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
   const flatBoard = (
     <Board
@@ -325,12 +329,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       stones={view.stones}
       lastMove={view.last}
       toPlay={preview ? undefined : toPlay}
-      onPlay={(l) => play(l)}
+      onPlay={onBoardPlay}
       marks={view.marks}
       candidates={candidates}
       candStyle="plain"
       onCandidateHover={onCandidateHover}
-      onCandidateClick={(l) => play(l, true)}
+      onCandidateClick={onCandidateClick}
       variation={variation}
       ownership={ownership}
       coords={coords}
@@ -560,11 +564,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   stones={view.stones}
                   lastMove={view.last}
                   toPlay={preview ? undefined : toPlay}
-                  onPlay={(l) => play(l)}
+                  onPlay={onBoardPlay}
                   marks={view.marks}
                   candidates={candidates}
                   onCandidateHover={onCandidateHover}
-                  onCandidateClick={(l) => play(l, true)}
+                  onCandidateClick={onCandidateClick}
                   variation={variation}
                   ownership={ownership}
                   coords={coords}

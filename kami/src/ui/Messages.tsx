@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { CONCEPTS, conceptById, type ConceptEntry, type ConceptExample } from '../../../src/lib/coach/library';
 import { type ConceptHit, type Explanation, type ExplainPosition, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
@@ -561,7 +561,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean; onEdit: (t: string) => void }) {
+const UserMessage = memo(function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean; onEdit: (t: string) => void }) {
   const [edit, setEdit] = useState<string | null>(null);
   if (edit !== null) {
     return (
@@ -598,9 +598,9 @@ function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean;
       </div>
     </div>
   );
-}
+});
 
-function KamiMessage({
+const KamiMessage = memo(function KamiMessage({
   m,
   running,
   isLast,
@@ -652,12 +652,13 @@ function KamiMessage({
       )}
     </div>
   );
-}
+});
 
 interface Props {
   messages: ChatMessage[];
   running: Running | null;
-  board: BoardState;
+  /** The board, for the empty chat's suggestions (null once there are messages: they do not need it). */
+  board: BoardState | null;
   link: BoardLink;
   onAsk: (text: string) => void;
   onRegenerate: () => void;
@@ -687,7 +688,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     end.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, steps, messages[messages.length - 1]?.answer]);
 
-  if (!messages.length) {
+  if (!messages.length && board) {
     const side = colorName(toPlayAt(board));
     const ideas = hasPosition(board)
       ? [`What should ${side} play here?`, 'Explain this position', 'What is miai?']
@@ -720,7 +721,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
           m.role === 'user' ? (
             <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />
           ) : (
-            <KamiMessage key={m.id} m={m} running={running} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={busy} />
+            <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} />
           ),
         )}
         <div ref={end} />
