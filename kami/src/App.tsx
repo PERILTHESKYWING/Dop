@@ -3,7 +3,7 @@ import { useEvent } from './lib/useEvent';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { untilAborted } from './lib/untilAborted';
-import { getProber } from './lib/engine';
+import { getAnswerProber } from './lib/analysis';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
 import { NOTES } from './lib/writer';
@@ -237,7 +237,7 @@ export function App() {
           thinking,
           {
             explain,
-            getProber,
+            getProber: getAnswerProber,
             findConcepts,
             callLlm: llmOn === false ? noLlm : callKamiWrite,
             checkAnswer,

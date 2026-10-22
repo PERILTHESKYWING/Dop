@@ -9,7 +9,7 @@
  */
 import { BrowserEngine, detectCapabilities, type LoadProgress } from '../../../src/lib/engine/browserEngine';
 import { governEngine, isPhoneLike, setCool } from '../../../src/lib/engine/governor';
-import { engineEvaluator } from '../../../src/lib/engine/mcts';
+import { engineEvaluator, type LeafEvaluator } from '../../../src/lib/engine/mcts';
 import { bundledModel, MODELS, type ModelSpec } from '../../../src/lib/engine/models';
 import { searchProber } from '../../../src/lib/coach/explain/searchProber';
 import type { Prober } from '../../../src/lib/coach/explain/types';
@@ -154,6 +154,42 @@ async function boot(): Promise<BrowserEngine> {
   adopt(eng);
   if (!eng.tuning) tuneWhenIdle(eng, used);
   return eng;
+}
+
+/** What a search over the engine needs: its evaluator (sharing the engine's NN cache), batch size and network. */
+export interface SearchKit {
+  evaluator: LeafEvaluator;
+  batch: number;
+  modelId: string;
+}
+
+const kits = new WeakMap<BrowserEngine, SearchKit>();
+
+/**
+ * The search kit of the engine current now (loading it the first time). One kit per engine,
+ * so a search kept between reads (kami/src/lib/analysis.ts) starts afresh when the tuned
+ * engine replaces the untuned one; reads of the same network stay cached.
+ */
+export async function getSearchKit(): Promise<SearchKit> {
+  const eng = await current();
+  let kit = kits.get(eng);
+  if (!kit) {
+    kit = { evaluator: engineEvaluator(eng), batch: eng.batch ?? 1, modelId: eng.info.modelId };
+    kits.set(eng, kit);
+  }
+  return kit;
+}
+
+/** A read starts on the engine: measuring waits until it ends (call the returned function). */
+export function readStarted(): () => void {
+  reading++;
+  let ended = false;
+  return () => {
+    if (ended) return;
+    ended = true;
+    reading--;
+    lastRead = Date.now();
+  };
 }
 
 /**

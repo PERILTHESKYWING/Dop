@@ -2,13 +2,42 @@
 import { verifyDiagram } from '../../../src/lib/coach/explain/illustrate';
 import { illustrateDefaults } from '../../../src/lib/coach/explain/diagrams';
 import { conceptById, type ConceptEntry } from '../../../src/lib/coach/library';
-import type { ExplainFn, IllustrateOptions, Prober, StudentProfile, ThinkingLevel, ThoughtStep } from '../../../src/lib/coach/explain/types';
+import type { ExplainFn, ExplainPosition, IllustrateOptions, Prober, StudentProfile, ThinkingLevel, ThoughtStep } from '../../../src/lib/coach/explain/types';
+import { locToGtp } from '../../../src/lib/go/coords';
 import type { BoardState } from './position';
 import { askFor, routeQuestion } from './question';
 import type { Answer } from './store';
 import { expandConcept, NOTES, pickById, writeAnswer, type PickId, type WriterDeps } from './writer';
 
-export { untilAborted } from './untilAborted';
+import { untilAborted } from './untilAborted';
+
+export { untilAborted };
+
+/** The quick first read an answer shows while KataGo reads deeper (the deep read continues its tree). */
+export const QUICK_VISITS = 32;
+const QUICK_MS = 2500;
+
+/**
+ * A first useful line within seconds: KataGo's first choice from a quick read (or the board's
+ * read, when it already has one), shown as a live thinking step while the full read runs.
+ * Numbers only from KataGo; any failure here just skips the step.
+ */
+async function quickLook(prober: Prober, pos: ExplainPosition, onThought: (t: ThoughtStep) => void, signal?: AbortSignal): Promise<void> {
+  if (typeof prober.read !== 'function') return;
+  const t0 = Date.now();
+  try {
+    const read = prober.read(pos, { visits: QUICK_VISITS, maxMs: QUICK_MS });
+    const r = signal ? await untilAborted(read, signal) : await read;
+    const best = r?.candidates[0];
+    if (!r || !best || signal?.aborted) return;
+    const side = pos.toPlay === 1 ? 'Black' : 'White';
+    const lead = best.scoreLead;
+    const score = Math.abs(lead) < 0.5 ? 'about even' : `${side} ${lead > 0 ? 'ahead' : 'behind'} by about ${Math.abs(lead).toFixed(1)} points`;
+    onThought({ text: `Quick look → KataGo's first choice is ${locToGtp(best.loc, pos.size)} (${score}). Reading deeper…`, ms: Date.now() - t0, visits: r.visits });
+  } catch (e) {
+    if ((e as Error)?.name === 'AbortError') throw e;
+  }
+}
 
 export interface AnswerDeps extends Omit<WriterDeps, 'signal'> {
   explain: ExplainFn;
@@ -56,6 +85,7 @@ export async function answerQuestion(
   const prober = await deps.getProber();
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
   ev.onStage?.('thinking');
+  if (ev.onThought) await quickLook(prober, pos, ev.onThought, signal);
   const model = pickById(pick).model;
   const settings = deps.illustrate?.() ?? {};
   const examplesFor = (id: string) => conceptById(id)?.examples ?? [];

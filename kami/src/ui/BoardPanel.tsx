@@ -182,7 +182,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tab, n, preview, board.moves, board.setup, board.size, board.komi, board.rules, board.first],
   );
-  const lineReads = useLineReads(line);
+  const lineReads = useLineReads(line, board.cursor);
 
   const view = useMemo(() => {
     if (preview) {

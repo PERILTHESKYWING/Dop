@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { positionKey, valueOf } from '../kami/src/lib/analysis';
+import { nextToRead, positionKey, valueOf } from '../kami/src/lib/analysis';
 import { boardFromSgf } from '../kami/src/lib/position';
 import { candidateMarks, lineOf } from '../src/lib/analysis/candidates';
 import type { EngineRead, ExplainPosition } from '../src/lib/coach/explain/types';
@@ -48,5 +48,18 @@ describe('candidate discs and variations (shared by Dop and Kami)', () => {
 describe('names of a loaded game (Kami)', () => {
   it('keeps the players for the eval bar', () => {
     expect(boardFromSgf('(;GM[1]SZ[19]PB[A]PW[B];B[pd])')).toMatchObject({ black: 'A', white: 'B' });
+  });
+});
+
+describe('game review order (Kiai)', () => {
+  it('reads from the move on the board to the end, then from the start', () => {
+    const done = new Set<number>();
+    const order: number[] = [];
+    for (let i = nextToRead(5, 2, (j) => done.has(j)); i >= 0; i = nextToRead(5, 2, (j) => done.has(j))) {
+      done.add(i);
+      order.push(i);
+    }
+    expect(order).toEqual([2, 3, 4, 0, 1]);
+    expect(nextToRead(3, 9, () => false)).toBe(2);
   });
 });
