@@ -481,10 +481,10 @@ button.fchip:hover { border-color: var(--faint); }
   <aside class="col side">
     <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <div class="newrow">
-      <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><span>+</span>New task</button>
-      <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 16.5v-3l9.8-9.8a2.1 2.1 0 0 1 3 3l-9.8 9.8z"/><path d="M11.5 5.5l3 3"/></svg>New chat</button>
-      <a class="btn newtask studio-link" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="15" height="11" rx="2"/><path d="M2.5 8.5h15M6 5l-1.5 3.5M10 5 8.5 8.5M14 5l-1.5 3.5"/></svg>Storytime studio</a>
-      <a class="btn newtask studio-link" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3.5h3v13H4zM8.5 3.5h3v13h-3z"/><path d="m13 4.2 2.9-.8 3 12.6-2.9.7z"/></svg>Library</a>
+      <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
+      <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
+      <a class="btn newtask studio-link" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i>Storytime studio</a>
+      <a class="btn newtask studio-link" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i>Library</a>
     </div>
     <nav class="list" id="threads"></nav>
   </aside>
@@ -511,6 +511,7 @@ button.fchip:hover { border-color: var(--faint); }
 <div id="pop" class="pop hidden"></div>
 <div id="sheet" class="sheet hidden"><div class="sbox" id="sheetBox"></div></div>
 
+<script src="ui/icons.js"></script>
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
@@ -786,7 +787,7 @@ function renderSide() {
   $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
     + (S.accounts.length ? `<button class="trow" data-open="lessons"><span class="ttl">Team lessons · ${S.lessons.length}</span><span class="tsub"><span class="lsub">${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}</span></span></button>` : '')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group">${g[0]} · ${g[1].length}</div>${g[1].map(threadRow).join('')}`).join('')
-    + (archived.length ? `<button type="button" class="group arch" data-archived>${showArchived ? '▾' : '▸'} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+    + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived · ${archived.length}</button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   const need = live.filter((t) => t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
@@ -889,7 +890,7 @@ function hydrateImgs(root) {
 let openMsg = null;
 function swipeable(m, h) {
   if (!h || typeof m.id !== 'number' || m.pending) return h;
-  return `<div class="sw${openMsg === m.id ? ' open' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">⋯</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
+  return `<div class="sw${openMsg === m.id ? ' open' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">${icon('ellipsis', 16)}</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
 }
 function setOpen(id) {
   openMsg = id;
@@ -901,8 +902,8 @@ async function deleteMsg(id) {
   load(false).catch(() => {});
 }
 const ICON = {
-  side: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M7.5 3.5v13"/></svg>',
-  team: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M12.5 3.5v13"/></svg>',
+  side: icon('panel-left', 19),
+  team: icon('panel-right', 19),
 };
 // Which sidebars are open on this device (desktop only; phones use the tabs).
 let panels = { side: true, team: true };
@@ -936,7 +937,7 @@ function renderHead(t) {
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : t.status === 'done' ? '' : '<button type="button" class="btn small" data-act="done">Mark done</button>'}
     <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
-    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`;
+    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>${panelBtn('team')}`;
   applyPanels();
 }
 function renderFeed() {
@@ -1008,7 +1009,7 @@ async function addFiles(fileList) {
 function attChip(f) {
   const th = f.url ? `<img alt="" src="${esc(f.url)}">` : esc(extTag(f.name));
   const sub = f.status === 'up' ? `Uploading ${Math.round(f.pct * 100)}%` : f.status === 'err' ? `Not uploaded: ${f.error}` : fsize(f.size);
-  return `<span class="fchip ${f.status === 'err' ? 'err' : ''}" title="${esc(f.name)}${f.error ? ` · ${esc(f.error)}` : ''}"><span class="th">${th}</span><span class="nm"><b>${esc(f.name)}</b><small>${esc(sub)}</small></span><button type="button" class="x" data-unatt="${f.key}" aria-label="Remove ${esc(f.name)}">×</button>${f.status === 'up' ? `<span class="bar" style="width:${Math.round(f.pct * 100)}%"></span>` : ''}</span>`;
+  return `<span class="fchip ${f.status === 'err' ? 'err' : ''}" title="${esc(f.name)}${f.error ? ` · ${esc(f.error)}` : ''}"><span class="th">${th}</span><span class="nm"><b>${esc(f.name)}</b><small>${esc(sub)}</small></span><button type="button" class="x" data-unatt="${f.key}" aria-label="Remove ${esc(f.name)}" title="Remove">${icon('x', 16)}</button>${f.status === 'up' ? `<span class="bar" style="width:${Math.round(f.pct * 100)}%"></span>` : ''}</span>`;
 }
 function renderAtt() {
   const list = attOf(sel), el = $('att');
@@ -1091,13 +1092,13 @@ function acctChip(list) { return list.length ? `${avList(list)}${esc(list.length
 function renderTools(t) {
   const p = curPicks(t);
   $('tools').innerHTML = `
-    <button type="button" class="attach" data-attach title="Add files (or drop or paste them here)" aria-label="Add files"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
-    <button type="button" class="chip" data-pop="model">${p.model ? MODEL_NAME[p.model] : 'Auto<span class="wide"> model</span>'}<span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="thinking">${meter(p.thinking)}${THINK_NAME[p.thinking]}<span class="wide"> thinking</span><span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="accounts">${acctChip(p.accounts)}<span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}<span class="caret">▼</span></button>
+    <button type="button" class="attach" data-attach title="Add files (or drop or paste them here)" aria-label="Add files">${icon('plus', 18)}</button>
+    <button type="button" class="chip" data-pop="model">${p.model ? MODEL_NAME[p.model] : 'Auto<span class="wide"> model</span>'}<span class="caret">${icon('chevron-down', 12)}</span></button>
+    <button type="button" class="chip" data-pop="thinking">${meter(p.thinking)}${THINK_NAME[p.thinking]}<span class="wide"> thinking</span><span class="caret">${icon('chevron-down', 12)}</span></button>
+    <button type="button" class="chip" data-pop="accounts">${acctChip(p.accounts)}<span class="caret">${icon('chevron-down', 12)}</span></button>
+    <button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}<span class="caret">${icon('chevron-down', 12)}</span></button>
     ${t || sel === NEW_CHAT ? '' : `<button type="button" class="chip" data-toggle="direct" aria-pressed="${opts.direct}" title="Skip the coordinator and make one thread">One thread</button>`}
-    <button class="send" type="submit" aria-label="Send" id="sendBtn">↑</button>`;
+    <button class="send" type="submit" aria-label="Send" title="Send" id="sendBtn">${icon('arrow-up', 20)}</button>`;
   $('text').placeholder = t ? `Reply in ${t.title}` : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?';
   if (document.activeElement !== $('text')) { $('text').value = drafts[sel] || ''; grow(); }
   renderAtt();
@@ -1113,17 +1114,17 @@ function openPop(kind, anchor) {
   const pop = $('pop');
   if (kind === 'model') {
     const list = t ? MODELS : ['', ...MODELS];
-    pop.innerHTML = `<h4>Model</h4>${list.map((m) => `<button type="button" class="opt ${p.model === m ? 'on' : ''}" data-pick="model" data-v="${m}"><span></span><b>${m ? MODEL_NAME[m] : 'Auto'}</b><span class="tick">✓</span><small>${MODEL_HINT[m]}</small></button>`).join('')}`;
+    pop.innerHTML = `<h4>Model</h4>${list.map((m) => `<button type="button" class="opt ${p.model === m ? 'on' : ''}" data-pick="model" data-v="${m}"><span></span><b>${m ? MODEL_NAME[m] : 'Auto'}</b><span class="tick">${icon('check', 16)}</span><small>${MODEL_HINT[m]}</small></button>`).join('')}`;
   } else if (kind === 'thinking') {
-    pop.innerHTML = `<h4>Thinking level</h4>${THINK.map((v) => `<button type="button" class="opt ${p.thinking === v ? 'on' : ''}" data-pick="thinking" data-v="${v}">${meter(v)}<b>${THINK_NAME[v]}</b><span class="tick">✓</span><small>${THINK_HINT[v]}</small></button>`).join('')}`;
+    pop.innerHTML = `<h4>Thinking level</h4>${THINK.map((v) => `<button type="button" class="opt ${p.thinking === v ? 'on' : ''}" data-pick="thinking" data-v="${v}">${meter(v)}<b>${THINK_NAME[v]}</b><span class="tick">${icon('check', 16)}</span><small>${THINK_HINT[v]}</small></button>`).join('')}`;
   } else if (kind === 'team') {
     const hint = (n) => n === 1 ? 'One account does the work' : `A lead and ${n - 1} more account${n > 2 ? 's' : ''}, each on a part, sharing the thread's messages and handovers`;
-    pop.innerHTML = `<h4>Accounts working together</h4>${Array.from({ length: TEAM_MAX }, (_, i) => i + 1).map((n) => `<button type="button" class="opt ${p.team === n ? 'on' : ''}" data-pick="team" data-v="${n}"><span></span><b>${teamName(n)}</b><span class="tick">✓</span><small>${hint(n)}</small></button>`).join('')}<p style="margin:8px 10px">Only accounts with at least ${100 - lowAt()}% usage left join (Settings).</p>`;
+    pop.innerHTML = `<h4>Accounts working together</h4>${Array.from({ length: TEAM_MAX }, (_, i) => i + 1).map((n) => `<button type="button" class="opt ${p.team === n ? 'on' : ''}" data-pick="team" data-v="${n}"><span></span><b>${teamName(n)}</b><span class="tick">${icon('check', 16)}</span><small>${hint(n)}</small></button>`).join('')}<p style="margin:8px 10px">Only accounts with at least ${100 - lowAt()}% usage left join (Settings).</p>`;
   } else if (kind === 'think') {
     const modes = [['hide', 'Hidden', 'Only a count of notes'], ['fold', 'Folded', 'One line each; tap to open'], ['open', 'Open', 'Every note in full']];
     const names = [...new Set([...S.accounts.map((a) => a.name), ...think.hide])];
-    pop.innerHTML = `<h4>Agents' thinking</h4>${modes.map(([v, b, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}"><span></span><b>${b}</b><span class="tick">✓</span><small>${h}</small></button>`).join('')}
-      ${names.length ? `<h4>Show for</h4>${names.map((n) => `<button type="button" class="opt ${thoughtShown(n) ? 'on' : ''}" data-pick="think-acct" data-v="${esc(n)}">${av(n)}<b>${esc(n)}</b><span class="box">✓</span><small>Thinking notes and live line</small></button>`).join('')}` : ''}
+    pop.innerHTML = `<h4>Agents' thinking</h4>${modes.map(([v, b, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}"><span></span><b>${b}</b><span class="tick">${icon('check', 16)}</span><small>${h}</small></button>`).join('')}
+      ${names.length ? `<h4>Show for</h4>${names.map((n) => `<button type="button" class="opt ${thoughtShown(n) ? 'on' : ''}" data-pick="think-acct" data-v="${esc(n)}">${av(n)}<b>${esc(n)}</b><span class="box">${icon('check', 12)}</span><small>Thinking notes and live line</small></button>`).join('')}` : ''}
       <p style="margin:8px 10px">Agents post a short note at key decisions. Their full private reasoning stays in each session (Open session).</p>
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   } else if (kind === 'tmenu') {
@@ -1134,10 +1135,10 @@ function openPop(kind, anchor) {
     const rows = S.accounts.map((a) => {
       const [, st] = acctState(a);
       const u = a.usage ? [a.usage.five_hour_pct != null && `5h ${Math.round(a.usage.five_hour_pct)}%`, a.usage.seven_day_pct != null && `wk ${Math.round(a.usage.seven_day_pct)}%`].filter(Boolean).join(' · ') : '';
-      return `<button type="button" class="opt ${p.accounts.includes(a.name) ? 'on' : ''}" data-pick="account" data-v="${esc(a.name)}">${av(a.name)}<b>${esc(a.name)}</b><span class="box">✓</span><small>${esc(st)}${u ? ' · ' + u : ''}</small></button>`;
+      return `<button type="button" class="opt ${p.accounts.includes(a.name) ? 'on' : ''}" data-pick="account" data-v="${esc(a.name)}">${av(a.name)}<b>${esc(a.name)}</b><span class="box">${icon('check', 12)}</span><small>${esc(st)}${u ? ' · ' + u : ''}</small></button>`;
     }).join('');
     pop.innerHTML = `<h4>Accounts for this ${t ? 'thread' : 'task'}</h4>
-      <button type="button" class="opt ${p.accounts.length ? '' : 'on'}" data-pick="any"><span class="av hub">∗</span><b>Any account</b><span class="box">✓</span><small>The hub picks the freest one</small></button>
+      <button type="button" class="opt ${p.accounts.length ? '' : 'on'}" data-pick="any"><span class="av hub">∗</span><b>Any account</b><span class="box">${icon('check', 12)}</span><small>The hub picks the freest one</small></button>
       ${rows || '<p style="margin:8px 10px">No accounts yet.</p>'}
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   }
@@ -1223,7 +1224,7 @@ function accountCard(a) {
     ? `${usageRow('5-hour', u.five_hour_pct, u.five_hour_resets)}${usageRow('Weekly', u.seven_day_pct, u.seven_day_resets)}${u.opus_week_pct != null ? usageRow('Opus wk', u.opus_week_pct) : ''}`
     : `<div class="nouse">${a.usageErr ? `Claude didn't share usage (${esc(a.usageErr)}).` : a.models.length ? 'Usage not read yet.' : 'Free plans don\'t share usage.'} <button class="btn small quiet" data-open="usage" data-name="${esc(a.name)}">Type it in</button></div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name, 'l')}<div class="aname"><div class="nmrow"><span class="nm">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>${a.connected ? '<span class="conn">✓ Connected</span>' : '<span class="conn no">Not connected yet</span>'}</div><span class="state ${cls}">${esc(st)}</span></div>
+    <div class="atop">${av(a.name, 'l')}<div class="aname"><div class="nmrow"><span class="nm">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div>${a.connected ? '<span class="conn">' + icon('check', 14) + ' Connected</span>' : '<span class="conn no">Not connected yet</span>'}</div><span class="state ${cls}">${esc(st)}</span></div>
     ${sub ? `<div class="sub" title="${esc(sub)}">${esc(sub)}</div>` : ''}
     ${activityOf(a)}
     ${usage}

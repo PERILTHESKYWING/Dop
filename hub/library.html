@@ -75,7 +75,7 @@ dialog input[type=text], dialog select { width: 100%; }
 <body>
 <div id="app" hidden>
   <header class="top">
-    <a class="btn back" href="/" title="Back to the hub">‹ Hub</a>
+    <a class="btn back" href="/" title="Back to the hub"><i data-ico="chevron-left" data-size="16"></i>Hub</a>
     <h1>Library</h1>
     <span class="sub">What every agent can read</span>
     <span class="spacer"></span>
@@ -98,6 +98,7 @@ dialog input[type=text], dialog select { width: 100%; }
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="ui/icons.js"></script>
 <script type="module">
 // The page is a shell: each tab is its own module in /library/ with
 // `export function mount(el, ctx)`, loaded the first time the tab opens.
