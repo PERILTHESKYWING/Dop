@@ -7,6 +7,10 @@
  * it is ready (`markReady`, kami/src/lib/ready.ts). Later visits: nothing shows unless loading
  * takes longer than 450 ms. A click or key finishes the writing at once. After 9 s it goes
  * regardless, so a failed script never leaves a blank sheet.
+ *
+ * The build passes `assets`: the seal and the tagline (first seen about 2.9 s in, ~14 KB of
+ * paths) then load as cached /assets SVGs instead of riding in every index.html; the brush and
+ * the name, which paint first, stay inline. Without `assets` (dev, tests) all of it is inline.
  */
 import { brushMarkup, BRUSH_CSS, timeline } from './brush';
 import { TAGLINE, WORDMARK } from './glyphs';
@@ -21,24 +25,46 @@ const SEAL = 260;
  * visit will open on the landing (same test as main.tsx), it is fetched at once, at high priority.
  */
 const LANDING_STILL = '/kiai/sky-1536.webp';
+const INK = '#191613';
+/** The tagline's glyphs reach above its 860-unit-high viewBox (to y 198); the file version takes a taller box. */
+const TAG_TOP = 190;
+const TAG_H = 1190 - TAG_TOP;
 
-export function loaderHtml(): string {
+/** URLs of the two SVG files the build emits from `loaderFiles()`. */
+export interface LoaderAssets {
+  seal: string;
+  tagline: string;
+}
+
+const SVG_NS = 'xmlns="http://www.w3.org/2000/svg"';
+
+/** The seal and tagline as standalone SVG files, for `LoaderAssets`. */
+export function loaderFiles(): LoaderAssets {
+  return {
+    seal: sealMarkup({ id: 'kls', size: 96 }).replace('<svg ', `<svg ${SVG_NS} `),
+    tagline: `<svg ${SVG_NS} viewBox="0 ${TAG_TOP} ${TAGLINE[1]} ${TAG_H}" width="${TAGLINE[1]}" height="${TAG_H}"><path d="${TAGLINE[0]}" fill="${INK}"/></svg>`,
+  };
+}
+
+export function loaderHtml(assets?: LoaderAssets): string {
   const { done } = timeline(1, START);
   const sealAt = done + 140;
   const finished = sealAt + SEAL + HOLD;
   const css =
     BRUSH_CSS +
     '#kiai-loader{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;' +
-    'background:#f1ebe0 url(/kiai/washi.webp);color:#191613;transition:opacity .6s ease,visibility .6s}' +
+    `background:#f1ebe0 url(/kiai/washi.webp);color:${INK};transition:opacity .6s ease,visibility .6s}` +
     '#kiai-loader.kl-out{opacity:0;visibility:hidden;pointer-events:none}' +
     '.kl-lock,.kl-lock body{overflow:hidden}' +
     '.kl-col{position:relative;height:min(62vh,560px,104vw);aspect-ratio:1000/1790}' +
     '.kl-col .kb{width:100%;height:100%}' +
     `.kl-seal{position:absolute;left:-31%;bottom:1%;width:27%;opacity:0;animation:kl-stamp ${SEAL}ms cubic-bezier(.3,0,.2,1) ${sealAt}ms both}` +
-    '.kl-seal svg{display:block;width:100%;height:auto}' +
+    '.kl-seal svg,.kl-seal img{display:block;width:100%;height:auto}' +
     `.kl-name{position:absolute;left:50%;top:calc(100% + 3.4vh);height:clamp(22px,3.4vh,30px);transform:translateX(-50%);opacity:0;animation:kl-name .5s ease ${sealAt + 120}ms both}` +
     '.kl-name svg{display:block;height:100%;width:auto;margin:0 auto}' +
     '.kl-name .kl-tag{height:clamp(18px,2.4vh,22px);margin-top:clamp(12px,1.8vh,16px);opacity:.86;overflow:visible}' +
+    // the file version: a taller box, raised by the extra height, so the words sit exactly where the inline ones do
+    `.kl-name img.kl-tag{display:block;width:auto;margin-left:auto;margin-right:auto;height:calc(clamp(18px,2.4vh,22px)*${TAG_H}/860);margin-top:calc(clamp(12px,1.8vh,16px) - clamp(18px,2.4vh,22px)*${330 - TAG_TOP}/860)}` +
     '@keyframes kl-name{to{opacity:1}}' +
     '@keyframes kl-stamp{0%{opacity:0;transform:scale(1.12)}55%{opacity:1;transform:scale(.985)}100%{opacity:1;transform:scale(1)}}' +
     '.kl-repeat #kiai-loader:not(.kl-show){opacity:0;pointer-events:none;transition:none}' +
@@ -64,9 +90,13 @@ setTimeout(function(){ready=written=true;check()},9000);
   return (
     `<style>${css}</style>` +
     `<div id="kiai-loader" role="img" aria-label="気合. Kiai: ask what to play in any Go position">` +
-    `<div class="kl-col">${brushMarkup({ id: 'kl', write: true, start: START, ink: '#191613' })}` +
-    `<div class="kl-seal">${sealMarkup({ id: 'kls', size: 96 })}</div><div class="kl-name"><svg viewBox="0 200 ${WORDMARK[1]} 710" aria-hidden="true"><path d="${WORDMARK[0]}" fill="currentColor"/></svg>` +
-    `<svg class="kl-tag" viewBox="0 330 ${TAGLINE[1]} 860" aria-hidden="true"><path d="${TAGLINE[0]}" fill="currentColor"/></svg></div></div></div>` +
+    `<div class="kl-col">${brushMarkup({ id: 'kl', write: true, start: START, ink: INK })}` +
+    `<div class="kl-seal">${assets ? `<img src="${assets.seal}" width="96" height="96" alt="">` : sealMarkup({ id: 'kls', size: 96 })}</div>` +
+    `<div class="kl-name"><svg viewBox="0 200 ${WORDMARK[1]} 710" aria-hidden="true"><path d="${WORDMARK[0]}" fill="currentColor"/></svg>` +
+    (assets
+      ? `<img class="kl-tag" src="${assets.tagline}" width="${TAGLINE[1]}" height="${TAG_H}" alt="">`
+      : `<svg class="kl-tag" viewBox="0 330 ${TAGLINE[1]} 860" aria-hidden="true"><path d="${TAGLINE[0]}" fill="currentColor"/></svg>`) +
+    `</div></div></div>` +
     `<script>${script.replace(/\n/g, '')}</script>`
   );
 }

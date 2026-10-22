@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { brushMarkup, timeline } from '../kami/src/ui/brand/brush';
-import { GLYPHS, STROKES, WORDMARK } from '../kami/src/ui/brand/glyphs';
-import { loaderHtml } from '../kami/src/ui/brand/loader';
+import { GLYPHS, STROKES, TAGLINE, WORDMARK } from '../kami/src/ui/brand/glyphs';
+import { loaderFiles, loaderHtml } from '../kami/src/ui/brand/loader';
 import { sealMarkup } from '../kami/src/ui/brand/seal';
 
 describe('Kiai brand: 気合 brush, seal and loader', () => {
@@ -43,5 +43,16 @@ describe('Kiai brand: 気合 brush, seal and loader', () => {
     expect(html).toContain('9000');
     expect(html).toContain(WORDMARK[0].slice(0, 20));
     expect(html).not.toMatch(/ikki|razorbill/i);
+  });
+
+  it('moves the seal and tagline to files when the build gives URLs, keeping the brush inline', () => {
+    const html = loaderHtml({ seal: '/assets/s.svg', tagline: '/assets/t.svg' });
+    expect(html).toContain('<img src="/assets/s.svg"');
+    expect(html).toContain('src="/assets/t.svg"');
+    expect(html).not.toContain(TAGLINE[0].slice(0, 40));
+    expect(html).toContain(WORDMARK[0].slice(0, 20));
+    const files = loaderFiles();
+    expect(files.seal).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(files.tagline).toContain(TAGLINE[0].slice(0, 40));
   });
 });
