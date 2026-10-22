@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 const KEY_W = 'kami.boardWidth';
 const KEY_H = 'kami.boardHeight';
@@ -48,7 +48,8 @@ export function Splitter() {
     return w;
   };
 
-  useEffect(() => {
+  // Before the first paint, so a remembered size never makes the board jump (layout shift).
+  useLayoutEffect(() => {
     const split = ref.current?.parentElement;
     if (!split) return;
     const restore = () => {

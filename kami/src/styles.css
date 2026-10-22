@@ -523,6 +523,9 @@ kbd {
 }
 .board-panel {
   min-width: 0;
+  /* quick taps on the board or the step buttons play or step; they never zoom the page */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .splitter {
   flex: none;
