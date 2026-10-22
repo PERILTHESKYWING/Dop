@@ -15,6 +15,12 @@ import { sealMarkup } from './seal';
 const START = 250;
 const HOLD = 420;
 const SEAL = 260;
+/**
+ * The landing's first picture (`.l-sky` in landing.css). It is a CSS background inside a lazy
+ * chunk, so the browser would only find it after main.js, Landing.js and its CSS; when this
+ * visit will open on the landing (same test as main.tsx), it is fetched at once, at high priority.
+ */
+const LANDING_STILL = '/kiai/sky-1536.webp';
 
 export function loaderHtml(): string {
   const { done } = timeline(1, START);
@@ -42,6 +48,8 @@ export function loaderHtml(): string {
   // Runs before the page's scripts: decides first visit or not, then waits for 'kiai-ready'.
   const script = `(function(){var d=document.documentElement,el=document.getElementById('kiai-loader');if(!el)return;
 var seen=false;try{seen=localStorage.getItem('kiai.seen')==='1'}catch(e){}
+var h=location.hash,ent=true;try{ent=localStorage.getItem('kiai.entered')==='1'}catch(e){}
+if(h==='#welcome'||(!ent&&h!=='#annotate')){var pl=document.createElement('link');pl.rel='preload';pl.as='image';pl.href='${LANDING_STILL}';pl.setAttribute('fetchpriority','high');document.head.appendChild(pl)}
 var ready=!!window.__kiaiReady,written=seen,gone=false,shownAt=seen?0:Date.now();
 if(seen)d.classList.add('kl-repeat');else d.classList.add('kl-lock');
 function hide(){if(gone)return;gone=true;el.classList.add('kl-out');d.classList.remove('kl-lock');try{localStorage.setItem('kiai.seen','1')}catch(e){}setTimeout(function(){el.remove();d.classList.remove('kl-repeat')},700)}
