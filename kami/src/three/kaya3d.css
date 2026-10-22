@@ -17,6 +17,10 @@
 .k3.playable .k3-canvas {
   cursor: pointer;
 }
+.k3-wait {
+  position: absolute;
+  inset: 0;
+}
 .k3-layer {
   --cell: 30px;
   position: absolute;

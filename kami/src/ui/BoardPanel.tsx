@@ -575,6 +575,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   tilt={angled ? 24 : 0}
                   wood={(style === 'shinkaya' || style === 'dark' ? style : 'kaya') as BoardWood}
                   ariaLabel={ariaLabel}
+                  placeholder={flatBoard}
                 />
               </Suspense>
             ) : (
