@@ -12,6 +12,8 @@
     <link rel="preload" as="font" type="font/woff2" crossorigin href="../node_modules/@fontsource/alegreya-sans/files/alegreya-sans-latin-400-normal.woff2" />
     <link rel="preload" as="font" type="font/woff2" crossorigin href="../node_modules/@fontsource/alegreya-sans/files/alegreya-sans-latin-800-normal.woff2" />
     <title>Kiai · Read deeper</title>
+    <!-- the landing's sky (its hero picture) starts loading with the page, not after its scripts; same rule as main.tsx -->
+    <script>(function(){try{var h=location.hash,e=true;try{e=localStorage.getItem('kiai.entered')==='1'}catch(x){}if(h==='#welcome'||(!e&&h!=='#annotate')){var l=document.createElement('link');l.rel='preload';l.as='image';l.href=matchMedia('(pointer: coarse)').matches?'/kiai/sky-1536.webp':'/kiai/sky.webp';document.head.appendChild(l)}}catch(x){}})()</script>
   </head>
   <body>
     <!--kiai-loader-->

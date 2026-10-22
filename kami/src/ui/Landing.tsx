@@ -1,13 +1,30 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { markReady } from '../lib/ready';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
-import type { Box, Show } from './landing/Stage';
+import type { Box } from './landing/camera';
+import Poster from './landing/Poster';
+import type { Show } from './landing/Stage';
 import { ASK, CHAPTERS, LINE, PICK, READS } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
-// three.js is large: the first paint (words, sky) does not wait for it
-const Stage = lazy(() => import('./landing/Stage'));
+// three.js is large (about 140 kB gzipped): the words and a still sky (Poster) paint first, and
+// it loads once the page is idle or the reader first moves
+// (a failed download falls back to the flat board rather than a blank page)
+const Stage = lazy(() => import('./landing/Stage').catch(() => import('./landing/FlatStage') as unknown as Promise<typeof import('./landing/Stage')>));
+// no WebGL, or only a software one (it takes the main thread for many seconds): the flat board
+const FlatStage = lazy(() => import('./landing/FlatStage'));
+
+/** Runs `fn` once the browser is idle (or after `ms` at the latest). */
+function whenIdle(fn: () => void, ms: number): () => void {
+  const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+  if (w.requestIdleCallback) {
+    const id = w.requestIdleCallback(fn, { timeout: ms });
+    return () => w.cancelIdleCallback?.(id);
+  }
+  const t = window.setTimeout(fn, Math.min(ms, 200));
+  return () => window.clearTimeout(t);
+}
 
 const reduced = () => {
   try {
@@ -35,6 +52,15 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
   const anchors = useRef<(HTMLElement | null)[]>([]);
   const fill = useRef<HTMLSpanElement>(null);
   const camRef = useRef<((p: number) => void) | null>(null);
+  const posterRef = useRef<((p: number) => void) | null>(null);
+  // the still sky is drawn (or cannot be); three.js may load; the live board is in and shown
+  const [painted, setPainted] = useState(false);
+  const [flat, setFlat] = useState(false);
+  const [wantLive, setWantLive] = useState(false);
+  const [live, setLive] = useState(false);
+  const [posterGone, setPosterGone] = useState(false);
+  // the chapters whose diagrams are drawn: the one in view and the next (the rest wait until near)
+  const [near, setNear] = useState(1);
   const progress = useRef(0);
   // the room the board may take in a chapter: beside its words on a wide screen, above them on a
   // tall one, below the top bar either way (the words' own boxes, measured without their motion)
@@ -80,6 +106,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       const p = Math.max(0, Math.min(N - 1, window.scrollY / Math.max(1, ch)));
       progress.current = p;
       camRef.current?.(p);
+      posterRef.current?.(p);
       words.current.forEach((el, i) => {
         if (!el) return;
         const d = p - i;
@@ -91,6 +118,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       fill.current?.style.setProperty('--p', (p / (N - 1)).toFixed(4));
       const a = Math.round(p);
       setActive(a);
+      setNear((k) => Math.max(k, Math.min(N - 1, Math.ceil(p) + 1)));
       setSettled(Math.abs(p - a) < 0.15);
     };
     const req = () => {
@@ -145,7 +173,40 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     e?.preventDefault();
     onEnter();
   };
-  const ready = useCallback(() => markReady(), []);
+  // the page is ready (the loading sheet may go) once the words and the still sky are painted
+  const painting = useCallback(() => {
+    setPainted(true);
+    markReady();
+  }, []);
+  const noPoster = useCallback(() => {
+    setFlat(true);
+    setPainted(true);
+    markReady();
+  }, []);
+  const shown = useCallback(() => setLive(true), []);
+  // a slow sky never keeps the loading sheet up for long: the words are already there
+  useEffect(() => {
+    const t = window.setTimeout(markReady, 3000);
+    return () => window.clearTimeout(t);
+  }, []);
+  // three.js: when the page is idle after its first paint, or at once if the reader moves first
+  useEffect(() => {
+    if (wantLive) return;
+    const go = () => setWantLive(true);
+    const ev = ['scroll', 'pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    ev.forEach((e) => window.addEventListener(e, go, { passive: true, once: true }));
+    const cancel = painted ? whenIdle(go, 1500) : () => undefined;
+    return () => {
+      cancel();
+      ev.forEach((e) => window.removeEventListener(e, go));
+    };
+  }, [painted, wantLive]);
+  // the poster stays under the live picture until it has faded in, then frees its WebGL context
+  useEffect(() => {
+    if (!live) return;
+    const t = window.setTimeout(() => setPosterGone(true), reduced() ? 0 : 700);
+    return () => window.clearTimeout(t);
+  }, [live]);
 
   const show: Show =
     active === 1 ? { kind: 'reading', step } : active === 2 ? { kind: 'next', n } : active === 3 ? { kind: 'ahead' } : active === 4 ? { kind: 'review' } : active === 5 ? { kind: 'start' } : { kind: 'ask' };
@@ -155,11 +216,14 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
   const [ask, reading, next, ahead, review, start] = CHAPTERS;
 
   return (
-    <div className="landing">
+    <div className={`landing${flat ? ' flat' : ''}${live ? ' live' : ''}`}>
       <div className="l-sky" aria-hidden="true" />
-      <Suspense fallback={null}>
-        <Stage show={show} at={progress} camRef={camRef} boxRef={boxRef} onReady={ready} />
-      </Suspense>
+      {!flat && !posterGone && <Poster at={progress} drawRef={posterRef} boxRef={boxRef} onDrawn={painting} onFail={noPoster} />}
+      {wantLive && (
+        <Suspense fallback={null}>
+          {flat ? <FlatStage show={show} boxRef={boxRef} onReady={shown} /> : <Stage show={show} at={progress} camRef={camRef} boxRef={boxRef} onReady={shown} />}
+        </Suspense>
+      )}
 
       <header className={`l-nav${active === 0 || active === 5 ? ' quiet' : ''}`}>
         <a className="l-brand" href="#ask" onClick={(e) => (e.preventDefault(), jump(0))} aria-label="Kiai, back to the top">
@@ -205,13 +269,13 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
         <section ref={ref(1)} className="l-ch" aria-labelledby="l-h-reading">
           <h2 id="l-h-reading">{reading.title}</h2>
-          <ReadingChart step={step} />
+          {near >= 1 && <ReadingChart step={step} />}
         </section>
 
         <section ref={ref(2)} className="l-ch" aria-labelledby="l-h-next">
           <h2 id="l-h-next">{next.title}</h2>
-          <LineDiagram n={n} />
-          <div className="l-steps" role="group" aria-label="Step through the moves">
+          {near >= 2 && <LineDiagram n={n} />}
+          {near >= 2 && <div className="l-steps" role="group" aria-label="Step through the moves">
             <button type="button" aria-label="Back one move" disabled={n === 0} onClick={() => (setAuto(false), setN((k) => Math.max(0, k - 1)))}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M15 5l-7 7 7 7" />
@@ -225,20 +289,20 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
                 <path d="M9 5l7 7-7 7" />
               </svg>
             </button>
-          </div>
+          </div>}
         </section>
 
         <section ref={ref(3)} className="l-ch" aria-labelledby="l-h-ahead">
           <h2 id="l-h-ahead">{ahead.title}</h2>
           <p className="l-lead">{ahead.lead}</p>
-          <ChanceBar on={active === 3 && settled} />
+          {near >= 3 && <ChanceBar on={active === 3 && settled} />}
           <p className="l-text">{ahead.text}</p>
         </section>
 
         <section ref={ref(4)} className="l-ch" aria-labelledby="l-h-review">
           <h2 id="l-h-review">{review.title}</h2>
           <p className="l-text">{review.text}</p>
-          <GameChart on={active === 4 && settled} />
+          {near >= 4 && <GameChart on={active === 4 && settled} />}
         </section>
 
         <section ref={ref(5)} className="l-ch l-start" aria-labelledby="l-h-start">
