@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { checkAnswer } from '../../src/lib/coach/answerCheck';
-import { explain } from '../../src/lib/coach/explain';
-import { findConcepts } from '../../src/lib/coach/library';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
-import { answerQuestion, untilAborted } from './lib/answer';
+import { untilAborted } from './lib/untilAborted';
 import { getProber } from './lib/engine';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
@@ -15,12 +12,22 @@ import { BoardPanel, type Preview } from './ui/BoardPanel';
 import { Composer } from './ui/Composer';
 import { Icon } from './ui/Icon';
 import { Messages, type Running } from './ui/Messages';
-import { Settings, type SettingsPage } from './ui/Settings';
+import type { SettingsPage } from './ui/Settings';
 import { Sidebar } from './ui/Sidebar';
 import { Splitter } from './ui/Splitter';
 import { markReady } from './lib/ready';
 import { getSetting, useSetting } from './lib/settings';
 import { observeMove, studentProfile } from './lib/style';
+
+const Settings = lazy(() => import('./ui/Settings').then((m) => ({ default: m.Settings })));
+
+/** The answer pipeline (lib/coach.ts), fetched once: when the browser is idle, or at the first question. */
+let coach: Promise<typeof import('./lib/coach')> | null = null;
+const loadCoach = () =>
+  (coach ??= import('./lib/coach').catch((e) => {
+    coach = null; // a failed fetch (offline for a moment) is tried again at the next question
+    throw e;
+  }));
 
 function lsGet(k: string): string | null {
   try {
@@ -80,6 +87,15 @@ export function App() {
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
 
   useEffect(markReady, []);
+
+  // Fetch the answer pipeline and Settings once the first screen is up, so neither waits later.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1500));
+    idle(() => {
+      loadCoach().catch(() => {});
+      import('./ui/Settings').catch(() => {});
+    });
+  }, []);
 
   useEffect(() => {
     loadConversations().then((saved) => {
@@ -176,6 +192,7 @@ export function App() {
     const onStage = (stage: Running['stage']) => setRunning((r) => (r && r.msgId === kamiId ? { ...r, stage } : r));
     let answer: Answer;
     try {
+      const { answerQuestion, explain, findConcepts, checkAnswer } = await untilAborted(loadCoach(), ctrl.signal);
       answer = await untilAborted(
         answerQuestion(
           text,
@@ -379,7 +396,11 @@ export function App() {
           />
         )}
       </div>
-      {settings && <Settings page={settings} onPage={setSettings} onClose={() => setSettings(null)} convs={convs} llmOn={llmOn} onDeleteAll={removeAll} />}
+      {settings && (
+        <Suspense fallback={null}>
+          <Settings page={settings} onPage={setSettings} onClose={() => setSettings(null)} convs={convs} llmOn={llmOn} onDeleteAll={removeAll} />
+        </Suspense>
+      )}
       {toast && (
         <div className="toast" role="status">
           {toast}

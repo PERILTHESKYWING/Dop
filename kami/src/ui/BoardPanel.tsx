@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Board, type Mark } from '../../../src/components/Board';
-import { BlunderPanel, TrendPanel } from '../../../src/components/Report';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
 import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
@@ -14,7 +13,6 @@ import { reviewMoves } from '../lib/review';
 import { setSetting, useSetting } from '../lib/settings';
 import { splitRich } from '../lib/terms';
 import { Icon } from './Icon';
-import { Performance } from './Performance';
 import { Popover } from './Popover';
 import { BOOK_SKIN, KIAI_SKIN } from './skin';
 import type { BoardWood } from '../three/kaya';
@@ -24,6 +22,10 @@ import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
+// The graph tabs load when first opened; the board and its first view do not need them.
+const TrendPanel = lazy(() => import('../../../src/components/Report').then((m) => ({ default: m.TrendPanel })));
+const BlunderPanel = lazy(() => import('../../../src/components/Report').then((m) => ({ default: m.BlunderPanel })));
+const Performance = lazy(() => import('./Performance').then((m) => ({ default: m.Performance })));
 const HAS_GL = typeof document !== 'undefined' && webglOk();
 
 /** A variation, point or built position drawn over the position it starts from. */
@@ -604,7 +606,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 <Icon name="x" size={16} />
               </button>
             </div>
-            <div className="bp-graph-body">{panel}</div>
+            <div className="bp-graph-body">
+              <Suspense fallback={null}>{panel}</Suspense>
+            </div>
           </div>
         )}
       </div>

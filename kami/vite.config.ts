@@ -98,6 +98,17 @@ export default defineConfig(({ mode }) => {
     // The strong network (kata1 b18) downloads through /katago-models, as on Dop (vercel.json has the same rewrite).
     server: { port: 5174, fs: { allow: [repo] }, proxy: { '/katago-models': katagoProxy } },
     preview: { port: 4174, proxy: { '/katago-models': katagoProxy } },
-    build: { outDir: 'dist', emptyOutDir: true, target: 'es2022', chunkSizeWarningLimit: 900 },
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+      target: 'es2022',
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          // React (and zustand) in its own file: it changes far less often than Kiai, so browsers keep it across deploys.
+          manualChunks: (id) => (/[\\/]node_modules[\\/](react|react-dom|scheduler|zustand)[\\/]/.test(id) ? 'react' : undefined),
+        },
+      },
+    },
   };
 });
