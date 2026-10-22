@@ -186,7 +186,7 @@ export function toolsFor(hub) {
           const usage = { five_hour_pct: five, seven_day_pct: week, five_hour_resets: x.five_hour_resets || null, seven_day_resets: x.seven_day_resets || null, at: hub.now(), source: x.source === 'pc' ? 'pc' : 'agent' };
           await hub.touchAccount(a.name, { usage, usageErr: '' });
         }
-        if (x.state === 'low') await hub.setLow(a.name, true, x.note || (five != null ? `${five}% used` : ''), { by: 'agent' });
+        if (x.state === 'low') await hub.setLow(a.name, true, x.note || (five != null ? `${five}% used` : ''), { by: 'agent', resets: [x.five_hour_resets, x.seven_day_resets] });
         if (x.state === 'report') return 'Thanks.';
         return x.state === 'low' ? 'Marked low. Write your hub_checkpoint now, then stop.' : 'Marked ok.';
       },
@@ -227,7 +227,9 @@ export async function handleMcp(hub, agent, body) {
     if (!tool) return fail(-32602, `Unknown tool ${params.name}`);
     const args = params.arguments || {};
     try {
-      await hub.sweep();
+      // Housekeeping (stopped agents, limits that reset) never fails the tool.
+      await hub.sweep().catch(() => {});
+      await hub.wakeIfDue().catch(() => {});
       const out = await tool.run(agent, args);
       if (out && typeof out === 'object' && Array.isArray(out.content)) {
         // Rich result (images). Only the text parts count as hub traffic.

@@ -90,7 +90,8 @@ describe('continuing after a usage limit resets', () => {
   });
 
   it('wakes at most once a minute', async () => {
-    await bothAtLimit();
+    await bothAtLimit(); // agents' calls already ran a check
+    clock += min;
     expect((await page('tick', undefined, '')).body.skipped).toBe(false);
     expect((await page('tick', undefined, '')).body.skipped).toBe(true);
     clock += min;
@@ -117,11 +118,15 @@ describe('continuing after a usage limit resets', () => {
     expect((await hub.account('B')).low).toBe(false);
   });
 
-  it('keeps an account XIAO marked low by hand until its known reset or until XIAO clears it', async () => {
+  it('brings back an account XIAO marked low by hand at its known reset, or after 5 hours', async () => {
     await page('account-low', { name: 'A', low: true });
-    clock += 24 * 60 * min;
+    expect((await hub.account('A')).lowUntil).toBe(clock + 5 * 60 * min);
+    clock += 4 * 60 * min;
     await hub.wake({ force: true });
     expect((await hub.account('A')).low).toBe(true);
+    clock += 61 * min;
+    await hub.wake({ force: true });
+    expect((await hub.account('A')).low).toBe(false);
   });
 
   it('rests an account whose restarted session never reached the hub', async () => {
