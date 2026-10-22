@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f4f1ec">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dop hub">
+<link rel="manifest" href="/manifest.webmanifest">
 <title>Dop hub</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -73,18 +77,18 @@ body { transition: background-color .2s, color .2s; }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .hidden { display: none !important; }
 input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: 16px; transition: border-color .15s, box-shadow .15s; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
 .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; transition: background-color .15s, border-color .15s, transform .1s; }
 .btn:active { transform: translateY(1px); }
-.btn:hover { background: var(--sel); }
+@media (hover: hover) { .btn:hover { background: var(--sel); } }
 .btn.primary { background: var(--green); color: var(--on-green); border-color: var(--green); box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
-.btn.primary:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
+@media (hover: hover) { .btn.primary:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); } }
 .btn.small { padding: 5px 10px; font-size: 14px; }
 .btn.quiet { border-color: transparent; background: none; }
-.btn.quiet:hover { background: var(--sel); }
+@media (hover: hover) { .btn.quiet:hover { background: var(--sel); } }
 .err { color: var(--red); font-size: 15px; min-height: 1em; }
 
 /* avatars: one flat colour per account */
@@ -117,7 +121,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .pbtn svg { width: 19px; height: 19px; }
 .brand .pbtn, .thead .pbtn { margin-right: -6px; }
 .head .pbtn[aria-pressed="true"] { display: none; }
-@media (prefers-reduced-motion: reduce) { .app { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .app { transition: none; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 
 /* sidebar */
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
@@ -460,25 +464,34 @@ button.fchip:hover { border-color: var(--faint); }
   .back { display: inline-flex; }
   .head > .avs, .wide { display: none; }
   .head h2 { flex-basis: 0; }
-  .head, .feed { padding-left: 16px; padding-right: 16px; }
-  .compose { padding: 0 12px 10px; }
+  .head, .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .compose { padding: 0 max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .app { height: var(--vvh, 100dvh); }
+  /* Phone tap targets: at least 44px tall. */
+  .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
+  .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
+  #text, #pw { min-height: 44px; }
+  #sendBtn { min-width: 44px; min-height: 44px; }
+  summary, .tk { min-height: 44px; }
   .row.me .bubble { max-width: 88%; }
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-  .tabs button { border: 0; background: none; padding: 12px 0; font-size: 15px; font-weight: 700; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  html.kb .tabs { display: none; }
+  .tabs button { border: 0; background: none; padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 700; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; transition: color .15s, box-shadow .15s, background-color .15s; }
+  .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
 }
 </style>
 </head>
 <body>
-<div id="login">
-  <form id="loginForm">
+<main id="login">
+  <form id="loginForm" aria-label="Sign in">
     <h1><i class="logo l" role="img" aria-label="Dop hub logo"></i>Dop hub</h1>
-    <input id="pw" type="password" placeholder="Hub password" autocomplete="current-password" required>
+    <input id="pw" type="password" placeholder="Hub password" aria-label="Hub password" autocomplete="current-password" enterkeyhint="go" required>
     <button class="btn primary" type="submit">Open</button>
-    <div class="err" id="loginErr"></div>
+    <div class="err" id="loginErr" role="alert"></div>
   </form>
-</div>
+</main>
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
@@ -505,7 +518,7 @@ button.fchip:hover { border-color: var(--faint); }
     </form>
   </main>
   <aside class="col team" id="team"></aside>
-  <nav class="tabs" id="tabs">
+  <nav class="tabs" id="tabs" aria-label="Sections">
     <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span></button>
     <button type="button" data-tab="chat">Chat</button>
     <button type="button" data-tab="team">Team</button>
@@ -1658,6 +1671,19 @@ if (pw) {
   readUsage();
 }
 else showLogin();
+// Phone keyboard: keep the compose box in view. iOS keeps the layout viewport tall when the keyboard
+// opens, so size the app to the visual viewport and hide the tab bar while typing.
+if (window.visualViewport) {
+  const vv = window.visualViewport, root = document.documentElement;
+  const fit = () => {
+    const open = innerHeight - vv.height > 120 && matchMedia('(max-width: 860px)').matches;
+    root.classList.toggle('kb', open);
+    root.style.setProperty('--vvh', open ? vv.height + 'px' : '');
+    if (open) scrollTo(0, 0);
+  };
+  vv.addEventListener('resize', fit);
+  vv.addEventListener('scroll', fit);
+}
 </script>
 </body>
 </html>
