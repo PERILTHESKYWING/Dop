@@ -43,7 +43,7 @@ createServer((req, res) => {
     if (p === '/api/mcp') return mcpApi(req, res);
     if (p.startsWith('/api/c/')) return pathApi(req, res);
     // The icons sit next to index.html, as Vercel serves them.
-    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml' }[p];
+    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml', '/manifest.webmanifest': 'application/manifest+json' }[p];
     if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
     // The studio and library pages and their modules, also plain static files on Vercel.
     if (p === '/studio.html' || p === '/library.html' || /^\/(studio|library)\/[a-z-]+\.js$/.test(p)) {
