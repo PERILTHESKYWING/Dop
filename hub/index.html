@@ -233,6 +233,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .picks span { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
 /* swipe a message left (or use its ⋯ on a computer) to show Delete */
 .sw { position: relative; overflow: hidden; flex: none; }
+/* Long feeds: skip layout and paint for messages far off screen (T3 render speed). */
+#feed > .sw { content-visibility: auto; contain-intrinsic-size: auto 96px; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
 .sw.open .sw-in { transform: translateX(-104px); }
@@ -942,6 +944,54 @@ function renderHead(t) {
     <button type="button" class="btn small more" data-pop="tmenu" aria-label="More">⋯</button>${panelBtn('team')}`;
   applyPanels();
 }
+// The feed is a list of keyed items (one per message, plus the handover, the
+// hidden-thoughts note and the live lines). A render keeps every item whose
+// key and HTML are unchanged at the start and end of the list and swaps only
+// what is between, so a new message never rebuilds the other 300.
+let feedItems = [];
+// Only the newest messages are drawn at first; a long thread opens fast and
+// "Show earlier" adds a page at a time.
+const FEED_SHOW = 100, feedEarly = {};
+// Rebuilding the HTML of every message on every poll was the biggest cost, so
+// a settled message keeps its HTML until something it is drawn from changes:
+// its own text, the thinking / account / open-swipe state in feedCtx, or the
+// minute (for any "x ago" text). Messages that read other messages, threads or
+// pictures are never cached. If msgHtml starts to read new outside state, add it to feedCtx.
+const msgMemo = new WeakMap();
+const feedCtx = () => `${think.mode}|${think.hide}|${S.accounts.map((a) => a.name).join()}|${openMsg}|${Math.floor(Date.now() / 60000)}`;
+function msgItem(m, ctx) {
+  const live = m.pending || m.kind === 'routed' || m.kind === 'question' || m.meta?.image || m.meta?.files?.length || typeof m.id !== 'number';
+  if (live) return swipeable(m, msgHtml(m));
+  const open = m.kind === 'thinking' && openThoughts.has(m.id);
+  const c = msgMemo.get(m);
+  if (c && c.ctx === ctx && c.text === m.text && c.open === open) return c.h;
+  const h = swipeable(m, msgHtml(m));
+  msgMemo.set(m, { ctx, text: m.text, open, h });
+  return h;
+}
+function patchFeed(feed, items) {
+  const old = feedItems;
+  let pre = 0;
+  while (pre < old.length && pre < items.length && old[pre].k === items[pre].k && old[pre].h === items[pre].h) pre++;
+  let suf = 0;
+  while (suf < old.length - pre && suf < items.length - pre && old[old.length - 1 - suf].k === items[items.length - 1 - suf].k && old[old.length - 1 - suf].h === items[items.length - 1 - suf].h) suf++;
+  const gone = old.slice(pre, old.length - suf), add = items.slice(pre, items.length - suf);
+  if (!gone.length && !add.length) return null;
+  let ref = null;
+  for (let i = old.length - suf; i < old.length && !ref; i++) ref = old[i].nodes[0] || null;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = add.map((x) => x.h).join('');
+  if (add.length === 1) add[0].nodes = [...tpl.content.childNodes];
+  else for (const x of add) { const t = document.createElement('template'); t.innerHTML = x.h; x.nodes = [...t.content.childNodes]; }
+  if (gone.length === old.length) feed.textContent = '';
+  else for (const g of gone) for (const n of g.nodes) n.remove();
+  if (add.length > 1) { const fr = document.createDocumentFragment(); for (const x of add) for (const n of x.nodes) fr.appendChild(n); feed.insertBefore(fr, ref); }
+  else feed.insertBefore(tpl.content, ref);
+  for (let i = 0; i < pre; i++) items[i].nodes = old[i].nodes;
+  for (let i = 0; i < suf; i++) items[items.length - 1 - i].nodes = old[old.length - 1 - i].nodes;
+  feedItems = items;
+  return add;
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
@@ -949,27 +999,39 @@ function renderFeed() {
   if (sel > 0 && !t) sel = 0;
   renderHead(t);
   const msgs = S.messages.filter((m) => m.thread === sel);
-  let html = msgs.map((m) => swipeable(m, msgHtml(m))).join('');
+  const ctx = feedCtx();
+  // The first message drawn stays put while new ones arrive, so the old ones keep their nodes.
+  if (feedEarly[sel] === undefined) feedEarly[sel] = Math.max(0, msgs.length - FEED_SHOW);
+  const early = Math.min(feedEarly[sel], msgs.length);
+  const items = msgs.slice(early).map((m) => ({ k: m.id, h: msgItem(m, ctx) }));
+  if (early) items.unshift({ k: 'more', h: '<div class="note"><button type="button" class="btn small quiet" data-feed-more>Show earlier messages</button></div>' });
   const recentHandover = msgs.slice(-4).some((m) => m.kind === 'handover');
-  if (t && t.checkpoint && !recentHandover) html += msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` });
+  if (t && t.checkpoint && !recentHandover) items.push({ k: 'handover', h: msgHtml({ from: t.checkpoint.by, kind: 'handover', at: t.checkpoint.at, text: `Done: ${t.checkpoint.done}\nNext: ${t.checkpoint.next}${t.checkpoint.branch ? '\nBranch: ' + t.checkpoint.branch : ''}` }) });
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
-  if (hid) html += `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>`;
-  html += liveLines(t, msgs);
-  if (!html && S.loading) html = '<div class="note">Loading…</div>';
-  if (!html && sel === NEW_CHAT) html = `<div class="hello">
+  if (hid) items.push({ k: 'hidden', h: `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>` });
+  const live = liveLines(t, msgs);
+  if (live) items.push({ k: 'live', h: live });
+  if (!items.length) {
+    let html = S.loading ? '<div class="note">Loading…</div>' : '';
+    if (!html && sel === NEW_CHAT) html = `<div class="hello">
       <i class="logo hero" aria-hidden="true"></i>
       <h3>New chat</h3>
       <p>Goes straight to one agent. No coordinator, and nothing is added to Project chat. It becomes its own thread once you send.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (!html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
+    if (!html) html = sel ? '<div class="note">No messages yet.</div>' : `<div class="hello">
       <span class="stroll">${clawd('l wave')}</span>
       <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
       <h3>What should the team work on?</h3>
       <p>Write a task below. The coordinator splits it into threads and hands each one to an account. Pick a model, thinking level and accounts with the buttons under the box.</p>
       ${S.accounts.length ? `<div class="starters">${STARTERS.map(([l, v]) => `<button type="button" class="chip" data-starter="${esc(v)}">${esc(l)}</button>`).join('')}</div>` : '<button class="btn primary" data-open="add">Add your first account</button>'}
     </div>`;
-  if (feed.dataset.html !== html) { feed.innerHTML = html; feed.dataset.html = html; hydrateImgs(feed); hydrateThumbs(feed); }
+    items.push({ k: 'empty:' + sel, h: html });
+  }
+  // A different view starts from scratch; the same view keeps its nodes.
+  if (feed.dataset.sel !== String(sel)) { feedItems = []; feed.textContent = ''; }
+  const added = patchFeed(feed, items);
+  if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
   if (stick || feed.dataset.sel !== String(sel)) feed.scrollTop = feed.scrollHeight;
   feed.dataset.sel = String(sel);
   renderTools(t);
@@ -1308,7 +1370,13 @@ function setTab(tab) {
 }
 const toBottom = () => { const f = $('feed'); f.scrollTop = f.scrollHeight; };
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
-function openThread(id) { drafts[sel] = $('text').value; sel = id; closePop(); setTab('chat'); render(); toBottom(); }
+function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; sel = id; delete feedEarly[id]; closePop(); setTab('chat'); render(); toBottom(); }
+$('feed').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-feed-more]')) return;
+  const f = $('feed'), h = f.scrollHeight - f.scrollTop;
+  feedEarly[sel] = Math.max(0, (feedEarly[sel] || 0) - FEED_SHOW); renderFeed();
+  f.scrollTop = f.scrollHeight - h;
+});
 
 document.addEventListener('click', async (e) => {
   if (!$('pop').classList.contains('hidden') && !e.target.closest('#pop') && !e.target.closest('[data-pop]')) closePop();
