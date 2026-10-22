@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Draws the hub's Look backgrounds (scenes, stones, wood grain) as data-URI SVGs and writes
-// them into hub/index.html between the walls:start and walls:end markers.
+// Draws the hub's Look backgrounds (scenes, stones, wood grain) as data-URI SVGs. The pictures
+// (~113 KB) go to hub/walls.css, which the page reads only when a background needs them and then
+// keeps on the device; the small rules that pick a picture go into hub/index.html between the
+// walls:start and walls:end markers.
 // Run after changing a scene: node hub/walls.mjs
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
@@ -112,8 +114,7 @@ const dark = {
 const sel = (k, pre) => `${pre}[data-bg="${k}"], ${pre} [data-bg-demo="${k}"]`;
 const css = `/* walls:start (written by node hub/walls.mjs) */
 /* Backgrounds (Look › Background): painted behind the whole app and the sign-in page. Dots, Grid and Stones are tinted from the theme; the scenes have their own light and dark versions. */
-:root, [data-bg-demo=""] { --wall: none; --wall-size: auto; --wall-bg: var(--bg); --tint: color-mix(in srgb, var(--ink) 9%, transparent);
-${Object.entries(w).map(([k, u]) => `  ${v(k).slice(4, -1)}: ${u};`).join('\n')} }
+:root, [data-bg-demo=""] { --wall: none; --wall-size: auto; --wall-bg: var(--bg); --tint: color-mix(in srgb, var(--ink) 9%, transparent); }
 :root[data-bg="dots"], [data-bg-demo="dots"] { --wall: radial-gradient(var(--tint) 1.2px, transparent 1.6px); --wall-size: 18px 18px; }
 :root[data-bg="grid"], [data-bg-demo="grid"] { --wall: ${lines('var(--tint)')}; --wall-size: 26px 26px; }
 :root[data-bg="board"], [data-bg-demo="board"] { --wall-bg: #d9ad66; --wall: ${lines('rgba(50, 30, 5, .3)')}, ${v('grain')}; --wall-size: 44px 44px, 44px 44px, 700px 700px; }
@@ -127,9 +128,14 @@ ${Object.entries(dark).map(([k, v]) => `  ${sel(k, ':root:not([data-theme="light
 }
 ${Object.entries(dark).map(([k, v]) => `${sel(k, ':root[data-theme="dark"]')} { ${v} }`).join('\n')}
 /* walls:end */`;
+const pics = `/* Written by node hub/walls.mjs: the Look background pictures, read by hub/index.html only when a background needs them. */
+:root {
+${Object.entries(w).map(([k, u]) => `  ${v(k).slice(4, -1)}: ${u};`).join('\n')} }
+`;
+writeFileSync(new URL('./walls.css', import.meta.url), pics);
 const file = new URL('./index.html', import.meta.url);
 const html = readFileSync(file, 'utf8');
 const a = html.indexOf('/* walls:start'), b = html.indexOf('/* walls:end */');
 if (a < 0 || b < 0) throw new Error('walls markers not found in hub/index.html');
 writeFileSync(file, html.slice(0, a) + css + html.slice(b + '/* walls:end */'.length));
-console.log(`Backgrounds written (${Math.round(css.length / 1024)} KB).`);
+console.log(`Backgrounds written (rules ${Math.round(css.length / 1024)} KB in index.html, pictures ${Math.round(pics.length / 1024)} KB in walls.css).`);
