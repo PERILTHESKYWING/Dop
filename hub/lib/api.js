@@ -20,6 +20,13 @@ const SETUP_HELP =
 
 // The page and its API: XIAO's password.
 export async function pageApi({ hub, password, method, query, body, headers }) {
+  // No password: the hub-wake workflow pings this every 10 minutes so threads
+  // continue when a usage limit resets with no page open. It only does what
+  // the hub's own rules allow, at most once a minute, and returns counts.
+  if (query.op === 'tick' && hub) {
+    const w = await hub.tick();
+    return { status: 200, body: { ok: true, skipped: !!w.skipped, back: w.back?.length || 0, resumed: w.resumed?.length || 0 } };
+  }
   if (!password) return { status: 500, body: { error: 'Set HUB_PASSWORD in the Vercel project settings, then redeploy.' } };
   if (!hub) return { status: 500, body: { error: SETUP_HELP } };
   const given = headers['x-hub-password'] || '';

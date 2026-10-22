@@ -5,11 +5,12 @@
 // every shot) and a list of scenes. Each scene places actors and gives each
 // one beats: at time t, do this move with this face (and maybe say a line).
 
-export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround'];
-export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic'];
+export const MOVES = ['idle', 'talk', 'walk', 'wave', 'nod', 'shake', 'shrug', 'point', 'jump', 'think', 'facepalm', 'cheer', 'cry', 'laugh', 'sigh', 'stomp', 'gasp', 'fidget', 'crossarms', 'hips', 'bow', 'slump', 'lookaround', 'cheek', 'clasp', 'chin', 'phone', 'fistup', 'cover', 'oneup', 'peace', 'palms', 'cheeks'];
+export const FACES = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'worried', 'smug', 'tired', 'shock', 'cat', 'joy', 'shy', 'panic', 'yell', 'nervous', 'teary', 'wink', 'lens', 'forced', 'forcedSquint', 'grimace', 'content'];
 export const BACKGROUNDS = ['plain', 'room', 'bedroom', 'kitchen', 'classroom', 'street', 'park', 'night'];
 export const HAIR = ['short', 'bob', 'long', 'spiky', 'bun', 'ponytail', 'curly', 'bald', 'shag', 'flowing'];
-export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim'];
+export const MARK_KINDS = ['label', 'sfx', 'sweat', 'sparkle', 'lines', 'heart', 'exclaim', 'board', 'card', 'phone', 'pan', 'shrimp', 'peek', 'speed', 'desk', 'bubble', 'star', 'shades', 'collapse', 'curl', 'tear'];
+const TEXT_MARKS = ['label', 'sfx', 'board', 'card', 'shrimp', 'bubble'];
 export const BUILDS = ['slim', 'average', 'round', 'petite'];
 export const EYES = ['dot', 'oval', 'sleepy', 'anime'];
 export const JAWS = ['round', 'v'];
@@ -17,7 +18,7 @@ export const TOPS = ['tee', 'sleeveless', 'turtleneck', 'long'];
 export const BOTTOMS = ['trousers', 'skirt', 'longskirt'];
 export const EXTRAS = ['glasses', 'freckles', 'beard', 'cap', 'blush', 'bow', 'lashes', 'lips', 'blushlines', 'ahoge', 'sweat'];
 export const CAP_POS = ['bottom', 'top']; // top = outlined subtitle line at top centre
-export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box'];
+export const PROPS = ['table', 'chair', 'bed', 'door', 'window', 'tree', 'phone', 'sign', 'lamp', 'box', 'thumb', 'tablet', 'dropdown', 'mascot', 'photo', 'pan', 'shrimp', 'stove'];
 
 // How the drawing looks. Agents may tune these; XIAO's rules set the defaults.
 export const STYLE_RANGES = {
@@ -31,9 +32,9 @@ export const STYLE_RANGES = {
   shade: [0, 1], // how strongly the 3D shading (form shadow, rim light) shows
   fill: [0, 1], // colour fills: 1 = full colour, 0 = line art only (fills fade to the paper colour)
 };
-export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, fill: 1, paper: '#f7f1e3', ink: '#2a2420', captions: true, capPos: 'bottom' };
+export const DEFAULT_STYLE = { fps: 12, hold: 2, boil: 0.55, wobble: 1.6, line: 4.5, grain: 0.5, misregister: 0.5, shade: 0.6, fill: 1, paper: '#f7f1e3', ink: '#2a2420', captions: true, capPos: 'bottom', faceCam: false };
 
-const ZOOM = [1, 4]; // 3 = bust close-up (head and shoulders fill the frame), 3.5-4 = face
+const ZOOM = [1, 9]; // 3 = bust close-up (head and shoulders fill the frame), 3.5-4 = face, 4-6 = a vlog's tight bust and face crops, 6-9 = the face filling the frame (f2's crash-out)
 const LIMITS = { scenes: 40, actors: 4, beats: 24, props: 6, marks: 6, cast: 6, say: 140, narration: 300, title: 80, idea: 2000, duration: [0.3, 30] };
 const SAMPLE_MAX_SECONDS = 25;
 const READ_CHARS_PER_SEC = 14; // a comfortable reading speed for captions and bubbles
@@ -57,6 +58,8 @@ export function normalizeStyle(s = {}, base = DEFAULT_STYLE) {
   out.ink = color(s.ink, base.ink);
   out.captions = s.captions == null ? base.captions : !!s.captions;
   out.capPos = pick(s.capPos, CAP_POS, base.capPos);
+  // A vlog: every character faces the viewer and looks into the lens.
+  out.faceCam = s.faceCam == null ? !!base.faceCam : !!s.faceCam;
   return out;
 }
 
@@ -98,6 +101,9 @@ function normalizeBeat(b, where, problems, castIds) {
   if (b.say) out.say = text(b.say, LIMITS.say);
   if (b.look != null) out.look = Number(b.look) < 0 ? -1 : 1;
   if (b.at && castIds.includes(b.at)) out.at = b.at; // who to point or look at
+  if (b.quiet) out.quiet = true; // faceCam: keep the mouth still under the caption
+  if (Number.isFinite(Number(b.roll)) && b.roll != null) out.roll = clamp(b.roll, [-30, 30], 0); // head tilt, degrees
+  if (Number.isFinite(Number(b.turn)) && b.turn != null) out.turn = clamp(b.turn, [-20, 20], 0); // head turn, degrees
   return out;
 }
 
@@ -151,13 +157,14 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
     const props = (Array.isArray(s.props) ? s.props : [])
       .slice(0, LIMITS.props)
       .filter((p) => p && PROPS.includes(p.kind))
-      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), scale: clamp(p.scale, [0.5, 1.6], 1), ...(p.text ? { text: text(p.text, 24) } : {}) }));
+      .map((p) => ({ kind: p.kind, x: clamp(p.x, [0, 1], 0.5), ...(p.y != null ? { y: clamp(p.y, [0, 1], 0.5) } : {}), scale: clamp(p.scale, [0.5, 3], 1), ...(p.cross ? { cross: true } : {}), ...(p.text ? { text: text(p.text, 40) } : {}) }));
     const marks = (Array.isArray(s.marks) ? s.marks : [])
-      .filter((m) => m && MARK_KINDS.includes(m.kind) && (['label', 'sfx'].includes(m.kind) ? text(m.text, 40) : true))
+      .filter((m) => m && MARK_KINDS.includes(m.kind) && (TEXT_MARKS.includes(m.kind) && m.kind !== 'shrimp' ? text(m.text, 40) : true))
       .slice(0, LIMITS.marks)
       .map((m) => ({
         kind: m.kind,
-        ...(['label', 'sfx'].includes(m.kind) ? { text: text(m.text, 40) } : {}),
+        ...(TEXT_MARKS.includes(m.kind) && text(m.text, 40) ? { text: text(m.text, 40) } : {}),
+        ...(m.kind === 'desk' && text(m.text, 40) ? { text: text(m.text, 40) } : {}),
         x: clamp(m.x, [0, 1], 0.5),
         y: clamp(m.y, [0, 1], 0.5),
         ...(Array.isArray(m.to) && m.to.length === 2 && m.to.every((v) => Number.isFinite(Number(v))) ? { to: m.to.map((v) => clamp(v, [0, 1], 0.5)) } : {}),
@@ -181,6 +188,9 @@ export function validateProject(input, { baseStyle = DEFAULT_STYLE } = {}) {
       actors,
       props,
       marks,
+      // capAt [x, y]: a top caption moved off the top band, left-aligned at x with its
+      // middle at y (f2 writes "fix your posture," at the left middle).
+      ...(Array.isArray(s.capAt) && s.capAt.length === 2 && s.capAt.every((v) => Number.isFinite(Number(v))) ? { capAt: s.capAt.map((v) => clamp(v, [0, 1], 0.5)) } : {}),
     });
   });
   if (!scenes.length) problems.push('scenes: none');
@@ -208,8 +218,13 @@ export function lintProject(p) {
   const used = new Set();
   p.scenes.forEach((s, i) => {
     const where = `scenes[${i}] (${s.id})`;
+    // A caption can run on over quick cuts (a phrase across two shots, as in
+    // the reference vlogs): check its whole run once, at its last scene.
     const need = s.narration.length / READ_CHARS_PER_SEC + 0.5;
-    if (s.narration && need > s.duration) out.push(`${where}: narration needs about ${need.toFixed(1)} s to read but the scene lasts ${s.duration} s`);
+    const same = (k) => p.scenes[k] && p.scenes[k].narration === s.narration;
+    let run = s.duration;
+    for (let k = i - 1; same(k); k--) run += p.scenes[k].duration;
+    if (s.narration && !same(i + 1) && need > run) out.push(`${where}: narration needs about ${need.toFixed(1)} s to read but it shows for ${run.toFixed(1)} s`);
     if (!s.actors.length && !s.narration && !s.marks?.length && s.duration > 0.6) out.push(`${where}: empty scene (no actors, narration or marks)`);
     const xs = [];
     for (const a of s.actors) {
@@ -255,9 +270,9 @@ export function schemaText() {
   return [
     'Project JSON: {title, idea, stage:"sample"|"full", style?, cast:{id:Character}, scenes:[Scene]}.',
     `Character: {name, height 0.6-1.3, headSize 0.8-1.4, build ${BUILDS.join('|')}, skin, hair, hair2? (ombre ends), eyeColor? (iris), top, bottom, shoes (#rrggbb), hairStyle ${HAIR.join('|')}, eyes ${EYES.join('|')}, jaw ${JAWS.join('|')}, topStyle ${TOPS.join('|')}, bottomStyle ${BOTTOMS.join('|')}, extras [${EXTRAS.join(', ')}]}.`,
-    `Scene: {id, duration 0.3-30 s (0.3-0.6 s = a blink cut or colour flash), bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-4 (3 = bust close-up, 3.5+ = face), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], marks? [{kind ${MARK_KINDS.join('|')}, text? (label/sfx, ≤40 chars), x 0-1, y 0-1, to? [x,y] arrow target; x, y are shares of the screen, t? pop-in time s, size? 0.5-2}] (max ${LIMITS.marks}), actors: [Actor] (max ${LIMITS.actors})}.`,
-    `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at)}]}.`,
-    `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, shade 0-1, fill 0-1 (0 = line art only), capPos bottom|top (top = outlined subtitle), paper, ink}. Omit style to use XIAO's defaults.`,
+    `Scene: {id, duration 0.3-30 s (0.3-0.6 s = a blink cut or colour flash), bg {kind ${BACKGROUNDS.join('|')}, color?}, narration (caption, ~${READ_CHARS_PER_SEC} chars/s), camera? {zoom 1-9 (3 = bust close-up, 3.5+ = face, 6+ = the face fills the frame), x 0-1, y 0-1, to? {zoom, x, y}: slow push-in/pan eased over the scene}, props? [{kind ${PROPS.join('|')}, x 0-1, scale?, text?}], marks? [{kind ${MARK_KINDS.join('|')}, text? (label/sfx, ≤40 chars), x 0-1, y 0-1, to? [x,y] arrow target; x, y are shares of the screen, t? pop-in time s, size? 0.5-2}] (max ${LIMITS.marks}), capAt? [x, y] (top caption left-aligned at x, middle at y), actors: [Actor] (max ${LIMITS.actors})}.`,
+    `Actor: {who: cast id, x 0.05-0.95, facing 1|-1, scale?, beats: [{t s, move ${MOVES.join('|')}, face ${FACES.join('|')}, say? (bubble, ≤${LIMITS.say} chars; the mouth moves with any move, talk adds hand gestures), to? (walk target x), at? (cast id to point/look at), quiet? (faceCam: mouth still)}]}.`,
+    `style? {fps 8-24, hold 1-4 (frames per drawing), boil 0-1, wobble 0-4, line 2-9, grain 0-1, misregister 0-1, shade 0-1, fill 0-1 (0 = line art only), capPos bottom|top (top = outlined subtitle), faceCam (true = a vlog: she faces and looks into the camera in every shot and talks while a caption is up), paper, ink}. Omit style to use XIAO's defaults.`,
     `A sample is 1-2 scenes under ${SAMPLE_MAX_SECONDS} s.`,
   ].join('\n');
 }

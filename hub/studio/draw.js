@@ -208,7 +208,7 @@ export class Pen {
       src = [...ring, ...ring.slice(1, extra + 1)];
     }
     const w = width * this.scale;
-    const { pts: p, lens, total } = resample(src, Math.max(3, Math.min(9, total0(src) / 14)));
+    const { pts: p, lens, total } = resample(src, Math.max(3 * Math.min(1, this.scale), Math.min(9 * Math.min(1, this.scale), total0(src) / 14)));
     if (p.length < 2) return;
     const nrm = normals(p);
     const off = this.wander(id, total, this.style.wobble * wobble * this.scale);
@@ -262,7 +262,7 @@ export class Pen {
     const m = st.misregister * slip * this.scale * (2.2 + st.line * 0.35);
     const dx = Math.cos(a) * m;
     const dy = Math.sin(a) * m;
-    const { pts: p, lens, total } = resample(pts, Math.max(4, total0(pts) / 24));
+    const { pts: p, lens, total } = resample(pts, Math.max(1.5 * Math.min(1, this.scale), Math.min(12 * Math.min(1, this.scale), total0(pts) / 24)));
     const nrm = normals(p);
     const off = this.wander(id + ':f', total, st.wobble * 0.7 * this.scale, 0.7);
     const out = p.map(([x, y], i) => [x + dx + nrm[i][0] * off(lens[i]), y + dy + nrm[i][1] * off(lens[i])]);
@@ -319,7 +319,7 @@ export class Pen {
   }
 
   text(t, x, y, size, opts = {}) {
-    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}), ...(opts.outline ? { outline: opts.outline } : {}) });
+    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}), ...(opts.outline ? { outline: opts.outline, ow: opts.ow || 0.18 } : {}), ...(opts.sans ? { sans: true } : {}) });
   }
 }
 

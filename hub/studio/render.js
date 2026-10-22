@@ -2,7 +2,7 @@
 // gives layers of ops; paint() draws them on a canvas, toSVG() makes an SVG.
 import { LIGHT, Pen, curve, ellipse, hash, loop, mix, pathOf, rng, wrap } from './draw.js';
 import { drawCharacter, headSpot, seedFor, FACE } from './rig.js';
-import { drawMarks } from './marks.js';
+import { drawGagProp, drawMarks, isScreenProp, PROP_KINDS } from './marks.js';
 import { poseFor, MOVE_SET, WALK_SPEED } from './moves.js';
 
 export const W = 1600;
@@ -10,6 +10,8 @@ export const H = 900;
 export const GROUND = 774;
 const HORIZON = 640;
 export const FONT = '"Patrick Hand", "Comic Neue", "Comic Sans MS", "Chalkboard SE", cursive';
+// The subtitle face: a clean geometric sans, as in the reference vlogs.
+export const SANS = '"Montserrat", "Nunito", "Helvetica Neue", Arial, sans-serif';
 
 // ---------- time ----------
 export function timeline(p) {
@@ -99,7 +101,7 @@ export function renderBackground(p, scene) {
   if (spec.floor) {
     pen.fill('floor', rect(-20, horizon, W + 20, H + 20), scene.bg.color && k === 'plain' ? mix(wall, st.ink, 0.1) : spec.floor, { slip: 0 });
     pen.stroke('horizon', [[-10, horizon], [W * 0.5, horizon + 2], [W + 10, horizon - 1]], thin);
-  } else pen.stroke('horizon', [[W * 0.06, GROUND + 8], [W * 0.94, GROUND + 6]], { ...thin, taper: 1 });
+  } else if (!st.faceCam) pen.stroke('horizon', [[W * 0.06, GROUND + 8], [W * 0.94, GROUND + 6]], { ...thin, taper: 1 }); // a vlog's plain backdrop has no floor line (f2)
 
   const r = rng(hash('bgdots', scene.id));
   if (k === 'room' || k === 'bedroom') {
@@ -182,7 +184,7 @@ export function renderBackground(p, scene) {
         pen.shape('crown' + tx, loop([[tx - 120, horizon - 170], [tx - 90, horizon - 300], [tx, horizon - 350], [tx + 100, horizon - 290], [tx + 120, horizon - 170], [tx, horizon - 130]], 6), '#7fb069', thin);
       }
   }
-  for (const [i, pr] of scene.props.entries()) drawProp(pen, pr, i, soft, st);
+  for (const [i, pr] of scene.props.entries()) if (!isScreenProp(pr)) drawProp(pen, pr, i, soft, st);
   return ops;
 }
 
@@ -197,7 +199,9 @@ function drawProp(pen, pr, i, soft, st) {
     pen.stroke(id + k, rect(x0, y0, x1, y1), { ...o, closed: true });
   };
   const g = GROUND;
-  if (pr.kind === 'table') {
+  if (PROP_KINDS.includes(pr.kind) && (pr.y != null || !['sign', 'phone'].includes(pr.kind))) {
+    drawGagProp(pen, pr, i, st, W, H);
+  } else if (pr.kind === 'table') {
     box('top', x - 170 * s, g - 150 * s, x + 170 * s, g - 128 * s, '#b98a5e');
     box('l1', x - 150 * s, g - 128 * s, x - 132 * s, g, '#a27650');
     box('l2', x + 132 * s, g - 128 * s, x + 150 * s, g, '#a27650');
@@ -269,14 +273,28 @@ function bubble(pen, text, spot, placed, st) {
   lines.forEach((l, i) => pen.text(l, cx, cy - th / 2 + 17 + size * 0.88 + i * size * 1.12, size));
 }
 
-function caption(ops, text, st) {
+// Relative brightness 0..1 of a #rrggbb colour.
+const luma = (c) => {
+  const n = parseInt(String(c).slice(1, 7), 16);
+  return Number.isFinite(n) ? (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 : 1;
+};
+
+function caption(ops, text, st, scene = {}) {
   const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
   const lines = wrap(text, 58).slice(0, 3);
   if (st.capPos === 'top') {
-    // Subtitle style: plain outlined text at the top centre, no box.
+    // Subtitle style (f2): black sans at a medium weight (not bold) with a thin white edge,
+    // no box, at the top centre (baseline at 8% of the frame); the shots keep her hair
+    // below it. On a dark break colour it turns white with a dark edge (f2 still 34).
+    // scene.capAt [x, y] moves it: left-aligned at x, middle at y (f2 still 44).
     const pen = new Pen({ style: { ...st, boil: 0 }, seed: hash('cap', text), ops });
-    const white = mix(st.paper, '#ffffff', 0.9);
-    lines.forEach((l, i) => pen.text(l, W / 2, 20 + size * 0.9 + i * size * 1.15, size, { color: white, outline: st.ink, weight: 700 }));
+    const sz = size * 0.86;
+    const dark = scene.bg?.color && luma(scene.bg.color) < 0.4;
+    const look = { color: dark ? '#ffffff' : '#111111', outline: dark ? '#231c2a' : '#ffffff', ow: 0.2, weight: 500, sans: true };
+    const at = scene.capAt;
+    const x = at ? at[0] * W : W / 2;
+    const y0 = at ? at[1] * H + sz * 0.35 - ((lines.length - 1) * sz * 1.2) / 2 : 30 + sz * 0.95;
+    lines.forEach((l, i) => pen.text(l, x, y0 + i * sz * 1.2, sz, { ...look, ...(at ? { align: 'left' } : {}) }));
     return;
   }
   const h = lines.length * size * 1.15 + 22;
@@ -324,22 +342,30 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
     const ch = p.cast[a.who];
     const sd = seedFor(a.who);
     const beat = s.walking ? s.beat : s.beat.move === 'walk' ? { ...s.beat, move: 'idle' } : s.beat;
-    const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking: !!beat.say && beat.move !== 'walk', prev: a.beats[s.beatIndex - 1], time: tq, walking: s.walking });
+    // A vlog talks to the viewer: the mouth moves while her caption is up.
+    const talking = beat.move !== 'walk' && (!!beat.say || (st.faceCam && !!scene.narration && !beat.quiet));
+    const pose = poseFor(beat, s.phase, { faceTalk: FACE[beat.face]?.talk, seed: sd % 97, talking, prev: a.beats[s.beatIndex - 1], time: tq, walking: s.walking, faceCam: st.faceCam });
     const at = { x: s.x * W, ground: GROUND, scale: a.scale, facing: s.facing };
     drawCharacter(pen.child({ seed: sd, scale: Math.sqrt(a.scale) * fine }), ch, pose, at);
     if (beat.say) talkers.push({ text: beat.say, spot: headSpot(ch, at) });
   }
   for (const tk of talkers) bubble(pen, tk.text, tk.spot, placed, st);
+  // Gag props with a y (the sign, card, shrimp...) sit on the screen behind her, like the marks:
+  // a close-up never crops them away. They boil with the drawing clock.
+  const back = [];
+  for (const [i, pr] of scene.props.entries()) {
+    if (isScreenProp(pr)) drawGagProp(new Pen({ style: st, drawing, seed: hash('sprop', scene.id, i), ops: back }), pr, i, st, W, H);
+  }
   const overlay = [];
   // Marks sit on the screen (x, y = share of the frame), like labels written on the
   // finished shot: a close-up never pushes them out of view.
   drawMarks(overlay, scene.marks, tq, st, W, H);
-  if (st.captions && scene.narration) caption(overlay, scene.narration, st);
+  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
   const camera = { zoom: z, tx: W / 2 - fx * z, ty: H / 2 - fy * z };
-  return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, overlay, camera, paper: st.paper, grain: st.grain };
+  return { scene: sceneIndex, drawing, bgKey: `${sceneIndex}:${scene.id}`, bg: withBg ? renderBackground(p, scene) : null, world, back, overlay, camera, paper: st.paper, grain: st.grain };
 }
 
 // The cast side by side with their names: the "model sheet" critics compare shots against.
@@ -372,16 +398,26 @@ export function paintOps(ctx, ops) {
   for (const o of ops) {
     if (o.text != null) {
       ctx.fillStyle = o.fill;
-      ctx.font = `${o.weight || 400} ${o.size}px ${FONT}`;
+      ctx.font = `${o.weight || 400} ${o.size}px ${o.sans ? SANS : FONT}`;
       ctx.textAlign = o.align || 'center';
       ctx.textBaseline = 'alphabetic';
+      // Hand-lettered words (sfx) lean a little and sit wider apart.
+      const turned = o.rotate || o.spacing;
+      if (turned) {
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.rotate(((o.rotate || 0) * Math.PI) / 180);
+        ctx.translate(-o.x, -o.y);
+        if (o.spacing && 'letterSpacing' in ctx) ctx.letterSpacing = `${o.spacing}px`;
+      }
       if (o.outline) {
         ctx.lineJoin = 'round';
-        ctx.lineWidth = o.size * 0.18;
+        ctx.lineWidth = o.size * (o.ow || 0.18);
         ctx.strokeStyle = o.outline;
         ctx.strokeText(o.text, o.x, o.y);
       }
       ctx.fillText(o.text, o.x, o.y);
+      if (turned) ctx.restore();
       continue;
     }
     ctx.globalAlpha = o.alpha ?? 1;
@@ -407,6 +443,11 @@ export function paint(ctx, frame, { width, height, bgCanvas = null, grainCanvas 
   if (bgCanvas) {
     ctx.drawImage(bgCanvas, 0, 0, W, H);
   } else if (frame.bg) paintOps(ctx, frame.bg);
+  if (frame.back?.length) {
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    paintOps(ctx, frame.back);
+    ctx.setTransform(k * c.zoom, 0, 0, k * c.zoom, k * c.tx, k * c.ty);
+  }
   paintOps(ctx, frame.world);
   ctx.setTransform(k, 0, 0, k, 0, 0);
   if (grainCanvas && frame.grain > 0) {
@@ -452,7 +493,7 @@ function svgOps(ops) {
   return ops
     .map((o) => {
       if (o.text != null)
-        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * 0.18}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${FONT}'>${esc(o.text)}</text>`;
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * (o.ow || 0.18)}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${o.sans ? SANS : FONT}'${o.rotate ? ` transform="rotate(${o.rotate} ${o.x} ${o.y})"` : ''}${o.spacing ? ` letter-spacing="${o.spacing}"` : ''}>${esc(o.text)}</text>`;
       const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
       if (!o.clip) return path;
       const id = `cl${clipN++}`;
@@ -498,5 +539,5 @@ function convexHull(points) {
 export function toSVG(frame, width = W) {
   clipN = 0;
   const c = frame.camera;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}"><rect width="${W}" height="${H}" fill="${frame.paper}"/><g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.bg || [])}${svgOps(frame.world)}</g>${svgOps(frame.overlay)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${width}" height="${Math.round((width * H) / W)}"><rect width="${W}" height="${H}" fill="${frame.paper}"/><g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.bg || [])}</g>${svgOps(frame.back || [])}<g transform="matrix(${c.zoom} 0 0 ${c.zoom} ${c.tx} ${c.ty})">${svgOps(frame.world)}</g>${svgOps(frame.overlay)}</svg>`;
 }
