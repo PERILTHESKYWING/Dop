@@ -67,6 +67,10 @@ export const NOTES = {
   noLlm: 'ultraGO’s writer is off on this site, showing Kiai’s engine text.',
   llmError: 'ultraGO’s writer is resting for a moment, showing Kiai’s engine text.',
   localError: 'Local could not run here, showing engine text.',
+  /** Shown under the engine's draft while the writer works, and after a Stop in that time. */
+  polishing: 'ultraGO is polishing the wording…',
+  polishingLocal: 'Kiai Local is polishing the wording…',
+  stopped: 'Stopped before the new wording, showing Kiai’s engine text.',
 } as const;
 
 /**

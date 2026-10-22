@@ -11,6 +11,7 @@ import { pointView } from '../lib/points';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage } from '../lib/levels';
+import { NOTES } from '../lib/writer';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
@@ -633,12 +634,13 @@ function KamiMessage({
           </span>
         ) : null}
       </div>
-      {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
+      {live && !a && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
       {!live && !a && <p className="note">Stopped.</p>}
       {a?.type === 'explain' && <ExplainAnswer a={a} msg={m} link={link} />}
       {a?.type === 'concept' && <ConceptAnswer a={a} msg={m} link={link} onAsk={onAsk} onShowBoard={onShowBoard} />}
       {a?.type === 'error' && <p className="note">{a.text}</p>}
-      {a && (
+      {live && a?.type === 'concept' && <p className="note">{NOTES.polishing}</p>}
+      {a && !live && (
         <div className="msg-tools">
           <CopyButton text={copyText(m)} />
           {isLast && !busy && (

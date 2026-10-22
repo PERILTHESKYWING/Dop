@@ -5,6 +5,7 @@ import { untilAborted } from './lib/untilAborted';
 import { getProber } from './lib/engine';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
+import { NOTES } from './lib/writer';
 import { boardFromSgf, emptyBoard, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
 import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
@@ -190,6 +191,12 @@ export function App() {
     setRunning({ convId, msgId: kamiId, stage: 'thinking', steps: [], t0: Date.now() });
     const onThought = (t: ThoughtStep) => setRunning((r) => (r && r.msgId === kamiId ? { ...r, steps: [...r.steps, t] } : r));
     const onStage = (stage: Running['stage']) => setRunning((r) => (r && r.msgId === kamiId ? { ...r, stage } : r));
+    // The engine's answer shows as soon as it is ready; the checked wording replaces it.
+    let draft: Answer | null = null;
+    const onDraft = (a: Answer) => {
+      draft = a;
+      update(convId, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === kamiId ? { ...m, answer: a } : m)) }));
+    };
     let answer: Answer;
     try {
       const { answerQuestion, explain, findConcepts, checkAnswer } = await untilAborted(loadCoach(), ctrl.signal);
@@ -210,13 +217,18 @@ export function App() {
             writerDiagrams: () => getSetting<boolean>('positions.writerDiagrams'),
             student: studentProfile,
           },
-          { onThought, onStage },
+          { onThought, onStage, onDraft },
           ctrl.signal,
         ),
         ctrl.signal,
       );
     } catch (e) {
-      answer = { type: 'error', text: (e as Error).name === 'AbortError' ? 'Stopped.' : `Something went wrong: ${(e as Error).message}` };
+      const stopped = (e as Error).name === 'AbortError';
+      const d = draft as Answer | null;
+      // Stopped while the writer worked: the engine's answer is already there, keep it.
+      if (stopped && d?.type === 'explain') answer = { ...d, writing: { by: 'engine', note: NOTES.stopped } };
+      else if (stopped && d?.type === 'concept') answer = d;
+      else answer = { type: 'error', text: stopped ? 'Stopped.' : `Something went wrong: ${(e as Error).message}` };
     }
     update(convId, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === kamiId ? { ...m, answer } : m)) }));
     // "Move 37": show the position the answer is about.

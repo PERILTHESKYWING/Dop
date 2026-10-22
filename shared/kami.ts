@@ -64,7 +64,7 @@ export const COORD_RE = /\b[A-HJ-Ta-hj-t](?:1[0-9]|[1-9])\b/;
 
 export const hasCoordinates = (text: string) => COORD_RE.test(text);
 
-type Generate = (prompt: { system: string; user: string; maxOutputTokens?: number; text?: boolean }) => Promise<{
+type Generate = (prompt: { system: string; user: string; maxOutputTokens?: number; text?: boolean; thinking?: 'minimal' | 'low' }) => Promise<{
   ok: boolean;
   text?: string;
   model?: string;
@@ -75,7 +75,9 @@ type Generate = (prompt: { system: string; user: string; maxOutputTokens?: numbe
 export async function handleKamiWrite(raw: unknown, generate: Generate): Promise<LlmHttpResult> {
   if (!validKamiWrite(raw)) return { status: 400, body: { error: 'invalid request' } };
   const system = raw.kind === 'concept' ? KAMI_CONCEPT_SYSTEM : KAMI_WRITE_SYSTEM;
-  const r = await generate({ system, user: raw.prompt, maxOutputTokens: 2048, text: true });
+  // A rewrite of checked facts, not a search: minimal thinking is the fastest first word, and
+  // the answer is a few short paragraphs (concept: two to four), well inside these caps.
+  const r = await generate({ system, user: raw.prompt, maxOutputTokens: raw.kind === 'concept' ? 1024 : 2048, text: true, thinking: 'minimal' });
   if (!r.ok || !r.text?.trim()) {
     const quota = r.errors.some((e) => /HTTP 429/.test(e) && /quota|per day|per minute|rate/i.test(e));
     const overloaded = r.errors.some((e) => /HTTP (429|503)/.test(e));

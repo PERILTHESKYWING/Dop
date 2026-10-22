@@ -35,6 +35,9 @@ export interface CallOptions {
 }
 
 const MAX_BODY = 250_000;
+
+/** Gemini thinking levels this server asks for ('minimal' only where the task is a rewrite). */
+export type ThinkingLevel = 'minimal' | 'low';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 export interface GenerateResult {
@@ -63,8 +66,11 @@ function redact(s: string, key: string) {
  * skipped, and a 400 about the thinking settings is retried without them.
  */
 export async function generateJson(
-  /** `text: true` asks for plain text instead of JSON (Kami's writer). */
-  prompt: { system: string; user: string; maxOutputTokens?: number; text?: boolean },
+  /**
+   * `text: true` asks for plain text instead of JSON (Kami's writer). `thinking` is the first
+   * thinking level tried (default 'low'); a model that rejects it steps down to 'low', then none.
+   */
+  prompt: { system: string; user: string; maxOutputTokens?: number; text?: boolean; thinking?: ThinkingLevel },
   env: Record<string, string | undefined>,
   fetchImpl: FetchLike,
   opts: CallOptions = {},
@@ -76,8 +82,10 @@ export async function generateJson(
   const deadline = start + (opts.budgetMs ?? 52_000);
   const errors: string[] = [];
   for (const model of cfg.models) {
-    let thinking = true;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const levels: (ThinkingLevel | null)[] = prompt.thinking === 'minimal' ? ['minimal', 'low', null] : ['low', null];
+    let level = 0;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const thinking = levels[level];
       const left = deadline - now();
       if (left < 2500) {
         errors.push('stopped: time budget used up');
@@ -91,8 +99,8 @@ export async function generateJson(
           temperature: 0.3,
           maxOutputTokens: prompt.maxOutputTokens ?? 8192,
         };
-        // Low thinking keeps answers fast and stops the thinking tokens from eating the output budget.
-        if (thinking) generationConfig.thinkingConfig = { thinkingLevel: 'low' };
+        // Little thinking keeps answers fast and stops the thinking tokens from eating the output budget.
+        if (thinking) generationConfig.thinkingConfig = { thinkingLevel: thinking };
         const res = await fetchImpl(`${ENDPOINT}${encodeURIComponent(model)}:generateContent`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.key },
@@ -117,7 +125,7 @@ export async function generateJson(
         const message = (safeJson(body) as GeminiResponse | null)?.error?.message ?? body;
         const short = message.replace(/\s+/g, ' ').slice(0, 160);
         if (res.status === 400 && thinking && /think/i.test(message)) {
-          thinking = false;
+          level++;
           continue;
         }
         errors.push(`${model}: HTTP ${res.status} ${short}`);
