@@ -327,7 +327,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* composer */
 .compose { padding: 0 24px calc(16px + env(safe-area-inset-bottom)); }
 .cbox { max-width: 820px; margin: 0 auto; border: 1px solid var(--line); background: var(--panel); border-radius: 18px; padding: 12px 12px 10px 16px; box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s; }
-.cbox:focus-within { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); box-shadow: var(--shadow), 0 0 0 3px color-mix(in srgb, var(--green) 16%, transparent); }
+.cbox:focus-within { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); }
 .cbox textarea { width: 100%; border: 0; background: none; resize: none; padding: 4px 0; min-height: 28px; max-height: 40vh; outline: none; line-height: 1.45; }
 .cbox textarea:focus-visible { box-shadow: none; }
 .tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
@@ -335,14 +335,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .chip:hover { background: var(--sel); border-color: var(--faint); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .chip .caret { font-size: 11px; opacity: .7; }
+/* Options: the quiet button that opens every pick; only picks changed from the default show as chips. */
+.chip.quiet { background: none; border-color: transparent; color: var(--soft); }
+.chip.quiet:hover, .chip.quiet[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
+.cstate { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--soft); white-space: nowrap; }
+.cstate.ok { color: var(--green); }
+.cstate.bad { color: var(--red); }
 .meter { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
 .meter i { width: 3px; border-radius: 1px; background: currentColor; opacity: .25; }
 .meter i:nth-child(1) { height: 4px; } .meter i:nth-child(2) { height: 6px; } .meter i:nth-child(3) { height: 8px; } .meter i:nth-child(4) { height: 10px; } .meter i:nth-child(5) { height: 12px; }
 .meter i.on { opacity: 1; }
-.send { margin-left: auto; width: 38px; height: 38px; border-radius: 10px; transition: transform .1s, filter .15s; border: 0; background: var(--green); color: var(--on-green); font-size: 19px; font-weight: 700; display: grid; place-items: center; }
+.send { flex: none; width: 38px; height: 38px; border-radius: 10px; transition: transform .1s, filter .15s; border: 0; background: var(--green); color: var(--on-green); font-size: 19px; font-weight: 700; display: grid; place-items: center; }
 .send:hover:not(:disabled) { filter: brightness(1.08); }
 .send:active:not(:disabled) { transform: scale(.94); }
 .send:disabled { opacity: .45; cursor: default; }
+.send[aria-busy="true"] { opacity: .7; }
 /* files in the chat box: + button, chips above the text, chips on messages */
 .attach { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); display: grid; place-items: center; flex: none; padding: 0; cursor: pointer; }
 .attach:hover { background: var(--sel); border-color: var(--faint); }
@@ -361,7 +368,7 @@ button.fchip:hover { border-color: var(--faint); }
 .fchip .nm small { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fchip.err { border-color: var(--red); }
 .fchip.err small { color: var(--red); }
-.fchip .x { border: 0; background: none; color: var(--soft); width: 26px; height: 26px; border-radius: 6px; flex: none; font-size: 15px; cursor: pointer; padding: 0; }
+.fchip .x { border: 0; background: none; color: var(--ink); width: 26px; height: 26px; border-radius: 6px; flex: none; font-size: 15px; cursor: pointer; padding: 0; }
 .fchip .x:hover { background: var(--sel); color: var(--ink); }
 .fchip .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--green); transition: width .2s; }
 .mfiles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
@@ -371,8 +378,26 @@ button.fchip:hover { border-color: var(--faint); }
 @media (pointer: coarse), (max-width: 860px) { .attach { width: 44px; height: 44px; } .fchip .x { width: 36px; height: 36px; } }
 
 /* popover menus */
-.pop { position: fixed; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; width: 300px; max-width: calc(100vw - 24px); max-height: 60vh; overflow-y: auto; }
-.pop h4 { margin: 6px 10px 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
+.pop { position: fixed; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; width: 300px; max-width: calc(100vw - 24px); max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
+.pop.big { width: 360px; max-height: min(600px, 78vh); }
+.pop h4 { margin: 6px 10px 6px; font-size: 14px; font-weight: 700; color: var(--ink); }
+/* Options: every pick in one menu, one tap each */
+.pgrp { display: grid; gap: 6px; padding: 8px 8px 10px; }
+.pgrp + .pgrp, .pgrp + .pcheck { border-top: 1px solid var(--line); }
+.pgrp h4 { margin: 0; }
+.pseg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; border-radius: 9px; background: var(--chip); border: 1px solid var(--line); }
+.pseg button { border: 0; background: none; border-radius: 7px; padding: 7px 2px; min-height: 36px; font-size: 14px; font-weight: 600; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pseg button:hover { color: var(--ink); }
+.pseg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.ptogs { display: flex; gap: 6px; flex-wrap: wrap; }
+.ptogs .chip { min-height: 34px; }
+.phint { margin: 0; font-size: 14px; line-height: 1.35; color: var(--soft); }
+.pcheck { display: flex; gap: 10px; align-items: center; padding: 10px 8px; cursor: pointer; }
+.pcheck input { width: 20px; height: 20px; margin: 0; accent-color: var(--green); flex: none; }
+.pcheck span { display: grid; }
+.pcheck b { font-size: 15px; }
+.pcheck small { font-size: 14px; color: var(--soft); }
+.pop .foot .btn + .btn { margin-left: 6px; }
 .opt { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; width: 100%; text-align: left; border: 0; background: none; border-radius: 8px; padding: 9px 10px; transition: background-color .12s; }
 .opt:hover { background: var(--sel); }
 .opt.on { background: color-mix(in srgb, var(--green) 9%, transparent); }
@@ -384,6 +409,7 @@ button.fchip:hover { border-color: var(--faint); }
 .opt.on .box { background: var(--green); border-color: var(--green); color: var(--on-green); }
 .opt > .av, .opt > .meter { grid-row: 1 / span 2; }
 .pop .foot { display: flex; justify-content: flex-end; padding: 6px 4px 2px; }
+.pop .foot .left { margin-right: auto; }
 
 /* team panel */
 .thead { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px; }
@@ -476,15 +502,52 @@ button.fchip:hover { border-color: var(--faint); }
 
 /* sheets */
 .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; z-index: 7; }
-.sheet .sbox { background: var(--panel); border: 1px solid var(--line); box-shadow: 0 20px 60px -12px rgba(0, 0, 0, .35); border-radius: 18px; padding: 26px; animation: rise .18s ease-out; width: min(560px, 100%); max-height: 90dvh; overflow-y: auto; display: grid; gap: 12px; }
+.sheet .sbox { background: var(--panel); border: 1px solid var(--line); box-shadow: 0 20px 60px -12px rgba(0, 0, 0, .35); border-radius: 18px; padding: 26px; animation: rise .18s ease-out; width: min(560px, 100%); max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 12px; }
+/* Framed sheets: sticky header with Close, body, sticky footer with the main button on the right. */
+.sheet .sbox.framed { padding: 0; gap: 0; }
+.shead { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 16px 14px 10px 22px; background: var(--panel); }
+.shead h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sbody { display: grid; gap: 16px; padding: 4px 22px 22px; min-width: 0; }
+.sfoot { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 22px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
+.sfoot .btn { min-height: 42px; padding: 9px 18px; }
+.btn.danger { color: var(--red); margin-right: auto; }
+.sgrp { display: grid; gap: 12px; min-width: 0; border-top: 1px solid var(--line); padding-top: 16px; }
+.sgrp:first-child { border-top: 0; padding-top: 0; }
+.sgrp > h4 { margin: 0; font-size: 16px; }
+.sheet .hint, .field .hint { font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--soft); }
+.sbody .err:empty { display: none; }
+.err.ok { color: var(--green); }
 .sheet h3 { margin: 0; font-size: 20px; }
 .sheet p { margin: 0; line-height: 1.5; color: var(--soft); }
-.sheet code, .copyline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+.sheet code, .copyline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
 .copyline { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: block; white-space: pre-wrap; }
-.routine { display: grid; grid-template-columns: 110px 1fr; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 16px; line-height: 1.5; }
+ol.steps li { padding-left: 4px; }
+ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8px; }
+.routine { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.routine:first-child { border-top: 0; padding-top: 0; }
 .routine input { min-width: 0; }
-.field { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.routine .ferr { grid-column: 2; }
+#fRoutines { display: grid; gap: 8px; }
+.field { display: grid; gap: 6px; font-size: 15px; font-weight: 600; min-width: 0; }
 .field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
+.field > span i { font-style: normal; font-weight: 400; color: var(--soft); }
+.field input[readonly] { color: var(--soft); }
+.ferr { font-size: 14px; font-weight: 600; color: var(--red); }
+.ferr:empty { display: none; }
+.sheet [aria-invalid="true"] { border-color: var(--red); }
+.sdet { border-top: 1px solid var(--line); padding-top: 14px; }
+.sdet summary { cursor: pointer; font-weight: 700; font-size: 16px; }
+.sdet > div { display: grid; gap: 8px; margin-top: 10px; }
+#connLog { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.lacts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+.lacts .err { flex: 1; min-height: 0; }
+.sbody .lacts .err:empty { display: block; }
+/* Phone: the sheet rises from the bottom and scrolls inside, buttons in thumb reach. */
+@media (max-width: 600px) {
+  .sheet { place-items: end stretch; padding: 0; }
+  .sheet .sbox { width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; border-bottom: 0; }
+}
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 9px; background: var(--chip); border: 1px solid var(--line); justify-self: start; }
 .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 14px; font-weight: 600; color: var(--soft); }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
@@ -1235,9 +1298,8 @@ async function openFile(id) {
   if (!f) return;
   const box = $('sheetBox');
   const big = f.kind === 'image' && (f.thumb || f.local);
-  box.innerHTML = `<h3 style="overflow-wrap:anywhere">${esc(f.name)}</h3><p>${esc(fsize(f.size || 0))} · in the Library as ${esc(f.id)}. Agents read it with lib_get.</p>${big ? `<img class="fview" alt="${esc(f.name)}" src="${esc(f.local || THUMBS.get(f.id) || '')}">` : ''}
-    <div class="acts">${f.noBody ? '' : `<button class="btn primary" data-fdl="${esc(f.id)}">Download</button>`}<a class="btn" href="/library.html#files">Library</a><button class="btn" data-close>Close</button></div>`;
-  $('sheet').classList.remove('hidden');
+  showSheet(sHead(esc(f.name)) + `<div class="sbody"><p>${esc(fsize(f.size || 0))} · in the Library as ${esc(f.id)}. Agents read it with lib_get.</p>${big ? `<img class="fview" alt="${esc(f.name)}" src="${esc(f.local || THUMBS.get(f.id) || '')}">` : ''}</div>`
+    + sFoot(`<a class="btn" href="/library.html#files">Library</a>${f.noBody ? '' : `<button class="btn primary" data-fdl="${esc(f.id)}">Download</button>`}`));
   const img = box.querySelector('.fview');
   if (img) img.onerror = () => img.remove();
   if (img && !f.local && f.thumb) { const [p, i] = f.thumb.split(':'); api(`lib-raw&id=${encodeURIComponent(f.id)}&part=${p}&i=${Number(i) || 0}`).then((r) => { img.src = `data:${r.type || 'image/jpeg'};base64,${r.data}`; }).catch(() => img.remove()); }
@@ -1270,18 +1332,38 @@ $('text').addEventListener('paste', (e) => { const files = [...(e.clipboardData?
 // ---------- composer ----------
 function curPicks(t) { return t ? { model: t.model, thinking: t.thinking || 'medium', accounts: t.accounts?.length ? t.accounts : t.account ? [t.account] : [], team: t.team || 1 } : { ...opts, team: opts.team || 1 }; }
 function acctChip(list) { return list.length ? `${avList(list)}${esc(list.length === 1 ? list[0] : `${list.length} accounts`)}` : 'Any account'; }
+// Drafts stay per thread on this device, so a thread switch or a reload keeps half-written text.
+try { Object.assign(drafts, JSON.parse(ls.get('hub-drafts') || '{}')); } catch {}
+let draftTimer = 0;
+const saveDrafts = () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => ls.set('hub-drafts', JSON.stringify(Object.fromEntries(Object.entries(drafts).filter(([, v]) => v)))), 300); };
+// What the box says next to Send, per view: up (files still uploading), sending, sent, failed.
+const sendSt = {};
+function setSendSt(k, s, msg = '') { sendSt[k] = s ? { s, msg } : null; if (k === sel) renderTools(S.threads.find((x) => x.id === sel)); }
+let sendingNow = false;
+const OPT_DEF = { model: '', thinking: 'medium', accounts: [], team: 1, direct: false };
+// Only picks changed from the default show as chips; Options opens all of them.
 function renderTools(t) {
-  const p = curPicks(t);
-  $('tools').innerHTML = `
+  const p = curPicks(t), st = sendSt[sel];
+  const caret = '<span class="caret">▼</span>';
+  const chips = [
+    p.model && `<button type="button" class="chip" data-pop="model" title="Model">${MODEL_NAME[p.model]}${caret}</button>`,
+    p.thinking !== 'medium' && `<button type="button" class="chip" data-pop="thinking" title="Thinking level">${meter(p.thinking)}${THINK_NAME[p.thinking]}${caret}</button>`,
+    p.accounts.length && `<button type="button" class="chip" data-pop="accounts" title="Accounts">${acctChip(p.accounts)}${caret}</button>`,
+    p.team > 1 && `<button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}${caret}</button>`,
+    !t && sel !== NEW_CHAT && opts.direct && '<button type="button" class="chip" data-toggle="direct" aria-pressed="true" title="Skip the coordinator and make one thread. Tap to turn off.">One thread</button>',
+  ].filter(Boolean);
+  const label = { up: 'Uploading…', sending: 'Sending…', sent: 'Sent', failed: `Not sent: ${st?.msg || 'try again'}` }[st?.s] || '';
+  const html = `
     <button type="button" class="attach" data-attach title="Add files (or drop or paste them here)" aria-label="Add files"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
-    <button type="button" class="chip" data-pop="model">${p.model ? MODEL_NAME[p.model] : 'Auto<span class="wide"> model</span>'}<span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="thinking">${meter(p.thinking)}${THINK_NAME[p.thinking]}<span class="wide"> thinking</span><span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="accounts">${acctChip(p.accounts)}<span class="caret">▼</span></button>
-    <button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}<span class="caret">▼</span></button>
-    ${t || sel === NEW_CHAT ? '' : `<button type="button" class="chip" data-toggle="direct" aria-pressed="${opts.direct}" title="Skip the coordinator and make one thread">One thread</button>`}
-    <button class="send" type="submit" aria-label="Send" id="sendBtn">↑</button>`;
+    <button type="button" class="chip quiet" data-pop="opts" aria-haspopup="true" aria-expanded="${popKind === 'opts'}" title="Model, thinking, accounts and team">Options${caret}</button>${chips.join('')}
+    <span class="cstate ${st?.s === 'sent' ? 'ok' : st?.s === 'failed' ? 'bad' : ''}" role="status">${esc(label)}</span>
+    <button class="send" type="submit" aria-label="Send" title="Send (Enter)" id="sendBtn" ${sendingNow ? 'disabled aria-busy="true"' : ''}>↑</button>`;
+  const tools = $('tools');
+  if (tools.dataset.html !== html) { tools.innerHTML = html; tools.dataset.html = html; }
   $('text').placeholder = t ? `Reply in ${t.title}` : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?';
-  if (document.activeElement !== $('text')) { $('text').value = drafts[sel] || ''; grow(); }
+  // The box shows this view's draft (also when it kept focus through a thread switch).
+  const ta = $('text');
+  if (document.activeElement !== ta || ta.dataset.sel !== String(sel)) { ta.value = drafts[sel] || ''; ta.dataset.sel = String(sel); grow(); }
   renderAtt();
 }
 function grow() { const ta = $('text'); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, window.innerHeight * 0.4) + 'px'; }
@@ -1293,7 +1375,19 @@ function openPop(kind, anchor) {
   const t = S.threads.find((x) => x.id === sel);
   const p = curPicks(t);
   const pop = $('pop');
-  if (kind === 'model') {
+  pop.classList.toggle('big', kind === 'opts');
+  if (kind === 'opts') {
+    // Every pick in one menu, one tap each. Segments for single choices, toggles for accounts.
+    const seg = (k, list, cur, name) => `<div class="pseg" role="group" aria-label="${k}">${list.map((v) => `<button type="button" data-opt="${k}" data-v="${esc(v)}" aria-pressed="${String(cur) === String(v)}">${esc(name(v))}</button>`).join('')}</div>`;
+    const teamHint = p.team === 1 ? 'One account does the work.' : `A lead and ${p.team - 1} more, each on a part.`;
+    const changed = !t && JSON.stringify({ ...p, direct: opts.direct }) !== JSON.stringify(OPT_DEF);
+    pop.innerHTML = `<div class="pgrp"><h4>Model</h4>${seg('model', t ? MODELS : ['', ...MODELS], p.model || '', (m) => (m ? MODEL_NAME[m] : 'Auto'))}<p class="phint">${esc(MODEL_HINT[p.model || ''])}</p></div>
+      <div class="pgrp"><h4>Thinking</h4>${seg('thinking', THINK, p.thinking, (v) => THINK_NAME[v])}<p class="phint">${esc(THINK_HINT[p.thinking])}</p></div>
+      <div class="pgrp"><h4>Accounts</h4><div class="ptogs"><button type="button" class="chip" data-opt="any" aria-pressed="${!p.accounts.length}">Any</button>${S.accounts.map((a) => `<button type="button" class="chip" data-opt="account" data-v="${esc(a.name)}" aria-pressed="${p.accounts.includes(a.name)}" title="${esc(acctState(a)[1])}">${av(a.name, 's')}${esc(a.name)}</button>`).join('')}</div><p class="phint">${p.accounts.length ? 'Only these accounts take the work.' : 'The hub picks the freest one.'}</p></div>
+      <div class="pgrp"><h4>Team</h4>${seg('team', Array.from({ length: TEAM_MAX }, (_, i) => i + 1), p.team, (n) => (n === 1 ? 'Solo' : String(n)))}<p class="phint">${teamHint}</p></div>
+      ${!t && sel !== NEW_CHAT ? `<label class="pcheck"><input type="checkbox" data-opt="direct" ${opts.direct ? 'checked' : ''}><span><b>One thread</b><small>Skip the coordinator</small></span></label>` : ''}
+      <div class="foot">${changed ? '<button type="button" class="btn small quiet left" data-opt="reset">Reset</button>' : ''}<button type="button" class="btn small primary" data-popdone>Done</button></div>`;
+  } else if (kind === 'model') {
     const list = t ? MODELS : ['', ...MODELS];
     pop.innerHTML = `<h4>Model</h4>${list.map((m) => `<button type="button" class="opt ${p.model === m ? 'on' : ''}" data-pick="model" data-v="${m}"><span></span><b>${m ? MODEL_NAME[m] : 'Auto'}</b><span class="tick">✓</span><small>${MODEL_HINT[m]}</small></button>`).join('')}`;
   } else if (kind === 'thinking') {
@@ -1324,12 +1418,13 @@ function openPop(kind, anchor) {
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   }
   pop.classList.remove('hidden');
+  for (const b of document.querySelectorAll('[data-pop]')) b.setAttribute('aria-expanded', b === anchor);
   const r = anchor.getBoundingClientRect();
   const w = pop.offsetWidth, h = pop.offsetHeight;
   pop.style.left = Math.max(12, Math.min(kind === 'tmenu' ? r.right - w : r.left, innerWidth - w - 12)) + 'px';
   pop.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + 'px';
 }
-function closePop() { $('pop').classList.add('hidden'); popKind = ''; }
+function closePop() { $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false'); }
 async function setPick(patch) {
   const t = S.threads.find((x) => x.id === sel);
   if (!t) { Object.assign(opts, patch); saveOpts(); return renderTools(null); }
@@ -1355,6 +1450,19 @@ async function threadAction(act) {
   load(false).catch(() => {});
 }
 $('pop').addEventListener('click', async (e) => {
+  const o = e.target.closest('[data-opt]');
+  if (o) {
+    const k = o.dataset.opt, v = o.dataset.v, cur = curPicks(S.threads.find((x) => x.id === sel)).accounts;
+    if (k === 'direct') { if (e.target !== o) return; opts.direct = o.checked; saveOpts(); renderTools(null); }
+    else if (k === 'reset') { Object.assign(opts, { ...OPT_DEF, accounts: [] }); saveOpts(); renderTools(null); }
+    else if (k === 'model') await setPick({ model: v });
+    else if (k === 'thinking') await setPick({ thinking: v });
+    else if (k === 'team') await setPick({ team: Number(v) });
+    else if (k === 'any') await setPick({ accounts: [] });
+    else if (k === 'account') await setPick({ accounts: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
+    const anchor = document.querySelector('[data-pop="opts"]');
+    return anchor ? openPop('opts', anchor) : closePop();
+  }
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.popdone !== undefined) return closePop();
   if (b.dataset.tact) return threadAction(b.dataset.tact);
@@ -1496,7 +1604,7 @@ $('feed').addEventListener('click', (e) => {
 });
 
 document.addEventListener('click', async (e) => {
-  if (!$('pop').classList.contains('hidden') && !e.target.closest('#pop') && !e.target.closest('[data-pop]')) closePop();
+  if (!$('pop').classList.contains('hidden') && !e.composedPath().includes($('pop')) && !e.target.closest('[data-pop]')) closePop();
   if (Date.now() - swiped < 400) return;
   const cp = e.target.closest('[data-mcopy]');
   if (cp) {
@@ -1568,35 +1676,45 @@ function endDrag() {
 $('feed').addEventListener('pointerup', endDrag);
 $('feed').addEventListener('pointercancel', endDrag);
 $('feed').addEventListener('input', (e) => { const o = e.target.closest?.('[data-ask-other]'); if (o) { const [id, qi] = o.dataset.askOther.split(':').map(Number); askSel[id][qi].other = o.value; } });
-$('text').addEventListener('input', () => { drafts[sel] = $('text').value; grow(); });
+$('text').addEventListener('input', () => { drafts[sel] = $('text').value; saveDrafts(); grow(); if (sendSt[sel]?.s === 'failed') setSendSt(sel, ''); });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); $('compose').requestSubmit(); } });
-let sendingNow = false;
 $('compose').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (sendingNow) return;
   const from = sel, list = attOf(sel);
-  if (!$('text').value.trim() && !list.length) return;
+  if (!$('text').value.trim() && !list.length) return $('text').focus();
   // Files upload as soon as they are picked; Send waits for any still going.
   if (list.some((f) => f.status === 'up')) {
-    sendingNow = true; attNote('Uploading… sends when done.', true);
+    sendingNow = true; setSendSt(from, 'up');
     await Promise.all(list.map((f) => f.job));
-    sendingNow = false; attNote('');
+    sendingNow = false; setSendSt(from, '');
     if (sel !== from) return;
   }
   if (list.some((f) => f.status === 'err')) return attNote('A file did not upload. Remove it (×) and add it again, then send.');
   const text = $('text').value.trim();
   if (!text && !list.length) return;
   const files = list.map((f) => ({ id: f.id, name: f.name, kind: f.kind, size: f.size, local: f.url || '' }));
-  $('text').value = ''; drafts[sel] = ''; grow(); att[sel] = []; renderAtt();
+  $('text').value = ''; drafts[sel] = ''; saveDrafts(); grow(); att[sel] = []; renderAtt();
   const picks = { model: opts.model || undefined, thinking: opts.thinking, accounts: opts.accounts, team: opts.team || 1 };
   const ids = files.map((f) => f.id);
   const body = sel > 0 ? { text, thread: sel, files: ids } : sel === NEW_CHAT ? { text, chat: true, files: ids, ...picks } : { text, thread: 0, direct: opts.direct, files: ids, ...picks };
   // Show it straight away; starting the agents happens while it says Sending.
   S.messages.push({ id: `tmp${++tmp}`, at: Date.now(), thread: sel, from: 'XIAO', kind: 'prompt', text, meta: { ...(sel > 0 ? {} : body), files }, pending: true });
+  sendingNow = true; setSendSt(from, 'sending');
   renderFeed(); toBottom();
-  let made = null;
-  try { made = await api('prompt', body); } catch (err) { if (err.message !== 'auth') { alert(err.message); $('text').value = text; att[from] = list; renderAtt(); } }
+  let made = null, failed = '';
+  try { made = await api('prompt', body); } catch (err) { failed = err.message === 'auth' ? 'sign in again' : err.message || 'no connection'; }
+  sendingNow = false;
   S.messages = S.messages.filter((m) => !m.pending);
+  if (failed) {
+    // Nothing is lost: the text and files go back in the box, with the reason next to Send.
+    drafts[from] = text; saveDrafts(); att[from] = list;
+    if (sel === from) { $('text').value = text; grow(); }
+    setSendSt(from, 'failed', failed); renderFeed();
+    return;
+  }
+  setSendSt(from, 'sent');
+  setTimeout(() => { if (sendSt[from]?.s === 'sent') setSendSt(from, ''); }, 2500);
   // A new chat opens its thread once the hub has made it (unless XIAO already moved on).
   if (from === NEW_CHAT && made?.thread) { await load(false).catch(() => {}); if (sel === NEW_CHAT) openThread(made.thread); return; }
   load(false).catch(() => renderFeed());
@@ -1628,87 +1746,125 @@ function lookHtml() {
 }
 
 // ---------- sheets ----------
+// Framed sheets: a header with Close, the body, and a footer whose main button sits on the right.
+const sHead = (title) => `<div class="shead"><h3>${title}</h3><button type="button" class="btn small quiet" data-close>Close</button></div>`;
+const sFoot = (btns) => `<div class="sfoot">${btns}</div>`;
+// A form field: label above, short help under the box, and an error line that shows only when set.
+const fld = (label, input, hint = '') => `<label class="field"><span>${label}</span>${input}${hint ? `<small class="hint">${hint}</small>` : ''}<small class="ferr" aria-live="polite"></small></label>`;
+function fieldErr(el, msg) {
+  if (typeof el === 'string') el = $(el);
+  if (!el) return !msg;
+  el.setAttribute('aria-invalid', msg ? 'true' : 'false');
+  const f = el.closest('.field, .routine')?.querySelector('.ferr'); if (f) f.textContent = msg;
+  return !msg;
+}
+const firstBad = () => { const el = document.querySelector('#sheetBox [aria-invalid="true"]'); el?.focus(); return el; };
+async function busyBtn(btn, label, fn) {
+  const was = btn.textContent; btn.disabled = true; btn.textContent = label;
+  try { return await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = was; } }
+}
+function showSheet(html) {
+  const box = $('sheetBox');
+  box.classList.add('framed'); box.innerHTML = html; box.scrollTop = 0;
+  $('sheet').classList.remove('hidden');
+  // Desktop: straight into the first field. Phone: no keyboard until a tap.
+  if (matchMedia('(pointer: fine)').matches) box.querySelector('.sbody input:not([readonly]):not([type="checkbox"]), .sbody select, .sbody textarea')?.focus();
+}
 function closeSheet() { $('sheet').classList.add('hidden'); }
 async function openSheet(kind, name) {
   closePop();
   const box = $('sheetBox'); let html = '';
-  if (kind === 'look') { box.innerHTML = lookHtml(); $('sheet').classList.remove('hidden'); return; }
+  if (kind === 'look') { box.classList.remove('framed'); box.innerHTML = lookHtml(); $('sheet').classList.remove('hidden'); return; }
   if (kind === 'logout') { ls.del('hubpw'); ls.del('hub-cache'); pw = ''; return showLogin(); }
+  const P = esc(proj.project);
   if (kind === 'connect') {
     const k = await api(`connect&account=${encodeURIComponent(name)}`);
     const url = `${location.origin}/api/c/${encodeURIComponent(k.name)}/${encodeURIComponent(k.key)}`;
     const free = S.accounts.find((a) => a.name === name)?.plan === 'free';
-    html = `<h3>Connect ${esc(name)}</h3>
-      <p><b>Step 1.</b> Copy this link. It works like a key, so keep it private.</p>
-      <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button><button class="btn small" data-newkey="${esc(name)}">New link</button></div><div id="testOut" class="hidden"></div>
-      <p><b>Step 2.</b> On claude.ai or the Claude app, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>${esc(proj.project)} hub</i>, paste the link. Under sign-in, tick <b>No sign-in</b> (it says Detected), then press Add. If a Connect button appears, press it. No sign-in page should open.</p>
-      ${free ? `<p><b>To use it:</b> open a chat on this account and type <b>check the ${esc(proj.project)} hub</b>. It does one task, then asks for the next.</p>` : `<p><b>Step 3.</b> On claude.ai/code: Routines › New routine. Pick the ${esc(proj.project)} repo and a model, turn on the ${esc(proj.project)} hub connector, add an API trigger, and paste this prompt:</p>
-      <code class="copyline">${esc(routinePrompt())}</code><div><button class="btn small" data-copy="${esc(routinePrompt())}">Copy prompt</button></div>
-      <p><b>Step 4.</b> Press Edit on this account here and paste the routine's id and token. Repeat steps 3 and 4 for each model you want.</p>`}
-      <div class="acts"><button class="btn primary" data-close>Done</button></div>`;
+    html = sHead(`Connect ${esc(name)}`) + `<div class="sbody"><ol class="steps">
+      <li><b>Copy this link.</b> It works like a key, so keep it private.
+        <code class="copyline">${esc(url)}</code><div class="acts"><button class="btn small" data-copy="${esc(url)}">Copy link</button><button class="btn small" data-test="${esc(url)}">Test link</button><button class="btn small" data-newkey="${esc(name)}">New link</button></div><div id="testOut" class="hidden" role="status"></div></li>
+      <li><b>Add it on claude.ai</b>, signed in as <b>${esc(name)}</b>: Settings › Connectors › Add custom connector. Name it <i>${P} hub</i>, paste the link, pick <b>No sign-in</b>, then Add (and Connect, if asked).</li>
+      ${free ? `<li><b>Use it:</b> in a chat on this account, type <b>check the ${P} hub</b>. It does one task, then asks for the next.</li>` : `<li><b>Make a routine</b> on claude.ai/code: Routines › New routine. Pick the ${P} repo and a model, turn on the ${P} hub connector, add an API trigger and paste this prompt:
+        <code class="copyline">${esc(routinePrompt())}</code><div><button class="btn small" data-copy="${esc(routinePrompt())}">Copy prompt</button></div></li>
+      <li><b>Save it here:</b> paste the routine's id and token into this account. One routine per model.
+        <div><button class="btn small" data-open="edit" data-name="${esc(name)}">Edit ${esc(name)}</button></div></li>`}
+    </ol></div>` + sFoot('<button class="btn primary" data-close>Done</button>');
   } else if (kind === 'add' || kind === 'edit') {
     const a = S.accounts.find((x) => x.name === name) || { name: '', plan: 'pro', routines: [] };
     const rows = [...a.routines, { model: 'sonnet', id: '', hasToken: false }];
-    html = `<h3>${kind === 'add' ? 'Add account' : 'Edit ' + esc(a.name)}</h3>
-      <label class="field">Name (short, like Main or Helper1)<input id="fName" value="${esc(a.name)}" ${kind === 'edit' ? 'readonly' : ''} required></label>
-      <label class="field">Plan<select id="fPlan">${['free', 'pro', 'max', 'team'].map((p) => `<option ${a.plan === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
-      <label class="field">Old connector key (optional: paste the last part of an old link to make that connector work again)<input id="fKey" autocomplete="off" placeholder="Leave empty for a new key"></label>
-      <div class="sect">Routines (paid plans): one per model</div>
-      <div id="fRoutines">${rows.map(routineRow).join('')}</div>
-      <div><button class="btn small" type="button" data-addrow>Add another routine</button></div>
-      <div class="err" id="fErr"></div>
-      <div class="acts"><button class="btn primary" data-save>Save</button><button class="btn" data-close>Cancel</button>${kind === 'edit' ? `<button class="btn" data-remove="${esc(a.name)}">Remove account</button>` : ''}</div>`;
+    html = sHead(kind === 'add' ? 'Add account' : `Edit ${esc(a.name)}`) + `<div class="sbody">
+      <div class="sgrp">
+        ${fld('Name', `<input id="fName" value="${esc(a.name)}" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" ${kind === 'edit' ? 'readonly' : ''}>`, kind === 'add' ? 'Short, like Main or Helper1.' : '')}
+        ${fld('Plan', `<select id="fPlan">${['free', 'pro', 'max', 'team'].map((p) => `<option value="${p}" ${a.plan === p ? 'selected' : ''}>${p[0].toUpperCase() + p.slice(1)}</option>`).join('')}</select>`)}
+      </div>
+      <div class="sgrp"><h4>Routines</h4><p class="hint">Paid plans: one per model (Connect, step 3).</p>
+        <div id="fRoutines">${rows.map(routineRow).join('')}</div>
+        <div><button class="btn small" type="button" data-addrow>Add routine</button></div>
+      </div>
+      <div class="sgrp">${fld('Old connector <i>(optional)</i>', '<input id="fKey" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Leave empty for a new link">', 'Paste its link to make it work again.')}</div>
+      <div class="err" id="fErr" role="alert"></div>
+    </div>` + sFoot(`${kind === 'edit' ? `<button class="btn danger" data-remove="${esc(a.name)}">Remove</button>` : ''}<button class="btn" data-close>Cancel</button><button class="btn primary" data-save>${kind === 'add' ? 'Add account' : 'Save'}</button>`);
   } else if (kind === 'usage') {
     const a = S.accounts.find((x) => x.name === name); const u = a?.usage || {};
-    html = `<h3>Usage for ${esc(name)}</h3>
-      <p>Use this when Claude doesn't share the numbers (free plans, or a refused token). You can see them on claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% (less than ${100 - lowAt()}% left; change it in Settings) the hub moves new work to other accounts.</p>
-      <div class="pairs"><label class="field">5-hour limit used (%)<input id="u5" type="number" min="0" max="100" value="${u.five_hour_pct ?? ''}"></label>
-      <label class="field">Weekly limit used (%)<input id="u7" type="number" min="0" max="100" value="${u.seven_day_pct ?? ''}"></label></div>
-      <div class="acts"><button class="btn primary" data-saveusage="${esc(name)}">Save</button><button class="btn" data-close>Cancel</button></div>
-      <div class="sect">Or just tell the hub</div>
-      <p>${a?.low ? `${esc(name)} is marked as running low, so new work goes to other accounts.` : `Running low marks ${esc(name)} as nearly out, so new work goes to other accounts.`}</p>
-      <div class="acts"><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Usage is back' : 'Running low'}</button></div>`;
+    html = sHead(`Usage for ${esc(name)}`) + `<div class="sbody">
+      <p>Copy the numbers from claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% used, new work goes to other accounts.</p>
+      <div class="pairs">${fld('5-hour used (%)', `<input id="u5" type="number" inputmode="numeric" min="0" max="100" value="${u.five_hour_pct ?? ''}">`)}
+      ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
+      <div class="sgrp"><h4>Or just mark it</h4>
+        <p>${a?.low ? `${esc(name)} is marked as running low.` : 'New work then goes to other accounts.'}</p>
+        <div><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Usage is back' : 'Running low'}</button></div></div>
+      <div class="err" id="uErr" role="alert"></div>
+    </div>` + sFoot(`<button class="btn" data-close>Cancel</button><button class="btn primary" data-saveusage="${esc(name)}">Save</button>`);
   } else if (kind === 'lessons') {
-    html = `<h3>Team lessons</h3>
-      <p>A new lesson reaches every agent on its next hub call, and every new session starts with all of them. Yours win if two disagree.</p>
-      <label class="field">New lesson<textarea id="lText" rows="2" maxlength="280" placeholder="Something every account should know"></textarea></label>
-      <div class="acts"><button type="button" class="chip" data-lkind="do" aria-pressed="${lessonKind === 'do'}">Do</button><button type="button" class="chip" data-lkind="dont" aria-pressed="${lessonKind === 'dont'}">Don't</button></div>
-      <label class="field">Why (optional)<input id="lWhy" maxlength="200" autocomplete="off"></label>
-      <div class="err" id="lErr"></div>
-      <div class="acts"><button class="btn primary" data-addlesson>Add lesson</button><button class="btn" data-close>Close</button></div>
-      <div class="sect" id="lCount"></div>
-      <div class="lsheet" id="lList"></div>`;
+    html = sHead('Team lessons') + `<div class="sbody">
+      <p>Every agent gets a new lesson on its next hub call. Yours win if two disagree.</p>
+      <div class="seg" role="group" aria-label="Kind of lesson"><button type="button" data-lkind="do" aria-pressed="${lessonKind === 'do'}">Do</button><button type="button" data-lkind="dont" aria-pressed="${lessonKind === 'dont'}">Don't</button></div>
+      ${fld('Lesson', '<textarea id="lText" rows="2" maxlength="280" placeholder="Something every account should know"></textarea>')}
+      ${fld('Why <i>(optional)</i>', '<input id="lWhy" maxlength="200" autocomplete="off">')}
+      <div class="lacts"><span class="err" id="lErr" role="status"></span><button class="btn primary" data-addlesson>Add lesson</button></div>
+      <div class="sgrp"><h4 id="lCount"></h4><div class="lsheet" id="lList"></div></div>
+    </div>`;
   } else if (kind === 'settings') {
     const s = S.settings;
-    html = `<h3>Settings</h3>
-      <label class="field">Coordinator model<select id="sModel">${MODELS.map((m) => `<option value="${m}" ${s.coordinatorModel === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select></label>
-      <label class="field">Coordinator account<select id="sAcct"><option value="">Pick automatically</option>${S.accounts.map((a) => `<option ${s.coordinatorAccount === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
-      <label class="field">Hub overhead budget per 5 hours (tokens)<input id="sBudget" type="number" min="0" step="1000" value="${s.overheadTokens}"></label>
-      <p>Counts the coordinator and the hub's own messages, not the work itself. Over budget, prompts skip the coordinator.</p>
-      <label class="field">Minimum usage left for new work (%)<input id="sMinLeft" type="number" min="0" max="95" step="1" value="${s.minLeftPct ?? 15}"></label>
-      <p>An account with less than this much of its 5-hour or weekly limit left gets no new work or team places, and its running threads hand over to other accounts.</p>
-      <label class="field"><span><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}> Continue stopped threads on another account</span></label>
-      <div class="acts"><button class="btn primary" data-savesettings>Save</button><button class="btn" data-close>Cancel</button></div>
-      <div class="sect">After a usage limit resets</div>
-      <p>${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours. For always within a minute: in Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.'}</p>
-      <div class="sect">Speed</div>
-      <p>Last refresh took ${speed.rtt} ms, of which ${speed.ms} ms inside the hub.</p>
-      <div class="sect">Connection log (newest first)</div>
-      <p>Every time claude.ai or an agent calls the hub, or the hub starts a routine, a line appears here.</p>
-      <pre id="connLog" style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto;margin:0">Loading…</pre>`;
+    html = sHead('Settings') + `<div class="sbody">
+      <div class="sgrp"><h4>Coordinator</h4>
+        <div class="pairs">${fld('Model', `<select id="sModel">${MODELS.map((m) => `<option value="${m}" ${s.coordinatorModel === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>`)}
+        ${fld('Account', `<select id="sAcct"><option value="">Automatic</option>${S.accounts.map((a) => `<option ${s.coordinatorAccount === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>`)}</div>
+      </div>
+      <div class="sgrp"><h4>Limits</h4>
+        ${fld('Hub budget per 5 hours (tokens)', `<input id="sBudget" type="number" inputmode="numeric" min="0" step="1000" value="${s.overheadTokens}">`, 'Coordinator and hub messages, not the work. Over it, prompts skip the coordinator.')}
+        ${fld('Minimum left for new work (%)', `<input id="sMinLeft" type="number" inputmode="numeric" min="0" max="95" step="1" value="${s.minLeftPct ?? 15}">`, 'Below this (5-hour or weekly), an account gets no new work and its threads hand over.')}
+        <label class="pcheck"><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}><span><b>Continue stopped threads</b><small>On another account</small></span></label>
+      </div>
+      <div class="sgrp"><h4>After a limit resets</h4>
+        <p class="hint">${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours. For always within a minute: in Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.'}</p>
+      </div>
+      <details class="sdet" id="connDet"><summary>Connection log</summary><div>
+        <p class="hint">Last refresh ${speed.rtt} ms, ${speed.ms} ms of it in the hub. Below: each call from claude.ai or an agent, and each routine start, newest first.</p>
+        <pre id="connLog">Loading…</pre></div></details>
+      <div class="err" id="sErr" role="alert"></div>
+    </div>` + sFoot('<button class="btn" data-close>Cancel</button><button class="btn primary" data-savesettings>Save</button>');
+  }
+  showSheet(html);
+  fillLessons();
+  // The log is read only when opened (one hub call fewer per Settings visit).
+  $('connDet')?.addEventListener('toggle', (e) => {
+    if (!e.target.open || e.target.dataset.read) return; e.target.dataset.read = '1';
     api('connlog', {}).then((rows) => {
       const el = $('connLog'); if (!el) return;
       el.textContent = rows.length ? rows.map((r) => `${new Date(r.at).toLocaleTimeString()}  ${r.http} ${r.path || ''}${r.account ? ' account=' + r.account : ''}${r.http === 'START' || r.http === 'USAGE' ? (r.keyOk ? ' OK' : ' FAILED') : r.http === 'POST' || r.account ? (r.keyOk ? ' key OK' : ' key WRONG') : ''}${r.rpc ? ' ' + r.rpc : ''} ${r.via || ''}${r.ua ? '  ' + r.ua : ''}`).join('\n') : 'Nothing has called the hub yet.';
-    }).catch((e) => { const el = $('connLog'); if (el) el.textContent = e.message; });
-  }
-  box.innerHTML = html; $('sheet').classList.remove('hidden');
-  fillLessons();
+    }).catch((err) => { const el = $('connLog'); if (el) el.textContent = err.message; });
+  });
 }
 function routineRow(r) {
-  return `<div class="routine"><select class="rModel">${MODELS.map((m) => `<option value="${m}" ${r.model === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>
-    <input class="rId" placeholder="Routine id (trig_...)" value="${esc(r.id)}">
-    <span></span><input class="rToken" type="password" placeholder="${r.hasToken ? 'Token saved (leave empty to keep)' : 'Token (sk-ant-oat01-...)'}"></div>`;
+  return `<div class="routine" data-had="${esc(r.hasToken ? r.id : '')}"><select class="rModel" aria-label="Model">${MODELS.map((m) => `<option value="${m}" ${r.model === m ? 'selected' : ''}>${MODEL_NAME[m]}</option>`).join('')}</select>
+    <input class="rId" aria-label="Routine id" placeholder="Routine id (trig_…)" value="${esc(r.id)}" autocomplete="off" spellcheck="false">
+    <span></span><input class="rToken" type="password" aria-label="Token" autocomplete="off" placeholder="${r.hasToken ? 'Token saved (empty keeps it)' : 'Token (sk-ant-oat01-…)'}">
+    <small class="ferr" aria-live="polite"></small></div>`;
 }
+// Editing a field clears its error.
+$('sheetBox').addEventListener('input', (e) => { if (e.target.getAttribute?.('aria-invalid') === 'true') fieldErr(e.target, ''); });
 $('sheetBox').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) return closeSheet();
@@ -1735,13 +1891,16 @@ $('sheetBox').addEventListener('click', async (e) => {
   }
   if (t.closest('[data-lkind]')) { lessonKind = t.closest('[data-lkind]').dataset.lkind; document.querySelectorAll('[data-lkind]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lkind === lessonKind)); return; }
   if (t.closest('[data-addlesson]')) {
-    const text = $('lText').value.trim(); if (!text) { $('lText').focus(); return; }
-    try {
-      const r = await api('lesson', { text, kind: lessonKind, why: $('lWhy').value.trim() });
-      $('lText').value = ''; $('lWhy').value = '';
-      $('lErr').textContent = r.known ? 'The team already has that lesson.' : '';
-      await load(false);
-    } catch (err) { if (err.message !== 'auth') $('lErr').textContent = err.message; }
+    const text = $('lText').value.trim(); if (!fieldErr('lText', text ? '' : 'Write the lesson first.')) return firstBad();
+    const btn = t.closest('[data-addlesson]'), out = $('lErr');
+    await busyBtn(btn, 'Adding…', async () => {
+      try {
+        const r = await api('lesson', { text, kind: lessonKind, why: $('lWhy').value.trim() });
+        $('lText').value = ''; $('lWhy').value = '';
+        out.textContent = r.known ? 'The team already has that lesson.' : 'Added.'; out.classList.toggle('ok', !r.known);
+        await load(false);
+      } catch (err) { if (err.message !== 'auth') { out.textContent = err.message; out.classList.remove('ok'); } }
+    });
     return;
   }
   if (t.closest('[data-dellesson]')) {
@@ -1752,16 +1911,54 @@ $('sheetBox').addEventListener('click', async (e) => {
     return load(false).catch(() => {});
   }
   if (t.closest('[data-addrow]')) return $('fRoutines').insertAdjacentHTML('beforeend', routineRow({ model: 'sonnet', id: '' }));
-  if (t.closest('[data-remove]')) { if (confirm('Remove this account from the hub?')) { await api('account-remove', { name: t.dataset.remove }); closeSheet(); load(true); } return; }
-  if (t.closest('[data-save]')) {
-    const routines = [...document.querySelectorAll('.routine')].map((r) => ({ model: r.querySelector('.rModel').value, id: r.querySelector('.rId').value.trim(), token: r.querySelector('.rToken').value.trim() })).filter((r) => r.id);
-    try { await api('account', { name: $('fName').value.trim(), plan: $('fPlan').value, routines, key: $('fKey').value.trim() || undefined }); closeSheet(); load(false).then(() => readUsage(true)); } catch (err) { $('fErr').textContent = err.message; }
+  if (t.closest('[data-remove]')) {
+    const n = t.closest('[data-remove]').dataset.remove;
+    if (!confirm(`Remove ${n} from the hub? Its connector stops working.`)) return;
+    try { await api('account-remove', { name: n }); closeSheet(); load(true); } catch (err) { if (err.message !== 'auth') $('fErr').textContent = err.message; }
     return;
   }
-  if (t.closest('[data-saveusage]')) { await api('account-usage', { name: t.dataset.saveusage, five_hour_pct: $('u5').value, seven_day_pct: $('u7').value }); closeSheet(); return load(true); }
+  if (t.closest('[data-save]')) {
+    // Checked here first, with the same rules as the hub, so each problem shows under its own field.
+    const name = $('fName').value.trim();
+    let ok = fieldErr('fName', !name ? 'Type a name.' : /^[A-Za-z0-9][A-Za-z0-9 _-]{0,23}$/.test(name) ? '' : 'Letters, numbers, spaces, - or _, up to 24.');
+    // The whole old link works too: only its last part is the key.
+    let key = $('fKey').value.trim().replace(/[/?#]+$/, '').split(/[/?#]/).pop();
+    ok = fieldErr('fKey', key && !/^[A-Za-z0-9_-]{16,64}$/.test(key) ? 'That is not a connector link or key.' : '') && ok;
+    const routines = [];
+    for (const r of document.querySelectorAll('.routine')) {
+      const id = r.querySelector('.rId').value.trim(), token = r.querySelector('.rToken').value.trim();
+      const kept = !!r.dataset.had && r.dataset.had === id;
+      const msg = id && !token && !kept ? 'Add its token too, or it is not saved.' : !id && token ? 'Add the routine id too.' : '';
+      fieldErr(r.querySelector(msg.startsWith('Add its') ? '.rToken' : '.rId'), msg);
+      if (msg) ok = false; else if (id) routines.push({ model: r.querySelector('.rModel').value, id, token });
+    }
+    if (!ok) return firstBad();
+    const btn = t.closest('[data-save]');
+    await busyBtn(btn, 'Saving…', async () => {
+      try { await api('account', { name, plan: $('fPlan').value, routines, key: key || undefined }); closeSheet(); load(false).then(() => readUsage(true)); }
+      catch (err) { if (err.message !== 'auth') $('fErr').textContent = err.message; }
+    });
+    return;
+  }
+  if (t.closest('[data-saveusage]')) {
+    const pct = (id) => { const el = $(id), v = el.value; return fieldErr(el, el.validity.badInput || (v !== '' && !(Number(v) >= 0 && Number(v) <= 100)) ? '0 to 100, or empty.' : ''); };
+    if (![pct('u5'), pct('u7')].every(Boolean)) return firstBad();
+    const btn = t.closest('[data-saveusage]');
+    await busyBtn(btn, 'Saving…', async () => {
+      try { await api('account-usage', { name: btn.dataset.saveusage, five_hour_pct: $('u5').value, seven_day_pct: $('u7').value }); closeSheet(); load(true); }
+      catch (err) { if (err.message !== 'auth') $('uErr').textContent = err.message; }
+    });
+    return;
+  }
   if (t.closest('[data-savesettings]')) {
-    await api('settings', { coordinatorModel: $('sModel').value, coordinatorAccount: $('sAcct').value, overheadTokens: Number($('sBudget').value), minLeftPct: Number($('sMinLeft').value), autoResume: $('sResume').checked });
-    closeSheet(); load(true);
+    const num = (id, lo, hi, msg) => { const el = $(id), v = el.value; return fieldErr(el, v === '' || !(Number(v) >= lo && Number(v) <= hi) ? msg : ''); };
+    const ok = [num('sBudget', 0, 1e9, 'A number of tokens, 0 or more.'), num('sMinLeft', 0, 95, '0 to 95.')].every(Boolean);
+    if (!ok) return firstBad();
+    const btn = t.closest('[data-savesettings]');
+    await busyBtn(btn, 'Saving…', async () => {
+      try { await api('settings', { coordinatorModel: $('sModel').value, coordinatorAccount: $('sAcct').value, overheadTokens: Number($('sBudget').value), minLeftPct: Number($('sMinLeft').value), autoResume: $('sResume').checked }); closeSheet(); load(true); }
+      catch (err) { if (err.message !== 'auth') $('sErr').textContent = err.message; }
+    });
   }
 });
 
