@@ -45,6 +45,8 @@ createServer((req, res) => {
     // The icons sit next to index.html, as Vercel serves them.
     const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml', '/manifest.webmanifest': 'application/manifest+json' }[p];
     if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
+    // Self-hosted fonts (hub/fonts), plain static files on Vercel too.
+    if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(p) && existsSync(path.join(here, p.slice(1)))) { res.setHeader('content-type', 'font/woff2'); return res.end(readFileSync(path.join(here, p.slice(1)))); }
     // The studio and library pages and their modules, also plain static files on Vercel.
     if (p === '/studio.html' || p === '/library.html' || /^\/(studio|library|ui)\/[a-z-]+\.js$/.test(p)) {
       if (!existsSync(path.join(here, p.slice(1)))) return (res.statusCode = 404), res.end('Not found');
