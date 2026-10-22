@@ -40,17 +40,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.quiet { border-color: transparent; background: transparent; }
 .top { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
 .top h1 { font: 400 26px/1 "Patrick Hand", cursive; margin: 0; white-space: nowrap; }
-.top .back { text-decoration: none; color: var(--soft); font-size: 14px; white-space: nowrap; }
-.top .sub { color: var(--faint); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .back { text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; font-size: 15px; }
+.top .sub { color: var(--soft); font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spacer { flex: 1; }
 .tabs { display: flex; gap: 4px; max-width: 1200px; margin: 0 auto; padding: 10px 16px 0; overflow-x: auto; }
 .tabs button { border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; font-size: 15px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.tabs .n { font-size: 13px; font-weight: 400; color: var(--soft); background: var(--chip); border-radius: 99px; padding: 1px 7px; margin-left: 6px; }
+.tabs .n:empty { display: none; }
 .pane { max-width: 1200px; margin: 0 auto; padding: 12px 16px 32px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.hint { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
-.empty { color: var(--faint); font-size: 14px; padding: 18px 4px; }
+.hint { color: var(--soft); font-size: 13px; margin: 8px 0 0; }
+.empty { color: var(--soft); font-size: 15px; padding: 18px 4px; }
+.empty .btn { margin-left: 6px; }
 .check { display: inline-flex; gap: 7px; align-items: center; font-size: 14px; color: var(--soft); cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--green); }
 textarea, input[type=text], input[type=search], select { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 8px 10px; min-height: 40px; }
@@ -66,21 +69,21 @@ dialog input[type=text], dialog select { width: 100%; }
 .toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 14px; z-index: 30; max-width: calc(100vw - 32px); }
 .toast:empty { display: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-@media (max-width: 600px) { .top h1 { font-size: 22px; } .top .sub { display: none; } .tabs button { flex: 1; } }
+@media (max-width: 600px) { .top { padding-left: 10px; padding-right: 10px; } .top h1 { font-size: 24px; } .top .sub { display: none; } .tabs { padding: 4px 10px 0; } .tabs button { flex: 1; padding: 10px 6px; } .pane { padding: 12px 12px 32px; } }
 </style>
 </head>
 <body>
 <div id="app" hidden>
   <header class="top">
-    <a class="back" href="/" title="Back to the hub">‹ Hub</a>
+    <a class="btn back" href="/" title="Back to the hub">‹ Hub</a>
     <h1>Library</h1>
-    <span class="sub">Files, repos and skills every agent can read</span>
+    <span class="sub">What every agent can read</span>
     <span class="spacer"></span>
   </header>
   <nav class="tabs" role="tablist" aria-label="Library">
-    <button role="tab" aria-selected="true" data-tab="files">Files</button>
-    <button role="tab" aria-selected="false" data-tab="repos">Repos</button>
-    <button role="tab" aria-selected="false" data-tab="skills">Skills</button>
+    <button role="tab" aria-selected="true" data-tab="files">Files<span class="n" data-n="files"></span></button>
+    <button role="tab" aria-selected="false" data-tab="repos">Repos<span class="n" data-n="repos"></span></button>
+    <button role="tab" aria-selected="false" data-tab="skills">Skills<span class="n" data-n="skills"></span></button>
   </nav>
   <main>
     <section class="pane" data-pane="files"></section>
@@ -109,7 +112,12 @@ const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer);
 
 let pw = ls.get('hubpw') || '';
 async function api(op, body, query = '') {
-  const res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  let res;
+  try {
+    res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  } catch {
+    throw new Error('no connection to the hub; check the network and try again');
+  }
   const j = await res.json().catch(() => ({}));
   if (res.status === 401) { showLogin('Wrong password.'); throw new Error('Wrong password.'); }
   if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
@@ -122,7 +130,9 @@ async function loadThreads() {
   const s = await api('state', null, '&limit=1');
   threads.splice(0, threads.length, ...(s.threads || []).filter((t) => !t.archived && t.status !== 'done').map((t) => ({ id: t.id, title: t.title, status: t.status })).sort((a, b) => b.id - a.id));
 }
-const ctx = { api, toast, threads, esc };
+// Each tab reports how many items it has, shown next to its name.
+const count = (tab, n) => { const b = document.querySelector(`[data-n="${tab}"]`); if (b) b.textContent = n ? String(n) : ''; };
+const ctx = { api, toast, threads, esc, count };
 
 const TABS = ['files', 'repos', 'skills'];
 const mounted = {};

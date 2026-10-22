@@ -55,7 +55,11 @@ describe('skills page ops', () => {
     const r = await page('GET', 'skill-list');
     const c = r.body.skills.find((s: any) => s.name === 'clarify');
     expect(c).toMatchObject({ bundled: true, overridden: false, by: 'bundled' });
-    expect(c.text).toContain('---');
+    expect(c.text).toBeUndefined(); // the list stays small; one text comes from skill-get
+    expect(c.size).toBeGreaterThan(0);
+    const one = await sk.skillsOf(hub).pageOp('GET', 'skill-get', { name: 'clarify' }, {}) as any;
+    expect(one.body.text).toContain('---');
+    expect((await sk.skillsOf(hub).pageOp('GET', 'skill-get', { name: 'nope' }, {}) as any).status).toBe(404);
   });
 
   it('saves, overrides a bundled skill, and reverts it on delete', async () => {
