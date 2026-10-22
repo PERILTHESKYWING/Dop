@@ -8,7 +8,7 @@
  * on phones and tablets, without WebGPU, or after the GPU failed here once.
  */
 import { BrowserEngine, detectCapabilities, type LoadProgress } from '../../../src/lib/engine/browserEngine';
-import { isPhoneLike } from '../../../src/lib/engine/governor';
+import { governEngine, isPhoneLike, setCool } from '../../../src/lib/engine/governor';
 import { engineEvaluator } from '../../../src/lib/engine/mcts';
 import { bundledModel, MODELS, type ModelSpec } from '../../../src/lib/engine/models';
 import { searchProber } from '../../../src/lib/coach/explain/searchProber';
@@ -75,26 +75,17 @@ export function engineAttempts(webgpu: boolean, phone: boolean, gpuBroken: boole
 
 const shortName = (eng: BrowserEngine) => (eng.info.modelId === STRONG_ID ? 'b18 (strong)' : 'b10 (small)');
 
-async function boot(): Promise<BrowserEngine> {
-  set({ state: 'loading', text: 'Starting KataGo' });
-  const caps = await detectCapabilities();
-  const onProgress = (p: LoadProgress) => set(progressText(p));
-  // Settings › KataGo › Network: 'b10' never tries the GPU; 'b18' tries it on phones too.
-  const pref = getSetting<string>('katago.network');
-  const attempts = engineAttempts(caps.webgpu && pref !== 'b10', pref !== 'b18' && isPhoneLike(), !!lsGet(GPU_BROKEN));
-  let eng: BrowserEngine | null = null;
-  let lastError: unknown = null;
-  for (const a of attempts) {
-    try {
-      eng = await BrowserEngine.load(a, onProgress, { tune: true });
-      break;
-    } catch (e) {
-      lastError = e;
-      if (!a.forceCpu) lsSet(GPU_BROKEN, String(Date.now()));
-    }
-  }
-  if (!eng) throw lastError ?? new Error('no network could be loaded');
-  const loaded = eng;
+type Attempt = { spec: ModelSpec; forceCpu: boolean };
+
+/** Reads running now, and when the last one ended (the background tune waits for a pause). */
+let reading = 0;
+let lastRead = 0;
+/** Quiet time before the background tune starts. */
+const TUNE_IDLE_MS = 4000;
+
+function adopt(loaded: BrowserEngine): BrowserEngine {
+  // Heat and battery: fewer workers while the device is hot, low or below half its battery.
+  governEngine(loaded, { burst: true });
   loaded.onDeath = (reason) => {
     engine = null;
     // A GPU that crashed once is not tried again on this device: next time b10 on the CPU.
@@ -105,16 +96,93 @@ async function boot(): Promise<BrowserEngine> {
   return loaded;
 }
 
-/** The engine as a Prober, loading it the first time. */
+/**
+ * First visit: measuring the device (tuning.ts) took 10-25 s before the first answer could
+ * start. Now the first answers run on one worker straight away, and the measuring waits for
+ * a pause with nothing to read: then the plain engine is stopped (never two copies of the
+ * network in memory at once, which phones cannot afford), the tuned one loads and is
+ * remembered, so later visits start tuned. A read asked for during the measuring waits for it.
+ */
+function tuneWhenIdle(plain: BrowserEngine, attempt: Attempt) {
+  const tick = () => {
+    if (engine === null || plain.dead) return; // the plain engine died: the next question boots again
+    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    if (reading > 0 || Date.now() - lastRead < TUNE_IDLE_MS || hidden) {
+      setTimeout(tick, 1000);
+      return;
+    }
+    plain.onDeath = undefined;
+    plain.kill('replaced');
+    const onProgress = (p: LoadProgress) => set(progressText(p));
+    engine = BrowserEngine.load(attempt, onProgress, { tune: true }).then(adopt, (e) => {
+      // Measuring failed: start as before, untuned, so the site keeps working.
+      if (!attempt.forceCpu) lsSet(GPU_BROKEN, String(Date.now()));
+      engine = null;
+      throw e;
+    });
+    engine.catch(() => {});
+  };
+  setTimeout(tick, TUNE_IDLE_MS);
+}
+
+async function boot(): Promise<BrowserEngine> {
+  set({ state: 'loading', text: 'Starting KataGo' });
+  const caps = await detectCapabilities();
+  const onProgress = (p: LoadProgress) => set(progressText(p));
+  // Settings › KataGo › Network: 'b10' never tries the GPU; 'b18' tries it on phones too.
+  const pref = getSetting<string>('katago.network');
+  const phone = isPhoneLike();
+  // Cool mode, as on Dop: a phone has no fan, so it tunes and runs at most two workers
+  // (fewer workers to load and measure on the first visit, and the cores stay cooler).
+  setCool(phone);
+  const attempts = engineAttempts(caps.webgpu && pref !== 'b10', pref !== 'b18' && phone, !!lsGet(GPU_BROKEN));
+  let eng: BrowserEngine | null = null;
+  let used: Attempt | null = null;
+  let lastError: unknown = null;
+  for (const a of attempts) {
+    try {
+      // The remembered tuning if this device has one; else untuned now, measured later.
+      eng = await BrowserEngine.load(a, onProgress, { tune: 'remembered' });
+      used = a;
+      break;
+    } catch (e) {
+      lastError = e;
+      if (!a.forceCpu) lsSet(GPU_BROKEN, String(Date.now()));
+    }
+  }
+  if (!eng || !used) throw lastError ?? new Error('no network could be loaded');
+  adopt(eng);
+  if (!eng.tuning) tuneWhenIdle(eng, used);
+  return eng;
+}
+
+/**
+ * The engine as a Prober, loading it the first time. Each read takes the engine current at
+ * that moment, so an answer started on the untuned engine carries on with the tuned one.
+ */
 export async function getProber(): Promise<Prober> {
+  await current();
+  return {
+    async read(pos, budget) {
+      const eng = await current();
+      reading++;
+      try {
+        return await searchProber(engineEvaluator(eng), { batch: eng.batch }).read(pos, budget);
+      } finally {
+        reading--;
+        lastRead = Date.now();
+      }
+    },
+  };
+}
+
+async function current(): Promise<BrowserEngine> {
   engine ??= boot();
-  let eng: BrowserEngine;
   try {
-    eng = await engine;
+    return await engine;
   } catch (e) {
     engine = null;
     set({ state: 'failed', text: `KataGo could not start: ${(e as Error).message}` });
     throw e;
   }
-  return searchProber(engineEvaluator(eng), { batch: eng.batch });
 }

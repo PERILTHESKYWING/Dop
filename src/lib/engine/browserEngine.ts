@@ -79,9 +79,10 @@ export interface LoadOptions {
   /**
    * Measure this device and run as many engine workers and as big network batches as pay
    * off (remembered per device and network). Off for the helper engines that run beside
-   * the main one.
+   * the main one. 'remembered': use this device's remembered setup, but do not measure
+   * now when there is none (Kiai measures later, in a pause, so the first answer is not held up).
    */
-  tune?: boolean;
+  tune?: boolean | 'remembered';
   /** Measure again even if this device was measured before. */
   retune?: boolean;
   /** The pre-SIMD build with no tuning: the plain setup the benchmark compares against. */
@@ -531,7 +532,7 @@ export class BrowserEngine implements EngineBackend {
         if (known) {
           await eng.applyTuning(known);
           eng.tuning = known;
-        } else eng.tuning = await eng.tune(key, facts);
+        } else if (opts.tune !== 'remembered') eng.tuning = await eng.tune(key, facts);
       }
       eng.onProgress = undefined;
       return eng;
