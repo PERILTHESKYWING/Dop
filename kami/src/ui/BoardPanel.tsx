@@ -538,7 +538,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         >
           <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
-            <span className="ev-fill" style={{ width: `${(bWin * 100).toFixed(1)}%` }} />
+            <span className="ev-fill" style={{ transform: `scaleX(${bWin.toFixed(3)})` }} />
             <span className="ev-mid" />
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>

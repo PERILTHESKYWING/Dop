@@ -1350,10 +1350,6 @@ kbd {
   background: var(--hover);
   color: var(--ink);
 }
-.ver {
-  font-weight: 400;
-  color: var(--muted);
-}
 .menu-pop {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -1472,14 +1468,6 @@ kbd {
 .bp-caption > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.bp-title {
-  font-weight: 600;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 0 1 auto;
-  min-width: 0;
 }
 .previewing .bp-caption {
   color: var(--accent);
@@ -1603,9 +1591,11 @@ kbd {
 }
 .ev-fill {
   position: absolute;
-  inset: 0 auto 0 0;
+  inset: 0;
   background: #0f0f0e;
-  transition: width 0.35s ease;
+  /* Black's share as scaleX (set inline): composited, no layout per frame */
+  transform-origin: left center;
+  transition: transform 0.35s ease;
 }
 .ev-mid {
   position: absolute;
