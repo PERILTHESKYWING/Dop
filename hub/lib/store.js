@@ -34,8 +34,23 @@ export function upstashStore(url, token, fetchImpl = fetch) {
 export function storeFromEnv(env = process.env) {
   const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? upstashStore(url, token) : null;
+  if (!url || !token) return null;
+  const store = upstashStore(url, token);
+  store.id = url; // names this store for per-instance caches (lib/hub.js)
+  return store;
 }
+
+// Lua scripts (EVAL): several commands in one round trip that Upstash bills
+// as one command. Each has a JS twin so the memory store runs the same logic.
+// The twin gets call(op, ...args), which runs one command synchronously.
+const TWINS = new Map();
+export function defineScript(lua, js) {
+  TWINS.set(lua, js);
+  return lua;
+}
+// ['EVAL', script, keys.length, ...keys, ...args], usable in multi() too.
+export const evalCmd = (script, keys, args = []) => ['EVAL', script, keys.length, ...keys, ...args];
+let memIds = 0;
 
 export function memoryStore() {
   const kv = new Map();
@@ -86,18 +101,25 @@ export function memoryStore() {
     },
     HDEL: (k, ...fs) => fs.filter((f) => hash(k).delete(f)).length,
     HGETALL: (k) => [...hash(k).entries()].flat(),
+    EVAL: (lua, n, ...rest) => {
+      const js = TWINS.get(lua);
+      if (!js) throw new Error('memory store: unknown script');
+      return js(run, rest.slice(0, Number(n)), rest.slice(Number(n)));
+    },
   };
-  const run = ([op, ...args]) => {
+  function run(op, ...args) {
+    if (Array.isArray(op)) [op, ...args] = op;
     const fn = ops[String(op).toUpperCase()];
     if (!fn) throw new Error(`memory store: ${op} not supported`);
     return fn(...args.map(String));
-  };
+  }
   return {
+    id: `mem${++memIds}`,
     async cmd(...args) {
-      return run(args);
+      return run(...args);
     },
     async multi(cmds) {
-      return cmds.map(run);
+      return cmds.map((c) => run(...c));
     },
   };
 }

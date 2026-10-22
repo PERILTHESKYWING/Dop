@@ -4,6 +4,7 @@
 // whenever the page or an agent next talks to the hub.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { libSummary, chatFiles, attachFiles, filesLine } from './library.js';
+import { defineScript, evalCmd } from './store.js';
 
 export const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 // Thinking level per thread. Routines have no effort setting the hub can
@@ -87,6 +88,81 @@ export const usedPct = (a) => (a.usage && (a.usage.five_hour_pct != null || a.us
 const isMember = (t, name) => t.crew?.[name]?.role === 'member' && name !== t.account;
 const underMin = (a, s) => a.low || (usedPct(a) ?? 0) >= 100 - s.minLeftPct;
 
+// ---------- fewer store round trips ----------
+// Each store call is one HTTP round trip to Upstash (~80 ms measured). These
+// Lua scripts do a few commands in one trip, which Upstash bills as one command.
+// A new message: take the next id (seq) and append it to the feed. ARGV[1] is
+// the message JSON starting with {"id":0, which gets the real id.
+const POST_MSG = defineScript(
+  `local id = redis.call('INCR', KEYS[1])
+redis.call('RPUSH', KEYS[2], '{"id":' .. id .. string.sub(ARGV[1], 8))
+redis.call('LTRIM', KEYS[2], -tonumber(ARGV[2]), -1)
+return id`,
+  (call, [seqKey, feedKey], [msg, keep]) => {
+    const id = call('INCR', seqKey);
+    call('RPUSH', feedKey, `{"id":${id}${msg.slice(7)}`);
+    call('LTRIM', feedKey, -Number(keep), -1);
+    return id;
+  },
+);
+// What one agent hasn't seen: its marker, the counters, and only the reads
+// they call for (new lessons, the new end of the feed). ARGV: marker field, after.
+const NEWS_READ = defineScript(
+  `local raw = redis.call('HGET', KEYS[1], ARGV[1])
+local L = tonumber(redis.call('GET', KEYS[2]) or '0') or 0
+local M = tonumber(redis.call('GET', KEYS[3]) or '0') or 0
+local l, m = 0, M
+if raw then
+  l = tonumber(string.match(raw, '"l":(%d+)') or '0') or 0
+  m = tonumber(string.match(raw, '"m":(%d+)') or M) or M
+end
+if ARGV[2] ~= '' then m = tonumber(ARGV[2]) end
+local les, fd = false, false
+if L > l then les = redis.call('HGETALL', KEYS[4]) end
+if M > m then fd = redis.call('LRANGE', KEYS[5], -math.min(400, M - m), -1) end
+return {raw, tostring(L), tostring(M), les, fd}`,
+  (call, [seenK, lsK, seqK, lesK, feedK], [field, after]) => {
+    const raw = call('HGET', seenK, field);
+    const L = Number(call('GET', lsK) || 0);
+    const M = Number(call('GET', seqK) || 0);
+    let l = 0;
+    let m = M;
+    if (raw) {
+      l = Number(/"l":(\d+)/.exec(raw)?.[1] || 0);
+      m = Number(/"m":(\d+)/.exec(raw)?.[1] ?? M);
+    }
+    if (after !== '') m = Number(after);
+    return [raw, String(L), String(M), L > l ? call('HGETALL', lesK) : null, M > m ? call('LRANGE', feedK, -Math.min(400, M - m), -1) : null];
+  },
+);
+// Everything the page shows, in one command; only the version when the page
+// already holds it (ARGV[1]). ARGV[2]: where the feed read starts.
+const SNAP_KEYS = ['seq', 'rev', 'threads', 'accounts', 'feed', 'settings', 'fires', 'tok', 'deleted', 'agents', 'gone', 'lessons', 'wake'];
+const SNAPSHOT = defineScript(
+  `local seq = tonumber(redis.call('GET', KEYS[1]) or '0') or 0
+local rev = tonumber(redis.call('GET', KEYS[2]) or '0') or 0
+local v = string.format('%d.%d', seq, rev)
+if ARGV[1] == v then return {v} end
+return {v, redis.call('HGETALL', KEYS[3]), redis.call('HGETALL', KEYS[4]), redis.call('LRANGE', KEYS[5], tonumber(ARGV[2]), -1),
+  redis.call('GET', KEYS[6]), redis.call('LRANGE', KEYS[7], 0, -1), redis.call('GET', KEYS[8]), redis.call('LRANGE', KEYS[9], -200, -1),
+  redis.call('HGETALL', KEYS[10]), redis.call('HGETALL', KEYS[11]), redis.call('HGETALL', KEYS[12]), redis.call('GET', KEYS[13])}`,
+  (call, k, [have, from]) => {
+    const v = `${Number(call('GET', k[0]) || 0)}.${Number(call('GET', k[1]) || 0)}`;
+    if (have === v) return [v];
+    return [v, call('HGETALL', k[2]), call('HGETALL', k[3]), call('LRANGE', k[4], from, -1), call('GET', k[5]), call('LRANGE', k[6], 0, -1), call('GET', k[7]), call('LRANGE', k[8], -200, -1), call('HGETALL', k[9]), call('HGETALL', k[10]), call('HGETALL', k[11]), call('GET', k[12])];
+  },
+);
+// Kept in this function instance's memory between requests (per store):
+// settings for a few seconds, and when the next stopped-agent check is due.
+const SETTINGS_TTL_MS = 10_000;
+const SWEEP_RECHECK_MS = 30_000;
+const memo = new Map();
+const memoOf = (store) => {
+  const id = store.id || store;
+  if (!memo.has(id)) memo.set(id, { settings: null, settingsAt: 0, sweepDue: 0 });
+  return memo.get(id);
+};
+
 export function safeEqual(a, b) {
   const x = createHash('sha256').update(String(a)).digest();
   const y = createHash('sha256').update(String(b)).digest();
@@ -97,12 +173,31 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // The project this hub serves and the person it works for. Only the words
   // agents and the page read change; stored messages keep from: 'XIAO'.
   const slug = project.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'hub';
+  const mem = memoOf(store);
+  // Writes that can wait for this request's last store call (connection log,
+  // news markers). flush() sends them; countTraffic sends them with its own.
+  const pending = [];
+  const marks = new Map(); // news markers written this request, not yet flushed
+  async function flush(extra = []) {
+    const cmds = [...pending.splice(0), ...extra];
+    marks.clear();
+    return cmds.length ? store.multi(cmds) : [];
+  }
+
   async function nextId() {
     return Number(await store.cmd('INCR', K.seq));
   }
 
+  function cacheSettings(raw) {
+    const s = { ...DEFAULT_SETTINGS, ...parse(raw, {}) };
+    mem.settings = s;
+    mem.settingsAt = now();
+    return s;
+  }
   async function settings() {
-    return { ...DEFAULT_SETTINGS, ...parse(await store.cmd('GET', K.settings), {}) };
+    const t = now();
+    if (mem.settings && t >= mem.settingsAt && t - mem.settingsAt < SETTINGS_TTL_MS) return { ...mem.settings };
+    return { ...cacheSettings(await store.cmd('GET', K.settings)) };
   }
 
   async function saveSettings(patch) {
@@ -114,6 +209,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     if (typeof patch.autoResume === 'boolean') out.autoResume = patch.autoResume;
     if (Number.isFinite(Number(patch.minLeftPct)) && patch.minLeftPct !== '' && patch.minLeftPct != null) out.minLeftPct = Math.max(0, Math.min(95, Math.round(Number(patch.minLeftPct))));
     await store.cmd('SET', K.settings, json(out));
+    cacheSettings(json(out));
     // A new threshold re-marks (or clears) accounts from their last numbers.
     if (out.minLeftPct !== s.minLeftPct) {
       for (const a of Object.values(await accounts())) {
@@ -284,6 +380,11 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   async function touchAccount(name, patch = {}) {
     const a = await account(name);
     if (!a) return null;
+    return putAccount(a, { quiet: await touched(a, patch) });
+  }
+  // The changes a call from this account makes to it; true when the page
+  // needn't refresh for them. Callers write the account (with others writes).
+  async function touched(a, patch = {}) {
     // A plain "still here" doesn't need the page to refresh.
     const quiet = !Object.keys(patch).length && now() - (a.lastSeen || 0) < 60_000;
     Object.assign(a, patch, { lastSeen: now() });
@@ -291,8 +392,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     // Its session reached the hub, so it is not out of usage after all.
     if (a.noShows) a.noShows = 0;
     await applyUsage(a);
-    return putAccount(a, { quiet });
+    return quiet;
   }
+  const accountCmds = (a, quiet) => [['HSET', K.accounts, a.name, json(a)], ...(quiet ? [] : [['INCR', K.rev]])];
 
   // First call with the right key: the connector on claude.ai works.
   async function markConnected(a) {
@@ -328,9 +430,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // Agents read their own usage with hub/usage-probe.mjs (in this repo only):
   // when they start, and after a checkpoint once the last reading is 30 min old.
   const PROBE = 'run `node hub/usage-probe.mjs` and pass what it prints to hub_usage (state "report"); skip it if it prints an error.';
-  async function usageDue(name) {
+  async function usageDue(name, pre) {
     if (slug !== 'dop') return false;
-    const a = await account(name);
+    const a = pre !== undefined ? pre : await account(name);
     return !!a && a.plan !== 'free' && (!a.usage || a.usage.source === 'manual' || now() - (a.usage.at || 0) > 30 * 60_000);
   }
 
@@ -463,29 +565,37 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   async function thread(id) {
     return parse(await store.cmd('HGET', K.threads, String(id)));
   }
-  async function putThread(t) {
+  function threadCmds(t) {
     t.updatedAt = now();
-    await store.multi([['HSET', K.threads, String(t.id), json(t)], ['INCR', K.rev]]);
+    // A thread that changed here may be due a stopped-agent check sooner.
+    mem.sweepDue = Math.min(mem.sweepDue, nextStall([t], now()));
+    return [['HSET', K.threads, String(t.id), json(t)], ['INCR', K.rev]];
+  }
+  async function putThread(t) {
+    await store.multi(threadCmds(t));
     return t;
   }
 
-  async function post({ thread: tid = 0, from, kind = 'note', text, replyTo = null, meta = null, to = '' }) {
-    const msg = { id: await nextId(), at: now(), thread: Number(tid) || 0, from, kind, text: clean(text, 20_000), replyTo: replyTo ? Number(replyTo) : null };
+  // A message and the one command that stores it (the id comes back from
+  // the store; msgOf fills it in). Batch the command with other writes.
+  function postCmd({ thread: tid = 0, from, kind = 'note', text, replyTo = null, meta = null, to = '' }) {
+    const msg = { id: 0, at: now(), thread: Number(tid) || 0, from, kind, text: clean(text, 20_000), replyTo: replyTo ? Number(replyTo) : null };
     if (meta) msg.meta = meta;
     if (to) msg.to = clean(to, 24);
-    await store.multi([
-      ['RPUSH', K.feed, json(msg)],
-      ['LTRIM', K.feed, -KEEP_FEED, -1],
-    ]);
+    return { msg, cmd: evalCmd(POST_MSG, [K.seq, K.feed], [json(msg), KEEP_FEED]) };
+  }
+  async function post(m) {
+    const { msg, cmd } = postCmd(m);
+    msg.id = Number(await store.cmd(...cmd));
     return msg;
   }
 
   // Connection log: what each connector request looked like, to debug claude.ai setup.
-  async function logConn(entry) {
-    await store.multi([
-      ['RPUSH', K.conn, json({ at: now(), ...entry })],
-      ['LTRIM', K.conn, -40, -1],
-    ]);
+  // later: send it with the request's last store call (see flush).
+  async function logConn(entry, { later = false } = {}) {
+    const cmds = [['RPUSH', K.conn, json({ at: now(), ...entry })], ['LTRIM', K.conn, -40, -1]];
+    if (later) pending.push(...cmds);
+    else await store.multi(cmds);
   }
   async function connLog() {
     return (await store.cmd('LRANGE', K.conn, 0, -1)).map((s) => parse(s)).filter(Boolean).reverse();
@@ -509,7 +619,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
 
   async function countTraffic(chars) {
     const key = `hub:tok:${Math.floor(now() / FIVE_H)}`;
-    await store.cmd('INCRBY', key, Math.ceil(chars / 4));
+    await flush([['INCRBY', key, Math.ceil(chars / 4)]]);
   }
 
   // ---------- starting cloud sessions ----------
@@ -775,10 +885,11 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       if (Array.isArray(only)) t.accounts = cleanList(only);
       if (team != null) t.team = teamOf(team, t.team);
       if (files.length) await attachFiles(store, files.map((f) => f.id), t.id);
-      const msg = await post({ thread: t.id, from: 'XIAO', kind: 'prompt', text, replyTo, meta: files.length ? { files } : null });
+      const p = postCmd({ thread: t.id, from: 'XIAO', kind: 'prompt', text, replyTo, meta: files.length ? { files } : null });
       t.archived = false;
       if (t.status === 'done' || t.status === 'waiting' || t.status === 'stalled' || t.status === 'queued') t.status = 'new';
-      await putThread(t);
+      const msg = p.msg;
+      msg.id = Number((await store.multi([p.cmd, ...threadCmds(t)]))[0]);
       // A running agent gets it with its next hub call; otherwise start one.
       if (!(t.status === 'working' && now() - (t.lastAgentAt || 0) < ACTIVE_MS)) await dispatch(t);
       else await fillTeam(t);
@@ -859,21 +970,12 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   // messages newer than that id come back; with threadsAfter too (an
   // updatedAt the page holds), only threads changed since then, plus every
   // thread id so the page can drop deleted ones.
-  async function snapshot({ since = 0, limit = 600, threadsAfter = 0 } = {}) {
-    const [th, ac, fd, st, fi, tok, [seq, rev], del, ag, gone, le, wk] = await store.multi([
-      ['HGETALL', K.threads],
-      ['HGETALL', K.accounts],
-      ['LRANGE', K.feed, since ? -150 : -limit, -1],
-      ['GET', K.settings],
-      ['LRANGE', K.fires, 0, -1],
-      ['GET', `hub:tok:${Math.floor(now() / FIVE_H)}`],
-      ['MGET', K.seq, K.rev],
-      ['LRANGE', K.deleted, -200, -1],
-      ['HGETALL', K.agents],
-      ['HGETALL', K.gone],
-      ['HGETALL', K.lessons],
-      ['GET', K.wake],
-    ]);
+  // v: the version the page holds; unchanged answers { same: true, seq }.
+  async function snapshot({ since = 0, limit = 600, threadsAfter = 0, v = '' } = {}) {
+    const keys = { ...K, tok: `hub:tok:${Math.floor(now() / FIVE_H)}` };
+    const [ver, th, ac, fd, st, fi, tok, del, ag, gone, le, wk] = await store.cmd(...evalCmd(SNAPSHOT, SNAP_KEYS.map((k) => keys[k]), [String(v || ''), since ? -150 : -limit]));
+    if (th === undefined) return { same: true, seq: ver };
+    cacheSettings(st);
     const t = now();
     // An open page also checks for limits that have reset.
     if (t - (Number(wk) || 0) >= WAKE_EVERY_MS) {
@@ -883,7 +985,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const ths = Object.values(hashToObj(th)).sort((a, b) => a.id - b.id);
     // A stopped agent is noticed here; only then is a second read needed.
     if (ths.some((x) => x.status === 'working' && !x.archived && (t - (x.lastAgentAt || 0) >= STALL_MS || quietMembers(x, t).length))) {
-      await sweep();
+      await sweep({ force: true });
       return snapshot({ since, limit, threadsAfter });
     }
     let messages = (fd || []).map((x) => parse(x)).filter(Boolean);
@@ -895,7 +997,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const coordinatorSessions = fires.filter((f) => f.role === 'coordinator').length;
     const used = Number(tok || 0) + coordinatorSessions * s.coordinatorSessionTokens;
     return {
-      seq: `${Number(seq || 0)}.${Number(rev || 0)}`,
+      seq: ver,
       full: !since,
       ...(since && threadsAfter ? { threads: ths.filter((x) => (x.updatedAt || 0) >= threadsAfter), threadIds: ths.map((x) => x.id) } : { threads: ths }),
       accounts: Object.values(live(ac, gone)).map((a) => publicAccount(a, ths)),
@@ -916,10 +1018,27 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     });
   }
 
-  async function sweep() {
+  // When the next thread could go quiet (its agent's or a member's last sign
+  // of life + STALL_MS). Until then, and for at most SWEEP_RECHECK_MS, agent
+  // calls skip the check: no store reads.
+  function nextStall(ths, t) {
+    let due = t + SWEEP_RECHECK_MS;
+    for (const th of ths) {
+      if (th.status !== 'working' || th.archived) continue;
+      due = Math.min(due, (th.lastAgentAt || 0) + STALL_MS);
+      for (const c of Object.values(th.crew || {})) if (c.role === 'member' && !c.done && !c.gone) due = Math.min(due, (c.at || 0) + STALL_MS);
+    }
+    return due;
+  }
+  async function sweep({ force = false } = {}) {
     const t = now();
-    const s = await settings();
-    for (const th of await threads()) {
+    if (!force && t < mem.sweepDue && mem.sweepDue - t <= SWEEP_RECHECK_MS) return;
+    const [st, raw] = await store.multi([['GET', K.settings], ['HGETALL', K.threads]]);
+    const s = cacheSettings(st);
+    const all = Object.values(hashToObj(raw)).sort((a, b) => a.id - b.id);
+    const due = nextStall(all, t);
+    if (due > t) return void (mem.sweepDue = due);
+    for (const th of all) {
       if (th.status !== 'working' || th.archived) continue;
       // A stopped team member: its part moves to another account.
       const quiet = quietMembers(th, t);
@@ -987,11 +1106,13 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   const seenKey = (agent, tid) => `${agent.name}|${Number(tid) || 0}`;
   async function resetSeen(agent, tid) {
     const [ls, ms] = await store.multi([['GET', K.lessonSeq], ['GET', K.seq]]);
+    marks.delete(seenKey(agent, tid));
     await store.cmd('HSET', K.seen, seenKey(agent, tid), json({ l: Number(ls || 0), m: Number(ms || 0), q: [] }));
   }
   async function watchQuestion(agent, tid, qid) {
     const field = seenKey(agent, tid);
-    const mark = parse(await store.cmd('HGET', K.seen, field)) || { l: 0, m: Number(qid), q: [] };
+    const mark = parse(marks.get(field) ?? (await store.cmd('HGET', K.seen, field))) || { l: 0, m: Number(qid), q: [] };
+    marks.delete(field);
     mark.q = [...new Set([...(mark.q || []), Number(qid)])].slice(-20);
     await store.cmd('HSET', K.seen, field, json(mark));
   }
@@ -1002,23 +1123,30 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   async function news(agent, tid, { after } = {}) {
     tid = Number(tid) || 0;
     const field = seenKey(agent, tid);
-    const [raw, ls, ms] = await store.multi([['HGET', K.seen, field], ['GET', K.lessonSeq], ['GET', K.seq]]);
+    const aft = after != null && after !== '' && Number.isFinite(Number(after)) ? String(Number(after)) : '';
+    // One command: the marker, the counters and only the reads they call for.
+    // A marker this request already moved (not flushed yet) wins over the store's.
+    const known = marks.get(field);
+    const [stored, ls, ms, les, fd] = await store.cmd(...evalCmd(NEWS_READ, [K.seen, K.lessonSeq, K.seq, K.lessons, K.feed], [field, aft || (known ? String(parse(known)?.m ?? '') : '')]));
+    const raw = known ?? stored;
     const L = Number(ls || 0);
     const M = Number(ms || 0);
     // First contact (no hub_start): no old messages, but every lesson.
     const mark = { l: 0, m: M, q: [], ...parse(raw, {}) };
-    if (after != null && after !== '' && Number.isFinite(Number(after))) mark.m = Number(after);
+    if (aft) mark.m = Number(aft);
     if (L <= mark.l && M <= mark.m) return { text: '', seq: M };
-    const reads = [];
-    if (L > mark.l) reads.push(['HGETALL', K.lessons]);
-    if (M > mark.m) reads.push(['LRANGE', K.feed, -Math.min(400, M - mark.m), -1]);
-    const out = await store.multi(reads);
+    // The script read the lessons by the store's marker; one held here may need them too.
+    const out = [L > mark.l ? les || (await store.cmd('HGETALL', K.lessons)) : null, M > mark.m ? fd || (await store.cmd('LRANGE', K.feed, -Math.min(400, M - mark.m), -1)) : null];
     const fresh = L > mark.l ? Object.values(hashToObj(out.shift())).filter((l) => l.id > mark.l && !(l.by === agent.name && l.thread === tid)).sort((a, b) => a.id - b.id) : [];
     // Thinking notes are for the page only; lessons arrive as lessons.
     const mine = (m) => tid && m.thread === tid && m.from !== agent.name && !['lesson', 'thinking'].includes(m.kind) && !(m.from === 'hub' && m.kind === 'start');
+    if (L <= mark.l) out.shift();
     const msgs = M > mark.m ? (out.shift() || []).map((x) => parse(x)).filter((m) => m && m.id > mark.m && (mine(m) || (isAnswer(m) && mark.q.includes(m.replyTo)))) : [];
     const q = mark.q.filter((id) => !msgs.some((m) => isAnswer(m) && m.replyTo === id));
-    await store.cmd('HSET', K.seen, field, json({ l: L, m: M, q }));
+    // Saved with this request's last store call (flush / countTraffic).
+    const next = json({ l: L, m: M, q });
+    marks.set(field, next);
+    pending.push(['HSET', K.seen, field, next]);
     const parts = [];
     if (msgs.length) parts.push(`New messages for you:\n${msgs.slice(-12).map(msgLine).join('\n')}${msgs.length > 12 ? `\n(${msgs.length - 12} older ones: hub_read(${tid}))` : ''}`);
     if (fresh.length) parts.push(`New team lessons:\n${fresh.map(lessonLine).join('\n')}`);
@@ -1116,10 +1244,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   }
 
   async function overview() {
-    const ths = await threads();
+    const [ths, ac, s] = await Promise.all([threads(), accounts(), settings()]);
     const open = ths.filter((t) => t.status !== 'done' && !t.archived);
-    const raw = Object.values(await accounts());
-    const s = await settings();
+    const raw = Object.values(ac);
     const accs = raw.map((a) => ({ ...publicAccount(a, ths), used: usedPct(a), under: underMin(a, s) }));
     return [
       `Accounts (new work only goes to accounts with at least ${s.minLeftPct}% usage left): ` +
@@ -1131,10 +1258,11 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
 
   async function threadText(t, limit = 40) {
     // Thinking notes are for XIAO's page, not other agents' context.
-    const msgs = (await feed(1500)).filter((m) => m.thread === t.id && m.kind !== 'thinking').slice(-limit);
+    // The feed and the library are read at the same time (two trips in parallel).
+    const [all, lib] = await Promise.all([feed(1500), libSummary(store, t.id, owner).catch(() => '')]);
+    const msgs = all.filter((m) => m.thread === t.id && m.kind !== 'thinking').slice(-limit);
     const parts = Object.keys(t.crew || {}).filter((n) => t.crew[n].role === 'member' && t.crew[n].checkpoint);
     const memberHandovers = parts.map((n) => `Member ${n}${t.crew[n].done ? ' (part done)' : t.crew[n].gone ? ' (stopped)' : ''}: ${checkpointText(t.crew[n].checkpoint)}`);
-    const lib = await libSummary(store, t.id, owner).catch(() => '');
     return [threadLine(t), `Brief: ${t.brief || t.title}`, checkpointText(t.checkpoint), ...memberHandovers, ...(lib ? [lib] : []), 'Messages:\n' + msgs.map(msgLine).join('\n')].join('\n\n');
   }
 
@@ -1270,13 +1398,22 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const allowed = ['note', 'progress', 'question', 'answer', 'thinking', 'done'];
     kind = allowed.includes(kind) ? kind : 'note';
     tid = Number(tid) || 0;
-    const t = tid ? await thread(tid) : null;
+    // One read (thread + account) and one write (message, thread, account).
+    const [rawT, rawA, gone] = await store.multi([['HGET', K.threads, String(tid)], ['HGET', K.accounts, agent.name], ['HGET', K.gone, agent.name]]);
+    const t = tid ? parse(rawT) : null;
     if (tid && !t) throw new Error('No such thread.');
+    const a = gone ? null : parse(rawA);
+    const write = async (m, threadChanged) => {
+      const p = postCmd(m);
+      const quiet = a ? await touched(a) : true;
+      const out = await store.multi([p.cmd, ...(threadChanged ? threadCmds(t) : []), ...(a ? accountCmds(a, quiet) : [])]);
+      p.msg.id = Number(out[0]);
+      return p.msg;
+    };
     // A thinking note only shows the agent is alive; it never changes the thread's state.
     if (kind === 'thinking') {
-      const msg = await post({ thread: tid, from: agent.name, kind, text: clean(text, 1200) });
-      if (t) { seen(t, agent.name); await putThread(t); }
-      await touchAccount(agent.name);
+      if (t) seen(t, agent.name);
+      const msg = await write({ thread: tid, from: agent.name, kind, text: clean(text, 1200) }, !!t);
       return `Posted #${msg.id}.`;
     }
     const member = t && isMember(t, agent.name);
@@ -1286,33 +1423,31 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       kind = 'progress';
       text = `Part done: ${text}`;
     }
-    const msg = await post({ thread: tid, from: agent.name, kind, text, replyTo: reply_to, to, meta });
     if (t) {
       seen(t, agent.name);
       if (kind === 'done') t.status = 'done';
       else if (kind === 'question' && !reply_to && !to) t.status = 'waiting';
       else if (t.status !== 'done' && !member) t.status = 'working';
-      await putThread(t);
     }
-    await touchAccount(agent.name);
+    const msg = await write({ thread: tid, from: agent.name, kind, text, replyTo: reply_to, to, meta }, !!t);
     return `Posted #${msg.id}.`;
   }
 
   async function checkpoint(agent, { thread: tid, done, next, branch = '' }) {
-    const t = await thread(tid);
+    const [rawT, rawF, rawA, gone] = await store.multi([['HGET', K.threads, String(Number(tid))], ['LRANGE', K.feed, -400, -1], ['HGET', K.accounts, agent.name], ['HGET', K.gone, agent.name]]);
+    const t = parse(rawT);
     if (!t) throw new Error('No such thread.');
     const cp = { at: now(), by: agent.name, done: clean(done, 3000), next: clean(next, 3000), branch: clean(branch, 120) };
     // Members keep their own handover, so each part can be continued alone.
     if (isMember(t, agent.name)) t.crew[agent.name].checkpoint = cp;
     else t.checkpoint = cp;
     seen(t, agent.name);
-    await putThread(t);
     // Files XIAO sent since this agent's last handover, so a busy agent still looks at them.
-    const recent = (await feed(400)).filter((m) => m.thread === t.id);
+    const recent = (rawF || []).map((x) => parse(x)).filter((m) => m && m.thread === t.id);
     const since = recent.filter((m) => m.kind === 'handover' && m.from === agent.name).at(-1)?.id || 0;
     const sent = recent.filter((m) => m.from === 'XIAO' && m.meta?.files?.length && m.id > since).slice(-3);
-    await post({ thread: t.id, from: agent.name, kind: 'handover', text: `Done: ${cp.done}\nNext: ${cp.next}${cp.branch ? `\nBranch: ${cp.branch}` : ''}` });
-    return `Handover saved.${sent.length ? `\nNew from ${owner}:\n${sent.map(msgLine).join('\n')}` : ''}${(await usageDue(agent.name)) ? ` Usage is due: ${PROBE}` : ''}`;
+    await store.multi([...threadCmds(t), postCmd({ thread: t.id, from: agent.name, kind: 'handover', text: `Done: ${cp.done}\nNext: ${cp.next}${cp.branch ? `\nBranch: ${cp.branch}` : ''}` }).cmd]);
+    return `Handover saved.${sent.length ? `\nNew from ${owner}:\n${sent.map(msgLine).join('\n')}` : ''}${(await usageDue(agent.name, gone ? null : parse(rawA))) ? ` Usage is due: ${PROBE}` : ''}`;
   }
 
   // Ask another thread (or XIAO). If nobody is running on the target thread,
@@ -1368,6 +1503,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
   async function heartbeat(tid, name = '') {
     const t = await thread(tid);
     if (!t || t.status === 'done') return;
+    // Seen under a minute ago and nothing to change: skip the write (and the page refresh it causes).
+    const last = isMember(t, name) ? (t.crew[name].gone ? 0 : t.crew[name].at) : t.lastAgentAt;
+    if (t.status !== 'stalled' && now() - (last || 0) < 60_000 && now() >= (last || 0)) return;
     seen(t, name);
     if (t.status === 'stalled' && !isMember(t, name)) t.status = 'working';
     await putThread(t);
@@ -1384,7 +1522,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     logConn, connLog,
     threads, thread, post, feed, overhead, countTraffic, createThread, prompt, updateThread, deleteThread, deleteMessage, snapshot, sweep, wake, tick, dispatch,
     lessons, learn, removeLesson, news, watchQuestion,
-    start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
+    flush, start, route, routed, agentPost, agentRun, heartbeat, checkpoint, ask, answerFor, overview, threadText, msgLine, nextSeq: async () => Number((await store.cmd('GET', K.seq)) || 0),
     // What the page compares to know whether to fetch again. One store
     // command (MGET), since an open page asks for it on every poll.
     version: async () => {

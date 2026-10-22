@@ -36,12 +36,9 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   if (method === 'GET' && op === 'state') {
     const t0 = Date.now();
     // v: the version the page already holds. Unchanged costs one store
-    // command and a few bytes; changed sends the update in the same request.
-    if (query.v) {
-      const seq = await hub.version();
-      if (seq === query.v) return { status: 200, body: { same: true, seq } };
-    }
-    const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600, threadsAfter: Number(query.tu) || 0 });
+    // command and a few bytes; changed sends the update in the same command.
+    const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600, threadsAfter: Number(query.tu) || 0, v: query.v || '' });
+    if (body.same) return { status: 200, body };
     return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, ms: Date.now() - t0 } };
   }
   // Reading usage from Claude can take seconds, so the page asks for it on its own.
@@ -131,9 +128,10 @@ export async function mcpApi({ hub, method, query, body, headers }) {
       rpc: String(body?.method || '').slice(0, 40),
       via: auth ? 'header' : key ? 'link' : 'none',
       ua: String(headers['user-agent'] || '').slice(0, 60),
-    });
+    }, { later: true });
   } catch {}
-  const bad = 'Unknown account or key. Copy the link again from the hub page.';
+  if (method === 'GET' || !agent) await hub.flush().catch(() => {});
+  const bad ='Unknown account or key. Copy the link again from the hub page.';
   // Opening the link in a browser shows whether it works.
   if (method === 'GET') return { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
   if (!agent) return fail(bad);
@@ -141,6 +139,8 @@ export async function mcpApi({ hub, method, query, body, headers }) {
     await hub.markConnected(agent);
   } catch {}
   const reply = await handleMcp(hub, agent, body);
+  // Writes held back for the request's last store call (connection log, news markers).
+  await hub.flush().catch(() => {});
   return reply ? { status: 200, body: reply } : { status: 202, body: null };
 }
 
