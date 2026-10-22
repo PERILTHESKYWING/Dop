@@ -316,9 +316,9 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
     const fix = routines.map((r) => r.health).find((h) => NEEDS_FIX.includes(h?.kind));
     const oldLink = (a.badKeyAt || 0) > Math.max(a.lastSeen || 0, a.connectedAt || 0);
     const problem = oldLink
-      ? 'A connector still uses an old link. Press Connect and paste the new link into it on claude.ai.'
+      ? 'A connector still uses an old link. Press Reconnect and paste the new link into it on claude.ai.'
       : fix
-        ? `${fix.note}. Press Edit and paste the routine's id and token again.`
+        ? `${fix.note}. Press ⋯, then Edit, and paste the routine's id and token again.`
         : '';
     const waits = routines.map((r) => (r.health?.until > t ? r.health.until : 0));
     const pausedUntil = routines.length && waits.every(Boolean) ? Math.min(...waits) : 0;
@@ -650,7 +650,7 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       }
       await putAccount(a);
       if (NEEDS_FIX.includes(kind) && was !== kind) {
-        await post({ thread: 0, from: 'hub', kind: 'alert', text: `${a.name}: ${note}. In Team, press Edit on ${a.name} and paste the routine's id and token again. Other accounts take its work until then.` });
+        await post({ thread: 0, from: 'hub', kind: 'alert', text: `${a.name}: ${note}. In Team, press ⋯ on ${a.name}, then Edit, and paste the routine's id and token again. Other accounts take its work until then.` });
       }
       await planNextWake([a]);
     } catch {}
