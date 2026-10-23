@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" rx="14" fill="#1f2a44"/>
-<path d="M21 14h12a18 18 0 0 1 0 36H21z" fill="none" stroke="#f2b84b" stroke-width="5" stroke-linejoin="round" transform="translate(5 3)" opacity=".55"/>
-<path d="M17 14h12a18 18 0 0 1 0 36H17z" fill="none" stroke="#f6efe2" stroke-width="5" stroke-linejoin="round"/>
+<defs>
+<radialGradient id="b" cx=".36" cy=".3" r=".78"><stop offset="0" stop-color="#615a50"/><stop offset=".5" stop-color="#1f1b17"/><stop offset="1" stop-color="#080706"/></radialGradient>
+<radialGradient id="w" cx=".36" cy=".3" r=".82"><stop offset="0" stop-color="#fff"/><stop offset=".65" stop-color="#f1ebe1"/><stop offset="1" stop-color="#c9bfb0"/></radialGradient>
+</defs>
+<rect width="64" height="64" rx="12" fill="#dcb26e"/>
+<path d="M0 21.5H64M0 42.5H64M21.5 0V64M42.5 0V64" stroke="#3a2610" stroke-opacity=".45" stroke-width="1.5"/>
+<circle cx="42.5" cy="42.5" r="10.6" fill="#3a2610" fill-opacity=".18" transform="translate(1 1.4)"/>
+<circle cx="21.5" cy="21.5" r="10.6" fill="#3a2610" fill-opacity=".22" transform="translate(1 1.4)"/>
+<circle cx="42.5" cy="42.5" r="10.6" fill="url(#w)"/>
+<circle cx="21.5" cy="21.5" r="10.6" fill="url(#b)"/>
 </svg>

@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f4f1ec">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#27221c" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Dop hub">
@@ -12,7 +13,7 @@
 <link rel="preload" href="/fonts/alegreya-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/alegreya-sans-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <title>Dop hub</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <script>
 // Look (theme + background) is per device; set it before the page paints. A background
@@ -247,8 +248,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* sidebar */
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
 .brand b { font-size: 19px; white-space: nowrap; }
-/* The logo (hub/logo.svg): a cream D with an amber echo on a navy tile. */
-.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>") center / contain no-repeat; }
+/* The logo (hub/logo.svg): a black stone and its white copy on diagonal points of a kaya board, inlined so it paints with no wait. */
+.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='b' cx='.36' cy='.3' r='.78'%3E%3Cstop offset='0' stop-color='%23615a50'/%3E%3Cstop offset='.5' stop-color='%231f1b17'/%3E%3Cstop offset='1' stop-color='%23080706'/%3E%3C/radialGradient%3E%3CradialGradient id='w' cx='.36' cy='.3' r='.82'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.65' stop-color='%23f1ebe1'/%3E%3Cstop offset='1' stop-color='%23c9bfb0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='12' fill='%23dcb26e'/%3E%3Cpath d='M0 21.5H64M0 42.5H64M21.5 0V64M42.5 0V64' stroke='%233a2610' stroke-opacity='.45' stroke-width='1.5'/%3E%3Ccircle cx='42.5' cy='42.5' r='10.6' fill='%233a2610' fill-opacity='.18' transform='translate(1 1.4)'/%3E%3Ccircle cx='21.5' cy='21.5' r='10.6' fill='%233a2610' fill-opacity='.22' transform='translate(1 1.4)'/%3E%3Ccircle cx='42.5' cy='42.5' r='10.6' fill='url(%23w)'/%3E%3Ccircle cx='21.5' cy='21.5' r='10.6' fill='url(%23b)'/%3E%3C/svg%3E") center / contain no-repeat; }
 .logo.l { width: 40px; height: 40px; }
 .logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
@@ -256,7 +257,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
-.live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; }
+.live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
+.live:empty::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+:root .app > .side .live:empty::before { background: var(--kaya-green); }
 .live.off { color: var(--red); }
 .newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .newtask { text-align: left; display: flex; gap: 8px; align-items: center; padding-left: 11px; padding-right: 8px; white-space: nowrap; }
@@ -799,7 +802,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
+    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" aria-label="Live" title="Live"></span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <div class="newrow">
       <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
@@ -962,9 +965,12 @@ function pace() {
 // 30 s, so older means the page is behind, e.g. just shown again); the tooltip says when.
 function setLive(ok) {
   const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
-  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
+  // Live is a quiet green dot; the words show only when something is wrong.
+  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : '';
   el.classList.toggle('off', !ok || stale);
-  el.title = lastOk ? `Checked ${new Date(lastOk).toLocaleTimeString()}` : '';
+  const at = lastOk ? new Date(lastOk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  el.title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
+  el.setAttribute('aria-label', ok && !stale ? 'Live' : el.textContent);
 }
 async function tick() {
   clearTimeout(timer); timer = 0;
@@ -1002,7 +1008,23 @@ function assignColors() {
     used.add(i); colors[n] = PALETTE[i];
   }
   initials = {};
-  for (const n of names) { const f = n[0].toUpperCase(); initials[n] = names.filter((x) => x[0].toUpperCase() === f).length > 1 ? f + (n[1] || '').toLowerCase() : f; }
+  for (const n of names) initials[n] = initialOf(n, names);
+}
+// One letter when it is unique. On a clash: the letter plus the trailing number ("Alt 2" → A2; the one
+// without a number keeps the bare letter), else the first letter of the second word, else the next
+// consonant. Never "Al", "AI" or "Ai": these avatars stand for accounts, and must not read as "AI".
+function initialOf(n, names) {
+  const f = n[0].toUpperCase();
+  const clash = names.filter((x) => x !== n && x[0].toUpperCase() === f);
+  if (!clash.length) return f;
+  const num = (x) => /(\d+)\s*$/.exec(x)?.[1];
+  if (num(n)) return f + num(n);
+  if (clash.every((x) => num(x))) return f;
+  const bad = (x) => /^a[il]$/i.test(x);
+  const word = n.split(/[\s_-]+/)[1];
+  if (word && !bad(f + word[0])) return f + word[0].toUpperCase();
+  for (const c of n.slice(1)) if (/[bcdfghjkmnpqrstvwxz]/i.test(c) && !bad(f + c)) return f + c.toLowerCase();
+  return f;
 }
 const acctOf = (from) => S.accounts.find((a) => from === a.name || String(from).startsWith(a.name + ' '));
 const av = (name, size = '') => name ? `<span class="av ${size}" style="--c:${colors[name] || 'var(--faint)'}" title="${esc(name)}">${esc(initials[name] || name.slice(0, 1).toUpperCase())}</span>` : '';
@@ -2024,7 +2046,8 @@ function applyLook() {
   const h1 = $('loginForm').querySelector('h1'); h1.querySelector('.clawd')?.remove(); if (lively()) h1.insertAdjacentHTML('beforeend', clawd('anim wave'));
   spinRun();
   // Phone status bar follows the page colour.
-  document.querySelector('meta[name="theme-color"]').content = getComputedStyle(r).getPropertyValue('--panel').trim() || '#f4f1ec';
+  const bar = getComputedStyle(r).getPropertyValue('--panel').trim() || '#ffffff';
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.content = bar;
 }
 applyLook();
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyLook);
