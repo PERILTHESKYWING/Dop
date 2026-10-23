@@ -143,7 +143,7 @@ try {
 :root .head { min-height: 64px; }
 :root .head h2 { font-size: 22px; font-weight: 700; }
 :root .head a, :root .text a, :root .bubble a { color: var(--ink); text-decoration-thickness: 2px; text-decoration-color: var(--kaya-2); }
-:root .feed { gap: 18px; }
+:root .feed { gap: 20px; }
 :root .bubble { border-radius: 10px; box-shadow: none; padding: 12px 16px; }
 :root .row.me .bubble { border-radius: 10px; }
 :root .text { font-size: 17px; line-height: 1.5; }
@@ -311,6 +311,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 6px 12px; }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
 .star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--soft); vertical-align: -0.15em; }
 .spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
@@ -372,6 +373,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .k-question:not(.answered) > .bubble { border-left: 3px solid var(--amber); }
 .k-done > .bubble { border-left: 3px solid var(--green); }
 .k-note > .bubble { box-shadow: none; background: color-mix(in srgb, var(--panel) 72%, transparent); }
+/* Agents' text reads like a document: no bubble, just the name line and the text at reading width.
+   A question waiting for XIAO and a finished job keep a quiet card with a side bar. */
+.row:not(.me) > .bubble { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; }
+.row.k-question:not(.answered):not(.me) > .bubble, .row.k-done:not(.me) > .bubble { background: var(--panel); border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 10px 14px 12px; }
+.row.k-question:not(.answered):not(.me) > .bubble { border-left-color: var(--amber); }
+.row.k-done:not(.me) > .bubble { border-left-color: var(--green); }
+/* Over a background picture bare text is unreadable, so the bubbles come back there. */
+:root[data-bg]:not([data-bg=""]) .row:not(.me) > .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 .ask { display: grid; gap: 10px; margin-top: 8px; }
 .ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
 .ask-h { font-size: 13px; font-weight: 500; color: var(--soft); }
@@ -423,6 +432,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 #feed > .sw:nth-last-child(-n+8) { content-visibility: visible; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
+/* Without bubbles the text would slide over the red Delete; a page-coloured backing hides it. */
+:root:not([data-bg]) .sw-in, :root[data-bg=""] .sw-in { background: var(--bg); }
 .sw.open .sw-in { transform: translateX(-104px); }
 .sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s; }
 .sw.open .sw-del, .sw.drag .sw-del { opacity: 1; pointer-events: auto; }
@@ -432,12 +443,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (hover: none) { .sw-x { display: none; } }
 /* Copy on every prompt and reply */
 /* quiet text button; the padding makes a 32 px tap area without growing the line */
-.cp { border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--soft); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
+.cp { display: inline-grid; place-items: center; border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--faint); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
+.cp svg { display: block; }
 .cp:hover, .cp:focus-visible { color: var(--ink); background: var(--chip); }
 .cp.done { color: var(--green); }
-.who .cp { margin-left: auto; }
+.who .cp { margin-left: 0; }
 .who.mini .cp { margin-left: 0; }
-.me-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+.row.me > .cp { align-self: flex-start; margin: 2px 0 0; }
+/* Computers: a message's Copy shows on hover or focus; phones always show it, quietly. */
+@media (hover: hover) { .feed .sw .cp { opacity: 0; transition: opacity .12s; } .feed .sw:hover .cp, .feed .sw:focus-within .cp { opacity: 1; } }
 /* hub notices: small and calm; an alert only gets an amber dot */
 .note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
@@ -1140,7 +1154,7 @@ const copyText = new Map();
 function copyBtn(m, text = m.text) {
   if (!text) return '';
   copyText.set(String(m.id), text);
-  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy this message" aria-label="Copy this message">Copy</button>`;
+  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy this message" aria-label="Copy this message">${icon('copy', 16)}</button>`;
 }
 async function copyToClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch {}
@@ -1193,7 +1207,7 @@ function helloHtml() {
 }
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
-  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
+  if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : copyBtn(m)}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
   if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
@@ -1835,8 +1849,8 @@ document.addEventListener('click', async (e) => {
   const cp = e.target.closest('[data-mcopy]');
   if (cp) {
     const ok = await copyToClipboard(copyText.get(cp.dataset.mcopy) || '');
-    cp.textContent = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
-    setTimeout(() => { cp.textContent = 'Copy'; cp.classList.remove('done'); }, 1500);
+    cp.innerHTML = icon(ok ? 'check' : 'x', 16); cp.title = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
+    setTimeout(() => { cp.innerHTML = icon('copy', 16); cp.title = 'Copy this message'; cp.classList.remove('done'); }, 1500);
     return;
   }
   const ak = e.target.closest('[data-ask]');
