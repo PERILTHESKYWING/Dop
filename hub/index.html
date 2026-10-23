@@ -270,7 +270,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass-hi); border-radius: 10px; padding: 5px 12px; }
-:root[data-bg]:not([data-bg=""]) .thought { background: var(--glass-hi); border-radius: 0 10px 10px 0; padding: 2px 12px; }
+/* Over a picture a thought is a compact card like the message cards: same left edge (past the avatar), same border and radius, only as wide as it needs. */
+:root[data-bg]:not([data-bg=""]) .thought { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2px 16px; margin-left: 36px; width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .thought { margin-left: 0; max-width: 100%; } }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
 .live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
 :root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
@@ -348,7 +350,8 @@ a.opt { color: inherit; text-decoration: none; }
    Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass-hi); border-radius: 10px; padding: 6px 12px; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px; margin-left: max(36px, calc((100% - 820px) / 2 + 36px)); width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .feed > .thinking { margin-left: 0; max-width: 100%; } }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
 .spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
@@ -401,7 +404,9 @@ a.opt { color: inherit; text-decoration: none; }
 .who .nm { color: var(--ink); font-weight: 500; }
 .who .when { font-size: 13px; font-variant-numeric: tabular-nums; }
 .who .av.in { display: none; }
-.who.mini { float: right; margin: 0 0 0 12px; }
+/* A follow-on message's time + Copy never sit inside its first text line: on a computer at the row's right edge (past the 68ch text), on a phone in a small meta row above it. */
+.row.cont { position: relative; }
+.who.mini { position: absolute; right: 0; top: 0; margin: 0; }
 .feed > .cont { margin-top: -10px; }
 .label { font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
 .label.q { background: var(--amber); color: #fff; }
@@ -425,7 +430,7 @@ a.opt { color: inherit; text-decoration: none; }
 .ask-o .mk { grid-row: 1 / span 2; width: 18px; height: 18px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--soft); border-radius: 50%; display: grid; place-items: center; color: var(--on-green); }
 .ask-o .mk.checkbox { border-radius: 4px; }
 .ask-o .ol { grid-column: 2; }
-.ask-o small { grid-column: 2; display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--soft); }
+.ask-o small { grid-column: 2; display: block; margin-top: 2px; font-size: 15px; line-height: 1.4; color: var(--soft); }
 .ask-o.on { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
 .ask-o.on .ol { font-weight: 500; }
 .ask-o.on .mk { border-color: var(--green); }
@@ -772,6 +777,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .walls button[aria-pressed="true"] i { border-color: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
 .sect { font-size: 13px; font-weight: 500; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
 .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Team footer: four quiet text buttons of one style; Sign out last and muted. */
+.acts.foot { gap: 2px; margin: 0 -10px; }
+.acts.foot .so { margin-left: auto; color: var(--soft); }
 .acts a.btn { color: inherit; text-decoration: none; }
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tabs { display: none; }
@@ -808,8 +816,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Phone tap targets: at least 44px tall. */
   .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
-  /* A follow-on message's time + Copy stays one text line tall (the 44 px tap area overhangs), so the text beside it isn't squeezed. */
-  .who.mini, .who.mine { height: 20px; margin-bottom: 0; }
+  /* Follow-on time + Copy: one 20 px meta row (the 44 px tap area overhangs it). */
+  .who.mini { position: static; height: 20px; margin: 0 0 4px; }
+  .who.mine { height: 20px; margin-bottom: 0; }
   .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
@@ -819,6 +828,12 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
   .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
   .navrows { padding-bottom: 2px; }
+  /* Project chat and Team lessons: two cells on one surface; the open one is marked by weight and an underline, the count is a badge after its label. */
+  :root .app > .side .navpair .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
+  :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); box-shadow: inset 0 -3px 0 var(--kaya-ink); }
+  :root .app > .side .navpair .trow.tn.on .ttl { font-weight: 700; }
+  .navpair .trow.tn .ttl { flex: 0 1 auto; }
+  :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
   .brand { padding-top: 10px; padding-bottom: 6px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
@@ -890,6 +905,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
+// The hub's own notes name models in lower case ("Started Main on opus."); the page shows the product names.
+const capModels = (s) => String(s).replace(/\b(opus|sonnet|haiku|fable)\b/g, (w) => MODEL_NAME[w]);
+// A thread the coordinator made: Project chat's routed reply names it (#id).
+const routedThread = (id) => S.messages.some((x) => x.thread === 0 && x.kind === 'routed' && new RegExp(`#${id}\\b`).test(x.text));
 const MODEL_HINT = { '': 'The coordinator picks per thread', opus: 'Hardest work and design', sonnet: 'Everyday coding', haiku: 'Quick, small jobs', fable: 'If your account has it' };
 // Claude's own effort levels.
 const THINK = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -1301,10 +1320,10 @@ function helloHtml() {
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(capModels(m.text))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from === 'hub' ? '' : routedThread(m.thread) ? ` · from coordinator (${esc(m.from)})` : ` · from ${esc(m.from)}`} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
     return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd class="md">${mdHtml(get('Done'))}</dd><dt>Next</dt><dd class="md">${mdHtml(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
@@ -1320,7 +1339,7 @@ function msgHtml(m) {
   const kind = ['question', 'done', 'progress', 'answer', 'lesson'].includes(m.kind) ? m.kind : 'note';
   const ans = m.kind === 'question' && answered(m);
   const label = m.kind === 'question' ? (ans ? '<span class="label">Answered</span>' : '<span class="label q">Question for you</span>') : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
-  let text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
+  let text = m.kind === 'lesson' ? lessonProse(m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '')) : m.text;
   // A "done" shows its PR links as small cards; a link at the very end leaves the text.
   const prs = m.kind === 'done' && MD ? MD.prLinks(text) : [];
   if (prs.length) text = MD.withoutTrailingPr(text);
@@ -1510,13 +1529,23 @@ function feedToBottom(f) {
   const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
   go();
 }
+// Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
+function oneStartPerAccount(list) {
+  let last = '';
+  return list.filter((m) => {
+    if (m.from !== 'hub' || m.kind !== 'start') return true;
+    const who = (/started on (.+?) \(/.exec(m.text) || [])[1] || m.text;
+    if (who === last) return false;
+    last = who; return true;
+  });
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   const t = S.threads.find((x) => x.id === sel);
   if (sel > 0 && !t) sel = 0;
   renderHead(t);
-  const msgs = S.messages.filter((m) => m.thread === sel);
+  const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
   const ctx = feedCtx();
   // The first message drawn stays put while new ones arrive, so the old ones keep their nodes.
   if (feedEarly[sel] === undefined) feedEarly[sel] = Math.max(0, msgs.length - FEED_SHOW);
@@ -1943,12 +1972,24 @@ function renderTeam() {
     ${taskList()}
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens in this 5-hour window, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
-      <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
+      <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
 }
 
 // ---------- team lessons ----------
+// A lesson as the hub stores it ("Don't: Never X. (why: Y)") read as plain prose: "Never X. Why: Y."
+// Only the drawing changes; the stored text stays the agents' format.
+const NEG = /^(never|don'?t|do not|avoid|no|stop)\b/i;
+const lowerFirst = (s) => (/^[A-Z][a-z]*\b/.test(s) && !/^[A-Z][a-z]*[A-Z]/.test(s) && !/^I\b/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+const stop = (s) => (s = s.trim(), /[.!?]$/.test(s) ? s : s + '.');
+function lessonProse(s) {
+  const m = /^(Do|Don't): ([\s\S]*?)(?: \(why: ([\s\S]*)\))?$/.exec(s.trim());
+  if (!m) return s;
+  const [, kind, body, why] = m;
+  const say = kind === "Don't" && !NEG.test(body) ? `Don't ${lowerFirst(body)}` : body;
+  return `${stop(say[0].toUpperCase() + say.slice(1))}${why ? ` Why: ${stop(why)}` : ''}`;
+}
 const kindTag = (l) => `<span class="lk ${l.kind === 'dont' ? 'dont' : 'do'}">${l.kind === 'dont' ? 'Don\'t' : 'Do'}</span>`;
 function lessonRows() {
   if (!S.lessons.length) return '<p class="lempty">No lessons yet.</p>';
