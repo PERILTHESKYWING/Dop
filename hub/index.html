@@ -895,6 +895,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
+// The hub's own notes name models in lower case ("Started Main on opus."); the page shows the product names.
+const capModels = (s) => String(s).replace(/\b(opus|sonnet|haiku|fable)\b/g, (w) => MODEL_NAME[w]);
+// A thread the coordinator made: Project chat's routed reply names it (#id).
+const routedThread = (id) => S.messages.some((x) => x.thread === 0 && x.kind === 'routed' && new RegExp(`#${id}\\b`).test(x.text));
 const MODEL_HINT = { '': 'The coordinator picks per thread', opus: 'Hardest work and design', sonnet: 'Everyday coding', haiku: 'Quick, small jobs', fable: 'If your account has it' };
 // Claude's own effort levels.
 const THINK = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -1306,10 +1310,10 @@ function helloHtml() {
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(capModels(m.text))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from === 'hub' ? '' : routedThread(m.thread) ? ` · from coordinator (${esc(m.from)})` : ` · from ${esc(m.from)}`} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
     return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd class="md">${mdHtml(get('Done'))}</dd><dt>Next</dt><dd class="md">${mdHtml(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
