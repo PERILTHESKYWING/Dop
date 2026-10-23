@@ -1605,9 +1605,19 @@ kbd {
 }
 /* An older read while KataGo reads this one is said with a word (.ev-state), not by fading the
    numbers. A previewed line: the bar and the game's controls stay where they are, dimmed */
+/* (critics, round 2: opacity took the words to 2.2:1) the words turn secondary ink, still
+   4.5:1 or more; only the graphics fade */
 .bp-eval.dim,
-.bp-foot.dim {
-  opacity: 0.38;
+.bp-eval.dim .ev-lead,
+.bp-foot.dim,
+.bp-foot.dim button,
+.bp-foot.dim span {
+  color: var(--muted);
+}
+.bp-eval.dim .ev-track,
+.bp-foot.dim input,
+.bp-foot.dim svg {
+  opacity: 0.45;
 }
 /* before any read there is nothing to show: the bar keeps its place but stays hidden */
 .bp-eval.empty {
@@ -1641,14 +1651,16 @@ kbd {
   transform-origin: 0 50%;
   transition: transform 0.35s var(--glide);
 }
+/* the halfway mark is a hairline inside the track, so a 1% bar reads as nearly empty, not as even */
 .ev-mid {
   position: absolute;
   left: 50%;
-  top: -2px;
-  bottom: -2px;
-  width: 1.5px;
-  margin-left: -0.75px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  margin-left: -0.5px;
   background: #8a929c;
+  opacity: 0.55;
   mix-blend-mode: difference;
 }
 .ev-lead {

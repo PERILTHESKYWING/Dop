@@ -11,7 +11,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer, wordingProblems } from '../src/lib/coach/answerCheck';
 import { explain, type EngineRead, type Explanation, type ExplainPosition, type Prober } from '../src/lib/coach/explain';
-import { senteInLine } from '../src/lib/coach/explain/concepts';
+import { conceptContext, purposeHits, senteInLine } from '../src/lib/coach/explain/concepts';
+import { leansWords, plainTurn } from '../src/lib/coach/explain/consequence';
+import { DEFAULT_LEVEL, longerLevel } from '../kami/src/lib/levels';
 import { shapeOf } from '../src/lib/coach/explain/shapes';
 import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
@@ -168,9 +170,15 @@ describe('candidate labels in a lopsided game', () => {
   it('show the loss against KataGo’s choice, not the same lead everywhere', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.8, 3)];
     const label = candidateLabeler(cands)!;
-    // A thin read with a higher lead is "as good", never a gain.
-    expect(cands.map(label)).toEqual(['0.0', '−0.9', '−1.3', '0.0']);
-    expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19');
+    // KataGo's choice is a ring (never "0.0"), the others the answer's own rounding; a thinner
+    // read that came out ahead says so.
+    expect(cands.map(label)).toEqual(['○', '−0.9', '−1.3', '+0.3']);
+    expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19.0');
+    expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
+  });
+  it('whole points on a phone, so the labels stay big and never touch', () => {
+    const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.3, 3)];
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['○', '−1', '−1', '≈']);
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();
@@ -178,7 +186,58 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('the key says "decided" only late in the game', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against the best move. White leads by about 11.');
-    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against the best move. White leads by about 11; the game is decided.');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11.');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the ring.');
+    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11; the game is decided.');
+  });
+});
+
+describe('round 2: one read on screen, each fact once', () => {
+  it('the answer carries its own read for the board, without ownership', async () => {
+    const ex = await move34();
+    expect(ex.root?.candidates[0].loc).toBe(P('Q10'));
+    expect(ex.root?.ownership).toBeNull();
+    expect(ex.root?.candidates.length).toBeLessThanOrEqual(12);
+  });
+
+  it('names every move the board marks as about as good, chips at the end of the sentence', async () => {
+    const ex = await move34();
+    // R12 read 0.5 points ahead in fewer visits; R8 is within 0.3 of Q10 in the same read.
+    expect(ex.summary).toContain('R12 is about as good: KataGo read it less, and it came out 0.5 points ahead [[v2]].');
+    expect(ex.summary).toContain('R8 is about as good too.');
+    expect(ex.summary).toContain('the hane at Q10 [[v1]].');
+    // No chip in the middle of a sentence.
+    expect(ex.summary).not.toMatch(/\]\] [a-z]/);
+  });
+
+  it('the rounded lead of the first sentence is not listed again', async () => {
+    const ex = await move34();
+    expect(ex.facts.find((f) => f.text === 'White leads by about 11 points.')?.quiet).toBe(true);
+  });
+});
+
+describe('round 2: plain words', () => {
+  it('ownership in plain words', () => {
+    expect(leansWords(0.22)).toBe("leans Black's way (61%)");
+    expect(leansWords(-0.6)).toBe("is White's (80%)");
+    expect(leansWords(0.1)).toBe('is still open');
+    const tp = { ply: 1, moveNumber: 36, shownPly: 6, shownMove: 40, region: 'right side', zone: 5, ownA: -0.6, ownB: 0.22, leadA: -12, leadB: -9.9 } as unknown as Parameters<typeof plainTurn>[0];
+    expect(plainTurn(tp, 1, 'Q12', 'Q10')).toBe("Without Q10, White gets the right side: after Q12, by move 40 it is White's (80%); after Q10 it is leaning Black's (61%).");
+  });
+
+  it('no reduction chip for a contact play; a cap from outside keeps it', () => {
+    const b = replay(19, [], POS.moves);
+    const ctx = conceptContext({ pos: POS, board: b, mover: 1 } as unknown as Parameters<typeof conceptContext>[0]);
+    const red = [{ kind: 'reduce' as const, region: 'right side', amount: 2.9 }];
+    expect(purposeHits(ctx, P('Q10'), red).some((h) => h.id === 'reduction')).toBe(false);
+    expect(purposeHits(ctx, P('K10'), red).find((h) => h.id === 'reduction')?.evidence).toContain('on the right side');
+  });
+
+  it('Low by default, and a quick read offers a longer one', () => {
+    expect(DEFAULT_LEVEL).toBe('low');
+    expect(longerLevel('low')?.id).toBe('high');
+    expect(longerLevel('medium')?.id).toBe('high');
+    expect(longerLevel('max')).toBeNull();
+    expect(longerLevel('ultrago')).toBeNull();
   });
 });

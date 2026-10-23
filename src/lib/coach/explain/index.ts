@@ -84,6 +84,7 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
     facts: text.facts,
     concepts,
     variations: f.variations,
+    ...(f.root ? { root: { ...f.root, ownership: null, candidates: f.root.candidates.slice(0, 12).map((c) => ({ ...c, pv: c.pv.slice(0, 12) })) } } : {}),
     ...(illustrations ? { illustrations } : {}),
     ...(situation ? { situation } : {}),
     ...(view ? { view } : {}),
