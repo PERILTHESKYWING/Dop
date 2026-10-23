@@ -2,10 +2,10 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import { Board, type Mark } from '../../../src/components/Board';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
-import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
+import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
 import { replay } from '../../../src/lib/go/board';
 import { colorName, PASS, type Loc, type Move } from '../../../src/lib/go/types';
-import { cachedRead, useBoardRead, useLineReads } from '../lib/analysis';
+import { cachedRead, positionKey, useBoardRead, useLineReads } from '../lib/analysis';
 import { loadJourney } from '../lib/pathLine';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { emptyBoard, explainPositionOf, goTo, hasPosition, toPlayAt, type BoardState } from '../lib/position';
@@ -100,6 +100,8 @@ interface Props {
   onSettings: (page?: SettingsPage) => void;
   /** The conversation has an answer: the engine's loading chip then folds to a dot. */
   answered?: boolean;
+  /** KataGo's reads behind the conversation's answers, by position key, newest first (one read on screen). */
+  answerReads?: readonly { key: string; read: EngineRead }[];
 }
 
 const PHONE = '(max-width: 899px)';
@@ -165,7 +167,7 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
  * step buttons, and the game's graphs (Win chance, Mistakes, Strength). Everything else (best moves,
  * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
-export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings, answered = false }: Props) {
+export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings, answered = false, answerReads }: Props) {
   const status = useSyncExternalStore(onEngineStatus, engineStatus);
   const [paste, setPaste] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId | null>(null);
@@ -190,7 +192,18 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
   // The position on the board, read by KataGo for the best moves and territory.
   const position = useMemo(() => (withStones && !preview ? explainPositionOf(board) : null), [board, preview, withStones]);
-  const { read, last, pending } = useBoardRead(position);
+  const boardRead = useBoardRead(position);
+  // One read on screen (critics, round 2): once an answer about this very position exists, the
+  // candidates, their labels and the eval bar show the answer's own read, so the text's "Q12 is
+  // 1.1 points worse" is Q12's label. Territory still comes from the board's read.
+  const answerRead = useMemo(() => {
+    if (!position || !answerReads?.length) return null;
+    const k = positionKey(position);
+    return answerReads.find((a) => a.key === k)?.read ?? null;
+  }, [position, answerReads]);
+  const read = answerRead ?? boardRead.read;
+  const last = answerRead ?? boardRead.last;
+  const pending = answerRead ? false : boardRead.pending;
 
   // Every position along the game, read quickly while a graph is open.
   const line = useMemo(
@@ -242,10 +255,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const hovered = !preview && hoverPv?.length ? lineOf(hoverPv, toPlay) : null;
   const variation = preview ? view.variation : hovered;
   const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
-  const ownership = !preview && territoryOn && read ? read.ownership : null;
+  const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
-  const candLabel = useMemo(() => candidateLabeler(candidates), [candidates]);
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
+  // Whole points on a phone's board, so the labels stay readable (11+ px) and never touch.
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone), [candidates, phone]);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverPv(null);
@@ -373,7 +387,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size);
+  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board
