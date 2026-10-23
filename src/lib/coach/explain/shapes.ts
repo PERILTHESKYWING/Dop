@@ -15,6 +15,8 @@ export type ShapeId =
   | 'connect'
   | 'cut'
   | 'hane'
+  | 'block'
+  | 'descent'
   | 'extend'
   | 'attach'
   | 'kosumi'
@@ -46,6 +48,8 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
   connect: { name: 'the connection', style: 'solid' },
   cut: { name: 'the cut', style: 'fighting' },
   hane: { name: 'the hane', term: 'hane', style: 'fighting' },
+  block: { name: 'the block', term: 'osae', style: 'solid' },
+  descent: { name: 'the descent', term: 'sagari', style: 'solid' },
   extend: { name: 'the extension', style: 'solid' },
   attach: { name: 'the attachment', term: 'tsuke', style: 'fighting' },
   kosumi: { name: 'the diagonal move', term: 'kosumi', style: 'solid' },
@@ -82,6 +86,26 @@ function at(board: Board, loc: Loc, dx: number, dy: number): Loc[] {
 }
 
 const of = (board: Board, locs: Loc[], c: Color) => locs.filter((l) => board.stones[l] === c);
+
+/** Three points in one straight row or column, in order (the middle one is `b`). */
+function sameLine(a: Loc, b: Loc, c: Loc, n: number): boolean {
+  if (c < 0 || c >= n * n) return false;
+  const [ax, ay] = xy(a, n);
+  const [bx, by] = xy(b, n);
+  const [cx, cy] = xy(c, n);
+  return (ax === bx && bx === cx && Math.abs(ay - by) === 1 && Math.abs(cy - by) === 1) || (ay === by && by === cy && Math.abs(ax - bx) === 1 && Math.abs(cx - bx) === 1);
+}
+
+/** `to` is one step from `from` straight toward its nearest edge (a sagari's direction). */
+function edgeward(from: Loc, to: Loc, n: number): boolean {
+  const [fx, fy] = xy(from, n);
+  const [tx, ty] = xy(to, n);
+  const dx = Math.min(tx, n - 1 - tx);
+  const dy = Math.min(ty, n - 1 - ty);
+  if (fy === ty && Math.abs(fx - tx) === 1) return dx < dy && Math.min(fx, n - 1 - fx) === dx + 1;
+  if (fx === tx && Math.abs(fy - ty) === 1) return dy < dx && Math.min(fy, n - 1 - fy) === dy + 1;
+  return false;
+}
 
 /** Chebyshev distance from loc to the nearest stone (any colour), up to `max`. */
 function nearestStone(board: Board, loc: Loc, max: number): number {
@@ -152,6 +176,12 @@ export function shapeOf(board: Board, move: Loc, color: Color): Shape | null {
   // Contact shapes.
   const diagOwn = of(board, at(board, move, 1, 1), color);
   if (oppN.length && diagOwn.some((d) => board.neighbors(d).some((q) => oppN.includes(q)))) return shape('hane');
+  // Straight on from the player's own stone into an opponent stone (own, move, opponent in a
+  // line): it stops that stone from coming through, a block, never an "extension" (XIAO's rule).
+  if (ownN.some((o) => oppN.includes(2 * move - o) && sameLine(o, move, 2 * move - o, n))) return shape('block');
+  // Straight down toward the edge from the player's own stone, on the first or second line.
+  const line0 = lineOf(move, n);
+  if (line0 <= 2 && ownN.some((o) => lineOf(o, n) === line0 + 1 && edgeward(o, move, n))) return shape('descent');
   if (ownN.length && oppN.length) return shape('extend', 'solid');
   if (oppN.length && !ownN.length && !diagOwn.length) return shape('attach');
   if (ownN.length) return shape('extend');

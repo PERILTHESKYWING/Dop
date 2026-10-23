@@ -83,6 +83,9 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'node',
       include: ['tests/**/*.test.ts'],
+      // Scrypt at OWASP strength (shared/accountServer.ts, ~190 ms a hash) makes the account tests
+      // a few seconds long, more on a busy machine.
+      testTimeout: 20_000,
     },
   };
 });

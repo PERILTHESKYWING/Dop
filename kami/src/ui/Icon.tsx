@@ -63,6 +63,10 @@ const PATHS: Record<string, string> = {
   zoom: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.3 15.3l4.2 4.2M8 10.5h5M10.5 8v5',
   expand: 'M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15',
   // Settings › Profile: a card with a person.
+  // Settings › Journey: a seal, a rounded square with a smaller square cut inside.
+  seal: 'M6 4.5h12a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V6A1.5 1.5 0 0 1 6 4.5zM9 9h6v6H9z',
+  // Settings › Account
+  key: 'M8.5 15.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12.5 11.5h7.5M17.5 11.5v3M20 11.5v2',
   profile: 'M4.5 5.5h15a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM9 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 16a3 3 0 0 1 6 0M14.5 9.5h3M14.5 13h3',
 };
 

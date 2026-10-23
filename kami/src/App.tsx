@@ -3,12 +3,13 @@ import { useEvent } from './lib/useEvent';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { untilAborted } from './lib/untilAborted';
-import { getAnswerProber } from './lib/analysis';
+import { getAnswerProber, positionKey } from './lib/analysis';
 import { questionStarted } from './lib/engine';
+import { loadJourney, onPathNote } from './lib/pathLine';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
 import { NOTES } from './lib/writer';
-import { boardFromSgf, emptyBoard, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
+import { boardFromSgf, emptyBoard, explainPositionOf, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
 import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
 import { BoardPanel as BoardPanelView, type Preview } from './ui/BoardPanel';
@@ -110,6 +111,10 @@ export function App() {
     idle(() => {
       loadCoach().catch(() => {});
       import('./ui/Settings').catch(() => {});
+      // The study path (keeps the sidebar line current) and the optional account (hidden unless
+      // the sync server answers); neither is in the first paint.
+      loadJourney().catch(() => {});
+      import('./lib/account').then((m) => m.startAccount()).catch(() => {});
     });
   }, []);
 
@@ -146,6 +151,8 @@ export function App() {
     return () => document.removeEventListener('keydown', key);
   }, []);
 
+  // A passed station or a stamped seal on the study path: one short line, switchable off.
+  useEffect(() => onPathNote(setToast), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
@@ -265,6 +272,14 @@ export function App() {
       else answer = { type: 'error', text: stopped ? 'Stopped.' : `Something went wrong: ${(e as Error).message}` };
     }
     update(convId, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === kamiId ? { ...m, answer } : m)) }));
+    // The study path: an answer about a position or an idea (errors and "Stopped." don't count; every level earns the same).
+    if (answer.type === 'explain' || (answer.type === 'concept' && answer.ids.length)) {
+      const intent = answer.type === 'explain' ? answer.explanation.question.intent : undefined;
+      const key = positionKey(explainPositionOf(board));
+      loadJourney()
+        .then((m) => m.recordAnswer(key, text, intent === 'kill' || intent === 'live'))
+        .catch(() => {});
+    }
     // "Move 37": show the position the answer is about.
     if (answer.type === 'explain' && Math.abs(answer.upTo - board.cursor) > 1) {
       update(convId, (c) => (c.board.moves.length === board.moves.length ? { ...c, board: goTo(c.board, answer.upTo) } : c), false);

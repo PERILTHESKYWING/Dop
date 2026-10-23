@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Connect, type Plugin, type Rollup } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleLlmRequest } from '../shared/llmServer.js';
+import { handleAccountRequest, kvFromEnv } from '../shared/accountServer.js';
 import { loaderFiles, loaderHtml, type LoaderAssets } from './src/ui/brand/loader';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -72,6 +73,42 @@ function llmApi(env: Record<string, string>): Plugin {
     },
     configurePreviewServer(server) {
       server.middlewares.use('/api/llm', handler);
+    },
+  };
+}
+
+/**
+ * /api/account during `vite dev` and `vite preview` (Dop's handler, which serves Kiai's kiai-…
+ * actions), with an in-memory store unless KV_REST_API_URL/TOKEN are set: accounts work locally
+ * and are forgotten on restart. Production Kiai calls Dop's /api/account cross-origin (src/config.ts).
+ */
+function accountApi(env: Record<string, string>): Plugin {
+  const handler: Connect.NextHandleFunction = async (req, res) => {
+    let body = '';
+    if (req.method === 'POST' || req.method === 'PUT') {
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 1_000_000) break;
+      }
+    }
+    const url = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost');
+    const query = Object.fromEntries(url.searchParams);
+    const result = await handleAccountRequest(
+      { method: req.method ?? 'GET', action: query.action ?? '', query, body: body || undefined, cookie: req.headers.cookie, ip: req.socket.remoteAddress },
+      kvFromEnv({ ACCOUNT_STORE: 'memory', ...process.env, ...env }, fetch as never),
+    );
+    res.statusCode = result.status;
+    res.setHeader('content-type', 'application/json');
+    if (result.cookies?.length) res.setHeader('set-cookie', result.cookies);
+    res.end(JSON.stringify(result.body));
+  };
+  return {
+    name: 'kiai-account-api',
+    configureServer(server) {
+      server.middlewares.use('/api/account', handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/account', handler);
     },
   };
 }
@@ -164,7 +201,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: here,
     publicDir: 'public',
-    plugins: [react(), llmApi(env), kiaiLoader()],
+    plugins: [react(), llmApi(env), accountApi(env), kiaiLoader()],
     worker: { format: 'es' },
     // The strong network (kata1 b18) downloads through /katago-models, as on Dop (vercel.json has the same rewrite).
     server: { port: 5174, fs: { allow: [repo] }, proxy: { '/katago-models': katagoProxy } },

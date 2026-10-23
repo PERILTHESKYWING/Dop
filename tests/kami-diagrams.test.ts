@@ -192,7 +192,7 @@ describe("the writer's own DIAGRAM block", () => {
 
 describe('prompt, chips and checker know diagrams', () => {
   it('bumps the prompt version and keeps the server prompt identical', () => {
-    expect(PROMPT_VERSION).toBe(4);
+    expect(PROMPT_VERSION).toBe(5);
     expect(KAMI_WRITE_SYSTEM).toBe(LM_SYSTEM);
     // Version 4: the writer no longer builds positions of its own (XIAO: never invent stones).
     expect(LM_SYSTEM).not.toMatch(/DIAGRAM/);

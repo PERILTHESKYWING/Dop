@@ -65,6 +65,10 @@ export function senteGote(ctx: Ctx, move: Loc, after: EngineRead | null, variati
   const contact = stonesNear(f.board, move, 2);
   const hit = (id: 'sente' | 'gote', evidence: string): ConceptHit => ({ id, at: [move], evidence, ...(variation ? { variation } : {}) });
   if (local(top.loc)) {
+    // Sente needs KataGo's own line to show it: the opponent answers locally and then the
+    // mover's next move is elsewhere (tenuki). A reply that starts a fight (Q10 met by the cut
+    // at R10, then Black has to go on locally) is not sente (critics, 2026-10-23).
+    if (!senteInLine(move, top.pv, size)) return null;
     const tenuki = cands.filter((c) => !local(c.loc) && c.visits >= 3).sort((a, b) => b.scoreLead - a.scoreLead)[0];
     if (tenuki) {
       const cost = top.scoreLead - tenuki.scoreLead;
@@ -81,6 +85,19 @@ export function senteGote(ctx: Ctx, move: Loc, after: EngineRead | null, variati
     return hit('gote', `After ${C(move)}, ${colorWord(opp)}'s best reply is elsewhere (${C(top.loc)}): the local play is over and ${colorWord(opp)} moves first somewhere else.`);
   }
   return null;
+}
+
+/**
+ * Whether a line after `move` (the opponent's reply first) shows sente: the reply is local and
+ * the mover's next move in the line is away from both (or a pass). A line too short to show the
+ * mover's next move shows nothing.
+ */
+export function senteInLine(move: Loc, pv: readonly Loc[] | undefined, size: number): boolean {
+  if (!pv || pv.length < 2) return false;
+  const [reply, next] = pv;
+  const r = localR(size);
+  if (reply === PASS || chebyshev(reply, move, size) > r) return false;
+  return next === PASS || (chebyshev(next, move, size) > r + 1 && chebyshev(next, reply, size) > r + 1);
 }
 
 /** Weak groups in the position (near `focus` when given), from the root read's ownership. */
