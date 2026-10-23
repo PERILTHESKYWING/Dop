@@ -350,7 +350,8 @@ a.opt { color: inherit; text-decoration: none; }
    Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass-hi); border-radius: 10px; padding: 6px 12px; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px; margin-left: max(36px, calc((100% - 820px) / 2 + 36px)); width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .feed > .thinking { margin-left: 0; max-width: 100%; } }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
 .spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
@@ -1528,13 +1529,23 @@ function feedToBottom(f) {
   const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
   go();
 }
+// Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
+function oneStartPerAccount(list) {
+  let last = '';
+  return list.filter((m) => {
+    if (m.from !== 'hub' || m.kind !== 'start') return true;
+    const who = (/started on (.+?) \(/.exec(m.text) || [])[1] || m.text;
+    if (who === last) return false;
+    last = who; return true;
+  });
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   const t = S.threads.find((x) => x.id === sel);
   if (sel > 0 && !t) sel = 0;
   renderHead(t);
-  const msgs = S.messages.filter((m) => m.thread === sel);
+  const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
   const ctx = feedCtx();
   // The first message drawn stays put while new ones arrive, so the old ones keep their nodes.
   if (feedEarly[sel] === undefined) feedEarly[sel] = Math.max(0, msgs.length - FEED_SHOW);
