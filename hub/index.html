@@ -808,6 +808,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Phone tap targets: at least 44px tall. */
   .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
+  /* A follow-on message's time + Copy stays one text line tall (the 44 px tap area overhangs), so the text beside it isn't squeezed. */
+  .who.mini, .who.mine { height: 20px; margin-bottom: 0; }
+  .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
   summary, .tk, .trow.tn { min-height: 44px; }
