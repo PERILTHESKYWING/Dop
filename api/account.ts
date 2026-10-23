@@ -1,10 +1,12 @@
 /**
- * Vercel serverless function: /api/account?action=status|register|login|logout|part|commit|delete.
+ * Vercel serverless function: /api/account?action=status|register|login|logout|part|commit|delete,
+ * and Kiai's kiai-… actions (shared/kiaiAccount.ts), called cross-origin from the Kiai site.
  * Accounts are optional; without KV_REST_API_URL and KV_REST_API_TOKEN (Vercel → Storage →
  * Upstash Redis) it answers "not set up" and the app keeps working locally.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleAccountRequest, kvFromEnv, MAX_PART } from '../shared/accountServer.js';
+import { kiaiCors } from '../shared/kiaiAccount.js';
 
 export const config = { maxDuration: 30 };
 
@@ -24,6 +26,14 @@ async function readBody(req: IncomingMessage & { body?: unknown }): Promise<stri
 export default async function handler(req: IncomingMessage & { body?: unknown }, res: ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const query = Object.fromEntries(url.searchParams);
+  // Kiai's site calls kiai-… actions cross-origin (no cookies; the token is in the body).
+  const cors = kiaiCors(req.headers.origin, query.action ?? '', process.env.ACCOUNT_ORIGINS);
+  for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
   const body = req.method === 'POST' || req.method === 'PUT' ? await readBody(req) : undefined;
   const fwd = req.headers['x-forwarded-for'];
   const ip = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim() ?? req.socket.remoteAddress ?? undefined;
