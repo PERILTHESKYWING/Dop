@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { KayaView } from '../kami/src/three/kaya';
 import { camAt, fitOrbit, T, type Box } from '../kami/src/ui/landing/camera';
 
-// The landing's still sky (Poster) and its live board (Stage) share landing/camera.ts; its
-// plain-number fitOrbit must place the board exactly where KayaView.fitOrbit does.
+// The landing's live board (Stage) is framed by landing/camera.ts; its plain-number fitOrbit
+// must place the board exactly where KayaView.fitOrbit does.
 describe('Kiai landing camera', () => {
   const cases: [number, number, number, Box, number][] = [
     [26, -16, 44, [0.45, 0.46, 0.97, 0.97], 1366 / 800],
