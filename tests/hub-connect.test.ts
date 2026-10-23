@@ -120,7 +120,7 @@ describe('accounts stay connected', () => {
     await hub.createThread({ title: 'One', brief: 'x', model: 'sonnet', account: 'A' });
     let a = await card('A');
     expect(a.problem).toContain('Claude refused its Sonnet routine token (401)');
-    expect(a.problem).toContain('Press Edit');
+    expect(a.problem).toContain('then Edit');
     // The next task skips A without trying it again.
     await hub.createThread({ title: 'Two', brief: 'x', model: 'sonnet', account: 'A' });
     expect(fires).toEqual(['trig_b', 'trig_b']);
