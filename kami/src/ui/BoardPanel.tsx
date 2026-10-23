@@ -21,6 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
+import { candidateLabeler, keyNumberText } from '../lib/candLabels';
 import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
@@ -100,19 +101,6 @@ interface Props {
   /** The conversation has an answer: on a phone the key under the board then gives its room back. */
   answered?: boolean;
 }
-
-/** A score lead in whole points, signed ("+3", "−11"). */
-const leadLabel = (c: { scoreLead: number }) => {
-  const s = Math.round(c.scoreLead);
-  return s === 0 ? '0' : `${s > 0 ? '+' : '−'}${Math.abs(s)}`;
-};
-/** Once every candidate's win chance rounds to 0-2 or 98-100 the game is decided, and the score says more. */
-const decidedRead = (cands: readonly { winrate: number }[] | null) =>
-  !!cands?.length &&
-  cands.every((c) => {
-    const w = Math.round(c.winrate * 100);
-    return w <= 2 || w >= 98;
-  });
 
 const PHONE = '(max-width: 899px)';
 const onPhoneChange = (l: () => void) => {
@@ -252,8 +240,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const variation = preview ? view.variation : hovered;
   const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
   const ownership = !preview && territoryOn && read ? read.ownership : null;
-  const decided = decidedRead(candidates);
-  const candLabel = decided ? leadLabel : undefined;
+  // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
+  const candLabel = useMemo(() => candidateLabeler(candidates), [candidates]);
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
 
   const play = (loc: Loc, fromCandidate = false) => {
@@ -382,7 +370,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const keyNumber = decided ? `${sideName}’s lead in points after it. The game is decided.` : `how often ${sideName} wins after it, out of 100.`;
+  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length && !(phone && answered);
   const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 44 : 0);

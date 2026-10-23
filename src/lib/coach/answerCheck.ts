@@ -17,10 +17,14 @@
  *   refutation / consequence / what-if lines or worked examples (0.15 / 0.1 each, max 0.3),
  *   Go concept words (0.1 each, max 0.3), and 0.1 for three or more sentences that are not
  *   mostly figures.
- * pass: truth === 1 and coverage >= COVERAGE_FLOOR.
+ * wording: phrases that contradict KataGo or the board (wordingProblems, below).
+ * pass: truth === 1, coverage >= COVERAGE_FLOOR and no wording problem.
  */
-import { locToGtp } from '../go/coords';
+import { replay } from '../go/board';
+import { gtpToLoc, locToGtp } from '../go/coords';
 import { PASS, type Loc } from '../go/types';
+import { shapeOf, type ShapeId } from './explain/shapes';
+import { gameDecided } from './explain/situation';
 import { xy } from '../go/coords';
 import type { Explanation, Illustration, Variation } from './explain/types';
 import type { ConceptEntry } from './library';
@@ -34,6 +38,8 @@ export interface AnswerScore {
   depth: number;
   /** The coordinates, numbers or refs that were not in the explanation. */
   unsupported: string[];
+  /** Wording that contradicts KataGo or names what the board does not show (wordingProblems); absent when none. */
+  wording?: string[];
   /** truth === 1 and the answer is usable. */
   pass: boolean;
 }
@@ -140,6 +146,13 @@ function allowedFor(ex: Explanation): Allowed {
   const structural: number[] = [size, ex.position.komi, ex.position.moves.length, ex.position.moves.length + 1];
   const texts: string[] = [ex.question.text, ...ex.facts.map((f) => f.text)];
   add(ex.question.move);
+  // The last move and the stones it touches: the engine's draft names them for a contact play.
+  const last = ex.position.moves[ex.position.moves.length - 1];
+  if (last && last.loc !== PASS) {
+    add(last.loc);
+    const b = replay(size, ex.position.setup, ex.position.moves);
+    b.neighbors(last.loc).filter((q) => b.stones[q]).forEach(add);
+  }
   for (const c of ex.concepts) {
     c.at.forEach(add);
     texts.push(c.evidence);
@@ -325,6 +338,141 @@ function truthOf(hits: readonly Hit[], ok: (h: Hit) => boolean): { truth: number
   return { truth: Math.round(truth * 1000) / 1000, unsupported: [...bad] };
 }
 
+// --- wording that contradicts KataGo or names what the board does not show ---------------
+
+/** Calm-position phrases that a lopsided game or a local fight contradicts. */
+const CALM_PHRASES: [RegExp, string][] = [
+  [/\bplenty of room\b/i, 'plenty of room'],
+  [/\bno (?:single |one )?(?:correct|right|best|perfect) (?:move|answer)\b/i, 'no single correct move'],
+  [/\bplay (?:to )?(?:your|whatever) (?:own )?style\b|\bplay your style\b/i, 'play your style'],
+  [/\b(?:board|game|position) is (?:still )?wide open\b/i, 'wide open'],
+  [/\bsplitting hairs\b/i, 'splitting hairs'],
+  [/\b(?:play|pick) whichever\b/i, 'play whichever'],
+  [/\bdon'?t stress\b|\bso relax\b/i, 'relax'],
+  [/\bwhat kind of game\b|\bpeaceful game or a fight\b/i, 'style question'],
+];
+
+/** Shape words a writer may use, and the shapes (explain/shapes.ts) each one names. */
+const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
+  [/^hane$/i, ['hane']],
+  [/^(?:extension|extends?|nobi)$/i, ['extend']],
+  [/^(?:block|blocks|osae)$/i, ['block']],
+  [/^(?:descent|descends|sagari)$/i, ['descent']],
+  [/^(?:attachment|attach(?:es)?|tsuke|contact play)$/i, ['attach']],
+  [/^(?:cut|cuts)$/i, ['cut']],
+  [/^atari$/i, ['atari']],
+  [/^(?:connection|connects?)$/i, ['connect']],
+  [/^(?:capture|captures)$/i, ['capture']],
+  [/^(?:diagonal move|kosumi)$/i, ['kosumi']],
+  [/^(?:knight'?s move|keima)$/i, ['keima']],
+  [/^(?:large knight'?s move|ogeima)$/i, ['large-keima']],
+  [/^one-space jump$/i, ['one-space-jump']],
+  [/^two-space (?:jump|extension)$/i, ['two-space-jump']],
+  [/^(?:pincer|hasami)$/i, ['pincer']],
+  [/^(?:approach|kakari)$/i, ['approach']],
+  [/^(?:corner )?enclosure$|^shimari$/i, ['enclosure']],
+  [/^3-3 invasion$/i, ['three-three']],
+];
+const SHAPE_ALT = "hane|extension|extends?|nobi|block|blocks|osae|descent|descends|sagari|attachment|attach(?:es)?|tsuke|contact play|cut|cuts|atari|connection|connects?|capture|captures|diagonal move|kosumi|large knight'?s move|knight'?s move|keima|ogeima|one-space jump|two-space (?:jump|extension)|pincer|hasami|approach|kakari|(?:corner )?enclosure|shimari|3-3 invasion";
+const COORD = '[A-HJ-Za-hj-z](?:2[0-5]|1\\d|[1-9])';
+
+/**
+ * Where a point is played in the explanation and what shape each play makes there: as the
+ * mover's move on the board (any candidate), as a move of a variation (on the board where it
+ * comes), and as the game's last move. A shape word is grounded when one of them matches.
+ */
+function shapesAt(ex: Explanation, at: Loc): Set<ShapeId> {
+  const { size, setup, moves, toPlay } = ex.position;
+  const out = new Set<ShapeId>();
+  const add = (s: ReturnType<typeof shapeOf>) => s && out.add(s.id);
+  const root = replay(size, setup, moves);
+  add(shapeOf(root, at, toPlay));
+  const last = moves[moves.length - 1];
+  if (last && last.loc === at) add(shapeOf(replay(size, setup, moves, moves.length - 1), at, last.color));
+  for (const v of [...ex.variations, ...(ex.illustrations ?? []).map((d) => ({ moves: d.line, base: d.base }))]) {
+    const b = 'base' in v ? replay(size, v.base.setup, v.base.moves) : root.clone();
+    for (const m of v.moves) {
+      if (m.loc === at) add(shapeOf(b, at, m.color));
+      if (m.loc !== PASS) b.play(m.loc, m.color, true);
+    }
+  }
+  return out;
+}
+
+/** Sentences of a text, refs and markdown removed. */
+const sentences = (text: string) =>
+  text
+    .replace(/\[\[[^\]]*\]\]/g, '')
+    .replace(/[*_`]/g, '')
+    .split(/(?<=[.!?])\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+/**
+ * Wording a writer may not use for this explanation, whatever its figures (empty: none):
+ * - in a sharp position where the engine teaches (situation.sharp, tone teach: one side far ahead,
+ *   a contact play, one clear move) no calm-position phrases ("plenty of room", "play your
+ *   style"), no "!" and no closing question, unless the engine's own draft has them;
+ * - who leads must match KataGo's lead, and "close" or "even" is wrong at 5+ points;
+ * - "the game is decided" only when gameDecided() says so (late, from the point lead);
+ * - "sente" only when a sente / double-sente / reverse-sente concept or the engine's own text has it;
+ * - a shape word at a point ("the hane at Q10", "R10 is a block") must be the shape that point
+ *   makes on the board where it is played (explain/shapes.ts).
+ */
+export function wordingProblems(ex: Explanation, text: string): string[] {
+  const out: string[] = [];
+  const sit = ex.situation;
+  const draft = [ex.summary, ...ex.sections.map((x) => x.text)].join(' ');
+  const plain = text.replace(/\[\[[^\]]*\]\]/g, '');
+  // The voice rules hold where the engine teaches (a celebration, a blunder or a problem keeps
+  // its own voice), and the writer may not add what the engine's own draft does not say.
+  if (sit?.sharp && (sit.tone === 'teach' || sit.tone === 'relaxed')) {
+    for (const [re, label] of CALM_PHRASES) if (re.test(plain) && !re.test(draft)) out.push(`calm wording in a sharp position: "${label}"`);
+    if (/!/.test(plain) && !/!/.test(draft)) out.push('exclamation mark in a sharp position');
+    const ss = sentences(text);
+    const ds = sentences(draft);
+    if (ss.length && /\?$/.test(ss[ss.length - 1]) && !(ds.length && /\?$/.test(ds[ds.length - 1]))) out.push('closing question in a sharp position');
+  }
+  const lead = sit?.lead;
+  if (lead !== undefined) {
+    const mover = ex.position.toPlay === 1 ? 'black' : 'white';
+    const opp = mover === 'black' ? 'white' : 'black';
+    const leader = lead >= 0 ? mover : opp;
+    const abs = Math.abs(lead);
+    if (abs >= 5 && /\b(?:game is (?:still )?(?:close|even|balanced)|close game|(?:an |still )even game|evenly (?:matched|balanced)|neck and neck)\b/i.test(plain)) out.push(`"close" or "even" with a ${Math.round(abs)}-point lead`);
+    if (abs >= 2) {
+      for (const m of plain.matchAll(/\b(black|white)(?:'s)?\s+(?:is\s+(?:still\s+|clearly\s+|far\s+|well\s+|slightly\s+|a little\s+)?)?(ahead|leads|leading|behind|trails|trailing)\b/gi)) {
+        const who = m[1].toLowerCase();
+        const ahead = /^(?:ahead|lead)/i.test(m[2]);
+        if ((ahead && who !== leader) || (!ahead && who === leader)) out.push(`wrong side ahead: "${m[0]}"`);
+      }
+    }
+    const moveNo = ex.position.moves.length + 1;
+    if (/\b(?:game is (?:already )?(?:decided|over)|already (?:lost|won)|nothing (?:left )?to play for)\b/i.test(plain) && !gameDecided(moveNo, lead, ex.position.size)) out.push('"decided" before the game is decided');
+  }
+  if (/\bsente\b/i.test(plain)) {
+    const grounded = ex.concepts.some((c) => c.id === 'sente' || c.id === 'double-sente' || c.id === 'reverse-sente') || /\bsente\b/i.test(draft);
+    if (!grounded) out.push('"sente" without KataGo evidence');
+  }
+  const size = ex.position.size;
+  const shapeAt = new RegExp(`\\b(?:the |a |an )?(${SHAPE_ALT})\\s+(?:at|on|of)\\s+(${COORD})\\b|\\b(${COORD})\\s+(?:is|was|would be)\\s+(?:a|an|the)\\s+(?:\\w+\\s+)?(${SHAPE_ALT})\\b|\\b(${COORD})\\s+(attaches|cuts|blocks|descends|extends|connects|captures)\\b`, 'gi');
+  for (const m of plain.matchAll(shapeAt)) {
+    const word = (m[1] ?? m[4] ?? m[6]).toLowerCase();
+    const at = (m[2] ?? m[3] ?? m[5]).toUpperCase();
+    let loc: Loc;
+    try {
+      loc = gtpToLoc(at, size);
+    } catch {
+      continue; // not on this board: the truth check already counts it
+    }
+    const ids = SHAPE_WORDS.find(([re]) => re.test(word))?.[1] ?? [];
+    if (loc < 0 || !ids.length) continue;
+    const there = shapesAt(ex, loc);
+    if (!ids.some((id) => there.has(id))) out.push(`"${word}" at ${at} does not match the board${there.size ? ` (${[...there].join(', ')})` : ''}`);
+  }
+  return [...new Set(out)];
+}
+
 export function checkAnswer(ex: Explanation, text: string): AnswerScore {
   const allowed = allowedFor(ex);
   const hits = scan(text, ex.position.size);
@@ -339,7 +487,8 @@ export function checkAnswer(ex: Explanation, text: string): AnswerScore {
   ).size;
   const figures = hits.filter((h) => h.kind !== 'ref').length;
   const depth = depthScore(text, deepRefs, ex.concepts.map((c) => c.id), figures);
-  return { truth, coverage, depth, unsupported, pass: truth === 1 && coverage >= COVERAGE_FLOOR && !!text.trim() };
+  const wording = wordingProblems(ex, text);
+  return { truth, coverage, depth, unsupported, ...(wording.length ? { wording } : {}), pass: truth === 1 && coverage >= COVERAGE_FLOOR && !!text.trim() && !wording.length };
 }
 
 // --- concept answers ------------------------------------------------------------------

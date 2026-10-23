@@ -132,6 +132,17 @@ export interface Situation {
   styleChoice?: boolean;
   /** The two compared lines meet again (same position or the same moves in another order). */
   transposes?: boolean;
+  /**
+   * Not a calm position: one side is far ahead (`lopsided`: 5+ points or a win chance of 10% or
+   * less), the last move touched the mover's stones (`contact`), or KataGo has one clear first
+   * choice. The answer then states the position and the local fight first, with no "play your
+   * style", no "!" and no closing question (answerCheck's wording rules enforce it).
+   */
+  sharp?: boolean;
+  lopsided?: boolean;
+  contact?: boolean;
+  /** The mover's lead in points after KataGo's best move (one decimal). */
+  lead?: number;
 }
 
 export type VariationKind = 'best' | 'refutation' | 'consequence' | 'what-if' | 'alternative';
