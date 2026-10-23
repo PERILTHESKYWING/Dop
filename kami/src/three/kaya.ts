@@ -119,7 +119,17 @@ function numberTexture(text: string, ink: string): Texture {
   if (t) return t;
   const c = document.createElement('canvas');
   c.width = c.height = 128;
+  drawNumber(c, text, ink);
+  t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 4;
+  t.userData = { text, ink };
+  numberTex.set(key, t);
+  return t;
+}
+function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
   const g = c.getContext('2d')!;
+  g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = ink;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -127,11 +137,6 @@ function numberTexture(text: string, ink: string): Texture {
   const px = text.length >= 3 ? 76 : text.length === 2 ? 112 : 118;
   g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
   g.fillText(text, 64, 71, 118);
-  t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  t.anisotropy = 4;
-  numberTex.set(key, t);
-  return t;
 }
 
 export interface CandGlow {
@@ -215,7 +220,7 @@ export interface KayaOptions {
 const loader = new TextureLoader();
 const texCache = new Map<string, Texture>();
 /** Views to redraw when a texture arrives (they only draw on demand). */
-const liveViews = new Set<{ invalidate(): void }>();
+const liveViews = new Set<{ invalidate(shadows?: boolean): void }>();
 function tex(name: string, color = true, variant = ''): Texture {
   const key = `${name}|${color}|${variant}`;
   let t = texCache.get(key);
@@ -569,7 +574,19 @@ export class KayaView {
   private ownMesh: InstancedMesh[] = [];
   private varGroup = new Group();
   private paleGroup = new Group();
-  private paleMarks: PaleMark[] | null = null;
+  private paleMats = new Map<string, MeshPhysicalMaterial>();
+  private ownMats = new Map<string, Material>();
+  private faceMats = new Map<Texture, MeshBasicMaterial>();
+  private faceGeos: Partial<Record<StoneColor, PlaneGeometry>> = {};
+  private hoverMats: Partial<Record<StoneColor, MeshPhysicalMaterial>> = {};
+  /** The shadow map is redrawn only when something that casts a shadow may have moved. */
+  private shadowsDirty = true;
+  /** Shaders still compiling: no frame until they are done (see precompile). */
+  private compiling = true;
+  private warmFace: MeshBasicMaterial | null = null;
+  private resolveDrawn: () => void = () => undefined;
+  /** Settles once the first frame is on the canvas. */
+  readonly drawn = new Promise<void>((r) => (this.resolveDrawn = r));
   private beam: Mesh<CylinderGeometry, MeshBasicMaterial> | null = null;
   private beamLoc: Loc = -1;
   private cands = new Map<Loc, CandFx>();
@@ -606,6 +623,9 @@ export class KayaView {
     this.renderer.toneMappingExposure = o.exposure ?? 1;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // redrawn only when a shadow caster may have moved (see shadowsDirty): hovering, the camera
+    // easing and the labels moving leave the light and its casters where they were
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lite ? 1.5 : 2));
 
     const sunDir = o.sun ?? { elev: 48, azim: 135 };
@@ -656,7 +676,7 @@ export class KayaView {
     this.glow.add(this.candGroup, this.varGroup);
     this.resizeArrays();
     liveViews.add(this);
-    this.invalidate();
+    this.precompile();
   }
 
   // ---------------------------------------------------------------- building
@@ -971,23 +991,20 @@ export class KayaView {
       if (this.hoverMesh) {
         this.set.remove(this.hoverMesh);
         this.hoverMesh = null;
-        this.invalidate();
+        this.invalidate(false);
       }
       return;
     }
     if (!this.hoverMesh || this.hoverMesh.userData.c !== c) {
       if (this.hoverMesh) this.set.remove(this.hoverMesh);
-      const mat = this.stoneMat[c].clone();
-      mat.transparent = true;
-      mat.opacity = 0.5;
-      mat.depthWrite = false;
-      this.hoverMesh = new Mesh(this.stoneGeo[c], mat);
+      // the ghost stone casts no shadow, so moving it leaves the shadow map alone
+      this.hoverMesh = new Mesh(this.stoneGeo[c], this.hoverMat(c));
       this.hoverMesh.userData.c = c;
       this.set.add(this.hoverMesh);
     }
     this.hoverMesh.matrixAutoUpdate = false;
     this.hoverMesh.matrix.copy(this.stoneMatrix(loc, c));
-    this.invalidate();
+    this.invalidate(false);
   }
 
   // ---------------------------------------------------------------- KataGo's reading, as light
@@ -1405,6 +1422,8 @@ export class KayaView {
     this.varGroup = new Group();
     this.glow.add(this.varGroup);
     const mats = new Map<Material & { opacity: number }, number>();
+    // the fading territory takes its materials with it; the next territory makes fresh ones
+    this.ownMats.clear();
     for (const m of [...own, ...hl, ...vars]) {
       const ms = (Array.isArray(m.material) ? m.material : [m.material]) as (Material & { opacity: number })[];
       for (const x of ms) if (!mats.has(x)) mats.set(x, x.opacity);
@@ -1435,10 +1454,11 @@ export class KayaView {
    * makes the squares larger (the landing, seen from afar).
    */
   setOwnership(own: ArrayLike<number> | null, reveal = true, scale = 1) {
+    // the materials are kept (ownMat): ownership changes with every KataGo update, and a disposed
+    // material's shader would be compiled again for the next one
     for (const m of this.ownMesh) {
       this.glow.remove(m);
       m.geometry.dispose();
-      (m.material as Material).dispose();
     }
     this.ownMesh = [];
     if (!own) {
@@ -1455,8 +1475,8 @@ export class KayaView {
     const geo = relief ? new RoundedBoxGeometry(SX, 1, SY, 2, SX * 0.2).translate(0, 0.5, 0) : new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2);
     const meshes = ([1, 2] as StoneColor[]).map((side) => {
       const mat = relief
-        ? new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0f5f98 : 0xdcecff, emissive: side === 1 ? 0x18aaf2 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.35 : 1.3, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false })
-        : new MeshBasicMaterial({ color: side === 1 ? 0x061423 : 0xffffff, map: squareTexture(), transparent: true, opacity: side === 1 ? 0.58 : 0.78, depthWrite: false });
+        ? this.ownMat(`true|${side}`, () => new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0f5f98 : 0xdcecff, emissive: side === 1 ? 0x18aaf2 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.35 : 1.3, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false }))
+        : this.ownFlatMat(side);
       const m = new InstancedMesh(geo, mat, n);
       m.count = 0;
       m.frustumCulled = false;
@@ -1466,7 +1486,7 @@ export class KayaView {
     // standing blocks cast a soft pool of their own light on the wood
     const pads = relief
       ? ([1, 2] as StoneColor[]).map((side) => {
-          const m = new InstancedMesh(new PlaneGeometry(SX * 1.5, SX * 1.5).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: side === 1 ? 0x1aa8f0 : 0xbfe6ff, map: glowTexture(), transparent: true, opacity: side === 1 ? 0.5 : 0.42, blending: AdditiveBlending, depthWrite: false }), n);
+          const m = new InstancedMesh(new PlaneGeometry(SX * 1.5, SX * 1.5).rotateX(-Math.PI / 2), this.ownMat(`pad|${side}`, () => new MeshBasicMaterial({ color: side === 1 ? 0x1aa8f0 : 0xbfe6ff, map: glowTexture(), transparent: true, opacity: side === 1 ? 0.5 : 0.42, blending: AdditiveBlending, depthWrite: false })), n);
           m.count = 0;
           m.frustumCulled = false;
           m.renderOrder = 1;
@@ -1584,19 +1604,21 @@ export class KayaView {
    * null clears. If the site's font has not loaded yet, they are drawn again once it has.
    */
   setPale(marks: PaleMark[] | null) {
-    for (const o of [...this.paleGroup.children]) {
-      this.paleGroup.remove(o);
-      const m = o as Mesh;
-      if (m.geometry && m.geometry !== this.stoneGeo[1] && m.geometry !== this.stoneGeo[2]) m.geometry.dispose();
-      (m.material as Material).dispose();
-    }
-    this.paleMarks = marks;
+    // materials and the number planes are kept and reused (see paleMat): disposing them would
+    // drop their compiled shaders, and the next update (several a second while KataGo reads)
+    // would compile them again
+    const castBefore = this.paleGroup.children.some((o) => o.castShadow);
+    this.paleGroup.clear();
     if (marks?.length && typeof document !== 'undefined' && document.fonts && !numberFontReady) {
       numberFontReady = document.fonts.load('800 64px "Alegreya Sans"').then(
         () => {
-          numberTex.forEach((t) => t.dispose());
-          numberTex.clear();
-          if (!this.disposed && this.paleMarks) this.setPale(this.paleMarks);
+          // redraw the printed numbers in place, now in the real face
+          numberTex.forEach((t) => {
+            const u = t.userData as { text: string; ink: string };
+            drawNumber(t.image as HTMLCanvasElement, u.text, u.ink);
+            t.needsUpdate = true;
+          });
+          liveViews.forEach((v) => v.invalidate(false));
         },
         () => undefined,
       );
@@ -1608,32 +1630,89 @@ export class KayaView {
       // a mark on a point that already has a stone (a line that recaptures) sits on top of it
       const over = this.stoneAt[m.loc] ? 0.0095 : 0;
       const black = m.color === 1 && !m.cream;
-      const mat = new MeshPhysicalMaterial({
-        color: black ? 0x101113 : m.cream ? 0xf7f0e3 : 0xf4eadb,
-        roughness: 0.32,
-        clearcoat: 0.5,
-        clearcoatRoughness: 0.2,
-        transparent: true,
-        opacity: m.alpha,
-        depthWrite: m.alpha > 0.8,
-      });
-      const stone = new Mesh(this.stoneGeo[m.color], mat);
+      const color = black ? 0x101113 : m.cream ? 0xf7f0e3 : 0xf4eadb;
+      const stone = new Mesh(this.stoneGeo[m.color], this.paleMat(color, m.alpha));
       stone.applyMatrix4(this.stoneMatrix(m.loc, m.color, over));
       stone.renderOrder = 4;
       // a solid one is a real stone with its number printed on it: it casts its shadow too
       stone.castShadow = m.alpha >= 0.99;
       this.paleGroup.add(stone);
       if (!m.text) continue;
-      const d = (m.color === 1 ? STONE_B : STONE_W).d * 0.96;
-      const face = new Mesh(
-        new PlaneGeometry(d, d).rotateX(-Math.PI / 2),
-        new MeshBasicMaterial({ map: numberTexture(m.text, black ? '#f3eee4' : '#17140f'), transparent: true, depthWrite: false, toneMapped: false }),
-      );
+      const map = numberTexture(m.text, black ? '#f3eee4' : '#17140f');
+      let faceMat = this.faceMats.get(map);
+      if (!faceMat) this.faceMats.set(map, (faceMat = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false })));
+      const face = new Mesh(this.faceGeo(m.color), faceMat);
       face.position.copy(this.pointAt(m.loc, over + (m.color === 1 ? STONE_B : STONE_W).t + 0.0003));
       face.renderOrder = 5;
       this.paleGroup.add(face);
     }
-    this.invalidate();
+    // only solid marks cast shadows, so see-through candidates leave the shadow map as it is
+    this.invalidate(castBefore || this.paleGroup.children.some((o) => o.castShadow));
+  }
+
+  private ownMat(key: string, make: () => Material): Material {
+    let m = this.ownMats.get(key);
+    if (!m) this.ownMats.set(key, (m = make()));
+    return m;
+  }
+
+  private hoverMat(c: StoneColor): MeshPhysicalMaterial {
+    let mat = this.hoverMats[c];
+    if (!mat) {
+      mat = this.hoverMats[c] = this.stoneMat[c].clone();
+      mat.transparent = true;
+      mat.opacity = 0.5;
+      mat.depthWrite = false;
+    }
+    return mat;
+  }
+
+  /** The flat territory squares' material (the app's 2D-style ownership), one per side. */
+  private ownFlatMat(side: StoneColor): Material {
+    return this.ownMat(`false|${side}`, () => new MeshBasicMaterial({ color: side === 1 ? 0x061423 : 0xffffff, map: squareTexture(), transparent: true, opacity: side === 1 ? 0.58 : 0.78, depthWrite: false }));
+  }
+
+  /**
+   * Compile every shader the board needs before its first frame, off the main thread where the
+   * browser can (KHR_parallel_shader_compile), including the ones that only appear later
+   * (hover stone, candidates, numbers, territory). Compiling them on first use froze the page
+   * for a moment each time; on a slow GPU, for seconds.
+   */
+  private precompile() {
+    const warm = new Scene();
+    const g = this.stoneGeo[1];
+    warm.add(new Mesh(g, this.hoverMat(1)), new Mesh(g, this.hoverMat(2)), new Mesh(g, this.paleMat(0xf7f0e3, 0.86)));
+    this.warmFace = new MeshBasicMaterial({ map: glowTexture(), transparent: true, depthWrite: false, toneMapped: false });
+    warm.add(new Mesh(g, this.warmFace));
+    if (!this.pillarH) for (const side of [1, 2] as const) warm.add(new InstancedMesh(g, this.ownFlatMat(side), 1));
+    const r = this.renderer;
+    Promise.all([r.compileAsync(this.scene, this.camera), r.compileAsync(warm, this.camera, this.scene)])
+      .catch(() => undefined)
+      .then(() => {
+        this.compiling = false;
+        this.invalidate();
+      });
+  }
+
+  /** One material per colour and opacity, kept for the view's life (a handful at most). */
+  private paleMat(color: number, alpha: number): MeshPhysicalMaterial {
+    const key = `${color}|${alpha}`;
+    let mat = this.paleMats.get(key);
+    if (!mat) {
+      mat = new MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 0.5, clearcoatRoughness: 0.2, transparent: true, opacity: alpha, depthWrite: alpha > 0.8 });
+      this.paleMats.set(key, mat);
+    }
+    return mat;
+  }
+
+  /** The plane a number is printed on, one per stone size. */
+  private faceGeo(c: StoneColor): PlaneGeometry {
+    let g = this.faceGeos[c];
+    if (!g) {
+      const d = (c === 1 ? STONE_B : STONE_W).d * 0.96;
+      g = this.faceGeos[c] = new PlaneGeometry(d, d).rotateX(-Math.PI / 2);
+    }
+    return g;
   }
 
   /** Pulsing rings on a few points (the move a question is about). */
@@ -1702,7 +1781,7 @@ export class KayaView {
       this.camTween = null;
       this.applyCam(to);
     }
-    this.invalidate();
+    this.invalidate(false);
   }
 
   /**
@@ -1876,29 +1955,39 @@ export class KayaView {
     this.invalidate();
   }
 
+  /** Off: draw nothing (the board is off screen or the tab hidden); on: catch up with one frame. */
   setActive(on: boolean) {
+    if (on === this.active) return;
     this.active = on;
-    if (on) this.invalidate();
+    if (on) this.invalidate(false);
+    else if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      this.lastNow = 0;
+    }
   }
 
-  invalidate() {
+  /** Draw a frame soon. `shadows` false: nothing that casts a shadow moved (hover, camera). */
+  invalidate(shadows = true) {
+    if (shadows) this.shadowsDirty = true;
     if (this.disposed || this.raf || !this.active) return;
     this.raf = requestAnimationFrame(this.frame);
   }
 
   private frame = (now: number) => {
     this.raf = 0;
-    if (this.disposed) return;
+    if (this.disposed || this.compiling) return;
     const dt = this.lastNow ? Math.min(100, now - this.lastNow) : 16;
     this.lastNow = now;
     const busy = this.anims.length > 0 || !!this.camTween;
     const live = this.continuous > now || this.ambient;
     // ambient motion alone (pulses, motes, a slow orbit) runs at up to ~45 frames a second
     if (!busy && live && now - this.lastDraw < (this.lite ? 32 : 21)) {
-      this.invalidate();
+      this.invalidate(false);
       return;
     }
     this.lastDraw = now;
+    const stepped = this.anims.length > 0;
     this.anims = this.anims.filter((a) => a.step(now));
     if (this.camTween && this.camFrom) {
       const t = Math.min(1, (now - this.camTween.t0) / this.camTween.dur);
@@ -1930,9 +2019,13 @@ export class KayaView {
         }
       this.stepMotes(now);
     }
+    // animations and ambient motion may move casters (a dropping stone, pulsing rings), so they redraw shadows
+    if (this.shadowsDirty || stepped || live) this.renderer.shadowMap.needsUpdate = true;
+    this.shadowsDirty = false;
     this.renderer.render(this.scene, this.camera);
+    this.resolveDrawn();
     this.onFrame?.();
-    if (this.anims.length || this.camTween || live) this.invalidate();
+    if (this.anims.length || this.camTween || live) this.invalidate(false);
   };
 
   /** Keep the board gently alive (pulsing best move, motes, a slow orbit) while it is on screen. */
@@ -1943,6 +2036,7 @@ export class KayaView {
 
   /** Render once now (for tests and screenshots). */
   renderNow() {
+    this.compiling = false;
     this.frame(performance.now());
   }
 
@@ -1950,10 +2044,24 @@ export class KayaView {
     this.disposed = true;
     liveViews.delete(this);
     if (this.raf) cancelAnimationFrame(this.raf);
+    // geometries, materials, this view's sky light and shadow map; the textures shared by all views
+    // (wood, shell, glow, printed numbers) stay for the next board
+    const mats = new Set<Material>([...this.paleMats.values(), ...this.faceMats.values(), ...this.ownMats.values()]);
+    if (this.warmFace) mats.add(this.warmFace);
+    for (const c of [1, 2] as const) {
+      this.faceGeos[c]?.dispose();
+      const h = this.hoverMats[c];
+      if (h) mats.add(h);
+    }
     this.scene.traverse((o) => {
       const m = o as Mesh;
       if (m.geometry) m.geometry.dispose();
+      const mat = m.material as Material | Material[] | undefined;
+      for (const x of Array.isArray(mat) ? mat : mat ? [mat] : []) mats.add(x);
     });
+    mats.forEach((m) => m.dispose());
+    this.scene.environment?.dispose();
+    this.sunLight.shadow.dispose();
     this.renderer.dispose();
   }
 }

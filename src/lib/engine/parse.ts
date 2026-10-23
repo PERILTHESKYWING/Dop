@@ -46,18 +46,22 @@ export function processRawOutput(
   const hw = raw.policyLogits.length - 1;
   const s = pp.outputScale || 1;
   const policy = new Float32Array(hw + 1);
+  const logits = raw.policyLogits;
+  // Legal finite moves' points, found once (the legality check was asked twice per point).
+  const use = new Int16Array(hw + 1);
+  let count = 0;
   let max = -Infinity;
   for (let i = 0; i <= hw; i++) {
-    const legal = i === hw ? true : isLegal(i);
-    const v = raw.policyLogits[i];
-    if (legal && Number.isFinite(v) && v * s > max) max = v * s;
+    const v = logits[i];
+    if ((i === hw || isLegal(i)) && Number.isFinite(v)) {
+      use[count++] = i;
+      if (v * s > max) max = v * s;
+    }
   }
   let z = 0;
-  for (let i = 0; i <= hw; i++) {
-    const legal = i === hw ? true : isLegal(i);
-    const v = raw.policyLogits[i];
-    if (!legal || !Number.isFinite(v)) continue;
-    policy[i] = Math.exp(v * s - max);
+  for (let j = 0; j < count; j++) {
+    const i = use[j];
+    policy[i] = Math.exp(logits[i] * s - max);
     z += policy[i];
   }
   if (z > 0) for (let i = 0; i <= hw; i++) policy[i] /= z;

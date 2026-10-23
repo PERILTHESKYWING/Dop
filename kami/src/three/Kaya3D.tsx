@@ -5,7 +5,7 @@
  * numbers, coordinates, marks) are HTML laid over the canvas at each point's projected
  * position, so they stay sharp. Nothing pulses or ripples.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CandidateMark, Mark } from '../../../src/components/Board';
 import { PASS, type Color, type Loc, type Move } from '../../../src/lib/go/types';
 import { KayaView, type BoardWood, type PaleMark, type StoneColor } from './kaya';
@@ -29,6 +29,8 @@ export interface Kaya3DProps {
   tilt?: number;
   wood?: BoardWood;
   ariaLabel?: string;
+  /** Shown until the first 3D frame is drawn (its shaders compile in the background first). */
+  placeholder?: ReactNode;
 }
 
 const COLS = 'ABCDEFGHJKLMNOPQRSTUVWXYZ';
@@ -60,6 +62,7 @@ export default function Kaya3D(p: Kaya3DProps) {
   const viewRef = useRef<KayaView | null>(null);
   // bumped each time a view is made (board size or wood changed), so everything is set on the new one
   const [ready, setReady] = useState(0);
+  const [drawn, setDrawn] = useState(false);
   const lite = useRef(false);
   const size = p.size;
 
@@ -75,11 +78,20 @@ export default function Kaya3D(p: Kaya3DProps) {
     ro.observe(c);
     v.setSize(c.clientWidth, c.clientHeight);
     setReady((r) => r + 1);
-    const vis = new IntersectionObserver(([e]) => v.setActive(e.isIntersecting));
+    v.drawn.then(() => setDrawn(true));
+    // draw only while the board is on screen and the tab is showing; it catches up with one frame
+    let onScreen = true;
+    const sync = () => v.setActive(onScreen && !document.hidden);
+    const vis = new IntersectionObserver(([e]) => {
+      onScreen = e.isIntersecting;
+      sync();
+    });
     vis.observe(c);
+    document.addEventListener('visibilitychange', sync);
     return () => {
       ro.disconnect();
       vis.disconnect();
+      document.removeEventListener('visibilitychange', sync);
       v.dispose();
       viewRef.current = null;
     };
@@ -181,7 +193,8 @@ export default function Kaya3D(p: Kaya3DProps) {
       el.style.setProperty('--cell', `${Math.hypot(b.x - a.x, b.y - a.y).toFixed(2)}px`);
     };
     v.onFrame = place;
-    v.invalidate();
+    // the labels moved, not anything that casts a shadow
+    v.invalidate(false);
     return () => {
       if (v.onFrame === place) v.onFrame = null;
     };
@@ -242,6 +255,7 @@ export default function Kaya3D(p: Kaya3DProps) {
 
   return (
     <div ref={wrap} className={`k3${p.onPlay ? ' playable' : ''}`} role="img" aria-label={p.ariaLabel ?? 'Go board'}>
+      {!drawn && p.placeholder && <div className="k3-wait">{p.placeholder}</div>}
       <canvas ref={canvas} className="k3-canvas" onPointerMove={onMove} onPointerLeave={onLeave} onClick={onClick as unknown as React.MouseEventHandler} />
       <div ref={layer} className="k3-layer" aria-hidden="true">
         {labels.map((L) => (

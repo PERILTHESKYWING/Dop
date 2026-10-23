@@ -11,6 +11,39 @@ const MAX_LIST = 400; // lines of a listing
 const MAX_REPOS = 50;
 const TIMEOUT_MS = 20_000;
 const K = { repos: 'hub:repos' };
+// GitHub answers stay in a warm function instance briefly, so reading the
+// same file or folder again costs no GitHub call (60 an hour without a
+// token) and no wait. A pinned commit never changes, so it stays longer.
+const CACHE_MS = 30_000;
+const CACHE_SHA_MS = 10 * 60_000;
+const CACHE_MAX_BYTES = 8 * 1024 * 1024;
+const ghCache = new Map(); // url|raw|token -> { until, value, size }
+let ghCacheBytes = 0;
+const SHA_REF = /[?/&=]([0-9a-f]{40})(?:[?&/]|$)/i;
+function cacheGet(key) {
+  const c = ghCache.get(key);
+  if (!c) return undefined;
+  if (Date.now() < c.until) return c.value;
+  ghCache.delete(key);
+  ghCacheBytes -= c.size;
+  return undefined;
+}
+function cachePut(key, value, size, path) {
+  if (size > CACHE_MAX_BYTES / 4) return;
+  const old = ghCache.get(key);
+  if (old) {
+    ghCache.delete(key);
+    ghCacheBytes -= old.size;
+  }
+  // Oldest first out (a Map keeps insertion order).
+  for (const [k, c] of ghCache) {
+    if (ghCacheBytes + size <= CACHE_MAX_BYTES && ghCache.size < 200) break;
+    ghCache.delete(k);
+    ghCacheBytes -= c.size;
+  }
+  ghCache.set(key, { until: Date.now() + (SHA_REF.test(path) ? CACHE_SHA_MS : CACHE_MS), value, size });
+  ghCacheBytes += size;
+}
 const TEXT_EXT = /\.(md|markdown|txt|sgf|csv|tsv|json|jsonl|ya?ml|toml|ini|cfg|conf|js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|c|h|cc|cpp|hpp|cs|swift|sh|bash|zsh|ps1|html?|css|scss|less|svg|xml|sql|graphql|lock|env\.example|gitignore|gitattributes|editorconfig|dockerfile|makefile|log)$/i;
 const IMAGE_TYPE = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
 
@@ -47,6 +80,16 @@ export function createRepos(hub, { fetchImpl = fetch, token = '' } = {}) {
   const now = hub.now || (() => Date.now());
 
   async function gh(path, { raw = false } = {}) {
+    const key = `${raw ? 'raw' : 'json'}|${token ? 't' : ''}|${path}`;
+    const hit = cacheGet(key);
+    if (hit !== undefined) return raw ? hit : structuredClone(hit);
+    const value = await ghLive(path, { raw });
+    const size = raw ? value.length : JSON.stringify(value).length;
+    cachePut(key, raw ? value : structuredClone(value), size, path);
+    return value;
+  }
+
+  async function ghLive(path, { raw = false } = {}) {
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
     try {

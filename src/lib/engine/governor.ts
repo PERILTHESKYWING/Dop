@@ -125,6 +125,13 @@ export function setCool(on: boolean) {
 export const isCool = () => cool;
 
 /**
+ * Short reads a person waits for (Kiai's answers and board reads), not hours of background
+ * analysis: in cool mode a phone that cannot report its battery is not assumed to be on
+ * battery, so it keeps both workers until it is actually hot, low or below half its battery.
+ */
+let burst = false;
+
+/**
  * A phone or tablet: a touch screen with no fine pointer, a mobile user agent, or the
  * browser saying so. Laptops with touch screens still have a fine pointer.
  */
@@ -160,11 +167,12 @@ function update() {
   let mode: PowerMode = 'full';
   // In cool mode a phone that cannot report its battery counts as on battery, and the
   // battery counts as low a little earlier.
-  const onBattery = battery ? !battery.charging : cool;
+  const assume = cool && !burst;
+  const onBattery = battery ? !battery.charging : assume;
   const low = cool ? 0.3 : 0.2;
   if (battery && !battery.charging && battery.level <= low) mode = 'low-battery';
   else if (hotLevel > 0) mode = 'hot';
-  else if (onBattery && (cool || (battery && battery.level < 0.5))) mode = 'battery';
+  else if (onBattery && (assume || (battery && battery.level < 0.5))) mode = 'battery';
   let lanes = maxLanes - hotLevel;
   if (mode === 'battery' || mode === 'low-battery') lanes = Math.min(lanes, Math.ceil(maxLanes / 2));
   if (cool) lanes = Math.min(lanes, mode === 'full' ? COOL_LANES : 1);
@@ -184,9 +192,10 @@ function update() {
 
 let lastUi = 0;
 
-/** Watch this engine (the main one). */
-export function governEngine(e: GovernedEngine) {
+/** Watch this engine (the main one). `burst`: see above (Kiai). */
+export function governEngine(e: GovernedEngine, opts: { burst?: boolean } = {}) {
   engine = e;
+  burst = !!opts.burst;
   heat = new HeatTracker();
   hotLevel = 0;
   e.onCompute = (positions, ms) => {

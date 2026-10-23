@@ -4,11 +4,16 @@
 // change for everyone. ask_user is the hub's AskUserQuestion: it posts
 // tappable question cards to the thread and waits for the answer.
 import { SEED_SKILLS } from './skills-seed.js';
+import { waitAnswer } from './wake.js';
 
 const MAX_SKILL = 64 * 1024;
 const WAIT_MAX_S = 45;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const K = { skills: 'hub:skills' };
+// Saved skills change rarely, so a warm function instance keeps them briefly
+// (skill_list / skill_get then need no store read). A save or delete made
+// here clears it at once; one made from the page shows within CACHE_MS.
+const CACHE_MS = 30_000;
+const savedCache = new Map(); // project -> { at, value }
 const parse = (s) => {
   try {
     return s ? JSON.parse(s) : null;
@@ -51,10 +56,15 @@ export function questionText(qs) {
 export function skillsOf(hub) {
   const { store } = hub;
   const now = hub.now || (() => Date.now());
-  const saved = async () => {
+  const ck = hub.project || '';
+  const saved = async ({ fresh = false } = {}) => {
+    // Keyed by project: production makes a new store object per request.
+    const c = savedCache.get(ck);
+    if (!fresh && c && Date.now() - c.at < CACHE_MS) return c.value;
     const flat = await store.cmd('HGETALL', K.skills);
     const out = {};
     for (let i = 0; i < flat.length; i += 2) out[flat[i]] = parse(flat[i + 1]);
+    savedCache.set(ck, { at: Date.now(), value: out });
     return out;
   };
   const all = async () => {
@@ -74,15 +84,18 @@ export function skillsOf(hub) {
     const n = cleanSkillName(name);
     const text = checkText(content);
     const had = (await all())[n];
+    savedCache.delete(ck);
     await store.cmd('HSET', K.skills, n, JSON.stringify({ text, by, at: now() }));
+    savedCache.delete(ck);
     return { name: n, replaced: !!had };
   };
   // Delete a saved skill; a bundled one then shows its bundled text again.
   const remove = async (name) => {
     const n = cleanSkillName(name);
-    const was = (await saved())[n];
+    const was = (await saved({ fresh: true }))[n];
     if (!was?.text) throw new Error(SEED_SKILLS[n] ? `/${n} is a bundled skill with no saved change to remove.` : `No skill "${n}".`);
     await store.cmd('HDEL', K.skills, n);
+    savedCache.delete(ck);
     return { name: n, reverted: !!SEED_SKILLS[n] };
   };
   const list = async () => {
@@ -185,12 +198,9 @@ export function skillTools(hub) {
         const msg = await hub.agentPost(a, { thread: tid, kind: 'question', text: questionText(qs), meta: { questions: qs } });
         const id = Number(/#(\d+)/.exec(msg)?.[1]);
         const end = now() + Math.min(WAIT_MAX_S, x.wait_s ?? 40) * 1000;
-        for (;;) {
-          const ans = await hub.answerFor(id);
-          if (ans) return `XIAO answered #${id}: ${ans.text}`;
-          if (now() >= end) break;
-          await sleep(2500);
-        }
+        // One small seq read every 2.5 s; messages are read only when it moved.
+        const ans = await waitAnswer(hub, id, end, { pollMs: 2500, clock: now });
+        if (ans) return `XIAO answered #${id}: ${ans.text}`;
         return `No answer to #${id} yet. Carry on with anything that does not need it, then check with hub_wait(thread: ${tid}, after: ${id - 1}).`;
       },
     },

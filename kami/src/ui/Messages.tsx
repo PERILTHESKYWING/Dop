@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { CONCEPTS, conceptById, type ConceptEntry, type ConceptExample } from '../../../src/lib/coach/library';
 import { type ConceptHit, type Explanation, type ExplainPosition, type ThoughtStep, type Variation } from '../../../src/lib/coach/explain/types';
@@ -11,6 +11,7 @@ import { pointView } from '../lib/points';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage } from '../lib/levels';
+import { NOTES } from '../lib/writer';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
@@ -560,7 +561,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean; onEdit: (t: string) => void }) {
+const UserMessage = memo(function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean; onEdit: (t: string) => void }) {
   const [edit, setEdit] = useState<string | null>(null);
   if (edit !== null) {
     return (
@@ -597,9 +598,9 @@ function UserMessage({ m, canEdit, onEdit }: { m: ChatMessage; canEdit: boolean;
       </div>
     </div>
   );
-}
+});
 
-function KamiMessage({
+const KamiMessage = memo(function KamiMessage({
   m,
   running,
   isLast,
@@ -633,12 +634,13 @@ function KamiMessage({
           </span>
         ) : null}
       </div>
-      {live && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
+      {live && !a && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
       {!live && !a && <p className="note">Stopped.</p>}
       {a?.type === 'explain' && <ExplainAnswer a={a} msg={m} link={link} />}
       {a?.type === 'concept' && <ConceptAnswer a={a} msg={m} link={link} onAsk={onAsk} onShowBoard={onShowBoard} />}
       {a?.type === 'error' && <p className="note">{a.text}</p>}
-      {a && (
+      {live && a?.type === 'concept' && <p className="note">{NOTES.polishing}</p>}
+      {a && !live && (
         <div className="msg-tools">
           <CopyButton text={copyText(m)} />
           {isLast && !busy && (
@@ -650,12 +652,13 @@ function KamiMessage({
       )}
     </div>
   );
-}
+});
 
 interface Props {
   messages: ChatMessage[];
   running: Running | null;
-  board: BoardState;
+  /** The board, for the empty chat's suggestions (null once there are messages: they do not need it). */
+  board: BoardState | null;
   link: BoardLink;
   onAsk: (text: string) => void;
   onRegenerate: () => void;
@@ -685,7 +688,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     end.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, steps, messages[messages.length - 1]?.answer]);
 
-  if (!messages.length) {
+  if (!messages.length && board) {
     const side = colorName(toPlayAt(board));
     const ideas = hasPosition(board)
       ? [`What should ${side} play here?`, 'Explain this position', 'What is miai?']
@@ -718,7 +721,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
           m.role === 'user' ? (
             <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />
           ) : (
-            <KamiMessage key={m.id} m={m} running={running} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={busy} />
+            <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} />
           ),
         )}
         <div ref={end} />

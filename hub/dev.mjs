@@ -48,9 +48,9 @@ createServer((req, res) => {
     // Self-hosted fonts (hub/fonts), plain static files on Vercel too.
     if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(p) && existsSync(path.join(here, p.slice(1)))) { res.setHeader('content-type', 'font/woff2'); return res.end(readFileSync(path.join(here, p.slice(1)))); }
     // The studio and library pages and their modules, also plain static files on Vercel.
-    if (p === '/studio.html' || p === '/library.html' || /^\/(studio|library|ui)\/[a-z-]+\.js$/.test(p)) {
+    if (p === '/studio.html' || p === '/library.html' || p === '/walls.css' || /^\/(studio|library|ui)\/[a-z-]+\.js$/.test(p)) {
       if (!existsSync(path.join(here, p.slice(1)))) return (res.statusCode = 404), res.end('Not found');
-      res.setHeader('content-type', p.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
+      res.setHeader('content-type', p.endsWith('.js') ? 'text/javascript; charset=utf-8' : p.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/html; charset=utf-8');
       return res.end(readFileSync(path.join(here, p.slice(1))));
     }
     res.setHeader('content-type', 'text/html; charset=utf-8');

@@ -11,7 +11,19 @@
 <!-- Patrick Hand stays: the story renderer (studio/render.js) draws captions in it. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<!-- The font stylesheet does not block the first paint (display=swap shows the fallback until it arrives). -->
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet"></noscript>
+<!-- The renderer's modules, fetched in parallel instead of one import level at a time. -->
+<link rel="modulepreload" href="/studio/schema.js">
+<link rel="modulepreload" href="/studio/render.js">
+<link rel="modulepreload" href="/studio/draw.js">
+<link rel="modulepreload" href="/studio/rig.js">
+<link rel="modulepreload" href="/studio/marks.js">
+<link rel="modulepreload" href="/studio/moves.js">
+<link rel="modulepreload" href="/studio/acting.js">
+<link rel="modulepreload" href="/studio/skel.js">
+<link rel="modulepreload" href="/studio/body.js">
 <script>
 try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
 </script>
@@ -83,9 +95,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Buttons match the hub's .btn: 8 px radius, 600 weight, flat. 44 px tall so they are easy to tap.
    One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: background-color .15s, border-color .15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: transform .12s ease-out; }
 .btn:hover { background: var(--sel); }
-.btn:active { transform: translateY(1px); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
 .btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
 .btn.ok { color: var(--green); border-color: var(--green); }
@@ -184,6 +195,10 @@ dialog input[type=text], dialog select { width: 100%; border: 1px solid var(--li
 input[type=file]::file-selector-button { font: inherit; font-weight: 600; color: var(--ink); border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 0 14px; min-height: 44px; margin-right: 10px; cursor: pointer; }
 input[type=file]::file-selector-button:hover { background: var(--sel); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* press: instant on touch-down, eases back on release */
+button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.btn:active:not(:disabled), .scenes button:active, .tabs button:active, .top .back:active { transform: translateY(1px); transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
 </style>
 </head>
 <body>
@@ -282,6 +297,19 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
   <div class="err" id="loginErr"></div>
 </div>
 
+<script>
+// Show the page (or the login) at once, before the modules load; start() and showLogin() still decide later.
+// The first two API reads start here too, so they run while the renderer downloads (api() picks them up once).
+window.hubBoot = {};
+try {
+  const pw = localStorage.getItem('hubpw'), id = localStorage.getItem('studio-id');
+  document.getElementById(pw ? 'app' : 'loginBox').hidden = false;
+  const get = (q) => (hubBoot[q] = fetch(`/api/hub?op=${q}`, { headers: { 'x-hub-password': pw, 'content-type': 'application/json' } })
+    .then(async (res) => ({ status: res.status, ok: res.ok, j: await res.json().catch(() => ({})) }), () => null));
+  if (pw) { get('studio-list'); if (id) get(`studio-get&id=${id}`); }
+} catch {}
+</script>
+
 <dialog id="newDlg">
   <form method="dialog" id="newForm">
     <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close"><i data-ico="x" data-size="18"></i></button></div>
@@ -313,7 +341,6 @@ input[type=file]::file-selector-button:hover { background: var(--sel); }
 <script src="ui/icons.js"></script>
 <script type="module">
 import { validateProject, normalizeStyle, SAMPLE_PROJECT, STYLE_RANGES, DEFAULT_STYLE } from './studio/schema.js';
-import { FIRST_VIDEO } from './studio/first-video.js';
 import { renderFrame, renderBackground, renderCastSheet, paint, paintOps, makeGrain, locate, quantize, timeline, totalSeconds, W, H } from './studio/render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -342,8 +369,12 @@ const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer);
 
 let pw = ls.get('hubpw') || '';
 async function api(op, body, query = '') {
-  const res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  const j = await res.json().catch(() => ({}));
+  // A read the page already started before this module loaded (see the script after #loginBox); used once.
+  const early = !body && window.hubBoot?.[op + query];
+  if (early) delete window.hubBoot[op + query];
+  const pre = early && (await early);
+  const res = pre || await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = pre ? pre.j : await res.json().catch(() => ({}));
   if (res.status === 401) { showLogin('Wrong password.'); throw new Error('Wrong password.'); }
   if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
   return j;
@@ -354,7 +385,11 @@ const S = {
   projects: [], id: ls.get('studio-id') || '', meta: null, notes: [], feedback: [], sheet: null, rules: null,
   project: null, demo: true, rev: -1, seen: 0, styleOver: {}, waiting: false,
 };
-const DEMOS = { cookie: SAMPLE_PROJECT, first: FIRST_VIDEO };
+// Built-in demos; the reference-video copy is loaded only when picked.
+const DEMOS = {
+  cookie: { title: SAMPLE_PROJECT.title, load: async () => SAMPLE_PROJECT },
+  first: { title: 'What is happening?! (ref copy)', load: () => import('./studio/first-video.js').then((m) => m.FIRST_VIDEO) },
+};
 let P = validateProject(SAMPLE_PROJECT).project; // what is on screen (style overrides applied)
 let base = P; // the same before overrides
 
@@ -545,13 +580,16 @@ async function loadList() {
   const demos = Object.entries(DEMOS).map(([k, d]) => `<option value="demo:${k}"${!S.id && (S.demoPick || 'cookie') === k ? ' selected' : ''}>Demo: ${esc(d.title)}</option>`).join('');
   $('pick').innerHTML = projects.map((p) => `<option value="${p.id}"${p.id === S.id ? ' selected' : ''}>${esc(p.title)}${p.stage === 'full' ? ' · full' : ''}</option>`).join('') + demos;
 }
-$('pick').onchange = (e) => {
+$('pick').onchange = async (e) => {
   const v = e.target.value;
   S.rev = -1; S.seen = 0; S.styleOver = {};
   if (v.startsWith('demo:')) {
     // A built-in demo (the drawing style, or the copy of XIAO's reference video).
     S.id = ''; S.demoPick = v.slice(5); S.demo = true;
-    buildSliders(); showProject(validateProject(DEMOS[S.demoPick] || SAMPLE_PROJECT).project); setStatus();
+    const pick = S.demoPick;
+    const demo = await (DEMOS[pick] || DEMOS.cookie).load().catch(() => SAMPLE_PROJECT);
+    if (S.demoPick !== pick || S.id) return;
+    buildSliders(); showProject(validateProject(demo).project); setStatus();
     return;
   }
   S.id = v; S.demoPick = ''; ls.set('studio-id', S.id); buildSliders(); refresh(true);
@@ -571,13 +609,16 @@ async function refresh(full = false) {
     const v = validateProject(g.project);
     S.demo = !v.ok;
     if (v.ok) {
-      showProject(v.project, { keepTime: prevRev >= 0 });
+      // Already on screen from the copy kept in this browser: no second render.
+      if (!(prevRev < 0 && S.cached === `${S.id}:${g.meta.rev}`)) showProject(v.project, { keepTime: prevRev >= 0 });
+      ls.set('studio-last', JSON.stringify({ id: S.id, rev: g.meta.rev, project: g.project }));
       if (prevRev >= 0) { toast(`Revision ${g.meta.rev} is in.`); }
     }
   } else if (!g.project) {
     S.demo = true;
     if (prevRev !== 0) showProject(validateProject(SAMPLE_PROJECT).project);
   }
+  S.cached = '';
   S.rev = g.meta.rev;
   renderNotes();
   setStatus();
@@ -732,16 +773,24 @@ const readVideo = (file) => new Promise((ok, no) => {
   };
   v.src = u;
 });
+const refSeen = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    refSeen.unobserve(e.target);
+    const im = e.target, id = im.dataset.ref;
+    (refImgCache[id] ||= api('studio-ref', null, `&id=${id}&n=0`).catch((er) => { delete refImgCache[id]; throw er; }))
+      .then((r) => { im.src = `data:${r.mime};base64,${r.data}`; }).catch(() => {});
+  }
+}, { rootMargin: '300px' });
 async function loadRefs() {
   try {
     const { refs } = await api('studio-refs');
     const box = $('refList');
     if (!refs.length) { box.innerHTML = '<p class="empty">No references yet. Add pictures of what you want (DO) and what you hate (DON\'T).</p>'; return; }
     box.innerHTML = refs.slice().reverse().map((r) => `<div class="ref ${r.kind}" data-id="${r.id}">${r.images.length ? `<img alt="" data-ref="${r.id}">` : ''}<b>${r.kind === 'do' ? 'DO' : "DON'T"}: ${esc(r.title)}</b>${esc(r.note)}${r.url ? `<br><a href="${esc(r.url)}" target="_blank" rel="noopener">link</a>` : ''}${r.tags.length ? `<br><small>${esc(r.tags.join(', '))}</small>` : ''}<button class="btn danger" data-del="${r.id}" type="button" title="Delete this reference for good">Delete</button></div>`).join('');
-    for (const im of box.querySelectorAll('img[data-ref]')) {
-      const id = im.dataset.ref;
-      try { refImgCache[id] ||= await api('studio-ref', null, `&id=${id}&n=0`); im.src = `data:${refImgCache[id].mime};base64,${refImgCache[id].data}`; } catch {}
-    }
+    // Pictures load as they scroll into view, not all one after another.
+    refSeen.disconnect();
+    for (const im of box.querySelectorAll('img[data-ref]')) { im.decoding = 'async'; refSeen.observe(im); }
   } catch {}
 }
 $('refList').onclick = async (e) => {
@@ -868,10 +917,29 @@ let started = false;
 async function start() {
   $('loginBox').hidden = true; $('app').hidden = false;
   sizeCanvas();
-  showProject(P);
+  // The story last opened here is drawn at once from this browser's copy; the hub's answer replaces it if it changed.
+  let last = null;
+  try { last = JSON.parse(ls.get('studio-last') || 'null'); } catch {}
+  const v = S.id && last && last.id === S.id && validateProject(last.project);
+  if (v && v.ok) { S.cached = `${last.id}:${last.rev}`; S.demo = false; showProject(v.project); } else showProject(P);
   buildSliders();
   if (!started) { started = true; requestAnimationFrame(tick); document.fonts?.ready.then(() => { lastKey = ''; drawCast(); draw(true); }); }
-  try { await loadList(); await refresh(true); loadRules(); } catch (e) { $('statusText').textContent = e.message; }
+  try {
+    // With a story already picked, the list and the story load together (one round trip, not two).
+    if (S.id) {
+      const id = S.id;
+      const got = refresh(true).then(() => null, (e) => e);
+      await loadList();
+      const err = await got;
+      if (S.id !== id) {
+        // The remembered story is gone: show what the list picked instead.
+        S.rev = -1; S.cached = '';
+        if (!S.id) { S.demo = true; showProject(validateProject(SAMPLE_PROJECT).project); }
+        await refresh(true);
+      } else if (err) throw err;
+    } else { await loadList(); await refresh(true); }
+    loadRules();
+  } catch (e) { $('statusText').textContent = e.message; }
   setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
   setInterval(() => { if (!document.hidden) loadList().catch(() => {}); }, 30000);
 }

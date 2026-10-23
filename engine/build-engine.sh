@@ -55,7 +55,7 @@ cd cpp
 build() {
 local NAME="$1"; shift
 local OPT=( "$@" )
-local OBJ="$WORK/obj-$NAME"; mkdir -p "$OBJ"
+local OBJ="$WORK/obj-$NAME"; rm -rf "$OBJ"; mkdir -p "$OBJ"
 local CFLAGS=( "${OPT[@]}" -fexceptions -DNO_GIT_REVISION -DHALF_ENABLE_CPP11_CFENV=0
          -I external -isystem external/filesystem-1.5.8/include
          --use-port=emdawnwebgpu -sUSE_ZLIB=1 )
@@ -70,9 +70,14 @@ for f in "${SRCS[@]}"; do
   elif [ "$f" = "kataeval/backend_cpu.cpp" ]; then extra=( -DUSE_EIGEN_BACKEND -isystem "$EIGEN_INC" ); fi
   local o="$OBJ/$(echo "$f" | tr '/.' '__').o"
   echo "  cc $f"
-  em++ -c "$f" -std=$std "${CFLAGS[@]}" "${extra[@]}" -o "$o"
+  # Up to JOBS compiles at once (default 3).
+  while [ "$(jobs -rp | wc -l)" -ge "${JOBS:-3}" ]; do wait -n; done
+  em++ -c "$f" -std=$std "${CFLAGS[@]}" "${extra[@]}" -o "$o" &
   OBJS+=("$o")
 done
+local pid
+for pid in $(jobs -rp); do wait "$pid"; done
+for o in "${OBJS[@]}"; do [ -s "$o" ] || { echo "compile failed: $o" >&2; exit 1; }; done
 
 mkdir -p "$OUT"
 em++ "${OBJS[@]}" --use-port=emdawnwebgpu -sUSE_ZLIB=1 -fexceptions \

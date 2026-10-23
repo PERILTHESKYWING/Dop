@@ -713,3 +713,29 @@ describe('cloud hub: cheap page polls', () => {
     expect(sent).toEqual([['MGET', 'hub:seq', 'hub:rev']]);
   });
 });
+
+describe('cloud hub: news markers under parallel calls', () => {
+  it('keeps a watched question when another call moves the marker, and never delivers news twice', async () => {
+    const { createHub } = await lib('hub.js');
+    const { memoryStore } = await lib('store.js');
+    const store = memoryStore();
+    const mk = () => createHub({ store, fetchImpl: async () => new Response('{}', { status: 500 }), now: () => clock });
+    const h = mk();
+    const t1 = await h.createThread({ title: 'one', brief: 'b', code: false });
+    const t2 = await h.createThread({ title: 'two', brief: 'b', code: false });
+    const A = { name: 'A' };
+    await h.news(A, t1.id); // first contact sets the marker
+    await h.post({ thread: t1.id, from: 'XIAO', kind: 'prompt', text: 'please do Y' });
+    // Two calls from A at once (e.g. hub_wait and hub_sync): only one gets it.
+    const [x, y] = await Promise.all([mk().news(A, t1.id), mk().news(A, t1.id)]);
+    expect([x.text, y.text].filter((s: string) => s.includes('please do Y')).length).toBe(1);
+    // A asks thread 2 while another of its calls reads news: the question stays watched.
+    const q = await h.post({ thread: t2.id, from: 'A (thread #1)', kind: 'question', text: 'what?' });
+    await mk().watchQuestion(A, t1.id, q.id);
+    await h.post({ thread: t1.id, from: 'B', kind: 'note', text: 'hello' });
+    await mk().news(A, t1.id);
+    await h.post({ thread: t2.id, from: 'XIAO', kind: 'answer', text: 'the answer', replyTo: q.id });
+    expect((await mk().news(A, t1.id)).text).toContain('the answer');
+    expect((await mk().news(A, t1.id)).text).toBe('');
+  });
+});

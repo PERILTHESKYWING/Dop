@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Board, type Mark } from '../../../src/components/Board';
-import { BlunderPanel, TrendPanel } from '../../../src/components/Report';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
 import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
@@ -13,17 +12,22 @@ import { useGameRating } from '../lib/rating';
 import { reviewMoves } from '../lib/review';
 import { setSetting, useSetting } from '../lib/settings';
 import { splitRich } from '../lib/terms';
+import { useEvent } from '../lib/useEvent';
 import { Icon } from './Icon';
-import { Performance } from './Performance';
 import { Popover } from './Popover';
 import { BOOK_SKIN, KIAI_SKIN } from './skin';
 import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
+import { Boundary, LoadFailed } from './Boundary';
 import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
+// The graph tabs load when first opened; the board and its first view do not need them.
+const TrendPanel = lazy(() => import('../../../src/components/Report').then((m) => ({ default: m.TrendPanel })));
+const BlunderPanel = lazy(() => import('../../../src/components/Report').then((m) => ({ default: m.BlunderPanel })));
+const Performance = lazy(() => import('./Performance').then((m) => ({ default: m.Performance })));
 const HAS_GL = typeof document !== 'undefined' && webglOk();
 
 /** A variation, point or built position drawn over the position it starts from. */
@@ -179,7 +183,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tab, n, preview, board.moves, board.setup, board.size, board.komi, board.rules, board.first],
   );
-  const lineReads = useLineReads(line);
+  const lineReads = useLineReads(line, board.cursor);
 
   const view = useMemo(() => {
     if (preview) {
@@ -215,7 +219,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
   const hovered = !preview && hoverPv?.length ? lineOf(hoverPv, toPlay) : null;
   const variation = preview ? view.variation : hovered;
-  const candidates = !preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null;
+  const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
   const ownership = !preview && territoryOn && read ? read.ownership : null;
 
   const play = (loc: Loc, fromCandidate = false) => {
@@ -314,7 +318,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     return () => document.removeEventListener('keydown', key);
   }, []);
 
-  const onCandidateHover = (l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null));
+  // Stable handlers keep the memoised Board from redrawing on unrelated panel renders (engine status, tabs).
+  const onCandidateHover = useEvent((l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null)));
+  const onBoardPlay = useEvent((l: Loc) => play(l));
+  const onCandidateClick = useEvent((l: Loc) => play(l, true));
   const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
   const flatBoard = (
     <Board
@@ -323,12 +330,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       stones={view.stones}
       lastMove={view.last}
       toPlay={preview ? undefined : toPlay}
-      onPlay={(l) => play(l)}
+      onPlay={onBoardPlay}
       marks={view.marks}
       candidates={candidates}
       candStyle="plain"
       onCandidateHover={onCandidateHover}
-      onCandidateClick={(l) => play(l, true)}
+      onCandidateClick={onCandidateClick}
       variation={variation}
       ownership={ownership}
       coords={coords}
@@ -538,7 +545,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         >
           <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
-            <span className="ev-fill" style={{ width: `${(bWin * 100).toFixed(1)}%` }} />
+            <span className="ev-fill" style={{ transform: `scaleX(${bWin.toFixed(3)})` }} />
             <span className="ev-mid" />
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
@@ -551,6 +558,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         <div className="bp-stage" ref={boxRef}>
           <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
             {want3d ? (
+              <Boundary fallback={flatBoard}>
               <Suspense fallback={flatBoard}>
                 <Kaya3D
                   size={view.size}
@@ -558,19 +566,21 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   stones={view.stones}
                   lastMove={view.last}
                   toPlay={preview ? undefined : toPlay}
-                  onPlay={(l) => play(l)}
+                  onPlay={onBoardPlay}
                   marks={view.marks}
                   candidates={candidates}
                   onCandidateHover={onCandidateHover}
-                  onCandidateClick={(l) => play(l, true)}
+                  onCandidateClick={onCandidateClick}
                   variation={variation}
                   ownership={ownership}
                   coords={coords}
                   tilt={angled ? 24 : 0}
                   wood={(style === 'shinkaya' || style === 'dark' ? style : 'kaya') as BoardWood}
                   ariaLabel={ariaLabel}
+                  placeholder={flatBoard}
                 />
               </Suspense>
+              </Boundary>
             ) : (
               flatBoard
             )}
@@ -604,7 +614,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 <Icon name="x" size={16} />
               </button>
             </div>
-            <div className="bp-graph-body">{panel}</div>
+            <div className="bp-graph-body">
+              <Boundary fallback={<LoadFailed />}>
+                <Suspense fallback={null}>{panel}</Suspense>
+              </Boundary>
+            </div>
           </div>
         )}
       </div>

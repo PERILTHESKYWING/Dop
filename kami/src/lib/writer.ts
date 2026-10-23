@@ -55,6 +55,8 @@ export interface WriterDeps {
   /** Checks a diagram the writer asked for (illustrate.ts, KataGo's final read last). Absent: such diagrams are dropped. */
   verifyDiagram?: (spec: DiagramSpec, id: string) => Promise<Verified>;
   signal?: AbortSignal;
+  /** Regenerate: ask the model again instead of reusing a cached wording. */
+  fresh?: boolean;
   /** The student's level (Settings › Profile), passed to the writer's prompt. */
   level?: string;
 }
@@ -67,6 +69,10 @@ export const NOTES = {
   noLlm: 'ultraGO’s writer is off on this site, showing Kiai’s engine text.',
   llmError: 'ultraGO’s writer is resting for a moment, showing Kiai’s engine text.',
   localError: 'Local could not run here, showing engine text.',
+  /** Shown under the engine's draft while the writer works, and after a Stop in that time. */
+  polishing: 'ultraGO is polishing the wording…',
+  polishingLocal: 'Kiai Local is polishing the wording…',
+  stopped: 'Stopped before the new wording, showing Kiai’s engine text.',
 } as const;
 
 /**
@@ -144,8 +150,12 @@ export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDep
     }
   }
   try {
-    const r = await deps.callLlm({ kind: 'explain', prompt }, deps.signal);
-    return await finish(r.text, 'gemini', r.model);
+    const r = await deps.callLlm({ kind: 'explain', prompt, ...(deps.fresh ? { fresh: true } : {}) }, deps.signal);
+    const w = await finish(r.text, 'gemini', r.model);
+    // Only wording that passed the fact check is cached; a failed one is asked fresh next time.
+    if (w.by === 'gemini') r.accept?.();
+    else r.reject?.();
+    return w;
   } catch (e) {
     if (isAbort(e)) throw e;
     return { by: 'engine', note: e instanceof LlmUnavailable ? NOTES.noLlm : NOTES.llmError };
@@ -167,10 +177,14 @@ export interface Expansion {
 }
 
 /** Myoshu on a concept question: one call may go deeper than the entry; any board coordinate rejects it. */
-export async function expandConcept(entry: ConceptEntry, question: string, callLlm: CallLlm, signal?: AbortSignal): Promise<Expansion> {
+export async function expandConcept(entry: ConceptEntry, question: string, callLlm: CallLlm, signal?: AbortSignal, fresh?: boolean): Promise<Expansion> {
   try {
-    const r = await callLlm({ kind: 'concept', prompt: conceptPrompt(entry, question) }, signal);
-    if (hasCoordinates(r.text)) return { note: 'The extra wording named board points, so it was left out.' };
+    const r = await callLlm({ kind: 'concept', prompt: conceptPrompt(entry, question), ...(fresh ? { fresh: true } : {}) }, signal);
+    if (hasCoordinates(r.text)) {
+      r.reject?.();
+      return { note: 'The extra wording named board points, so it was left out.' };
+    }
+    r.accept?.();
     return { text: r.text, model: r.model };
   } catch (e) {
     if (isAbort(e)) throw e;

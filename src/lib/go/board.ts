@@ -113,22 +113,42 @@ export class Board {
    * instead of a flood fill per point. Same rules as isLegal.
    */
   legalMask(color: Color): Uint8Array {
+    // Runs for every position the search evaluates, so neighbours are walked inline
+    // (no array per point) and chains are found with one shared stack.
     const n = this.stones.length;
+    const size = this.size;
+    const st = this.stones;
     const chain = new Int32Array(n).fill(-1);
     const libs: number[] = [];
     const stamp = new Int32Array(n).fill(-1);
-    const stack: number[] = [];
+    const stack = new Int32Array(n);
     for (let i = 0; i < n; i++) {
-      const c = this.stones[i];
+      const c = st[i];
       if (c === 0 || chain[i] >= 0) continue;
       const id = libs.length;
       let count = 0;
       chain[i] = id;
-      stack.push(i);
-      while (stack.length) {
-        const p = stack.pop()!;
-        for (const q of this.neighbors(p)) {
-          const v = this.stones[q];
+      let top = 0;
+      stack[top++] = i;
+      while (top) {
+        const p = stack[--top];
+        const x = p % size;
+        for (let d = 0; d < 4; d++) {
+          let q: number;
+          if (d === 0) {
+            if (x === 0) continue;
+            q = p - 1;
+          } else if (d === 1) {
+            if (x === size - 1) continue;
+            q = p + 1;
+          } else if (d === 2) {
+            if (p < size) continue;
+            q = p - size;
+          } else {
+            if (p + size >= n) continue;
+            q = p + size;
+          }
+          const v = st[q];
           if (v === 0) {
             if (stamp[q] !== id) {
               stamp[q] = id;
@@ -136,22 +156,21 @@ export class Board {
             }
           } else if (v === c && chain[q] < 0) {
             chain[q] = id;
-            stack.push(q);
+            stack[top++] = q;
           }
         }
       }
       libs.push(count);
     }
     const out = new Uint8Array(n);
+    const ok = (q: number) => {
+      const v = st[q];
+      return v === 0 || (v === color ? libs[chain[q]] > 1 : libs[chain[q]] === 1);
+    };
     for (let p = 0; p < n; p++) {
-      if (this.stones[p] !== 0 || p === this.koPoint) continue;
-      for (const q of this.neighbors(p)) {
-        const v = this.stones[q];
-        if (v === 0 || (v === color ? libs[chain[q]] > 1 : libs[chain[q]] === 1)) {
-          out[p] = 1;
-          break;
-        }
-      }
+      if (st[p] !== 0 || p === this.koPoint) continue;
+      const x = p % size;
+      if ((x > 0 && ok(p - 1)) || (x < size - 1 && ok(p + 1)) || (p >= size && ok(p - size)) || (p + size < n && ok(p + size))) out[p] = 1;
     }
     return out;
   }

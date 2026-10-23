@@ -76,7 +76,7 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
-.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 12px; cursor: pointer; min-height: 38px; transition: transform .12s ease-out; }
 .btn:hover { background: var(--sel); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: transparent; font-weight: 600; }
 .btn.go:hover { filter: brightness(1.08); }
@@ -115,6 +115,10 @@ dialog input[type=text], dialog select { width: 100%; }
 .toast:empty { display: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 @media (max-width: 600px) { .top { padding-left: 10px; padding-right: 10px; } .top h1 { font-size: 24px; } .top .sub { display: none; } .tabs { padding: 4px 10px 0; } .tabs button { flex: 1; padding: 10px 6px; } .pane { padding: 12px 12px 32px; } }
+/* press: instant on touch-down, eases back on release */
+button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.btn:active:not(:disabled), .tabs button:active { transform: translateY(1px); transition-duration: 0s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; } }
 </style>
 </head>
 <body>
@@ -142,6 +146,20 @@ dialog input[type=text], dialog select { width: 100%; }
   <div class="err" id="loginErr"></div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<script>
+// Show the page (or the login) at once, and start fetching the tab that will open, before the main module runs.
+// The first API reads start here too, so they run while the modules download (api() picks them up once).
+window.hubBoot = {};
+try {
+  const pw = localStorage.getItem('hubpw');
+  document.getElementById(pw ? 'app' : 'loginBox').hidden = false;
+  const tab = location.hash.slice(1) || localStorage.getItem('library-tab') || 'files';
+  for (const f of tab === 'repos' ? ['repos'] : tab === 'skills' ? ['skills'] : ['files', 'video-scan']) document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'modulepreload', href: `/library/${f}.js` }));
+  const get = (q) => (hubBoot[q] = fetch(`/api/hub?op=${q}`, { headers: { 'x-hub-password': pw, 'content-type': 'application/json' } })
+    .then(async (res) => ({ status: res.status, ok: res.ok, j: await res.json().catch(() => ({})) }), () => null));
+  if (pw) { get('state&limit=1'); if (tab !== 'repos' && tab !== 'skills') get('lib-list'); }
+} catch {}
+</script>
 
 <script src="ui/icons.js"></script>
 <script type="module">
@@ -158,13 +176,17 @@ const toast = (msg) => { $('toast').textContent = msg; clearTimeout(toastTimer);
 
 let pw = ls.get('hubpw') || '';
 async function api(op, body, query = '') {
-  let res;
-  try {
+  let res, pre = null;
+  // A read the page already started before this module ran (see the script after the toast); used once.
+  const early = !body && window.hubBoot?.[op + query];
+  if (early) { delete window.hubBoot[op + query]; pre = await early; }
+  if (pre) res = pre;
+  else try {
     res = await fetch(`/api/hub?op=${op}${query}`, { method: body ? 'POST' : 'GET', headers: { 'x-hub-password': pw, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   } catch {
     throw new Error('no connection to the hub; check the network and try again');
   }
-  const j = await res.json().catch(() => ({}));
+  const j = pre ? pre.j : await res.json().catch(() => ({}));
   if (res.status === 401) { showLogin('Wrong password.'); throw new Error('Wrong password.'); }
   if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
   return j;
@@ -181,6 +203,7 @@ const count = (tab, n) => { const b = document.querySelector(`[data-n="${tab}"]`
 const ctx = { api, toast, threads, esc, count };
 
 const TABS = ['files', 'repos', 'skills'];
+let threadsReady = Promise.resolve();
 const mounted = {};
 async function show(tab) {
   if (!TABS.includes(tab)) tab = 'files';
@@ -193,6 +216,7 @@ async function show(tab) {
   mounted[tab] = {};
   try {
     const mod = await import(`./library/${tab}.js`);
+    if (tab === 'repos') await threadsReady; // repos draws the open threads as it mounts; files reads them later, on upload or edit
     mounted[tab] = (await mod.mount(el, ctx)) || {};
   } catch (e) {
     console.error(e);
@@ -214,7 +238,8 @@ async function start() {
   $('loginBox').hidden = true; $('app').hidden = false;
   if (started) return;
   started = true;
-  if (!threads.length) await loadThreads().catch(() => {});
+  // The tab's module downloads while the threads load (in parallel, not one after the other).
+  if (!threads.length) threadsReady = loadThreads().catch(() => {});
   show(location.hash.slice(1) || ls.get('library-tab') || 'files');
   setInterval(() => { if (!document.hidden) loadThreads().catch(() => {}); }, 60000);
 }

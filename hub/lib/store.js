@@ -62,9 +62,25 @@ export function storeFromEnv(env = process.env) {
   const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
-  if (envStore?.url !== url || envStore?.token !== token) envStore = { url, token, store: upstashStore(url, token) };
+  if (envStore?.url !== url || envStore?.token !== token) {
+    const store = upstashStore(url, token);
+    store.id = url; // names this store for per-instance caches (lib/hub.js)
+    envStore = { url, token, store };
+  }
   return envStore.store;
 }
+
+// Lua scripts (EVAL): several commands in one round trip that Upstash bills
+// as one command. Each has a JS twin so the memory store runs the same logic.
+// The twin gets call(op, ...args), which runs one command synchronously.
+const TWINS = new Map();
+export function defineScript(lua, js) {
+  TWINS.set(lua, js);
+  return lua;
+}
+// ['EVAL', script, keys.length, ...keys, ...args], usable in multi() too.
+export const evalCmd = (script, keys, args = []) => ['EVAL', script, keys.length, ...keys, ...args];
+let memIds = 0;
 
 export function memoryStore() {
   const kv = new Map();
@@ -113,20 +129,36 @@ export function memoryStore() {
       for (let i = 0; i < fv.length; i += 2) hash(k).set(fv[i], String(fv[i + 1]));
       return fv.length / 2;
     },
+    HSETNX: (k, f, v) => (hash(k).has(f) ? 0 : (hash(k).set(f, String(v)), 1)),
+    SADD: (k, ...vs) => {
+      const set = kv.has(k) ? kv.get(k) : (kv.set(k, new Set()), kv.get(k));
+      const before = set.size;
+      vs.forEach((v) => set.add(v));
+      return set.size - before;
+    },
+    SREM: (k, ...vs) => (kv.has(k) ? vs.filter((v) => kv.get(k).delete(v)).length : 0),
+    SMEMBERS: (k) => (kv.has(k) ? [...kv.get(k)] : []),
     HDEL: (k, ...fs) => fs.filter((f) => hash(k).delete(f)).length,
     HGETALL: (k) => [...hash(k).entries()].flat(),
+    EVAL: (lua, n, ...rest) => {
+      const js = TWINS.get(lua);
+      if (!js) throw new Error('memory store: unknown script');
+      return js(run, rest.slice(0, Number(n)), rest.slice(Number(n)));
+    },
   };
-  const run = ([op, ...args]) => {
+  function run(op, ...args) {
+    if (Array.isArray(op)) [op, ...args] = op;
     const fn = ops[String(op).toUpperCase()];
     if (!fn) throw new Error(`memory store: ${op} not supported`);
     return fn(...args.map(String));
-  };
+  }
   return {
+    id: `mem${++memIds}`,
     async cmd(...args) {
-      return run(args);
+      return run(...args);
     },
     async multi(cmds) {
-      return cmds.map(run);
+      return cmds.map((c) => run(...c));
     },
   };
 }

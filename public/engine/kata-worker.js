@@ -107,6 +107,60 @@ function networkKind(bytes) {
   return null;
 }
 
+const isGzip = (c) => c.length >= 2 && c[0] === 0x1f && c[1] === 0x8b;
+
+/**
+ * Where downloaded chunks go. A .bin.gz is unzipped by the browser's native gzip while it
+ * downloads, so KataGo gets (and the cache keeps) the plain .bin and never unzips it in
+ * WebAssembly. Anything else is gathered into one buffer, sized up front when the length
+ * is known (no second full-size copy).
+ */
+function gunzipSink() {
+  const ds = new DecompressionStream('gzip');
+  const w = ds.writable.getWriter();
+  const out = new Response(ds.readable).arrayBuffer();
+  // The first unzip error, so a broken stream stops the download instead of reading it to the end.
+  const sink = { failed: null };
+  const fail = (e) => void (sink.failed = sink.failed || e || new Error('unzip failed'));
+  out.catch(fail);
+  return Object.assign(sink, {
+    push: (c) => void w.write(c).catch(fail),
+    end: async () => {
+      await w.close();
+      return new Uint8Array(await out);
+    },
+    drop: () => void w.abort().catch(() => {}),
+  });
+}
+
+function collectSink(size) {
+  let buf = size ? new Uint8Array(size) : null;
+  let n = 0;
+  const chunks = [];
+  return {
+    push: (c) => {
+      if (buf && n + c.length > buf.length) {
+        chunks.push(buf.subarray(0, n));
+        buf = null;
+      }
+      if (buf) buf.set(c, n);
+      else chunks.push(c);
+      n += c.length;
+    },
+    end: async () => {
+      if (buf) return n === buf.length ? buf : buf.subarray(0, n);
+      const all = new Uint8Array(n);
+      let off = 0;
+      for (const c of chunks) {
+        all.set(c, off);
+        off += c.length;
+      }
+      return all;
+    },
+    drop: () => {},
+  };
+}
+
 /** Download one URL with progress. Aborts when the server goes quiet. */
 async function download(url, id) {
   const ctrl = new AbortController();
@@ -126,35 +180,50 @@ async function download(url, id) {
     const encoded = !!(res.headers.get('content-encoding') || '').replace(/identity/i, '');
     rearm();
     let bytes;
+    let loaded = 0;
     if (res.body && res.body.getReader) {
       const reader = res.body.getReader();
-      const chunks = [];
-      let loaded = 0;
+      let sink = null;
       let lastPost = 0;
       post({ type: 'progress', id, stage: 'download', loaded: 0, total, url });
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        rearm();
-        chunks.push(value);
-        loaded += value.length;
-        const now = Date.now();
-        if (now - lastPost > 150) {
-          lastPost = now;
-          post({ type: 'progress', id, stage: 'download', loaded, total, url });
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rearm();
+          if (!sink) sink = isGzip(value) && typeof DecompressionStream === 'function' ? gunzipSink() : collectSink(total && !encoded ? total : 0);
+          sink.push(value);
+          loaded += value.length;
+          if (sink.failed) {
+            reader.cancel().catch(() => {});
+            throw new Error(`the download is damaged (unzip failed after ${Math.round(loaded / 1e6)} MB)`);
+          }
+          const now = Date.now();
+          if (now - lastPost > 150) {
+            lastPost = now;
+            post({ type: 'progress', id, stage: 'download', loaded, total, url });
+          }
         }
+      } catch (e) {
+        if (sink) sink.drop();
+        throw e;
       }
-      bytes = new Uint8Array(loaded);
-      let off = 0;
-      for (const c of chunks) {
-        bytes.set(c, off);
-        off += c.length;
+      if (!sink) throw new Error('the download was empty');
+      // A connection that closes early looks like a normal end of stream.
+      if (total && !encoded && loaded < total * 0.97) {
+        sink.drop();
+        throw new Error(`download cut off at ${Math.round(loaded / 1e6)} of ${Math.round(total / 1e6)} MB`);
+      }
+      try {
+        bytes = await sink.end();
+      } catch (_) {
+        throw new Error(`the download is damaged (unzip failed after ${Math.round(loaded / 1e6)} MB)`);
       }
     } else {
       bytes = new Uint8Array(await res.arrayBuffer());
+      loaded = bytes.length;
+      if (total && !encoded && loaded < total * 0.97) throw new Error(`download cut off at ${Math.round(loaded / 1e6)} of ${Math.round(total / 1e6)} MB`);
     }
-    // A connection that closes early looks like a normal end of stream.
-    if (total && !encoded && bytes.length < total * 0.97) throw new Error(`download cut off at ${Math.round(bytes.length / 1e6)} of ${Math.round(total / 1e6)} MB`);
     if (!networkKind(bytes)) throw new Error('the file is not a KataGo network');
     return bytes;
   } catch (e) {
@@ -240,7 +309,8 @@ let modelSource = null; // { id, cacheKey, urls } for reloading on board-size ch
 
 async function loadNet(bytes, boardSize) {
   const path = networkKind(bytes) === 'bin' ? '/model.bin' : '/model.bin.gz';
-  M.FS.writeFile(path, bytes);
+  // canOwn: the file system keeps this buffer instead of copying it (it is unlinked right after loading).
+  M.FS.writeFile(path, bytes, { canOwn: true });
   const ok = await M.ccall('kgeLoad', 'number', ['string', 'number'], [path, boardSize], { async: true });
   try {
     M.FS.unlink(path);
@@ -258,12 +328,15 @@ async function loadNet(bytes, boardSize) {
 }
 
 async function init(msg) {
+  const modelId = msg.modelId;
+  // The network is read from the cache (or downloaded) while the WebAssembly module compiles.
+  const fetching = fetchModel(modelId, msg.cacheKey, msg.urls, false);
+  fetching.catch(() => {});
   await ensureModule(msg.compat);
   if (msg.forceCpu) M.ccall('kgeSetForceCpu', null, ['number'], [1]);
   if (msg.fp16) M.ccall('kgeSetFp16', null, ['number'], [1]);
   const boardSize = msg.boardSize || 19;
-  const modelId = msg.modelId;
-  let got = await fetchModel(modelId, msg.cacheKey, msg.urls, false);
+  let got = await fetching;
   post({ type: 'progress', id: modelId, stage: 'load', loaded: 0, total: 0 });
   try {
     await loadNet(got.bytes, boardSize);
@@ -301,20 +374,32 @@ async function ensureSize(boardSize) {
   await loadNet(got.bytes, boardSize);
 }
 
-function writeMoves(moves) {
-  const n = Math.min(moves.length, MAX_MOVES);
+/**
+ * The move list into the engine's buffers: packed Int32Arrays msg.locs / msg.cols (sent as
+ * transferables, no per-move objects to clone), or msg.moves as { loc, color } objects.
+ */
+function writeMoves(msg) {
   const mi = bufs.ml >> 2;
   const ci = bufs.mc >> 2;
+  const H = M.HEAP32;
+  if (msg.locs) {
+    const n = Math.min(msg.locs.length, MAX_MOVES);
+    H.set(n < msg.locs.length ? msg.locs.subarray(0, n) : msg.locs, mi);
+    H.set(n < msg.cols.length ? msg.cols.subarray(0, n) : msg.cols, ci);
+    return n;
+  }
+  const moves = msg.moves;
+  const n = Math.min(moves.length, MAX_MOVES);
   for (let i = 0; i < n; i++) {
-    M.HEAP32[mi + i] = moves[i].loc;
-    M.HEAP32[ci + i] = moves[i].color;
+    H[mi + i] = moves[i].loc;
+    H[ci + i] = moves[i].color;
   }
   return n;
 }
 
 async function evaluate(msg) {
   await ensureSize(msg.size);
-  const n = writeMoves(msg.moves);
+  const n = writeMoves(msg);
   const hw = size * size;
   const t0 = performance.now();
   const ok = await M.ccall(
@@ -345,8 +430,7 @@ async function evaluateBatch(msg) {
   if (!list.length || list.length > BATCH_CAP) throw new Error('batch size out of range');
   const si = bufs.bStones >> 2;
   for (let j = 0; j < list.length; j++) {
-    const st = list[j].stones;
-    for (let p = 0; p < hw; p++) M.HEAP32[si + j * hw + p] = st[p];
+    M.HEAP32.set(list[j].stones.subarray(0, hw), si + j * hw);
     M.HEAP32[(bufs.bPlas >> 2) + j] = list[j].toPlay;
   }
   const ok = await M.ccall(
@@ -416,7 +500,7 @@ async function evaluateSeqBatch(msg) {
 
 async function search(msg) {
   await ensureSize(msg.size);
-  const n = writeMoves(msg.moves);
+  const n = writeMoves(msg);
   const ok = await M.ccall(
     'kgeSearch',
     'number',

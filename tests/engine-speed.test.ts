@@ -4,7 +4,7 @@ import { symmetric } from '../src/lib/go/coords';
 import type { Color, Move } from '../src/lib/go/types';
 import { NNCache, positionHash } from '../src/lib/engine/nncache';
 import { engineEvaluator, Search, type LeafEvaluator, type LeafRequest } from '../src/lib/engine/mcts';
-import { HeatTracker } from '../src/lib/engine/governor';
+import { governEngine, HeatTracker, setCool, usePower } from '../src/lib/engine/governor';
 import { maxLanes, pickBatch } from '../src/lib/engine/tuning';
 import type { NetEval } from '../src/lib/engine/parse';
 import { FakeEngine } from './helpers';
@@ -184,5 +184,18 @@ describe('tuning and heat', () => {
     let cool = false;
     for (let i = 0; i < 400 && !cool; i++) cool = h.add(60, (t += 500)) === 'cool';
     expect(cool).toBe(true);
+  });
+
+  it('cool mode: a phone with no battery reading keeps two workers for Kiai, one for background analysis', () => {
+    const fake = { laneCount: 3, activeLanes: 3, dead: null, setActiveLanes(n: number) { this.activeLanes = n; } };
+    setCool(true);
+    governEngine(fake);
+    expect(usePower.getState().mode).toBe('battery');
+    expect(fake.activeLanes).toBe(1);
+    governEngine(fake, { burst: true });
+    expect(usePower.getState().mode).toBe('full');
+    expect(fake.activeLanes).toBe(2);
+    setCool(false);
+    expect(fake.activeLanes).toBe(3);
   });
 });

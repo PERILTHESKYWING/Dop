@@ -1,11 +1,26 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@fontsource/alegreya-sans/400.css';
-import '@fontsource/alegreya-sans/500.css';
-import '@fontsource/alegreya-sans/700.css';
-import '@fontsource/alegreya-sans/800.css';
+import './fonts.css';
+// The app stays in the entry: a return visit (the common one) paints it with no extra round trip.
+// A first visit's landing is under the 気合 sheet while it loads.
 import { App } from './App';
 import './styles.css';
+import font400 from '@fontsource/alegreya-sans/files/alegreya-sans-latin-400-normal.woff2?url';
+import font500 from '@fontsource/alegreya-sans/files/alegreya-sans-latin-500-normal.woff2?url';
+import font700 from '@fontsource/alegreya-sans/files/alegreya-sans-latin-700-normal.woff2?url';
+import font800 from '@fontsource/alegreya-sans/files/alegreya-sans-latin-800-normal.woff2?url';
+
+// The page's fonts start loading now, not when the first words are laid out, so they are in
+// before the words paint and nothing moves when they arrive (the landing's layout shift).
+for (const href of [font800, font700, font500, font400]) {
+  const l = document.createElement('link');
+  l.rel = 'preload';
+  l.as = 'font';
+  l.type = 'font/woff2';
+  l.crossOrigin = '';
+  l.href = href;
+  document.head.appendChild(l);
+}
 
 const Landing = lazy(() => import('./ui/Landing'));
 const Annotate = lazy(() => import('./ui/Annotate'));
@@ -18,9 +33,11 @@ function entered(): boolean {
   }
 }
 
+const firstLanding = location.hash === '#welcome' || (!entered() && location.hash !== '#annotate');
+
 /** First visit (or #welcome): the landing page. After "Open Kiai", straight to the app. */
 function Root() {
-  const [landing, setLanding] = useState(() => location.hash === '#welcome' || (!entered() && location.hash !== '#annotate'));
+  const [landing, setLanding] = useState(firstLanding);
   const [notes, setNotes] = useState(() => location.hash === '#annotate');
   useEffect(() => {
     const on = () => {
