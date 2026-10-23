@@ -594,7 +594,7 @@ export function mount(el, ctx) {
     const total = S.picked.reduce((s, p) => s + p.file.size, 0);
     q('count').textContent = `${S.picked.length} file${S.picked.length > 1 ? 's' : ''} to upload (${size(total)})`;
     q('picked').innerHTML = S.picked
-      .map((p, i) => `<li><span class="nm">${esc(p.name)}<small>${KIND_LABEL[p.kind]} · ${size(p.file.size)}${p.notes.length ? ` · ${esc(p.notes.join(', '))}` : ''}</small></span><button class="btn quiet" type="button" data-rm="${i}" aria-label="Remove ${esc(p.name)}">✕</button></li>`)
+      .map((p, i) => `<li><span class="nm">${esc(p.name)}<small>${KIND_LABEL[p.kind]} · ${size(p.file.size)}${p.notes.length ? ` · ${esc(p.notes.join(', '))}` : ''}</small></span><button class="btn quiet" type="button" data-rm="${i}" aria-label="Remove ${esc(p.name)}" title="Remove">${icon('x', 16)}</button></li>`)
       .join('');
     for (const b of q('picked').querySelectorAll('[data-rm]')) b.onclick = () => { S.picked.splice(Number(b.dataset.rm), 1); renderStage(false); };
     if (fresh) {
@@ -672,7 +672,7 @@ export function mount(el, ctx) {
     (it.tags || []).map((t) => `<span class="lf-tag ${t === 'do' || t === 'dont' ? t : ''}">${t === 'do' ? 'Do' : t === 'dont' ? "Don't" : esc(t)}</span>`).join('') +
     (ready(it) ? '' : `<span class="lf-tag warn">${esc(it.status === 'uploading' ? 'unfinished' : it.status)}</span>`);
   const card = (it) => {
-    const badge = it.kind === 'video' ? `▶ ${it.frames ? `${it.frames} frames` : 'video'}` : '';
+    const badge = it.kind === 'video' ? `${icon('play', 12)} ${it.frames ? `${it.frames} frames` : 'video'}` : '';
     return `<button class="lf-item" type="button" data-id="${esc(it.id)}"><span class="lf-thumb" data-thumb="${esc(it.id)}"><span data-ext>${esc((extOf(it.name) || it.kind || 'file').toUpperCase().slice(0, 4))}</span>${badge ? `<span class="lf-kind">${esc(badge)}</span>` : ''}</span><span class="lf-cap"><b title="${esc(it.name)}">${esc(it.name)}</b><small>${size(it.size || 0)}${it.at ? ` · ${day(it.at)}` : ''}</small><span class="lf-tags">${tagChips(it)}</span></span></button>`;
   };
   // Draws the cards only when the list or the filters changed, so a reload
@@ -780,7 +780,7 @@ export function mount(el, ctx) {
     if (!it) return;
     const times = it.frameTimes || [];
     dlg.innerHTML = `
-      <div class="head"><h2>${esc(it.name)}</h2><button class="btn quiet" type="button" data-x aria-label="Close">✕</button></div>
+      <div class="head"><h2>${esc(it.name)}</h2><button class="btn quiet" type="button" data-x aria-label="Close" title="Close">${icon('x', 18)}</button></div>
       <div class="lf-meta">${KIND_LABEL[it.kind] || 'File'} · ${size(it.size || 0)}${it.type ? ` · ${esc(it.type)}` : ''}${it.at ? ` · added ${esc(new Date(it.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}` : ''}${it.by ? ` by ${esc(it.by)}` : ''}${it.hasBody ? '' : it.kind === 'video' ? ' · original not kept (too big), agents see the frames' : ''}</div>
       <div class="lf-tags">${tagChips(it)}</div>
       <div class="lf-media" data-media><p class="lf-meta">Loading…</p></div>
@@ -845,7 +845,7 @@ export function mount(el, ctx) {
       return;
     }
     if (it.kind === 'video') {
-      if (it.hasBody) html.push('<div class="row" style="justify-content:center"><button class="btn go" type="button" data-play>▶ Play video</button></div><div data-player></div>');
+      if (it.hasBody) html.push(`<div class="row" style="justify-content:center"><button class="btn go" type="button" data-play>${icon('play', 16)} Play video</button></div><div data-player></div>`);
       if (it.hasSheet) html.push(`<img alt="Contact sheet of ${esc(it.name)}" data-sheet>`);
       if (it.frames) html.push(`<div class="lf-strip" data-strip>${Array.from({ length: it.frames }, (_, i) => `<figure><img alt="" data-fi="${i}"><figcaption>${times[i] != null ? secs(times[i]) : `#${i + 1}`}</figcaption></figure>`).join('')}</div>`);
       if (!html.length) html.push('<p class="lf-meta">Nothing to show yet.</p>');
@@ -876,7 +876,7 @@ export function mount(el, ctx) {
         } catch (err) {
           toast(err.message);
           b.disabled = false;
-          b.textContent = '▶ Play video';
+          b.innerHTML = icon('play', 16) + ' Play video';
         }
       });
       return;

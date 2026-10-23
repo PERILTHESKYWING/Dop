@@ -1,12 +1,15 @@
-# Pings the Dop hub every 10 minutes so threads continue on their own once an
-# account's usage limit resets, even with every hub page closed.
+# Pings the Dop hub so threads continue on their own once an account's usage
+# limit resets, even with every hub page closed. A backstop: GitHub runs
+# schedules late or drops them (every 2.5-5 h on 2026-10-21/22), so the hub's
+# timed wake (QStash, see hub/lib/wake-timer.js) is what makes it prompt.
+# Off the hour, which GitHub says is its busiest time.
 # Needs one repository variable: HUB_URL = the hub's main address
 # (Settings › Secrets and variables › Actions › Variables). Without it, it skips.
 # Free: the repo is public, and each run is one curl of a few seconds.
 name: Hub wake
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '7-59/10 * * * *'
   workflow_dispatch:
 permissions: {}
 jobs:

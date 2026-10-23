@@ -7,12 +7,13 @@ import { libraryOf } from './library.js';
 import { skillsOf } from './tools-skills.js';
 import { reposOf } from './tools-repos.js';
 import { memoryStore, storeFromEnv } from './store.js';
+import { qstashTimer } from './wake-timer.js';
 
 let devStore = null;
 export function hubFromEnv(env = process.env) {
   const store = storeFromEnv(env) || (env.HUB_DEV_MEMORY === '1' ? (devStore ||= memoryStore()) : null);
   if (!store) return null;
-  return createHub({ store, project: env.HUB_PROJECT || 'Dop', owner: env.HUB_OWNER || 'XIAO' });
+  return createHub({ store, project: env.HUB_PROJECT || 'Dop', owner: env.HUB_OWNER || 'XIAO', planWake: qstashTimer(env) });
 }
 
 const SETUP_HELP =
@@ -23,8 +24,9 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
   // No password: the hub-wake workflow pings this every 10 minutes so threads
   // continue when a usage limit resets with no page open. It only does what
   // the hub's own rules allow, at most once a minute, and returns counts.
-  if (query.op === 'tick' && hub) {
-    const w = await hub.tick();
+  // The timed wake (QStash) posts { op: 'tick', due } at a reset time.
+  if ((query.op === 'tick' || (method === 'POST' && body?.op === 'tick')) && hub) {
+    const w = await hub.tick({ due: Number(query.due ?? body?.due) || 0 });
     return { status: 200, body: { ok: true, skipped: !!w.skipped, back: w.back?.length || 0, resumed: w.resumed?.length || 0 } };
   }
   if (!password) return { status: 500, body: { error: 'Set HUB_PASSWORD in the Vercel project settings, then redeploy.' } };
@@ -37,9 +39,13 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     const t0 = Date.now();
     // v: the version the page already holds. Unchanged costs one store
     // command and a few bytes; changed sends the update in the same command.
+    // An open page also checks for limits that have reset (at most once a
+    // minute per server instance), before the version check so a quiet hub
+    // still wakes; if one has, the version changes and the read sees it.
+    await hub.wakeIfDue().catch(() => {});
     const body = await hub.snapshot({ since: Number(query.since) || 0, limit: Number(query.limit) || 600, threadsAfter: Number(query.tu) || 0, v: query.v || '' });
     if (body.same) return { status: 200, body };
-    return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, ms: Date.now() - t0 } };
+    return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, timedWake: hub.timedWake, ms: Date.now() - t0 } };
   }
   // Reading usage from Claude can take seconds, so the page asks for it on its own.
   if (method === 'GET' && op === 'usage') {
@@ -119,7 +125,14 @@ export async function mcpApi({ hub, method, query, body, headers }) {
     name = raw.slice(0, i);
     key = raw.slice(i + 1);
   }
-  const agent = await hub.authAgent(name, key);
+  let agent;
+  try {
+    agent = await hub.authAgent(name, key);
+  } catch {
+    // Storage didn't answer (after its retries): a busy moment, not a broken
+    // link. 503 lets claude.ai keep the connector and try again.
+    return { status: 503, body: { jsonrpc: '2.0', id: body?.id ?? null, error: { code: -32002, message: 'The hub is busy for a moment. Try again in a few seconds.' } } };
+  }
   // The log write runs alongside the rest of the request (not on its path).
   const logging = hub.logConn({
       http: method,
@@ -132,7 +145,11 @@ export async function mcpApi({ hub, method, query, body, headers }) {
   const bad ='Unknown account or key. Copy the link again from the hub page.';
   // Opening the link in a browser shows whether it works.
   if (method === 'GET') return await logging, { status: 200, body: agent ? { ok: true, account: agent.name, note: 'This link works. Add it as a custom connector on claude.ai.' } : { ok: false, problem: bad } };
-  if (!agent) return await logging, fail(bad);
+  if (!agent) {
+    // A connector for a known account with an old key: its card says so.
+    await Promise.all([logging, hub.noteBadKey(name).catch(() => {})]);
+    return fail(bad);
+  }
   try {
     await hub.markConnected(agent);
   } catch {}

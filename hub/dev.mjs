@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 process.env.HUB_DEV_MEMORY ||= '1';
 process.env.HUB_PASSWORD ||= 'dev';
-// HUB_FAKE_CLAUDE=1: pretend every routine start works (for trying the page).
+// HUB_FAKE_CLAUDE=1: pretend every routine start works (for trying the page),
+// except a token containing "refused" (401) or "busy" (429, retry in 15 min).
 if (process.env.HUB_FAKE_CLAUDE === '1') {
   const real = globalThis.fetch;
   let n = 0;
@@ -20,6 +21,9 @@ if (process.env.HUB_FAKE_CLAUDE === '1') {
       const k = [...String(init?.headers?.authorization || '')].reduce((x, c) => x + c.charCodeAt(0), 0);
       return Promise.resolve(new Response(JSON.stringify({ five_hour: { utilization: (k * 7) % 96, resets_at: later(2) }, seven_day: { utilization: (k * 3) % 90, resets_at: later(80) } })));
     }
+    const auth = String(init?.headers?.authorization || '');
+    if (auth.includes('refused')) return Promise.resolve(new Response('{}', { status: 401 }));
+    if (auth.includes('busy')) return Promise.resolve(new Response('{}', { status: 429, headers: { 'retry-after': '900' } }));
     return Promise.resolve(new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_url: `https://claude.ai/code/session_demo${++n}` })));
   };
 }
@@ -39,10 +43,12 @@ createServer((req, res) => {
     if (p === '/api/mcp') return mcpApi(req, res);
     if (p.startsWith('/api/c/')) return pathApi(req, res);
     // The icons sit next to index.html, as Vercel serves them.
-    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml' }[p];
+    const icon = { '/apple-touch-icon.png': 'image/png', '/logo.svg': 'image/svg+xml', '/manifest.webmanifest': 'application/manifest+json' }[p];
     if (icon) { res.setHeader('content-type', icon); return res.end(readFileSync(path.join(here, p.slice(1)))); }
+    // Self-hosted fonts (hub/fonts), plain static files on Vercel too.
+    if (/^\/fonts\/[a-z0-9-]+\.woff2$/.test(p) && existsSync(path.join(here, p.slice(1)))) { res.setHeader('content-type', 'font/woff2'); return res.end(readFileSync(path.join(here, p.slice(1)))); }
     // The studio and library pages and their modules, also plain static files on Vercel.
-    if (p === '/studio.html' || p === '/library.html' || p === '/walls.css' || /^\/(studio|library)\/[a-z-]+\.js$/.test(p)) {
+    if (p === '/studio.html' || p === '/library.html' || p === '/walls.css' || /^\/(studio|library|ui)\/[a-z-]+\.js$/.test(p)) {
       if (!existsSync(path.join(here, p.slice(1)))) return (res.statusCode = 404), res.end('Not found');
       res.setHeader('content-type', p.endsWith('.js') ? 'text/javascript; charset=utf-8' : p.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/html; charset=utf-8');
       return res.end(readFileSync(path.join(here, p.slice(1))));

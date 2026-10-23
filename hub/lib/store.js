@@ -2,16 +2,40 @@
 // over its REST API (free tier); tests use the in-memory version below, which
 // implements the same handful of Redis commands.
 
-export function upstashStore(url, token, fetchImpl = fetch) {
+// Commands that only read: safe to send again when an answer got lost.
+const READS = new Set(['GET', 'MGET', 'HGET', 'HMGET', 'HGETALL', 'HLEN', 'HEXISTS', 'LRANGE', 'LLEN', 'LINDEX', 'EXISTS', 'TTL', 'PTTL', 'TYPE', 'STRLEN', 'SCARD', 'SMEMBERS', 'ZRANGE', 'ZCARD', 'ZSCORE']);
+const readOnly = (body) => (Array.isArray(body[0]) ? body : [body]).every((c) => READS.has(String(c[0]).toUpperCase()));
+
+// A storage hiccup must not cut an agent off: busy (429) and gateway errors
+// (502-504) are tried twice more, since Upstash did not run the command; a
+// lost connection or a 500 only for reads, so a write never runs twice.
+export function withRetry(call, { tries = 3, waitMs = 150 } = {}) {
+  return async (body, path) => {
+    for (let i = 1; ; i++) {
+      let again;
+      try {
+        return await call(body, path);
+      } catch (e) {
+        const status = e.status || 0;
+        again = i < tries && ([429, 502, 503, 504].includes(status) || ((status === 0 || status === 500) && readOnly(body)));
+        if (!again) throw e;
+      }
+      await new Promise((r) => setTimeout(r, waitMs * 3 ** (i - 1)));
+    }
+  };
+}
+
+export function upstashStore(url, token, fetchImpl = fetch, retry = {}) {
   const base = url.replace(/\/$/, '');
-  async function call(body, path = '') {
+  const call = withRetry(send, retry);
+  async function send(body, path = '') {
     const res = await fetchImpl(base + path, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || `store ${res.status}`);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(json.error || `store ${res.status}`), { status: res.status });
     return json;
   }
   return {
@@ -31,13 +55,19 @@ export function upstashStore(url, token, fetchImpl = fetch) {
   };
 }
 
+// One store per server instance, so what it remembers between requests
+// (when the wake check last ran) carries over.
+let envStore = null;
 export function storeFromEnv(env = process.env) {
   const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
-  const store = upstashStore(url, token);
-  store.id = url; // names this store for per-instance caches (lib/hub.js)
-  return store;
+  if (envStore?.url !== url || envStore?.token !== token) {
+    const store = upstashStore(url, token);
+    store.id = url; // names this store for per-instance caches (lib/hub.js)
+    envStore = { url, token, store };
+  }
+  return envStore.store;
 }
 
 // Lua scripts (EVAL): several commands in one round trip that Upstash bills

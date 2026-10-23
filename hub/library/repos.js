@@ -102,7 +102,7 @@ export function mount(el, ctx) {
           .map(
             (r) => `<div class="card lr-item">
         <div class="top2"><b>${esc(r.repo)}</b>${r.ref ? `<span class="lr-tag">${esc(r.ref)}</span>` : ''}${r.private ? '<span class="lr-tag">private</span>' : ''}${r.readable ? '' : `<span class="lr-tag bad" title="${esc(r.problem)}">hub can't read it</span>`}${(r.threads || []).map((n) => `<span class="lr-tag">#${n}</span>`).join('')}
-          <a href="https://github.com/${esc(r.repo)}${r.ref ? `/tree/${encodeURIComponent(r.ref)}` : ''}" target="_blank" rel="noopener">Open on GitHub ↗</a></div>
+          <a href="https://github.com/${esc(r.repo)}${r.ref ? `/tree/${encodeURIComponent(r.ref)}` : ''}" target="_blank" rel="noopener">Open on GitHub ${icon('arrow-up-right', 14)}</a></div>
         ${r.description ? `<p>${esc(r.description)}</p>` : ''}${r.note ? `<p><i>Note:</i> ${esc(r.note)}</p>` : ''}${r.readable ? '' : `<p>${esc(r.problem)}</p>`}
         <div class="lr-acts"><button class="btn" type="button" data-edit="${esc(r.repo)}">Edit</button><button class="btn" type="button" data-check="${esc(r.repo)}">Check again</button><button class="btn bad" type="button" data-del="${esc(r.repo)}">Remove</button></div>
       </div>`,
