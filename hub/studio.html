@@ -7,6 +7,8 @@
 <title>Storytime studio</title>
 <link rel="icon" href="/logo.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preload" href="/fonts/alegreya-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Patrick Hand stays: the story renderer (studio/render.js) draws captions in it. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- The font stylesheet does not block the first paint (display=swap shows the fallback until it arrives). -->
@@ -26,18 +28,65 @@
 try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
 </script>
 <style>
+/* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-500-normal.woff2) format("woff2"); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-800-normal.woff2) format("woff2"); font-weight: 800 900; font-display: swap; }
 :root {
-  --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
-  --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --chip: #f1ece4; --sel: #ebe5da;
-  --shadow: 0 6px 24px rgba(40, 30, 10, .12);
-  color-scheme: light;
+  --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
+  --kaya: #e8c88f; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #c9a465; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
+  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
+  --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --shadow: 0 8px 28px rgba(60, 40, 10, .16);
+  font-family: var(--font);
 }
+/* Dark: follows the device under Auto, or forced by Look › Theme (data-theme on <html>). White stones, dark wood. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+    --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+    --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-  --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+  --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+  --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+/* ===== Kaya look (T1 Looks): same wood, stones and type as the hub. The :root prefix lifts these over the page rules below. ===== */
+:root body { font: 16px/1.45 var(--font); font-variant-numeric: lining-nums; -webkit-font-smoothing: antialiased; }
+:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 700; }
+:root .btn.go { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; }
+:root .btn.go:hover { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; }
+:root .btn.go:disabled:hover { background: var(--stone); }
+:root .btn.seg[aria-pressed="true"] { border-color: var(--stone); background: var(--sel); }
+:root .top { background: var(--kaya); color: var(--kaya-ink); border-bottom-color: var(--kaya-line); }
+:root .top h1, :root dialog h2 { font: 800 24px/1.1 var(--font); }
+:root .top .back { color: var(--kaya-ink); font-weight: 700; }
+:root .top .back:hover { background: color-mix(in srgb, var(--panel) 35%, var(--kaya)); }
+:root .top .sub { color: var(--kaya-ink); font-size: 15px; }
+:root .top select { border-color: var(--kaya-line); background: color-mix(in srgb, var(--panel) 80%, var(--kaya)); }
+:root .tabs button { font-size: 16px; }
+:root .tabs button[aria-selected="true"] { border-bottom: 3px solid var(--stone); color: var(--ink); font-weight: 800; }
+:root .tabs .n { font-size: 14px; }
+:root .card { border-radius: 10px; box-shadow: none; }
+:root dialog { border-radius: 12px; }
+:root .hint, :root .lf-drop .hint { color: var(--soft); font-size: 15px; }
+:root .note small, :root pre.rules, :root .lf-cap small, :root .lf-tag, :root .lf-picked small, :root .lf-ths label, :root .lf-strip figcaption, :root .lf-media pre { font-size: 14px; }
+:root .lf-kind { font: 14px/1 var(--font); }
+:root .lf-cap b { font-size: 15px; }
+:root .lf-item { border-radius: 10px; border-bottom-width: 2px; }
+:root .lf-drop { border-color: var(--kaya-line); background: var(--panel); }
+:root .scenes button { border-radius: var(--r); font-size: 15px; }
+:root .controls input[type=range], :root .check input, :root .slider input, :root .lf-ths input { accent-color: var(--stone); }
+:root input, :root select, :root textarea { border-radius: var(--r); }
+:root .toast { border-radius: var(--r); }
+@media (max-width: 600px) { :root .top h1 { font-size: 22px; } }
+/* ===== end Kaya look ===== */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
@@ -155,23 +204,23 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
 <body>
 <div id="app" hidden>
   <header class="top">
-    <a class="back" href="/" title="Back to the hub">‹ Hub</a>
+    <a class="back" href="/" title="Back to the hub"><i data-ico="chevron-left" data-size="16"></i>Hub</a>
     <h1>Storytime studio</h1>
     <select id="pick" aria-label="Story" title="Pick a story"></select>
-    <button class="btn go" id="newBtn" type="button"><span class="ic" aria-hidden="true">+</span>New story</button>
+    <button class="btn go" id="newBtn" type="button"><i data-ico="plus" data-size="16"></i>New story</button>
   </header>
   <div class="wrap">
     <section class="card stage" aria-label="Preview">
       <div class="screen" id="screen"><canvas id="cv" aria-label="Animation preview" role="img"></canvas><span class="badge" id="badge"></span></div>
       <div class="controls">
         <div class="bar">
-          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)">▶</button>
+          <button class="btn play" id="playBtn" type="button" aria-label="Play" title="Play (space)"><i data-ico="play" data-size="18"></i></button>
           <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Time">
           <span class="time" id="time">0.0 / 0.0 s</span>
         </div>
         <div class="group">
           <button class="btn seg" id="voiceBtn" type="button" aria-pressed="false" title="Read narration and lines aloud while playing (your device's voice; not in the saved video)">Read aloud</button>
-          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><span class="ic" aria-hidden="true">⤓</span>Save video</button>
+          <button class="btn" id="exportBtn" type="button" title="Record the whole video in this browser (plays in real time)"><i data-ico="download" data-size="16"></i>Save video</button>
         </div>
       </div>
       <div class="scenes" id="scenes"></div>
@@ -198,8 +247,8 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
           <div class="split">
             <div class="row" role="group" aria-label="Rate this version">
               <span class="lbl">This version:</span>
-              <button class="btn" id="rateGood" type="button" title="This version works"><span class="ic" aria-hidden="true">👍</span>Good</button>
-              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><span class="ic" aria-hidden="true">👎</span>Not yet</button>
+              <button class="btn" id="rateGood" type="button" title="This version works"><i data-ico="thumbs-up" data-size="16"></i>Good</button>
+              <button class="btn" id="rateBad" type="button" title="This version is not there yet"><i data-ico="thumbs-down" data-size="16"></i>Not yet</button>
             </div>
           </div>
           <div class="split" id="fullBox" hidden>
@@ -243,7 +292,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
 </div>
 
 <div id="loginBox" class="card login" hidden>
-  <h1 style="font:400 30px/1.1 'Patrick Hand',cursive;margin:0">Storytime studio</h1>
+  <h1 style="font:800 28px/1.1 var(--font);margin:0">Storytime studio</h1>
   <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" type="submit" style="width:100%">Open studio</button></form>
   <div class="err" id="loginErr"></div>
 </div>
@@ -263,7 +312,7 @@ try {
 
 <dialog id="newDlg">
   <form method="dialog" id="newForm">
-    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close">✕</button></div>
+    <div class="dlg-head"><h2>New story</h2><button class="btn quiet x" value="cancel" formnovalidate aria-label="Close" title="Close"><i data-ico="x" data-size="18"></i></button></div>
     <p class="hint" style="margin-top:0">Your Claude team writes a short sample first. You review it, give feedback, then ask for the full video.</p>
     <label for="newIdea">What's the story?</label>
     <textarea id="newIdea" required placeholder="e.g. The time my little brother convinced me our cat could talk."></textarea>
@@ -289,6 +338,7 @@ try {
 </dialog>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="ui/icons.js"></script>
 <script type="module">
 import { validateProject, normalizeStyle, SAMPLE_PROJECT, STYLE_RANGES, DEFAULT_STYLE } from './studio/schema.js';
 import { renderFrame, renderBackground, renderCastSheet, paint, paintOps, makeGrain, locate, quantize, timeline, totalSeconds, W, H } from './studio/render.js';
@@ -396,7 +446,7 @@ function setPlaying(on) {
   playing = on;
   playFrom = t;
   playAt = performance.now();
-  $('playBtn').textContent = on ? '❚❚' : '▶';
+  $('playBtn').innerHTML = icon(on ? 'pause' : 'play', 18);
   $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play');
   $('playBtn').title = on ? 'Pause (space)' : 'Play (space)';
   if (!on) { speech.cancel(); spoken.clear(); }
@@ -600,7 +650,7 @@ function updateButtons() {
 function renderNotes() {
   const items = [
     ...S.notes.map((n) => ({ at: n.at, who: n.by || 'team', text: n.text, me: false })),
-    ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? '👍' : '👎'} rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
+    ...S.feedback.map((f) => ({ at: f.ts, who: 'You', text: f.kind === 'rate' ? `${f.good ? 'Good' : 'Not yet'}, rev ${f.rev}${f.text ? ': ' + f.text : ''}` : f.kind === 'full' ? 'Asked for the full video.' : (f.kind === 'rule' ? 'Rule: ' : '') + f.text, me: true })),
   ].sort((a, b) => a.at - b.at);
   $('notes').innerHTML = items.length ? items.map((n) => `<div class="note${n.me ? ' me' : ''}"><small>${esc(n.who)} · ${ago(n.at)}</small>${esc(n.text)}</div>`).join('') : '<p class="empty">No notes yet. The director and critic write here as they work.</p>';
   $('notes').scrollTop = $('notes').scrollHeight;
@@ -853,7 +903,7 @@ $('exportBtn').onclick = async () => {
   const name = `${(P.title || 'story').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'story'}.${ext}`;
   const url = URL.createObjectURL(blob);
   out.innerHTML = `Video ready: <a href="${url}" download="${name}">${esc(name)}</a> (${(blob.size / 1048576).toFixed(1)} MB, captions, no sound; add a voice in any editor).`;
-  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = '<span class="ic" aria-hidden="true">⤓</span>Save video';
+  btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = icon('download', 16) + 'Save video';
 };
 
 // ---------- start ----------

@@ -7,27 +7,70 @@
 <title>Hub library</title>
 <link rel="icon" href="/logo.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- The font stylesheet does not block the first paint (display=swap shows the fallback until it arrives). -->
-<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet"></noscript>
+<link rel="preload" href="/fonts/alegreya-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <script>
 try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.theme) document.documentElement.dataset.theme = l.theme; } catch {}
 </script>
 <style>
+/* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-500-normal.woff2) format("woff2"); font-weight: 500 600; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-800-normal.woff2) format("woff2"); font-weight: 800 900; font-display: swap; }
 :root {
-  --bg: #f4f1ec; --panel: #fffdf9; --line: #e3ddd3; --ink: #1d1b18; --soft: #5f594f; --faint: #8c857a;
-  --green: #2f6b4f; --on-green: #fff; --amber: #9a6510; --red: #a8372f; --chip: #f1ece4; --sel: #ebe5da;
-  --shadow: 0 6px 24px rgba(40, 30, 10, .12);
-  color-scheme: light;
+  --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
+  --kaya: #e8c88f; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #c9a465; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
+  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
+  --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --shadow: 0 8px 28px rgba(60, 40, 10, .16);
+  font-family: var(--font);
 }
+/* Dark: follows the device under Auto, or forced by Look › Theme (data-theme on <html>). White stones, dark wood. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-    --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+  :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+    --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+    --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; }
 }
-:root[data-theme="dark"] { --bg: #171614; --panel: #1f1e1b; --line: #34312c; --ink: #ece8e1; --soft: #b3aca1; --faint: #8c857a;
-  --green: #6dbb92; --on-green: #10251a; --amber: #e0a648; --red: #e5786f; --chip: #282622; --sel: #2c2a26; --shadow: 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark; }
+:root[data-theme="dark"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
+  --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
+  --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+/* ===== Kaya look (T1 Looks): same wood, stones and type as the hub. The :root prefix lifts these over the page rules below. ===== */
+:root body { font: 16px/1.45 var(--font); font-variant-numeric: lining-nums; -webkit-font-smoothing: antialiased; }
+:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 700; }
+:root .btn.go { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; }
+:root .btn.go:hover { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; }
+:root .btn.go:disabled:hover { background: var(--stone); }
+:root .btn.seg[aria-pressed="true"] { border-color: var(--stone); background: var(--sel); }
+:root .top { background: var(--kaya); color: var(--kaya-ink); border-bottom-color: var(--kaya-line); }
+:root .top h1, :root dialog h2 { font: 800 24px/1.1 var(--font); }
+:root .top .back { color: var(--kaya-ink); font-weight: 700; }
+:root .top .back:hover { background: color-mix(in srgb, var(--panel) 35%, var(--kaya)); }
+:root .top .sub { color: var(--kaya-ink); font-size: 15px; }
+:root .top select { border-color: var(--kaya-line); background: color-mix(in srgb, var(--panel) 80%, var(--kaya)); }
+:root .tabs button { font-size: 16px; }
+:root .tabs button[aria-selected="true"] { border-bottom: 3px solid var(--stone); color: var(--ink); font-weight: 800; }
+:root .tabs .n { font-size: 14px; }
+:root .card { border-radius: 10px; box-shadow: none; }
+:root dialog { border-radius: 12px; }
+:root .hint, :root .lf-drop .hint { color: var(--soft); font-size: 15px; }
+:root .note small, :root pre.rules, :root .lf-cap small, :root .lf-tag, :root .lf-picked small, :root .lf-ths label, :root .lf-strip figcaption, :root .lf-media pre { font-size: 14px; }
+:root .lf-kind { font: 14px/1 var(--font); }
+:root .lf-cap b { font-size: 15px; }
+:root .lf-item { border-radius: 10px; border-bottom-width: 2px; }
+:root .lf-drop { border-color: var(--kaya-line); background: var(--panel); }
+:root .scenes button { border-radius: var(--r); font-size: 15px; }
+:root .controls input[type=range], :root .check input, :root .slider input, :root .lf-ths input { accent-color: var(--stone); }
+:root input, :root select, :root textarea { border-radius: var(--r); }
+:root .toast { border-radius: var(--r); }
+@media (max-width: 600px) { :root .top h1 { font-size: 22px; } }
+/* ===== end Kaya look ===== */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
@@ -81,7 +124,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
 <body>
 <div id="app" hidden>
   <header class="top">
-    <a class="btn back" href="/" title="Back to the hub">‹ Hub</a>
+    <a class="btn back" href="/" title="Back to the hub"><i data-ico="chevron-left" data-size="16"></i>Hub</a>
     <h1>Library</h1>
     <span class="sub">What every agent can read</span>
     <span class="spacer"></span>
@@ -98,7 +141,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
   </main>
 </div>
 <div id="loginBox" class="card login" hidden>
-  <h1 style="font:400 30px/1 'Patrick Hand',cursive;margin:0 0 4px">Library</h1>
+  <h1 style="font:800 28px/1.1 var(--font);margin:0 0 4px">Library</h1>
   <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" style="width:100%">Open</button></form>
   <div class="err" id="loginErr"></div>
 </div>
@@ -118,6 +161,7 @@ try {
 } catch {}
 </script>
 
+<script src="ui/icons.js"></script>
 <script type="module">
 // The page is a shell: each tab is its own module in /library/ with
 // `export function mount(el, ctx)`, loaded the first time the tab opens.
