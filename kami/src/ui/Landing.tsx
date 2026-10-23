@@ -277,7 +277,9 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             <p className="l-a">
               <Logo size={38} className="l-a-mark" />
               <span>
-                Play at <b className="l-at">{PICK}.</b> {ASK.a.slice(`Play at ${PICK}. `.length)}
+                {ASK.a.slice(0, ASK.a.indexOf(`${PICK}:`))}
+                <b className="l-at">{PICK}</b>
+                {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length)}
               </span>
             </p>
           </div>

@@ -15,8 +15,12 @@ export const PLAY = answer('What should Black play here?', LEVEL);
 export const SCORE = answer('Who is ahead, and why?', LEVEL);
 
 /** Kiai's pick for Black, and the black group it says the move makes safer. */
-export const PICK = pointsIn(PLAY.summary)[0];
-export const GROUP = pointsIn(PLAY.summary)[1];
+// the answer opens with the position ("White leads by about 10 points. White's Q11 attaches...");
+// its move is the first line it shows ([[v1]]), and the group is the one it says gets safer
+export const PICK = PLAY.variations.find((v) => v.id === 'v1')?.moves[0] ?? pointsIn(PLAY.summary)[0];
+export const GROUP = /black group at ([A-HJ-T]\d{1,2}) safer/.exec(PLAY.summary)?.[1] ?? '';
+/** The answer's own first words: who leads, and by how much. */
+export const PLAY_LEAD = Number(/^White leads by about (\d+) points/.exec(PLAY.summary)?.[1] ?? NaN);
 
 /** The score answer's own numbers: White's lead and Black's win chance (out of 100). */
 const scoreNums = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections.find((x) => x.title === "KataGo's numbers")?.text ?? '');
@@ -69,7 +73,7 @@ export const PICKS = { first: { label: 'At first', at: FIRST_PICK }, then: { lab
 /** The question and answer the first screen shows (a plain rewording of Kiai's answer). */
 export const ASK = {
   q: PLAY.question,
-  a: `Play at ${PICK}. It takes away some of White’s area on the right, and it makes the black stones below it safer.`,
+  a: `White leads by about ${PLAY_LEAD} points. Black’s best try is ${PICK}: it takes away some of White’s area on the right and makes the black stones below it safer.`,
 };
 
 /** The reads KataGo grew through, for the reading chart: its top moves' share of the looking. */

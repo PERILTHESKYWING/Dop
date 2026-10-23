@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEMO, FINAL } from '../kami/src/ui/landing/data';
-import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, PLAY_LEAD, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
 import { WINRATE_FROM_SCORE } from '../src/lib/engine/models';
 
 // The landing's words are a plain rewording of Kiai's recorded answers; every point and number
@@ -14,10 +14,14 @@ const text = (id: string) => {
 
 describe('Kiai landing copy', () => {
   it('answers the first question with Kiai’s own pick, which is also KataGo’s choice after its longest read', () => {
-    expect(PICK).toBe(pointsIn(PLAY.summary)[0]);
+    expect(PICK).toBe(PLAY.variations.find((v) => v.id === 'v1')?.moves[0]);
     expect(PICK).toBe(FINAL.cands[0].at);
     expect(ASK.q).toBe(PLAY.question);
-    expect(ASK.a.startsWith(`Play at ${PICK}.`)).toBe(true);
+    // it opens with the position, as the recorded answer does, then KataGo's move
+    expect(PLAY.summary).toMatch(new RegExp(`^White leads by about ${PLAY_LEAD} points\\.`));
+    expect(Math.abs(PLAY_LEAD - LEAD)).toBeLessThanOrEqual(1);
+    expect(ASK.a.startsWith(`White leads by about ${PLAY_LEAD} points. Black’s best try is ${PICK}:`)).toBe(true);
+    expect(PLAY.summary).toMatch(new RegExp(`best try for Black is the [a-z ]+ at ${PICK} \\[\\[v1\\]\\]`));
   });
 
   it('rewords the answer without adding anything to it', () => {
