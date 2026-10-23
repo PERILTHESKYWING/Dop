@@ -82,6 +82,16 @@ let reading = 0;
 let lastRead = 0;
 /** Quiet time before the background tune starts. */
 const TUNE_IDLE_MS = 4000;
+/** When measuring last failed here: not tried again for a week (the untuned engine works). */
+const TUNE_FAILED = 'kami.tuneFailed';
+const TUNE_RETRY_MS = 7 * 24 * 3600_000;
+
+/** Measure this device in the background now? Not within a week of a failed try. */
+export function shouldTune(tuned: boolean, failedAt: string | null, now = Date.now()): boolean {
+  if (tuned) return false;
+  const t = Number(failedAt);
+  return !failedAt || !Number.isFinite(t) || now - t > TUNE_RETRY_MS;
+}
 
 function adopt(loaded: BrowserEngine): BrowserEngine {
   // Heat and battery: fewer workers while the device is hot, low or below half its battery.
@@ -114,13 +124,19 @@ function tuneWhenIdle(plain: BrowserEngine, attempt: Attempt) {
     plain.onDeath = undefined;
     plain.kill('replaced');
     const onProgress = (p: LoadProgress) => set(progressText(p));
-    engine = BrowserEngine.load(attempt, onProgress, { tune: true }).then(adopt, (e) => {
-      // Measuring failed: start as before, untuned, so the site keeps working.
+    const next: Promise<BrowserEngine> = BrowserEngine.load(attempt, onProgress, { tune: true }).then(adopt, () => {
+      // Measuring failed: remember it (no retry for a week, see shouldTune) and start the
+      // untuned engine again, so the site keeps working and the status ends ready.
+      lsSet(TUNE_FAILED, String(Date.now()));
       if (!attempt.forceCpu) lsSet(GPU_BROKEN, String(Date.now()));
-      engine = null;
-      throw e;
+      return boot();
     });
-    engine.catch(() => {});
+    engine = next;
+    next.catch((e) => {
+      if (engine !== next) return;
+      engine = null;
+      set({ state: 'failed', text: `KataGo could not start: ${(e as Error).message}` });
+    });
   };
   setTimeout(tick, TUNE_IDLE_MS);
 }
@@ -152,7 +168,7 @@ async function boot(): Promise<BrowserEngine> {
   }
   if (!eng || !used) throw lastError ?? new Error('no network could be loaded');
   adopt(eng);
-  if (!eng.tuning) tuneWhenIdle(eng, used);
+  if (shouldTune(!!eng.tuning, lsGet(TUNE_FAILED))) tuneWhenIdle(eng, used);
   return eng;
 }
 

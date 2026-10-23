@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { engineAttempts } from '../kami/src/lib/engine';
+import { engineAttempts, shouldTune } from '../kami/src/lib/engine';
 import { emptyBoard, playAt, type BoardState } from '../kami/src/lib/position';
 import { askFor, parseQuestion, routeQuestion } from '../kami/src/lib/question';
 import { gtpToLoc } from '../src/lib/go/coords';
@@ -71,5 +71,16 @@ describe('Kami picks the strongest network the device can run', () => {
     ] as const) {
       expect(engineAttempts(webgpu, phone, broken).map((x) => x.spec.id)).toEqual(['g170e-b10c128']);
     }
+  });
+});
+
+describe('Kiai background tuning', () => {
+  it('measures an untuned device, but not again within a week of a failed try', () => {
+    const now = 1_000_000_000_000;
+    expect(shouldTune(false, null, now)).toBe(true);
+    expect(shouldTune(true, null, now)).toBe(false);
+    expect(shouldTune(false, String(now - 3600_000), now)).toBe(false);
+    expect(shouldTune(false, String(now - 8 * 24 * 3600_000), now)).toBe(true);
+    expect(shouldTune(false, 'garbage', now)).toBe(true);
   });
 });
