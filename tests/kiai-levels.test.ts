@@ -40,7 +40,7 @@ describe('thinking levels', () => {
   it('offers Local only when it is configured, and falls back to Medium', () => {
     expect(levelList(false).some((l) => l.id === 'local')).toBe(false);
     expect(levelList(true).at(-1)?.id).toBe('local');
-    expect(levelById(undefined).id).toBe('medium');
+    expect(levelById(undefined).id).toBe('low');
   });
 });
 

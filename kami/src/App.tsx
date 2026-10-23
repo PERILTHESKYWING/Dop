@@ -11,7 +11,7 @@ import { localAvailable, localWrite } from './lib/local';
 import { NOTES } from './lib/writer';
 import { boardFromSgf, emptyBoard, explainPositionOf, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
-import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
+import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, levelOfMessage, longerLevel, type Level, type LevelId } from './lib/levels';
 import { BoardPanel as BoardPanelView, type Preview } from './ui/BoardPanel';
 import { Composer as ComposerView } from './ui/Composer';
 import { Icon } from './ui/Icon';
@@ -102,6 +102,15 @@ export function App() {
   const controller = useRef<AbortController | null>(null);
 
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
+  // KataGo's reads behind this board's answers (newest first): the board shows the same numbers as the text.
+  const answerReads = useMemo(() => {
+    const out: { key: string; read: NonNullable<Extract<Answer, { type: 'explain' }>['explanation']['root']> }[] = [];
+    for (const m of [...(current?.messages ?? [])].reverse()) {
+      const a = m.answer;
+      if (a?.type === 'explain' && a.explanation.root?.candidates.length) out.push({ key: positionKey(a.explanation.position), read: a.explanation.root });
+    }
+    return out;
+  }, [current?.messages]);
 
   // in the DOM is ready enough for the loading sheet: a layout effect, before the first frame (a passive effect waits for it)
   useLayoutEffect(markReady, []);
@@ -212,7 +221,9 @@ export function App() {
 
   /** Ask in conversation `convId` and fill message `kamiId` with the answer. */
   /** `fresh`: Regenerate, so the writer is asked again instead of answering from a cache. */
-  const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false) => {
+  const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false, lv?: Level) => {
+    const pk = lv?.pick ?? pick;
+    const th = lv?.thinking ?? thinking;
     const ctrl = new AbortController();
     controller.current = ctrl;
     // KataGo never measures the device while a question is answered (it waits for a quiet moment after).
@@ -245,8 +256,8 @@ export function App() {
         answerQuestion(
           text,
           board,
-          pick,
-          thinking,
+          pk,
+          th,
           {
             explain,
             getProber: getAnswerProber,
@@ -304,8 +315,8 @@ export function App() {
     void run(current.id, kami.id, text, current.board);
   });
 
-  /** Run the last question again (regenerate), or with new words (edit). */
-  const rerun = useEvent((newText?: string) => {
+  /** Run the last question again (regenerate), or with new words (edit), or at another level ("Read longer"). */
+  const rerun = useEvent((newText?: string, lv?: Level) => {
     if (running) return;
     const msgs = current.messages;
     let i = msgs.length - 1;
@@ -313,13 +324,13 @@ export function App() {
     if (i < 0) return;
     const text = (newText ?? msgs[i].text).trim();
     if (!text) return;
-    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
+    const kami: ChatMessage = lv ? { id: newId(), role: 'kami', text: '', at: Date.now(), pick: lv.pick, thinking: lv.thinking, level: lv.id } : { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({
       ...c,
       title: i === 0 && newText ? titleFrom(text) : c.title,
       messages: [...c.messages.slice(0, i), { ...c.messages[i], text }, kami],
     }));
-    void run(current.id, kami.id, text, current.board, true);
+    void run(current.id, kami.id, text, current.board, true, lv);
   });
 
   const stop = useCallback(() => controller.current?.abort(), []);
@@ -378,6 +389,12 @@ export function App() {
   const pinnedKey = pinned?.key ?? null;
   const link = useMemo(() => ({ onHover: setHover, onPin: setPinned, pinnedKey }), [pinnedKey]);
   const regenerate = useCallback(() => rerun(), [rerun]);
+  // "Read longer" under a quick answer: the same question again at a longer level, this once.
+  const readLonger = useEvent(() => {
+    const last = [...current.messages].reverse().find((m) => m.role === 'kami');
+    const lv = longerLevel(last?.level ?? levelOfMessage(last ?? {})?.id);
+    if (lv) rerun(undefined, lv);
+  });
   const editLast = useCallback((text: string) => rerun(text), [rerun]);
   const showBoard = useCallback(
     (b: BoardState) => {
@@ -446,6 +463,7 @@ export function App() {
             link={link}
             onAsk={send}
             onRegenerate={regenerate}
+            onReadLonger={readLonger}
             onEdit={editLast}
             onShowBoard={showBoard}
             busy={!!running}
@@ -474,6 +492,7 @@ export function App() {
             onSgfFile={loadSgfFile}
             onSettings={boardSettings}
             answered={current.messages.some((m) => m.role === 'kami' && !!m.answer)}
+            answerReads={answerReads}
           />
         )}
       </div>

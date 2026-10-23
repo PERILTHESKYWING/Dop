@@ -254,7 +254,8 @@ describe('Kami explain: what to read', () => {
     expect(v.moves.length).toBe(f.moveOrder ? f.moveOrder.ply : tp.ply);
     expect(v.highlight!.every((p) => zoneOf(p, S) === 8)).toBe(true);
     // Ownership as shares (0.7 is 85%), with "leaning" under 0.6; no raw decimals.
-    expect(v.note).toMatch(/^By move \d+ the lower right is White's \(\d{2}%\) instead of leaning Black's \(\d{2}%\)\.$/);
+    // In plain words (critics, round 2): who gets the area without the better move, then both lines.
+    expect(v.note).toMatch(/^Without E5, White gets the lower right: after B5, by move \d+ it is White's \(\d{2}%\); after E5 it is leaning Black's \(\d{2}%\)\.$/);
     expect(v.note).not.toMatch(/0\.\d/);
   });
 

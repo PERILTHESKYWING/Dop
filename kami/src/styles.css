@@ -30,8 +30,10 @@
   --shadow: 0 6px 24px rgba(40, 30, 15, 0.07), 0 1px 3px rgba(40, 30, 15, 0.06);
   --shadow-pop: 0 14px 44px rgba(40, 30, 15, 0.16), 0 2px 6px rgba(40, 30, 15, 0.07);
   --scroll: rgba(21, 19, 15, 0.16);
-  /* the eval bar's White share, and a ring that keeps a small black stone visible on dark ground */
+  /* the eval bar's White share (track) and Black's share (fill), and a ring that keeps a small black stone visible on dark ground */
   --ev-track: #fbfaf6;
+  --ev-fill: #0f0f0e;
+  --ev-ring: rgba(11, 15, 20, 0.28);
   --stone-ring: rgba(21, 19, 15, 0);
   --font: 'Alegreya Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
   --read: ui-serif, 'Iowan Old Style', Charter, 'Sitka Text', Cambria, Georgia, 'Songti SC', 'SimSun', serif;
@@ -75,7 +77,9 @@
     --on-accent: #15130f;
     --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
     --scroll: rgba(241, 236, 226, 0.16);
-    --ev-track: #b4ab9a;
+    --ev-track: #2b2722;
+    --ev-fill: #d6cfc2;
+    --ev-ring: rgba(241, 236, 226, 0.24);
     --stone-ring: rgba(241, 236, 226, 0.42);
     color-scheme: dark;
   }
@@ -103,7 +107,9 @@
   --on-accent: #15130f;
   --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
   --scroll: rgba(241, 236, 226, 0.16);
-  --ev-track: #b4ab9a;
+  --ev-track: #2b2722;
+  --ev-fill: #d6cfc2;
+  --ev-ring: rgba(241, 236, 226, 0.24);
   --stone-ring: rgba(241, 236, 226, 0.42);
   color-scheme: dark;
 }
@@ -1605,9 +1611,19 @@ kbd {
 }
 /* An older read while KataGo reads this one is said with a word (.ev-state), not by fading the
    numbers. A previewed line: the bar and the game's controls stay where they are, dimmed */
+/* (critics, round 2: opacity took the words to 2.2:1) the words turn secondary ink, still
+   4.5:1 or more; only the graphics fade */
 .bp-eval.dim,
-.bp-foot.dim {
-  opacity: 0.38;
+.bp-eval.dim .ev-lead,
+.bp-foot.dim,
+.bp-foot.dim button,
+.bp-foot.dim span {
+  color: var(--muted);
+}
+.bp-eval.dim .ev-track,
+.bp-foot.dim input,
+.bp-foot.dim svg {
+  opacity: 0.45;
 }
 /* before any read there is nothing to show: the bar keeps its place but stays hidden */
 .bp-eval.empty {
@@ -1632,23 +1648,25 @@ kbd {
   border-radius: 999px;
   overflow: hidden;
   background: var(--ev-track);
-  box-shadow: 0 0 0 1px rgba(11, 15, 20, 0.28);
+  box-shadow: 0 0 0 1px var(--ev-ring);
 }
 .ev-fill {
   position: absolute;
   inset: 0;
-  background: #0f0f0e;
+  background: var(--ev-fill);
   transform-origin: 0 50%;
   transition: transform 0.35s var(--glide);
 }
+/* the halfway mark is a hairline inside the track, so a 1% bar reads as nearly empty, not as even */
 .ev-mid {
   position: absolute;
   left: 50%;
-  top: -2px;
-  bottom: -2px;
-  width: 1.5px;
-  margin-left: -0.75px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  margin-left: -0.5px;
   background: #8a929c;
+  opacity: 0.55;
   mix-blend-mode: difference;
 }
 .ev-lead {

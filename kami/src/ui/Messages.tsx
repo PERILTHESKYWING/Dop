@@ -10,7 +10,7 @@ import type { Answer, ChatMessage } from '../lib/store';
 import { pointView } from '../lib/points';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
-import { levelOfMessage } from '../lib/levels';
+import { levelOfMessage, longerLevel } from '../lib/levels';
 import { NOTES } from '../lib/writer';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
@@ -202,10 +202,15 @@ function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : nul
   // One set for the whole text, filled in reading order: each term gets one hover.
   const seen = new Set<GlossaryEntry>();
   const split = (t: string) => splitRich(t, src?.base.size ?? null, terms ? { allow: terms, seen } : null);
-  // "play P5 [[v1]]": the point already shows the line, so a chip that repeats it is left out.
+  // "play P5 [[v1]]" or "Q12 is a little worse [[v2]]": the point already shows the line it
+  // starts, so a chip that only repeats it in the same sentence is left out.
   const repeats = (prev: Inline | undefined, id: string) => {
-    const label = ex?.variations.find((v) => v.id === id)?.label;
-    return !!label && !!prev && prev.type !== 'chip' && prev.text.trimEnd().endsWith(label);
+    const raw = ex?.variations.find((v) => v.id === id)?.label;
+    // "after Q12" names the same point as "Q12"
+    const label = raw?.replace(/^after\s+(?=[A-HJ-T]\d{1,2}$)/i, '');
+    if (!label || !prev || prev.type === 'chip') return false;
+    const sentence = prev.text.split(/[.!?]\s/).pop() ?? '';
+    return new RegExp(`(^|[^A-Za-z0-9])${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9]|$)`).test(sentence);
   };
   /** The pieces of `s`, with repeated chips dropped and the space before them closed up. */
   const pieces = (s: string): Inline[] => {
@@ -258,13 +263,14 @@ function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : nul
 const secs = (ms: number) => (ms < 1000 ? 'under 1 s' : `${Math.round(ms / 1000)} s`);
 
 /** Seconds since `t0`, ticking, so a read that has not reported a step yet still visibly runs. */
-function Elapsed({ t0 }: { t0: number }) {
+function Elapsed({ t0, bare }: { t0: number; bare?: boolean }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 200);
     return () => window.clearInterval(id);
   }, []);
-  return <span className="meta">{((Date.now() - t0) / 1000).toFixed(1)} s</span>;
+  const t = `${((Date.now() - t0) / 1000).toFixed(1)} s`;
+  return bare ? <>{t}</> : <span className="meta">{t}</span>;
 }
 
 function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean }) {
@@ -272,7 +278,11 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
   // Done, it says what was done: how many positions KataGo read (its largest step's visits).
   const most = steps.reduce((n, s) => Math.max(n, s.visits ?? 0), 0);
-  const done = most ? `KataGo read ${most.toLocaleString()} positions · ${secs(ms)}` : `Read for ${secs(ms)}`;
+  // "KataGo read 207 positions · 13 s · 16 a second on this device": the work, the wait, and
+  // the device's speed, all measured (critics, round 2).
+  const positions = ex?.totalVisits || most;
+  const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
+  const done = positions ? `KataGo read ${positions.toLocaleString()} positions · ${secs(ms)}${rate ? ` · ${rate.toLocaleString()} a second on this device` : ''}` : `Read for ${secs(ms)}`;
   const text = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Reading…') : done;
   // ultraGO says so while it works: its name in the running rainbow before the stage.
   const label = live && ultra && stage !== 'engine' ? (
@@ -296,10 +306,18 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
             <span>
               <Line text={s.text} src={src} link={link} terms={plan?.[i] ?? null} />
             </span>
-            <span className="meta">
-              {s.visits ? `${s.visits} visits · ` : ''}
-              {(s.ms / 1000).toFixed(1)} s
-            </span>
+            {live && i === steps.length - 1 ? (
+              // The step still reading: its time ticks (a fixed "0.0 s" read as frozen).
+              <span className="meta">
+                {s.visits ? `${s.visits} visits · ` : ''}
+                <Elapsed t0={t0} bare />
+              </span>
+            ) : (
+              <span className="meta">
+                {s.visits ? `${s.visits} visits` : ''}
+                {s.ms >= 50 ? `${s.visits ? ' · ' : ''}${(s.ms / 1000).toFixed(1)} s` : ''}
+              </span>
+            )}
             {s.variation && ex && <VariationChip id={s.variation} ex={ex} msgId={msgId} link={link} />}
           </li>
         ))}
@@ -322,6 +340,17 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   );
 }
 
+/** Plain titles for the idea chips (the rest are Go terms as they are: sente, miai, ko…). */
+const TAG_TITLES: Partial<Record<ConceptHit['id'], string>> = {
+  attack: 'pressure on',
+  'weak-group': 'weak group',
+  'dead-group': 'dead stones',
+  'big-point': 'big point',
+  'save-stones': 'saves the stones',
+  'double-sente': 'double sente',
+  'reverse-sente': 'reverse sente',
+};
+
 function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explanation; msgId: string; link: BoardLink }) {
   if (!hits.length) return null;
   const size = ex.position.size;
@@ -329,7 +358,8 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
     <div className="tags" aria-label="Ideas found">
       {hits.map((h, i) => {
         const v = h.variation ? ex.variations.find((x) => x.id === h.variation) : undefined;
-        const at = h.at.map((l) => locToGtp(l, size)).join(' ');
+        // "attack Q10 Q11" said nothing: the chip names the stones under pressure.
+        const at = (h.id === 'attack' ? h.at.slice(1) : h.at).map((l) => locToGtp(l, size)).join(' ');
         const key = `${msgId}:c${i}`;
         const preview = (pinned: boolean): Preview =>
           v
@@ -349,7 +379,7 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
               };
         return (
           <BoardChip key={i} className="tag" preview={preview} link={link}>
-            {h.id.replace(/-/g, ' ')}
+            {TAG_TITLES[h.id] ?? h.id.replace(/-/g, ' ')}
             {at && <span className="tag-at">{at}</span>}
           </BoardChip>
         );
@@ -358,13 +388,19 @@ function ConceptTags({ hits, ex, msgId, link }: { hits: ConceptHit[]; ex: Explan
   );
 }
 
-function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' }>; msg: ChatMessage; link: BoardLink }) {
+function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { type: 'explain' }>; msg: ChatMessage; link: BoardLink; onReadLonger?: () => void }) {
   const ex = a.explanation;
   const w = a.writing;
   const src = answerSrc(ex, msg.id);
+  // Each fact once (critics, round 2): the numbers live in the one list below, so the engine's
+  // "KataGo's numbers" section is not shown again above it, and a rounded restatement of the
+  // first sentence ("White leads by about 11 points") is not listed.
+  const sections = ex.sections.filter((s) => s.title !== 'KataGo’s numbers' && s.title !== "KataGo's numbers");
+  const facts = ex.facts.filter((f) => !f.quiet);
   // Each Go term is underlined once: where it first appears in the answer, then in the facts.
-  const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...ex.sections.map((s) => s.text)]);
-  const factPlan = firstTerms(ex.facts.map((f) => f.text));
+  const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...sections.map((s) => s.text)]);
+  const factPlan = firstTerms(facts.map((f) => f.text));
+  const longer = longerLevel(msg.level ?? levelOfMessage(msg)?.id);
   return (
     <>
       <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} />
@@ -373,7 +409,7 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
       ) : (
         <>
           <RichText text={ex.summary} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
-          {ex.sections.map((s, i) => (
+          {sections.map((s, i) => (
             <section key={i} className="ans-section">
               <h4>{s.title}</h4>
               <RichText text={s.text} ex={ex} msgId={msg.id} link={link} terms={plan[i + 1]} />
@@ -383,14 +419,25 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
       )}
       {w.note && <p className="note">{w.note}</p>}
       {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
+      {longer && ex.totalVisits > 0 && (
+        // A quick read says so, with its real size, and offers the longer one (critics 3 and 9).
+        <p className="note quick-read">
+          Quick read ({ex.totalVisits.toLocaleString()} positions). A longer read can change the pick.{' '}
+          {onReadLonger && (
+            <button type="button" className="text-btn" onClick={onReadLonger}>
+              Read longer
+            </button>
+          )}
+        </p>
+      )}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
-      {ex.facts.length > 0 && (
+      {facts.length > 0 && (
         <details className="facts" open>
           <summary>
-            KataGo’s numbers ({ex.facts.length}) <Icon name="down" size={14} />
+            KataGo’s numbers ({facts.length}) <Icon name="down" size={14} />
           </summary>
           <ul>
-            {ex.facts.map((f, i) => (
+            {facts.map((f, i) => (
               <li key={f.id}>
                 <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
               </li>
@@ -612,12 +659,14 @@ const KamiMessage = memo(function KamiMessage({
   onAsk,
   onShowBoard,
   busy,
+  onReadLonger,
 }: {
   m: ChatMessage;
   running: Running | null;
   isLast: boolean;
   link: BoardLink;
   onRegenerate: () => void;
+  onReadLonger?: () => void;
   onAsk: (t: string) => void;
   onShowBoard: (b: BoardState) => void;
   busy: boolean;
@@ -639,7 +688,7 @@ const KamiMessage = memo(function KamiMessage({
       </div>
       {live && !a && <Thoughts steps={running!.steps} live ms={Date.now() - running!.t0} msgId={m.id} link={link} stage={running!.stage} ultra={lvl?.id === 'ultrago'} />}
       {!live && !a && <p className="note">Stopped.</p>}
-      {a?.type === 'explain' && <ExplainAnswer a={a} msg={m} link={link} />}
+      {a?.type === 'explain' && <ExplainAnswer a={a} msg={m} link={link} onReadLonger={isLast && !busy && !live ? onReadLonger : undefined} />}
       {a?.type === 'concept' && <ConceptAnswer a={a} msg={m} link={link} onAsk={onAsk} onShowBoard={onShowBoard} />}
       {a?.type === 'error' && <p className="note">{a.text}</p>}
       {live && a?.type === 'concept' && <p className="note">{NOTES.polishing}</p>}
@@ -668,6 +717,8 @@ interface Props {
   onEdit: (text: string) => void;
   onShowBoard: (b: BoardState) => void;
   busy: boolean;
+  /** Ask the last question again with a longer read (the quick-read line's "Read longer"). */
+  onReadLonger?: () => void;
 }
 
 /** 気合 writes itself the first time the empty chat shows; after that it is simply there. */
@@ -684,7 +735,7 @@ function HelloMark() {
   );
 }
 
-export function Messages({ messages, running, board, link, onAsk, onRegenerate, onEdit, onShowBoard, busy }: Props) {
+export function Messages({ messages, running, board, link, onAsk, onRegenerate, onEdit, onShowBoard, busy, onReadLonger }: Props) {
   const end = useRef<HTMLDivElement>(null);
   const pane = useRef<HTMLDivElement>(null);
   const steps = running?.steps.length ?? 0;
@@ -749,7 +800,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
           m.role === 'user' ? (
             <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />
           ) : (
-            <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} />
+            <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} onReadLonger={onReadLonger} />
           ),
         )}
         <div ref={end} />

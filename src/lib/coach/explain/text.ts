@@ -7,7 +7,7 @@
  */
 import { other, PASS, type Loc } from '../../go/types';
 import { keyPointOf } from './concepts';
-import { ownerWords, turnPhrase, type LineStarts, type TurningPoint } from './consequence';
+import { ownerWords, plainTurn, turnPhrase, type LineStarts, type TurningPoint } from './consequence';
 import { colorWord, coord, fmt1, leadPhrase, pct, sideLead } from './geometry';
 import { EQUAL_PTS, sideLeadPhrase, type Findings } from './planner';
 import type { ConceptHit, Fact } from './types';
@@ -129,7 +129,7 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
     let turn = '';
     if (tp) {
       turn = turnPhrase(tp, mover, { a, b, C });
-      parts.push(fact(`In the ${C(a)} line, against the ${C(b)} line, ${turn}.`));
+      parts.push(fact(plainTurn(tp, mover, C(a), C(b))));
       // Region sums of ownership are not points (they swing with every trade), so only the
       // searched leads are given as numbers.
       parts.push(fact(`At move ${tp.shownMove}, ${pts(tp.leadA)} in the ${C(a)} line and ${pts(tp.leadB)} in the ${C(b)} line.`));
