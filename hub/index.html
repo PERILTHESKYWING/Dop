@@ -1184,7 +1184,7 @@ let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1218,11 +1218,16 @@ function renderSide() {
     html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else html = `<div class="navpair"><button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+  } else html = `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
     + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+  // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
   setHtml($('threads'), html);
+  const box = $('threads');
+  for (const el of box.querySelectorAll('.trow.on')) if (el.dataset.thread !== String(sel)) { el.classList.remove('on'); el.removeAttribute('aria-current'); }
+  const cur = box.querySelector(`.trow[data-thread="${sel}"]`);
+  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
