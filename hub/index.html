@@ -90,13 +90,13 @@ try {
 :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
 :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
 :root .walls button, :root .sect, :root .md pre code, :root .sheet code, :root .copyline, :root #connLog { font-size: 14px; }
-:root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+:root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
 :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state, :root .pseg button { font-size: 15px; }
 /* Desktop: one step up again, since Alegreya's x-height is ~12% smaller than the old system font. */
 @media (min-width: 861px) {
   :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
   :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan, :root .trow.t1 .when { font-size: 15px; }
-  :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+  :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
   :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state { font-size: 16px; }
 }
 
@@ -169,8 +169,7 @@ try {
 
 /* team panel: type and colour only (its layout belongs to the sidebar + team work) */
 :root .thead h3 { font-weight: 700; font-size: 22px; }
-:root .stats div, :root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
-:root .stats b { font-size: 34px; font-weight: 700; }
+:root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
 :root .aname .nm { font-size: 18px; font-weight: 500; }
 :root .track { background: var(--chip); }
 
@@ -592,15 +591,14 @@ button.fchip:hover { border-color: var(--faint); }
 /* team panel */
 .thead { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px; }
 .thead h3 { margin: 0; font-size: 19px; flex: 1; }
+.thead h3:has(+ .tcount) { flex: none; }
 .cap { padding: 0 16px 10px; margin: 0; font-size: 15px; }
-.stats { display: flex; gap: 5px; padding: 0 12px 10px; }
-.stats div { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; display: flex; align-items: baseline; gap: 5px; background: var(--bg); white-space: nowrap; }
-.stats b { font-size: 20px; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.stats b.ready { color: var(--green); } .stats b.low { color: var(--red); }
-.stats span { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
 .acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 0 12px; }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
-.acard.low { border-color: var(--red); }
+/* Team: no alarm borders; the red word and the red bar carry "running low". */
+.thead .tcount { flex: 1; min-width: 0; color: var(--soft); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thead .tcount + .btn { margin-left: auto; }
+.atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .atop .btn.more { padding: 1px 8px 5px; margin: -4px -4px -4px 0; }
 .ameta { display: flex; gap: 8px; align-items: center; min-width: 0; font-size: 14px; }
@@ -615,11 +613,11 @@ button.fchip:hover { border-color: var(--faint); }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
 .u1 .lbl { font-weight: 500; color: var(--soft); }
 .u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
-.u1 .track { display: block; height: 6px; }
+.u1 .track { display: block; height: 4px; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .nmrow { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
-.conn { font-size: 14px; font-weight: 500; color: var(--green); }
+.conn { font-size: 14px; color: var(--soft); }
 .conn.no { color: var(--amber); }
 .bubble.pending { opacity: .7; }
 .sending { font-size: 13px; font-weight: 500; margin-top: 6px; text-align: right; }
@@ -628,16 +626,17 @@ button.fchip:hover { border-color: var(--faint); }
 .group.arch:hover { color: var(--ink); }
 .btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; }
 .aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan { font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--chip); }
-.state.ready, .state.busy { color: var(--green); } .state.low, .state.fix { color: var(--red); } .state.chat, .state.paused { color: var(--soft); }
+.plan { font-weight: 400; color: var(--soft); }
+.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
 .acard .sub { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 .acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
 .use .lbl { font-weight: 500; }
 .use .pct { text-align: right; font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums; }
 .use .rs { grid-column: 2 / span 2; color: var(--soft); font-size: 13px; margin-top: -2px; }
-.track { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
-.fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .4s ease; }
+.track { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+/* Usage bars are ink; amber and red warn. Green means "working" and nothing else. */
+.fill { height: 100%; background: color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 2px; transition: width .4s ease; }
 .fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
 .act { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 14px; border-left: 3px solid var(--green); padding-left: 8px; }
 .act-top { display: flex; gap: 8px; justify-content: space-between; }
@@ -658,6 +657,8 @@ button.act:hover .ttl { text-decoration: underline; }
 .ag .track { height: 5px; border-radius: 3px; background: var(--line, rgba(128,128,128,.25)); overflow: hidden; }
 .ag .track .fill { height: 100%; background: var(--green); transition: width .4s; } .ag.failed .fill { background: var(--red); }
 .tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
+/* Tasks repeat the threads sidebar, so on a computer they show only while that sidebar is closed. */
+@media (min-width: 861px) { .app:not([data-side="off"]) .tasks { display: none; } }
 .tasks > *, .tgroup { min-width: 0; }
 .tasks .cap { white-space: nowrap; }
 .tasks .thead { padding: 4px 4px 0; }
@@ -1801,14 +1802,13 @@ function accountCard(a) {
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
   const sub = a.problem || (a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${back(a.lowUntil)}, then its threads continue` : ''}` : a.pausedUntil > Date.now() ? `${a.pausedNote} · tries again ${back(a.pausedUntil) === 'now' ? 'now' : 'at ' + back(a.pausedUntil)}` : '');
   const act = activityOf(a);
-  const conn = a.oldLink || !a.connected
-    ? `<button class="btn small primary" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>`
-    : '<span class="conn">' + icon('check', 14) + ' Connected</span>';
+  // Only a missing or old connection is worth a line; a working one says nothing.
+  const conn = a.oldLink || !a.connected ? `<div class="ameta"><button class="btn small primary" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : ''}</div>` : '';
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : `<div class="nouse" title="${esc(a.usageErr || '')}">${a.usageErr ? 'No usage shared yet' : a.models.length ? 'Usage not read yet' : 'Free plans don\'t share usage'}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
-    <div class="ameta">${conn}<span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span></div>
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    ${conn}
     ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>` : ''}
     ${act}
     ${usage}
@@ -1870,14 +1870,16 @@ function renderTeam() {
   const n = (k) => S.accounts.filter((a) => acctState(a)[0] === k).length;
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
-  setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') + n('paused') ? 'low' : ''}">${n('low') + n('paused')}</b><span>Low</span></div>${n('fix') ? `<div><b class="low">${n('fix')}</b><span>Needs you</span></div>` : ''}</div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
+  // The header says only what is not routine: how many work, run low or need XIAO.
+  const counts = [n('fix') && `${n('fix')} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${n('busy')} working`, n('low') + n('paused') && `${n('low') + n('paused')} low`].filter(Boolean).join(' · ');
+  setHtml($('team'), `<div class="thead"><h3>Team</h3>${counts ? `<span class="tcount">${esc(counts)}</span>` : ''}<button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
+    ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
       <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
-      <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
+      <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
 }
@@ -1941,7 +1943,8 @@ document.addEventListener('click', async (e) => {
   const pp = e.target.closest('[data-pop]'); if (pp) { if (popKind === pp.dataset.pop) return closePop(); return openPop(pp.dataset.pop, pp); }
   const tg = e.target.closest('[data-toggle="direct"]'); if (tg) { opts.direct = !opts.direct; saveOpts(); return renderTools(null); }
   const st = e.target.closest('[data-starter]'); if (st) { $('text').value = st.dataset.starter; drafts[sel] = st.dataset.starter; grow(); $('text').focus(); return; }
-  if (e.target.closest('[data-refresh]')) { e.target.textContent = 'Reading…'; await readUsage(true); return; }
+  const rf = e.target.closest('[data-refresh]');
+  if (rf) { const was = rf.textContent; rf.textContent = 'Reading…'; await readUsage(true); if (rf.isConnected) rf.textContent = was; return; }
   if (e.target.closest('[data-archived]')) { showArchived = !showArchived; return renderSide(); }
   const op = e.target.closest('[data-open]'); if (op) return openSheet(op.dataset.open, op.dataset.name);
   const low = e.target.closest('[data-low]'); if (low) { await api('account-low', { name: low.dataset.low, low: low.dataset.v === '1', note: 'marked on the page' }); closeSheet(); return load(true); }
