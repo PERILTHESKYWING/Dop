@@ -3,7 +3,7 @@ import { markReady } from '../lib/ready';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
 import type { Box } from './landing/camera';
 import type { Show } from './landing/Stage';
-import { ASK, CHAPTERS, COLOPHON, LINE, PICK, READS } from './landing/story';
+import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, READS } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
@@ -334,7 +334,9 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             Open Kiai
           </a>
           <p className="l-text">{start.text}</p>
-          <p className="l-text l-colophon">{COLOPHON}</p>
+          <p className="l-text l-colophon">
+            {HOW} {COLOPHON}
+          </p>
           <p className="l-links">
             <a href="https://github.com/lightvector/KataGo" target="_blank" rel="noreferrer">
               KataGo

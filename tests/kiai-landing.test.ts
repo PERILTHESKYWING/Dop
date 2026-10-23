@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEMO, FINAL } from '../kami/src/ui/landing/data';
-import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { WINRATE_FROM_SCORE } from '../src/lib/engine/models';
 
 // The landing's words are a plain rewording of Kiai's recorded answers; every point and number
 // they name must come from the recorded KataGo data (kami/src/ui/landing/demo.json).
@@ -12,7 +13,7 @@ const text = (id: string) => {
 };
 
 describe('Kiai landing copy', () => {
-  it('answers the first question with Kiai’s own Deep pick, which is also KataGo’s final choice', () => {
+  it('answers the first question with Kiai’s own pick, which is also KataGo’s choice after its longest read', () => {
     expect(PICK).toBe(pointsIn(PLAY.summary)[0]);
     expect(PICK).toBe(FINAL.cands[0].at);
     expect(ASK.q).toBe(PLAY.question);
@@ -45,6 +46,17 @@ describe('Kiai landing copy', () => {
     for (const r of READS.slice(flip)) expect(r.cands[0].at).toBe(LAST_PICK);
     expect(READS.map((r) => r.visits)).toEqual(DEMO.reads.map((r) => r.visits));
     for (const at of READ_ROWS) expect(DEMO.reads.some((r) => r.cands.some((c) => c.at === at))).toBe(true);
+    // every move that was KataGo's favourite at some depth has a row, so no change of mind is hidden
+    for (const r of DEMO.reads) expect(READ_ROWS).toContain(r.cands[0].at);
+  });
+
+  it('records the win chance the way the app shows it (from the score lead, as for the bundled b10)', () => {
+    const sig = (lead: number) => 1 / (1 + Math.exp(-lead / WINRATE_FROM_SCORE));
+    for (const r of DEMO.reads) {
+      for (const c of r.cands) expect(Math.abs(c.win - sig(c.lead))).toBeLessThan(0.03);
+    }
+    // the score answer's numbers agree with each other the same way
+    expect(Math.abs(BLACK_WINS - 100 * sig(-LEAD))).toBeLessThanOrEqual(2);
   });
 
   it('gives the score from the recorded score answer', () => {
@@ -63,6 +75,10 @@ describe('Kiai landing copy', () => {
     expect(COLOPHON).toMatch(/KataGo, open source, by David J\. Wu/);
     const all = [...CHAPTERS.map((c) => text(c.id)), COLOPHON].join(' ');
     expect(all).not.toMatch(/offline|leaves your device|AI-powered|smart|assistant|chatbot|coach/i);
+    // what does what: KataGo reads, a language model (never named) only words it, and it is optional
+    expect(HOW).toMatch(/KataGo does the reading in your browser/);
+    expect(HOW).toMatch(/works without it/);
+    expect(HOW).not.toMatch(/gemini|google|openai|gpt|claude/i);
   });
 
   it('shows the line Kiai gave with its pick', () => {
@@ -80,6 +96,19 @@ describe('Kiai landing copy', () => {
     expect(TURN_TO).toBeLessThan(50);
     // the move that dropped Black's chances was Black's own
     expect(TURN.color).toBe(1);
+  });
+
+  it('draws a review graph without a side-to-move comb (it read as a bug)', () => {
+    // a comb: the chance jumping up and down by 15 or more on consecutive moves, again and again
+    const w = DEMO.review.bWin;
+    const d = w.slice(1).map((v, i) => v - w[i]);
+    let run = 0, worst = 0;
+    for (let i = 1; i < d.length; i++) {
+      run = Math.abs(d[i]) >= 0.15 && Math.abs(d[i - 1]) >= 0.15 && d[i] * d[i - 1] < 0 ? run + 1 : 0;
+      worst = Math.max(worst, run);
+    }
+    expect(worst).toBeLessThan(3);
+    expect(DEMO.review.visits).toBe(60);
   });
 });
 

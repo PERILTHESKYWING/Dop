@@ -1,9 +1,11 @@
 /**
  * The landing's real material, recorded once by `npx tsx scripts/kiai-demo.ts` (demo.json): one
  * position (move 34 of game g70dd864b0bcbfc05 from the engine benchmark set, Black to play),
- * KataGo's read of it growing from 8 to 2,048 visits, Kiai's answers to three questions at each
- * depth, and a review of the whole game. All of it comes from the bundled b10 network running in
- * the same WebAssembly engine the site uses. Nothing here is made up; the page only shortens.
+ * KataGo's read of it growing from 32 to 2,048 visits, Kiai's answers to three questions at four
+ * of the app's levels, and a review of a whole game at the app's graph depth. All of it comes
+ * from the bundled b10 network running in the same WebAssembly engine the site uses, with the
+ * win chance taken from the score lead as the site does (WINRATE_FROM_SCORE), so the landing's
+ * numbers are the ones the app shows. Nothing here is made up; the page only shortens.
  */
 import { allPositions } from '../../../../src/lib/go/board';
 import { gtpToLoc } from '../../../../src/lib/go/coords';
@@ -29,7 +31,8 @@ export interface Read {
 }
 export interface Answer {
   question: string;
-  depth: 'Quick' | 'Careful' | 'Deep';
+  /** The app's level it was asked at (kami/src/lib/levels.ts); engine text, no language model. */
+  depth: 'Low' | 'Medium' | 'Max' | 'ultraGO';
   summary: string;
   sections: { title: string; text: string }[];
   variations: { id: string; moves: string[] }[];

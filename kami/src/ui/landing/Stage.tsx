@@ -82,7 +82,8 @@ function paperShadow(T: number): Mesh<PlaneGeometry, MeshBasicMaterial> {
   return m;
 }
 
-const cream = (at: string, alpha: number): PaleMark => ({ loc: loc(at), color: 1, alpha, cream: true });
+/** KataGo's choice for the side to play: a see-through stone of that colour, so it reads as Black's move, not a white stone. */
+const choice = (at: string, alpha: number): PaleMark => ({ loc: loc(at), color: DEMO.toPlay as StoneColor, alpha });
 
 /**
  * The point the words talk about, named beside it on the board: a seal-red label on a short line
@@ -116,11 +117,11 @@ function apply(v: KayaView, show: Show) {
   v.setStones(STONES);
   // only the points KataGo is fairly sure of, so the picture stays calm
   v.setOwnership(show.kind === 'ahead' ? FINAL.own.map((o) => (Math.abs(o) < 0.45 ? 0 : o)) : null, true, 1.45);
-  if (show.kind === 'ask' || show.kind === 'start') v.setPale([cream(PICK, 0.92)]);
+  if (show.kind === 'ask' || show.kind === 'start') v.setPale([choice(PICK, 0.72)]);
   else if (show.kind === 'reading') {
     // only KataGo's current favourite, named above it: the bars beside the board show the rest
     const r = READS[Math.min(show.step, READS.length - 1)];
-    v.setPale([cream(r.cands[0].at, 0.95)]);
+    v.setPale([choice(r.cands[0].at, 0.72)]);
   } else if (show.kind === 'next') {
     // the stones go down as played; their numbers are on the book diagram beside the board
     v.setPale(LINE.slice(0, show.n).map((g, i) => ({ loc: loc(g), color: (i % 2 === 0 ? DEMO.toPlay : 3 - DEMO.toPlay) as StoneColor, alpha: 1 })));

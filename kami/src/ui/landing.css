@@ -687,9 +687,9 @@ html.kiai-landing {
   color: var(--l-ink);
 }
 .l-text.l-colophon {
-  max-width: 30em;
-  font-size: clamp(19px, 1.45vw, 22px);
-  line-height: 1.4;
+  max-width: 36em;
+  font-size: 17px;
+  line-height: 1.5;
   color: var(--l-ink-2);
 }
 .l-links {

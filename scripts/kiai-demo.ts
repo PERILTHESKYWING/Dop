@@ -1,13 +1,21 @@
 /**
  * The landing page's live demos, recorded from real reads: KataGo (the bundled b10 network
- * through the WASM engine in Node, the same search the site runs) on the landing's game
- * (demo game g70dd864b0bcbfc05, 34 moves, Black to play), and Kiai's own engine text for three
- * questions at each depth. Nothing here calls a language model, so Deep shows its engine text
- * without the Gemini wording. The game review is of another demo game (g02b639852ab783a8, chosen
- * because its win rate swings back and forth for most of the game, so the graph shows something).
+ * through the WASM engine in Node, the same search the site runs, with the win chance taken
+ * from the score lead as the site does for b10, WINRATE_FROM_SCORE, so the numbers are the ones
+ * the app shows) on the landing's game (demo game g70dd864b0bcbfc05, 34 moves, Black to play),
+ * and Kiai's own engine text for three questions at four of the app's levels (Low, Medium, Max,
+ * and ultraGO's reading without its writer, which is what ultraGO shows when no language model is set up).
+ * Nothing here calls a language model. The game review is of another demo game, read at the
+ * app's own graph depth (60 visits a move, analysis.ts TREND_VISITS). g02b639852ab783a8 was
+ * used until 2026-10-23, but from move 75 to 95 its lead swings about 3 points to whoever is to
+ * move (also at 400 visits: a real feature of that game, not a bug), which drew a comb that read
+ * as a bug. Seven other demo games were read the same way on 2026-10-23 and
+ * gcf9da495b40ea48c was the cleanest: no comb, no spike, and one clear turn on Black's own
+ * move (55: 52% to 16%). Pick another with --review-game.
  *
  *   npx tsx scripts/kiai-demo.ts --out kami/src/ui/landing/demo.json
  *   npx tsx scripts/kiai-demo.ts --review-only   (keep the reads and answers, redo the review)
+ *   npx tsx scripts/kiai-demo.ts --keep-review   (redo the reads and answers, keep the review)
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -19,13 +27,15 @@ import { PASS, type Color, type Loc, type Move } from '../src/lib/go/types';
 import type { EngineRead, ModelId } from '../src/lib/coach/explain/types';
 import { reviewMoves, accuracy } from '../kami/src/lib/review';
 import { nodeProber } from './explainNode';
+import { WINRATE_FROM_SCORE } from '../src/lib/engine/models';
 
 const { values: arg } = parseArgs({
   options: {
     out: { type: 'string', default: 'kami/src/ui/landing/demo.json' },
-    review: { type: 'string', default: '64' },
-    'review-game': { type: 'string', default: 'g02b639852ab783a8' },
+    review: { type: 'string', default: '60' },
+    'review-game': { type: 'string', default: 'gcf9da495b40ea48c' },
     'review-only': { type: 'boolean', default: false },
+    'keep-review': { type: 'boolean', default: false },
   },
 });
 const root = new URL('../', import.meta.url);
@@ -39,7 +49,7 @@ const posAt = (n: number) => posIn(game, n);
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-const prober = await nodeProber(19);
+const prober = await nodeProber(19, WINRATE_FROM_SCORE);
 const pos = posAt(TURN);
 const b = replay(19, [], pos.moves, pos.moves.length);
 const stones: [string, number][] = [];
@@ -56,7 +66,7 @@ const pack = (r: EngineRead) => ({
 // --review-only keeps the reads and answers already recorded
 const prev = arg['review-only'] && existsSync(arg.out!) ? (JSON.parse(readFileSync(arg.out!, 'utf8')) as { reads: unknown[]; answers: unknown[] }) : null;
 const reads: unknown[] = prev?.reads ?? [];
-for (const v of prev ? [] : [8, 32, 128, 512, 2048]) {
+for (const v of prev ? [] : [32, 128, 512, 2048]) {
   const r = await prober.read(pos, { visits: v, maxMs: 600_000 });
   if (r) reads.push(pack(r));
   console.log(`read ${v}: ${r?.candidates.slice(0, 3).map((c) => `${name(c.loc)} ${(c.winrate * 100).toFixed(1)}%`).join(', ')}`);
@@ -69,9 +79,12 @@ const QUESTIONS: { text: string; q: Question }[] = [
   { text: 'Who is ahead, and why?', q: { kind: 'overview', text: 'Who is ahead, and why?', intent: 'ahead' } },
 ];
 const DEPTHS: { model: ModelId; name: string; thinking: ThinkingLevel }[] = [
-  { model: 'hane', name: 'Quick', thinking: 'off' },
-  { model: 'tesuji', name: 'Careful', thinking: 'medium' },
-  { model: 'myoshu', name: 'Deep', thinking: 'high' },
+  // the app's levels (kami/src/lib/levels.ts), engine text only: no language model is called
+  { model: 'hane', name: 'Low', thinking: 'medium' },
+  { model: 'tesuji', name: 'Medium', thinking: 'medium' },
+  { model: 'tesuji', name: 'Max', thinking: 'max' },
+  // ultraGO's reading (Myoshu at max) and its engine text: what ultraGO shows without its writer
+  { model: 'myoshu', name: 'ultraGO', thinking: 'max' },
 ];
 const answers: unknown[] = prev?.answers ?? [];
 for (const { text, q } of prev ? [] : QUESTIONS) {
@@ -92,12 +105,24 @@ for (const { text, q } of prev ? [] : QUESTIONS) {
   }
 }
 
-// 3. The whole game reviewed at a small, fixed number of visits per position.
-const RV = Number(arg.review);
-const positions = Array.from({ length: rgame.moves.length + 1 }, (_, i) => posIn(rgame, i));
-const gameReads: (EngineRead | undefined)[] = [];
-for (const p of positions) gameReads.push((await prober.read(p, { visits: RV, maxMs: 600_000 })) ?? undefined);
-const review = reviewMoves(positions, gameReads, rgame.moves, 19);
+// 3. The whole game reviewed at a small, fixed number of visits per position (--keep-review: the recorded one).
+const kept = arg['keep-review'] && existsSync(arg.out!) ? (JSON.parse(readFileSync(arg.out!, 'utf8')) as { review: unknown }).review : null;
+async function reviewGame() {
+  const RV = Number(arg.review);
+  const positions = Array.from({ length: rgame.moves.length + 1 }, (_, i) => posIn(rgame, i));
+  const gameReads: (EngineRead | undefined)[] = [];
+  for (const p of positions) gameReads.push((await prober.read(p, { visits: RV, maxMs: 600_000 })) ?? undefined);
+  const review = reviewMoves(positions, gameReads, rgame.moves, 19);
+  return {
+    game: rgame.id,
+    visits: RV,
+    moves: rgame.moves.map((m) => [m.color, name(m.loc)]),
+    bWin: gameReads.map((r) => (r ? r3(r.bWin) : null)),
+    bLead: gameReads.map((r) => (r ? Math.round(r.bLead * 10) / 10 : null)),
+    classes: review.map((m) => [m.index, m.cls]),
+    accuracy: { black: accuracy(review, 1), white: accuracy(review, 2) },
+  };
+}
 const out = {
   game: game.id,
   turn: TURN,
@@ -109,14 +134,7 @@ const out = {
   order: game.moves.slice(0, TURN).map((m) => name(m.loc)),
   reads,
   answers,
-  review: {
-    game: rgame.id,
-    visits: RV,
-    moves: rgame.moves.map((m) => [m.color, name(m.loc)]),
-    bWin: gameReads.map((r) => (r ? r3(r.bWin) : null)),
-    classes: review.map((m) => [m.index, m.cls]),
-    accuracy: { black: accuracy(review, 1), white: accuracy(review, 2) },
-  },
+  review: kept ?? (await reviewGame()),
 };
 writeFileSync(arg.out!, JSON.stringify(out));
 console.log(`wrote ${arg.out}`);
