@@ -1602,10 +1602,9 @@ kbd {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
-  transition: opacity 0.2s;
 }
-/* an older read while KataGo reads this one: said with a word (.ev-state), not by fading the numbers */
-/* a previewed line: the bar and the game's controls stay where they are, dimmed */
+/* An older read while KataGo reads this one is said with a word (.ev-state), not by fading the
+   numbers. A previewed line: the bar and the game's controls stay where they are, dimmed */
 .bp-eval.dim,
 .bp-foot.dim {
   opacity: 0.38;
