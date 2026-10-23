@@ -1155,7 +1155,8 @@ $('feed').addEventListener('click', (e) => {
 
 // ---------- sidebar ----------
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
-let lastByThread = new Map(); // filled once per renderSide
+// Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
+let lastByThread = new Map(), lastByThreadAcct = new Map();
 function threadRow(t) {
   const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
@@ -1165,7 +1166,11 @@ function threadRow(t) {
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
-  lastByThread = new Map(); for (const m of S.messages) lastByThread.set(m.thread, m);
+  lastByThread = new Map(); lastByThreadAcct = new Map();
+  for (const m of S.messages) {
+    lastByThread.set(m.thread, m);
+    if (m.kind !== 'thinking' && m.from !== 'XIAO' && m.from !== 'hub') { const a = acctOf(m.from); if (a) lastByThreadAcct.set(`${m.thread}|${a.name}`, m); }
+  }
   setHtml($('clawdMark'), lively() ? clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'anim busy' : 'anim') : '');
   $('newChat').setAttribute('aria-pressed', sel === NEW_CHAT);
   const find = $('tFind');
@@ -1182,14 +1187,17 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
+  // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
+  let html;
   if (q) {
-    $('threads').innerHTML = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else $('threads').innerHTML = `<button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+  } else html = `<button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
     + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+  setHtml($('threads'), html);
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
@@ -1790,7 +1798,7 @@ function activityOf(a) {
   const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
   const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   const row = (t) => {
-    const last = S.messages.filter((m) => m.thread === t.id && acctOf(m.from)?.name === a.name && m.kind !== 'thinking').at(-1);
+    const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
     return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${t.account === a.name ? 'lead' : 'member'}${last ? ' · ' + esc(since(last.at)) : ''}</small></div></button>`;
   };
   return `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div></div>`).join('')}`;
