@@ -115,14 +115,17 @@ try {
 /* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
 :root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
-:root .app > .side .pbtn, :root .app > .side .live, :root .app > .side .live.off { color: var(--kaya-ink); }
+:root .app > .side .pbtn { color: var(--kaya-ink); }
+:root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
 :root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
 @media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
-:root .app > .side .group { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); letter-spacing: .07em; }
+:root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .group { letter-spacing: .07em; }
+.tfind input::placeholder { color: var(--faint); opacity: 1; }
 :root .trow { border-radius: var(--r); padding: 10px 12px; }
 :root .trow .ttl { font-size: 16px; font-weight: 500; }
 :root .trow .tsub { font-size: 15px; }
@@ -133,13 +136,13 @@ try {
 :root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
 :root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
 :root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-/* Desktop: one line per thread, no per-row avatars (the header and Team panel say who). Phones keep two lines. */
+/* Desktop: titles wrap to two lines (full title in the tooltip), one small owner avatar per row. */
 @media (min-width: 861px) {
   :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
-  :root .trow.t1 .ttl { white-space: nowrap; display: block; -webkit-line-clamp: unset; font-size: 15px; font-weight: 500; }
-  :root .trow.t1 .avs { display: none; }
+  :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; text-wrap: balance; }
   :root .trow.tn .ttl { font-size: 15px; }
 }
+.trow.t1 .avs { opacity: .9; }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
@@ -267,8 +270,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 :root .note.hubn .nt { white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
-.live:empty::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-:root .app > .side .live:empty::before { background: var(--kaya-green); }
+.live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
+:root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
+:root .app > .side .live:not(.off) { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); font-weight: 400; }
 .live.off { color: var(--red); }
 .newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 /* Quiet nav rows (Studio, Library, Project chat, Team lessons): icon and name, no box. */
@@ -278,7 +282,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
-:root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); }
 .newtask { text-align: left; display: flex; gap: 8px; align-items: center; padding-left: 11px; padding-right: 8px; white-space: nowrap; }
 .newtask span { font-size: 19px; line-height: 1; }
 .newtask svg { width: 16px; height: 16px; flex: none; }
@@ -823,7 +826,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" aria-label="Live" title="Live"></span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
+    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" title="Live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <div class="newrow">
       <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
@@ -989,12 +992,11 @@ function pace() {
 // 30 s, so older means the page is behind, e.g. just shown again); the tooltip says when.
 function setLive(ok) {
   const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
-  // Live is a quiet green dot; the words show only when something is wrong.
-  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : '';
+  // Live: a green dot and the quiet word; Offline or Updating… in red when something is wrong.
+  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
   el.classList.toggle('off', !ok || stale);
   const at = lastOk ? new Date(lastOk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   el.title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
-  el.setAttribute('aria-label', ok && !stale ? 'Live' : el.textContent);
 }
 async function tick() {
   clearTimeout(timer); timer = 0;
@@ -1152,10 +1154,11 @@ $('feed').addEventListener('click', (e) => {
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
 // Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
 let lastByThread = new Map(), lastByThreadAcct = new Map();
+let sameWhen = false; // every row would say the same age: then rows show none
+const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
-  const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 2))}<span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></button>`;
+  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1182,6 +1185,7 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
+  sameWhen = new Set(groups.flatMap((g) => g[1]).map(rowWhen)).size < 2;
   // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
   let html;
   if (q) {
