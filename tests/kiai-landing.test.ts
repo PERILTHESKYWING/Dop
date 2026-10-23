@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEMO, FINAL } from '../kami/src/ui/landing/data';
-import { ASK, BLACK_WINS, CHAPTERS, FIRST_PICK, GROUP, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
 
 // The landing's words are a plain rewording of Kiai's recorded answers; every point and number
 // they name must come from the recorded KataGo data (kami/src/ui/landing/demo.json).
@@ -56,6 +56,13 @@ describe('Kiai landing copy', () => {
     expect(SCORE.summary).toMatch(/White is clearly ahead/);
     expect(SCORE.summary).toMatch(/Black's best hope is the framework in the upper right/);
     expect(text('ahead')).toMatch(/upper right/);
+  });
+
+  it('says what it is and who made it, and claims nothing it cannot back', () => {
+    expect(CHAPTERS[0].title).toBe('KataGo, in plain words.');
+    expect(COLOPHON).toMatch(/KataGo, open source, by David J\. Wu/);
+    const all = [...CHAPTERS.map((c) => text(c.id)), COLOPHON].join(' ');
+    expect(all).not.toMatch(/offline|leaves your device|AI-powered|smart|assistant|chatbot|coach/i);
   });
 
   it('shows the line Kiai gave with its pick', () => {

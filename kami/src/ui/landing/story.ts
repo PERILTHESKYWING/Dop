@@ -35,7 +35,9 @@ const w = DEMO.review.bWin;
 export const TURN_FROM = Math.round(w[TURN.n - 1] * 100);
 export const TURN_TO = Math.round(w[TURN.n] * 100);
 
-export const TAGLINE = 'Ask what to play in any Go position.';
+export const TAGLINE = 'KataGo, in plain words.';
+/** Who made it, said once on the last screen. The KataGo credit is as in THIRD_PARTY_NOTICES.md. */
+export const COLOPHON = 'Made by a professional Go player. The engine is KataGo, open source, by David J. Wu.';
 
 export interface Chapter {
   id: string;
