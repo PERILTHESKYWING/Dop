@@ -306,15 +306,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 
-/* Claude-style thinking: ✻ spinner, shimmering verb, elapsed time (frames, verbs and colours from Claude Code) */
-.thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--clay); min-width: 0; }
-.spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--clay); flex: none; vertical-align: -0.15em; }
-.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--clay); vertical-align: -0.15em; }
+/* Working line: a still ✻, the name, how long, and the running step. Look › Working line › Lively brings back
+   Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
+.thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
+.thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
+.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--soft); vertical-align: -0.15em; }
 .spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
-.thinking .verb { font-weight: 600; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
-.thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thinking.lively, .thinking.lively .spin { color: var(--clay); }
+.thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-.trow .spin { font-size: 14px; width: 9px; }
 /* agents' thinking notes, folded like Claude's "Thought process" */
 .thought { border-left: 2px solid var(--line); padding: 0 0 0 12px; color: var(--soft); }
 .thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; min-height: 32px; }
@@ -331,8 +333,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .clawd .cl-body, .clawd .cl-legs { fill: var(--clay); }
 .clawd .cl-eyes { fill: var(--clay-eye); }
 .clawd g, .clawd rect { transform-box: fill-box; transform-origin: center bottom; }
-.clawd .cl-eyes { transform-origin: center; animation: cl-blink 4.2s infinite; }
-.clawd .cl-up { animation: cl-bob 1.8s steps(2, jump-none) infinite; }
+.clawd .cl-eyes { transform-origin: center; }
+.clawd.anim .cl-eyes { animation: cl-blink 4.2s infinite; }
+.clawd.anim .cl-up { animation: cl-bob 1.8s steps(2, jump-none) infinite; }
 .clawd.busy .cl-up { animation: none; }
 .clawd.busy .lg.a { animation: cl-step .36s steps(2, jump-none) infinite; }
 .clawd.busy .lg.b { animation: cl-step .36s steps(2, jump-none) infinite reverse; }
@@ -629,7 +632,7 @@ button.act:hover .ttl { text-decoration: underline; }
 .tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
 .tk:hover { background: var(--sel); }
 .tk .tk-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); }
-.tk .spin { width: 14px; }
+.tk.st-working .tk-dot { border-color: var(--green); }
 .tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
 .tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
@@ -994,29 +997,33 @@ const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
 
 // ---------- thinking and Clawd ----------
-// Spinner frames, verbs and colours are Claude Code's own (read from its CLI).
-// Drawn as SVG, not text: phones turn ✳ and friends into emoji and grey them.
-// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot].
+// The ✻ is Claude Code's own glyph, drawn as SVG (phones turn ✳ and friends into grey emoji).
+// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot]. Calm (default) shows ✻ still;
+// Look › Working line › Lively turns it, adds Claude Code's verbs and Clawd, as XIAO first asked.
 const petals = (n, len, w, dot) => `<svg viewBox="0 0 24 24" aria-hidden="true">${Array.from({ length: n }, (_, i) => `<ellipse cx="12" cy="${12 - len / 2}" rx="${w}" ry="${len / 2}" transform="rotate(${(i * 360) / n} 12 12)"/>`).join('')}${dot ? `<circle cx="12" cy="12" r="${dot}"/>` : ''}</svg>`;
 const SPIN = [petals(0, 0, 0, 2.2), petals(4, 9, 2.2, 1.6), petals(8, 10, 1, 1.4), petals(6, 10, 2.4, 2), petals(8, 10, 1.9, 0), petals(8, 11, 2.6, 1.8)];
 const SPIN_LOOP = [...SPIN, ...SPIN.slice().reverse()];
 let spinI = 0;
-const spin = () => `<span class="spin">${SPIN_LOOP[spinI]}</span>`;
+const lively = () => look.motion === 'lively';
 const VERBS = ['Accomplishing', 'Architecting', 'Baking', 'Beboppin\'', 'Brewing', 'Calculating', 'Canoodling', 'Cerebrating', 'Churning', 'Clauding', 'Cogitating', 'Combobulating', 'Concocting', 'Contemplating', 'Cooking', 'Crafting', 'Crunching', 'Deciphering', 'Deliberating', 'Doodling', 'Elucidating', 'Envisioning', 'Fermenting', 'Finagling', 'Forging', 'Frolicking', 'Generating', 'Germinating', 'Hatching', 'Herding', 'Honking', 'Ideating', 'Imagining', 'Incubating', 'Inferring', 'Kneading', 'Manifesting', 'Marinating', 'Meandering', 'Moseying', 'Mulling', 'Noodling', 'Orchestrating', 'Percolating', 'Philosophizing', 'Pondering', 'Pontificating', 'Puttering', 'Puzzling', 'Reticulating', 'Ruminating', 'Scampering', 'Schlepping', 'Simmering', 'Spelunking', 'Stewing', 'Synthesizing', 'Thinking', 'Tinkering', 'Transmogrifying', 'Unfurling', 'Vibing', 'Whirring', 'Wibbling', 'Working', 'Wrangling', 'Zigzagging'];
-// Each line starts on its own verb and moves to a new one every few seconds.
+// Lively: each line starts on its own verb and moves to a new one every few seconds.
 const VERB_MS = 3000;
 const verbSeed = (key) => { let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % VERBS.length; };
 const verbAt = (seed) => VERBS[(seed + Math.floor(Date.now() / VERB_MS) * 17) % VERBS.length];
 const span = (ms) => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor(sec / 60) % 60}m`; };
-// Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks.
+// Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks. Still unless lively.
 function clawd(cls = '') {
   return `<svg class="clawd ${cls}" viewBox="0 0 18 10" aria-hidden="true" shape-rendering="crispEdges"><g class="cl-up"><g class="cl-body"><rect x="3" y="0" width="12" height="8"/><rect class="cl-arm l" x="1" y="4" width="2" height="2"/><rect class="cl-arm r" x="15" y="4" width="2" height="2"/></g><g class="cl-eyes"><rect x="5" y="2" width="1" height="2"/><rect x="12" y="2" width="1" height="2"/></g></g><g class="cl-legs"><rect class="lg a" x="4" y="8" width="1" height="2"/><rect class="lg b" x="6" y="8" width="1" height="2"/><rect class="lg a" x="11" y="8" width="1" height="2"/><rect class="lg b" x="13" y="8" width="1" height="2"/></g></svg>`;
 }
-// One live line per agent at work: the text stays fixed so the feed only
-// redraws on news; the spinner and clock tick in place.
-function thinkingLine(who, since, key) {
-  return `<div class="thinking">${clawd('s busy')}${spin()}<span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(<span class="since" data-since="${since}"></span> · ${esc(who)})</span></div>`;
+const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.now() - at)}</span>`;
+// One live line per agent at work: who, how long, and the step its running sub-agent reports
+// ("Main working · 1m 16s · Run 3 of 5"). The clock ticks in place, so the feed only redraws on news.
+function thinkingLine(who, since, key, state = 'working', step = '') {
+  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''})</span></div>`;
+  return `<div class="thinking"><span class="spin" aria-hidden="true">${SPIN[4]}</span><b>${esc(who)}</b><span class="tmeta">${state} · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}</span></div>`;
 }
+// The step of a sub-agent this account is running for this thread, if it reported one.
+const stepOf = (t, name) => { const g = (S.agents || []).find((x) => x.thread === t.id && x.account === name && x.status === 'running'); return g ? g.step || g.title || '' : ''; };
 // Who is working in this view right now.
 function liveLines(t, msgs) {
   if (!t) {
@@ -1027,27 +1034,29 @@ function liveLines(t, msgs) {
   }
   if (t.archived || !['working', 'new'].includes(t.status)) return '';
   const out = [];
-  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.status === 'new' ? `${t.account}, starting` : t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`));
-  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`));
+  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`, t.status === 'new' ? 'starting' : 'working', stepOf(t, t.account)));
+  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', stepOf(t, n)));
   return out.join('');
 }
 let verbStep = Math.floor(Date.now() / VERB_MS);
 // Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
+// Calm: one tick a second, clock text only. Lively: Claude Code's 120 ms spinner.
 const SPINS = document.getElementsByClassName('spin'), VERB_ELS = document.getElementsByClassName('verb'), SINCE_ELS = document.getElementsByClassName('since');
 let spinTimer = 0;
 function spinTick() {
-  if (!SPINS.length && !SINCE_ELS.length) return;
-  spinI = (spinI + 1) % SPIN_LOOP.length;
-  for (const el of SPINS) el.innerHTML = SPIN_LOOP[spinI];
-  if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
-    verbStep = Math.floor(Date.now() / VERB_MS);
-    for (const el of VERB_ELS) if (el.dataset.verb) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+  if (!SINCE_ELS.length && !VERB_ELS.length) return;
+  if (VERB_ELS.length) {
+    spinI = (spinI + 1) % SPIN_LOOP.length;
+    for (const el of SPINS) if (el.dataset.spin !== undefined) el.innerHTML = SPIN_LOOP[spinI];
+    if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
+      verbStep = Math.floor(Date.now() / VERB_MS);
+      for (const el of VERB_ELS) if (el.dataset.verb) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+    }
   }
-  for (const el of SINCE_ELS) el.textContent = span(Date.now() - Number(el.dataset.since));
+  for (const el of SINCE_ELS) { const v = span(Date.now() - Number(el.dataset.since)); if (el.textContent !== v) el.textContent = v; }
 }
-function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, 120); if (!document.hidden) spinTick(); }
+function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, lively() ? 120 : 1000); if (!document.hidden) spinTick(); }
 document.addEventListener('visibilitychange', spinRun);
-spinRun();
 // Agents' thinking notes: hidden, folded (default) or open, and per account.
 let think = { mode: 'fold', hide: [] };
 try { think = { ...think, ...JSON.parse(ls.get('hub-think') || '{}') }; } catch {}
@@ -1080,14 +1089,14 @@ let lastByThread = new Map(); // filled once per renderSide
 function threadRow(t) {
   const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}>${t.status === 'working' && !t.archived ? spin() : '<span class="dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 2))}<span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></button>`;
+  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 2))}<span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
   lastByThread = new Map(); for (const m of S.messages) lastByThread.set(m.thread, m);
-  setHtml($('clawdMark'), clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'busy' : ''));
+  setHtml($('clawdMark'), lively() ? clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'anim busy' : 'anim') : '');
   $('newChat').setAttribute('aria-pressed', sel === NEW_CHAT);
   const find = $('tFind');
   find.parentElement.classList.toggle('hidden', S.threads.length < FIND_AT && !find.value);
@@ -1174,7 +1183,7 @@ function emptyHtml(t) {
 }
 function helloHtml() {
   return `<div class="hello">
-      <span class="stroll">${clawd('l wave')}</span>
+      ${lively() ? `<span class="stroll">${clawd('l anim wave')}</span>` : clawd('l')}
       <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
       <h3>What should the team work on?</h3>
       <p>Write a task below. The coordinator splits it into threads and gives each one to an account.</p>
@@ -1386,8 +1395,8 @@ function renderFeed() {
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
   if (hid) items.push({ k: 'hidden', h: `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>` });
   const live = liveLines(t, msgs);
-  // c: what counts as a change; the spinner frame and verb tick in place, so the line keeps its node.
-  if (live) items.push({ k: 'live', h: live, c: live.replace(/<span class="spin">.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
+  // c: what counts as a change; the clock (and a lively spinner and verb) tick in place, so the line keeps its node.
+  if (live) items.push({ k: 'live', h: live, c: live.replace(/(class="since"[^>]*>)[^<]*/g, '$1').replace(/<span class="spin" data-spin>.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
   if (!items.length) {
     let html = S.loading ? '<div class="note">Loading…</div>' : '';
     if (!html && sel === NEW_CHAT) html = `<div class="hello">
@@ -1746,7 +1755,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? spin() : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
@@ -1939,7 +1948,7 @@ $('compose').addEventListener('submit', async (e) => {
 // ---------- look (per device) ----------
 const THEMES = [['', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 const WALLS = [['', 'Plain'], ['dots', 'Dots'], ['grid', 'Grid'], ['board', 'Go board'], ['stones', 'Stones'], ['dawn', 'Dawn'], ['sea', 'Sea'], ['forest', 'Forest'], ['night', 'Night sky']];
-let look = { theme: '', bg: '' };
+let look = { theme: '', bg: '', motion: '' };
 try { look = { ...look, ...JSON.parse(ls.get('hub-look') || '{}') }; } catch {}
 // The background pictures (hub/walls.css, written by hub/walls.mjs, ~20 KB zipped) load only
 // when a background or the Look sheet needs them. A device showing a picture keeps a copy
@@ -1967,6 +1976,9 @@ function applyLook() {
   // Painted from the kept copy: refresh it once the page has settled; else read it now.
   if (needsPics(look.bg) && !wallsP) { if ($('wallsCss')) setTimeout(loadWalls, 4000); else loadWalls(); }
   keepWalls();
+  // Sign-in: Clawd waves only in the lively working line.
+  const h1 = $('loginForm').querySelector('h1'); h1.querySelector('.clawd')?.remove(); if (lively()) h1.insertAdjacentHTML('beforeend', clawd('anim wave'));
+  spinRun();
   // Phone status bar follows the page colour.
   document.querySelector('meta[name="theme-color"]').content = getComputedStyle(r).getPropertyValue('--panel').trim() || '#f4f1ec';
 }
@@ -1979,6 +1991,9 @@ function lookHtml() {
     <p>Auto follows your phone or computer. Night sky is always dark.</p>
     <div class="sect">Background</div>
     <div class="walls">${WALLS.map(([v, n]) => `<button type="button" data-look="bg" data-v="${v}" aria-pressed="${look.bg === v}"><i data-bg-demo="${v}"></i>${n}</button>`).join('')}</div>
+    <div class="sect">Working line</div>
+    <div class="seg">${[['', 'Calm'], ['lively', 'Lively']].map(([v, n]) => `<button type="button" data-look="motion" data-v="${v}" aria-pressed="${(look.motion || '') === v}">${n}</button>`).join('')}</div>
+    <p>Calm shows who is working, for how long, and the step. Lively adds Claude Code's turning spinner, its verbs and Clawd.</p>
     <div class="acts"><button class="btn primary" data-close>Done</button></div>`;
 }
 
@@ -2106,7 +2121,7 @@ $('sheetBox').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) return closeSheet();
   const fd = t.closest('[data-fdl]'); if (fd) return downloadFile(fd.dataset.fdl, fd);
-  const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); $('sheetBox').innerHTML = lookHtml(); return; }
+  const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); if (lk.dataset.look === 'motion' && pw) render(); $('sheetBox').innerHTML = lookHtml(); return; }
   if (t.closest('[data-copy]')) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy it'; } return; }
   if (t.closest('[data-test]')) {
     const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--soft)'; out.textContent = 'Testing…';
@@ -2200,7 +2215,6 @@ $('sheetBox').addEventListener('click', async (e) => {
 });
 
 setTab('chat');
-$('loginForm').querySelector('h1').insertAdjacentHTML('beforeend', clawd('wave'));
 // With a saved password the page opens straight away (from the last view)
 // and catches up; only a wrong password brings the sign-in box back.
 if (pw) {
