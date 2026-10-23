@@ -96,7 +96,30 @@ interface Props {
   onSgfText: (text: string) => boolean;
   onSgfFile: (f: File) => void;
   onSettings: (page?: SettingsPage) => void;
+  /** The conversation has an answer: on a phone the key under the board then gives its room back. */
+  answered?: boolean;
 }
+
+/** A score lead in whole points, signed ("+3", "−11"). */
+const leadLabel = (c: { scoreLead: number }) => {
+  const s = Math.round(c.scoreLead);
+  return s === 0 ? '0' : `${s > 0 ? '+' : '−'}${Math.abs(s)}`;
+};
+/** Once every candidate's win chance rounds to 0-2 or 98-100 the game is decided, and the score says more. */
+const decidedRead = (cands: readonly { winrate: number }[] | null) =>
+  !!cands?.length &&
+  cands.every((c) => {
+    const w = Math.round(c.winrate * 100);
+    return w <= 2 || w >= 98;
+  });
+
+const PHONE = '(max-width: 899px)';
+const onPhoneChange = (l: () => void) => {
+  const m = window.matchMedia(PHONE);
+  m.addEventListener('change', l);
+  return () => m.removeEventListener('change', l);
+};
+const isPhone = () => window.matchMedia(PHONE).matches;
 
 const TABS = [
   { id: 'trend', label: 'Win chance', icon: 'trend' },
@@ -150,7 +173,7 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
  * step buttons, and the game's graphs (Win chance, Mistakes, Strength). Everything else (best moves,
  * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
-export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings }: Props) {
+export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings, answered = false }: Props) {
   const status = useSyncExternalStore(onEngineStatus, engineStatus);
   const [paste, setPaste] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId | null>(null);
@@ -221,6 +244,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const variation = preview ? view.variation : hovered;
   const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
   const ownership = !preview && territoryOn && read ? read.ownership : null;
+  const decided = decidedRead(candidates);
+  const candLabel = decided ? leadLabel : undefined;
+  const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverPv(null);
@@ -334,6 +360,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       marks={view.marks}
       candidates={candidates}
       candStyle="plain"
+      candLabel={candLabel}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}
@@ -346,8 +373,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     />
   );
   const caps = view.captures;
+  const sideName = toPlay === 1 ? 'Black' : 'White';
+  const keyNumber = decided ? `${sideName}’s lead in points after it. The game is decided.` : `how often ${sideName} wins after it, out of 100.`;
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
-  const keyOn = !preview && !!candidates?.length;
+  const keyOn = !preview && !!candidates?.length && !(phone && answered);
   const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 44 : 0);
   // A cropped board keeps its own shape inside the square.
   const aspect = crop ? cropAspect(crop, coords) : 1;
@@ -356,6 +385,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const namesTitle = board.black || board.white ? `${board.black ?? 'Black'} vs ${board.white ?? 'White'}` : '';
   const title = board.title && board.title !== namesTitle ? board.title : '';
   const engineLine = status.state === 'idle' ? null : `${status.text}${status.state === 'loading' && status.pct !== undefined ? ` ${status.pct}%` : ''}`;
+  // The chip says what is happening ("Downloading KataGo · 40%"), not a bare "KataGo 0%".
+  const chipText =
+    status.state === 'failed' ? 'KataGo failed' : status.state === 'loading' ? `${status.text.replace(/\s*\(first time only\)/, '')}${status.pct !== undefined ? ` · ${status.pct}%` : ''}` : '';
 
   // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
   const shown = withStones && !preview ? (read ?? last) : null;
@@ -395,7 +427,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         {status.state !== 'idle' && status.state !== 'ready' && !preview && (
           <span className={`engine-chip ${status.state}`} title={engineLine ?? undefined}>
             <span className="dot" />
-            {status.state === 'failed' ? 'KataGo failed' : `KataGo${status.pct !== undefined ? ` ${status.pct}%` : ''}`}
+            <span className="engine-chip-text">{chipText}</span>
           </span>
         )}
         {zoomable && (
@@ -569,6 +601,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   onPlay={onBoardPlay}
                   marks={view.marks}
                   candidates={candidates}
+                  candLabel={candLabel}
                   onCandidateHover={onCandidateHover}
                   onCandidateClick={onCandidateClick}
                   variation={variation}
@@ -589,11 +622,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             <p className="bp-key">
               {book ? (
                 <>
-                  Numbers on the board: KataGo’s best moves (best underlined). Each: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                  Numbers on the board: KataGo’s best moves (best underlined). Each: {keyNumber}
                 </>
               ) : (
                 <>
-                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: {keyNumber}
                 </>
               )}
             </p>

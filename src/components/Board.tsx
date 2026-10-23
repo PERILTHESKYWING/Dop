@@ -60,6 +60,8 @@ export interface BoardProps {
    * 'plain' a printed circle with just the win chance, the way a Go book marks choices.
    */
   candStyle?: 'heat' | 'plain';
+  /** The figure on a compact disc in place of the rounded win chance (e.g. the lead once a game is decided). */
+  candLabel?: (c: CandidateMark) => string;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -711,7 +713,7 @@ function BoardImpl(p: BoardProps) {
           <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
           {compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
-              {Math.round(wr)}
+              {p.candLabel ? p.candLabel(c) : Math.round(wr)}
             </text>
           ) : (
             <>
