@@ -16,6 +16,7 @@ import { Icon } from './ui/Icon';
 import { Messages as MessagesView, type Running } from './ui/Messages';
 import type { SettingsPage } from './ui/Settings';
 import { Sidebar as SidebarView } from './ui/Sidebar';
+import { Boundary, LoadFailed } from './ui/Boundary';
 import { Splitter } from './ui/Splitter';
 import { markReady } from './lib/ready';
 import { getSetting, useSetting } from './lib/settings';
@@ -456,9 +457,11 @@ export function App() {
         )}
       </div>
       {settings && (
+        <Boundary fallback={<LoadFailed float />}>
         <Suspense fallback={null}>
           <Settings page={settings} onPage={setSettings} onClose={() => setSettings(null)} convs={convs} llmOn={llmOn} onDeleteAll={removeAll} />
         </Suspense>
+        </Boundary>
       )}
       {toast && (
         <div className="toast" role="status">

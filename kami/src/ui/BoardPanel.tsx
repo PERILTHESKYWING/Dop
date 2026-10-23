@@ -19,6 +19,7 @@ import { BOOK_SKIN, KIAI_SKIN } from './skin';
 import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
+import { Boundary, LoadFailed } from './Boundary';
 import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
@@ -557,6 +558,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         <div className="bp-stage" ref={boxRef}>
           <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
             {want3d ? (
+              <Boundary fallback={flatBoard}>
               <Suspense fallback={flatBoard}>
                 <Kaya3D
                   size={view.size}
@@ -578,6 +580,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   placeholder={flatBoard}
                 />
               </Suspense>
+              </Boundary>
             ) : (
               flatBoard
             )}
@@ -612,7 +615,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               </button>
             </div>
             <div className="bp-graph-body">
-              <Suspense fallback={null}>{panel}</Suspense>
+              <Boundary fallback={<LoadFailed />}>
+                <Suspense fallback={null}>{panel}</Suspense>
+              </Boundary>
             </div>
           </div>
         )}
