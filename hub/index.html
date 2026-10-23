@@ -827,6 +827,12 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
   .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
   .navrows { padding-bottom: 2px; }
+  /* Project chat and Team lessons: two cells on one surface; the open one is marked by weight and an underline, the count is a badge after its label. */
+  :root .app > .side .navpair .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
+  :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); box-shadow: inset 0 -3px 0 var(--kaya-ink); }
+  :root .app > .side .navpair .trow.tn.on .ttl { font-weight: 700; }
+  .navpair .trow.tn .ttl { flex: 0 1 auto; }
+  :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
   .brand { padding-top: 10px; padding-bottom: 6px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
