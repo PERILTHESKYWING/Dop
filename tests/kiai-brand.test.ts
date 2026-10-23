@@ -49,6 +49,8 @@ describe('Kiai brand: 気合 brush, seal and loader', () => {
     const html = loaderHtml();
     expect(html).not.toContain('kiai.seen');
     expect(html).toContain('},450)');
+    // a page whose first render is in by then never sees the sheet, even if its first frame is late
+    expect(html).toContain('if(!ready&&!window.__kiaiReady&&!gone)');
     // hidden until then, and gone the moment the page is ready
     expect(html).toMatch(/d\.classList\.add\('kl-repeat'\)/);
     expect(html).toContain('function check(){if(ready)hide()}');

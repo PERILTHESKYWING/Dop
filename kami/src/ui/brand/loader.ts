@@ -4,7 +4,11 @@
  * before any script loads.
  *
  * It is not an intro: nothing shows unless the page takes longer than 450 ms to say it is ready
- * (`markReady`, kami/src/lib/ready.ts), first visit or not, and the sheet leaves as soon as it
+ * (`markReady`, kami/src/lib/ready.ts), first visit or not. Ready counts from the moment the page's
+ * first render is in the document (`__kiaiReady`), not from its paint: the 'kiai-ready' event waits
+ * two frames so a sheet already showing never uncovers an unpainted page, but a first frame can
+ * be slow (a CPU-drawn compositor took about 390 ms), and a sheet that is not up yet has nothing
+ * to uncover. The sheet leaves as soon as it
  * is, without waiting for the word to be finished (if it was still fading in, it fades back out
  * from where it got to, so a page that is just late does not flash). 気合 still writes itself, for free, on the
  * landing's last chapter and on the app's empty board. A click or key finishes the writing at
@@ -74,7 +78,7 @@ d.classList.add('kl-repeat');
 function hide(){if(gone)return;gone=true;el.classList.add('kl-out');d.classList.remove('kl-lock');setTimeout(function(){el.remove();d.classList.remove('kl-repeat')},shownAt?700:0)}
 function check(){if(ready)hide()}
 window.addEventListener('kiai-ready',function(){ready=true;check()});
-setTimeout(function(){if(!ready&&!gone){el.classList.add('kl-show');d.classList.add('kl-lock');shownAt=Date.now()}},${GRACE});
+setTimeout(function(){if(!ready&&!window.__kiaiReady&&!gone){el.classList.add('kl-show');d.classList.add('kl-lock');shownAt=Date.now()}},${GRACE});
 function skip(){el.classList.add('kl-skip')}
 el.addEventListener('pointerdown',skip);window.addEventListener('keydown',function k(){skip();window.removeEventListener('keydown',k)});
 setTimeout(function(){ready=true;check()},9000);

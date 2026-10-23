@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useEvent } from './lib/useEvent';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
@@ -103,7 +103,8 @@ export function App() {
 
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
 
-  useEffect(markReady, []);
+  // in the DOM is ready enough for the loading sheet: a layout effect, before the first frame (a passive effect waits for it)
+  useLayoutEffect(markReady, []);
 
   // Fetch the answer pipeline and Settings once the first screen is up, so neither waits later.
   useEffect(() => {
