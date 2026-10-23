@@ -184,6 +184,11 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     markReady();
   }, []);
   const shown = useCallback(() => setLive(true), []);
+  // a chapter's diagram just mounted (the words' room changed): place the camera again
+  useEffect(() => {
+    camRef.current?.(progress.current);
+    posterRef.current?.(progress.current);
+  }, [near]);
   // a slow sky never keeps the loading sheet up for long: the words are already there
   useEffect(() => {
     const t = window.setTimeout(markReady, 3000);
