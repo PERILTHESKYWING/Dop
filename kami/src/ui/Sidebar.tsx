@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Conversation } from '../lib/store';
 import { useSetting } from '../lib/settings';
+import { ago, useAccountView } from '../lib/accountView';
+import { usePathLine } from '../lib/pathLine';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
 import { Popover } from './Popover';
@@ -27,13 +29,20 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
   const name = useSetting<string>('profile.name').trim();
   const shown = name || 'Guest';
   const initial = (shown.match(/\p{L}|\p{N}/u)?.[0] ?? 'K').toUpperCase();
+  // The study path under the name (Settings › Journey), else "Synced" when signed in.
+  const line = usePathLine();
+  const pathOn = useSetting<boolean>('journey.on');
+  const pathShown = useSetting<boolean>('journey.sidebar');
+  const acct = useAccountView();
+  const plan = pathOn && pathShown && line ? line : acct.signedIn ? 'Synced' : 'Free · on this device';
+  const head = acct.signedIn && acct.email ? `${acct.email}${acct.lastSync ? ` · synced ${ago(acct.lastSync, Date.now(), true)}` : ''}` : name ? `${shown} · this browser` : 'Guest · saved in this browser';
   return (
     <Popover
       className="account"
       place="up-stretch"
       label="Account"
       trigger={({ open, toggle }) => (
-        <button type="button" className={`account-btn${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={compact ? shown : undefined}>
+        <button type="button" className={`account-btn${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={compact ? `${shown} · ${plan}` : undefined}>
           <span className="avatar" aria-hidden="true">
             {initial}
           </span>
@@ -41,7 +50,7 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
             <>
               <span className="account-text">
                 <span className="account-name">{shown}</span>
-                <span className="account-plan">Free · on this device</span>
+                <span className="account-plan">{plan}</span>
               </span>
               <Icon name="updown" size={16} />
             </>
@@ -56,12 +65,24 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
         };
         return (
           <>
-            <div className="pop-head">{name ? `${shown} · this browser` : 'Guest · saved in this browser'}</div>
+            <div className="pop-head">{head}</div>
             <button type="button" role="menuitem" className="pop-item" onClick={go('general')}>
               <Icon name="gear" />
               <span className="grow">Settings</span>
               <kbd>Ctrl+,</kbd>
             </button>
+            {pathOn && (
+              <button type="button" role="menuitem" className="pop-item" onClick={go('journey')}>
+                <Icon name="seal" />
+                <span className="grow">Journey</span>
+              </button>
+            )}
+            {(acct.available || acct.signedIn) && (
+              <button type="button" role="menuitem" className="pop-item" onClick={go('account')}>
+                <Icon name="key" />
+                <span className="grow">{acct.signedIn ? 'Account' : 'Sync across devices'}</span>
+              </button>
+            )}
             <button type="button" role="menuitem" className="pop-item" onClick={go('usage')}>
               <Icon name="usage" />
               <span className="grow">Usage</span>
