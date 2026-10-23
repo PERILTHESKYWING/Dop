@@ -401,7 +401,9 @@ a.opt { color: inherit; text-decoration: none; }
 .who .nm { color: var(--ink); font-weight: 500; }
 .who .when { font-size: 13px; font-variant-numeric: tabular-nums; }
 .who .av.in { display: none; }
-.who.mini { float: right; margin: 0 0 0 12px; }
+/* A follow-on message's time + Copy never sit inside its first text line: on a computer at the row's right edge (past the 68ch text), on a phone in a small meta row above it. */
+.row.cont { position: relative; }
+.who.mini { position: absolute; right: 0; top: 0; margin: 0; }
 .feed > .cont { margin-top: -10px; }
 .label { font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
 .label.q { background: var(--amber); color: #fff; }
@@ -808,8 +810,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Phone tap targets: at least 44px tall. */
   .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
-  /* A follow-on message's time + Copy stays one text line tall (the 44 px tap area overhangs), so the text beside it isn't squeezed. */
-  .who.mini, .who.mine { height: 20px; margin-bottom: 0; }
+  /* Follow-on time + Copy: one 20 px meta row (the 44 px tap area overhangs it). */
+  .who.mini { position: static; height: 20px; margin: 0 0 4px; }
+  .who.mine { height: 20px; margin-bottom: 0; }
   .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
