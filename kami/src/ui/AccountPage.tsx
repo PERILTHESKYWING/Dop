@@ -6,7 +6,7 @@ import './account.css';
 
 const COPY = {
   blurb: 'Optional and free. Sign in to keep your path, days in a row and settings the same on every device. Boards stay on this device.',
-  small: 'Kiai keeps a one-way fingerprint of your email, not the address, and never sends email. Your password is hashed on the server and never stored.',
+  small: 'Kiai keeps a hashed fingerprint of your email, not the address, and never sends email. The server keeps only a salted scrypt hash of your password, never the password itself.',
   codeHead: 'Save your recovery code',
   codeText: "Kiai can't email you, so this code is the only way back in if you forget your password. It is shown once. Keep it in a password manager or on paper.",
   recoverHelp: "Lost the code too? The account can't be opened again, but your path is still on each device you used. Create a new account there and it comes along.",
