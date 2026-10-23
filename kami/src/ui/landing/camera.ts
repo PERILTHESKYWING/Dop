@@ -33,7 +33,8 @@ const WIDE: Key[] = [
   { elev: 26, azim: -16, fov: 44 },
   { elev: 50, azim: 22, fov: 40 },
   { elev: 64, azim: 36, fov: 40 },
-  { elev: 84, azim: 0, fov: 38 },
+  // nearly top-down with a long lens: little perspective, so the edge stones and squares stay on the board
+  { elev: 84, azim: 0, fov: 16 },
   { elev: 40, azim: 24, fov: 44 },
   { elev: 30, azim: -16, fov: 44 },
 ];
@@ -41,7 +42,7 @@ const TALL: Key[] = [
   { elev: 30, azim: -14, fov: 42 },
   { elev: 50, azim: 18, fov: 46 },
   { elev: 64, azim: 30, fov: 46 },
-  { elev: 84, azim: 0, fov: 44 },
+  { elev: 84, azim: 0, fov: 20 },
   { elev: 38, azim: 30, fov: 48 },
   { elev: 32, azim: -14, fov: 42 },
 ];

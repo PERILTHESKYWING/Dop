@@ -42,11 +42,13 @@ export const TURN_FROM = Math.round(w[TURN.n - 1] * 100);
 export const TURN_TO = Math.round(w[TURN.n] * 100);
 
 export const TAGLINE = 'KataGo, in plain words.';
+/** What KataGo is, in a few words, under the title (a visitor may never have heard of it). */
+export const WHAT = 'The open-source Go engine, running in your browser.';
 /** Who made it, said once on the last screen. The KataGo credit is as in THIRD_PARTY_NOTICES.md. */
-export const COLOPHON = 'Made by a professional Go player. The engine is KataGo, open source, by David J. Wu.';
+// (no line break inside the name)
+export const COLOPHON = 'Made by a professional Go player. The engine: KataGo, open source, by David\u00a0J.\u00a0Wu.';
 /** What does what, said once on the last screen (the language model is never named: XIAO's rule). */
-export const HOW =
-  'KataGo does the reading in your browser. A language model only puts its numbers into words, and the app works without it. No AI-generated images: the calligraphy is the Yuji Syuku typeface and the board is rendered from code.';
+export const HOW = 'A language model only turns KataGo’s numbers into words, and Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
 
 export interface Chapter {
   id: string;
@@ -62,7 +64,7 @@ export const CHAPTERS: Chapter[] = [
   { id: 'ask', rail: 'Ask', title: TAGLINE },
   { id: 'reading', rail: 'Reading', title: 'It reads before it answers.' },
   { id: 'next', rail: 'Next moves', title: 'See what happens next.' },
-  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: 'Black’s best chance: the upper right.' },
+  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: `Black’s best chance: the right side, around ${FINAL.cands[0].at}.` },
   { id: 'review', rail: 'Game review', title: 'Find where a game turned.', text: 'Load a game. The graph shows where it turned.' },
   { id: 'start', rail: 'Start', title: 'Ask about your own game.', text: 'Free. No sign-up. Runs in your browser.' },
 ];

@@ -115,7 +115,7 @@ export function ChanceBar({ on }: { on: boolean }) {
         </span>
       </div>
       <span className="l-chance-bar" aria-hidden="true">
-        <i style={{ transform: `scaleX(${on ? b / 100 : 0.5})` }} />
+        <i style={{ width: `${on ? b : 50}%` }} />
       </span>
       <p className="l-chart-head">Chance to win, out of 100</p>
     </div>

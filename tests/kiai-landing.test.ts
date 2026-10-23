@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEMO, FINAL } from '../kami/src/ui/landing/data';
-import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, PLAY_LEAD, LAST_PICK, LEAD, LINE, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, PLAY_LEAD, WHAT, LAST_PICK, LEAD, LINE, locOf, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
 import { WINRATE_FROM_SCORE } from '../src/lib/engine/models';
 
 // The landing's words are a plain rewording of Kiai's recorded answers; every point and number
@@ -70,18 +70,34 @@ describe('Kiai landing copy', () => {
     expect(BLACK_WINS).toBe(Number(m![2]));
     expect(text('ahead')).toContain(`by about ${LEAD} points`);
     expect(SCORE.summary).toMatch(/White is clearly ahead/);
-    expect(SCORE.summary).toMatch(/Black's best hope is the framework in the upper right/);
-    expect(text('ahead')).toMatch(/upper right/);
+    // Black's chance is where the longest read and the first screen put it: the right side, at
+    // KataGo's final pick, which the slide's ownership does not already give to Black
+    expect(text('ahead')).toContain(`the right side, around ${LAST_PICK}`);
+    expect(PLAY.summary).toMatch(/White's area on the right side/);
+    expect(LAST_PICK).toBe(PICK);
+    const [cx, cy] = [locOf(LAST_PICK) % 19, Math.floor(locOf(LAST_PICK) / 19)];
+    // the empty points round it (a stone's own point carries no square)
+    const taken = new Set(DEMO.stones.map(([g]) => locOf(g)));
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++) {
+        const l = (cy + dy) * 19 + cx + dx;
+        if (!taken.has(l)) expect(FINAL.own[l]).toBeLessThan(0.45);
+      }
   });
 
   it('says what it is and who made it, and claims nothing it cannot back', () => {
     expect(CHAPTERS[0].title).toBe('KataGo, in plain words.');
-    expect(COLOPHON).toMatch(/KataGo, open source, by David J\. Wu/);
-    const all = [...CHAPTERS.map((c) => text(c.id)), COLOPHON].join(' ');
+    // and says at once what KataGo is
+    expect(WHAT).toMatch(/open-source Go engine/);
+    expect(WHAT).toMatch(/in your browser/);
+    expect(COLOPHON).toMatch(/KataGo, open source, by David\sJ\.\sWu/);
+    const all = [...CHAPTERS.map((c) => text(c.id)), COLOPHON, WHAT].join(' ');
     expect(all).not.toMatch(/offline|leaves your device|AI-powered|smart|assistant|chatbot|coach/i);
     // what does what: KataGo reads, a language model (never named) only words it, and it is optional
-    expect(HOW).toMatch(/KataGo does the reading in your browser/);
+    expect(COLOPHON).toMatch(/^Made by a professional Go player\./);
+    expect(HOW).toMatch(/only turns KataGo’s numbers into words/);
     expect(HOW).toMatch(/works without it/);
+    expect(HOW).toMatch(/No AI images/);
     expect(HOW).not.toMatch(/gemini|google|openai|gpt|claude/i);
   });
 

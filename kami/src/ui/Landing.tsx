@@ -1,9 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { markReady } from '../lib/ready';
+import { glKind } from '../three/support';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
 import type { Box } from './landing/camera';
 import type { Show } from './landing/Stage';
-import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, READS } from './landing/story';
+import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, READS, WHAT } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
@@ -32,22 +33,7 @@ function whenIdle(fn: () => void, ms: number): () => void {
  */
 function liveGl(): boolean {
   if (/[?&]kiai3d\b/.test(location.search)) return true;
-  try {
-    const c = document.createElement('canvas');
-    const gl = (c.getContext('webgl2') ?? c.getContext('webgl')) as WebGLRenderingContext | null;
-    if (!gl) return false;
-    let soft = false;
-    try {
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      soft = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)));
-    } catch {
-      /* keep the live board */
-    }
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return !soft;
-  } catch {
-    return false;
-  }
+  return glKind() === 'hw';
 }
 
 const reduced = () => {
@@ -196,11 +182,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     onEnter();
   };
   // the page is ready (the loading sheet may go) as soon as the words are on the paper: both are
-  // plain CSS and paint with this first render
-  useEffect(() => {
-    setPainted(true);
-    markReady();
-  }, []);
+  // plain CSS and paint with this first render. A layout effect, so it is said before the first
+  // frame, which can be slow (a passive effect waited for it: about 350 ms in a CPU-drawn browser)
+  useLayoutEffect(markReady, []);
+  useEffect(() => setPainted(true), []);
   const shown = useCallback(() => setLive(true), []);
   // a chapter's diagram just mounted (the words' room changed): place the camera again
   useEffect(() => {
@@ -272,6 +257,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
               </span>
             ))}
           </h1>
+          <p className="l-what">{WHAT}</p>
           <div className="l-qa">
             <p className="l-q">{ASK.q}</p>
             <p className="l-a">
@@ -287,7 +273,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             <a className="l-btn big" href="/" onClick={go}>
               Open Kiai
             </a>
-            <span>Free. No sign-up. Runs in your browser.</span>
+            <span>Free. No sign-up.</span>
           </div>
         </section>
 
@@ -336,9 +322,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             Open Kiai
           </a>
           <p className="l-text">{start.text}</p>
-          <p className="l-text l-colophon">
-            {HOW} {COLOPHON}
-          </p>
+          <div className="l-colophon">
+            <p>{COLOPHON}</p>
+            <p>{HOW}</p>
+          </div>
           <p className="l-links">
             <a href="https://github.com/lightvector/KataGo" target="_blank" rel="noreferrer">
               KataGo

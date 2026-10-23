@@ -116,7 +116,7 @@ function apply(v: KayaView, show: Show) {
   }
   v.setStones(STONES);
   // only the points KataGo is fairly sure of, so the picture stays calm
-  v.setOwnership(show.kind === 'ahead' ? FINAL.own.map((o) => (Math.abs(o) < 0.45 ? 0 : o)) : null, true, 1.45);
+  v.setOwnership(show.kind === 'ahead' ? FINAL.own.map((o) => (Math.abs(o) < 0.45 ? 0 : o)) : null, true, 1.45, true);
   if (show.kind === 'ask' || show.kind === 'start') v.setPale([choice(PICK, 0.72)]);
   else if (show.kind === 'reading') {
     // only KataGo's current favourite, named above it: the bars beside the board show the rest

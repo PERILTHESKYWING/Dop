@@ -353,6 +353,13 @@ html.kiai-landing {
   color: var(--l-seal);
   font-weight: 800;
 }
+.l-what {
+  margin-top: -6px;
+  font-size: clamp(23px, 1.9vw, 28px);
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--l-ink-2);
+}
 .l-cta {
   display: flex;
   align-items: center;
@@ -523,6 +530,14 @@ html.kiai-landing {
 .l-diagram svg.board .bd-var text.cur {
   fill: var(--l-seal);
 }
+/* the newest move on a black stone: a cream number (red on black is about 2.9:1) in a seal-red ring */
+.l-diagram svg.board .bd-var.b text.cur {
+  fill: #fbf8f1;
+}
+.l-diagram svg.board .bd-var.b:has(text.cur) circle {
+  stroke: var(--l-seal);
+  stroke-width: 0.08;
+}
 .l-steps {
   display: flex;
   align-items: center;
@@ -571,20 +586,22 @@ html.kiai-landing {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+/* Black's share in ink from the left, White's as a white stone's colour in an ink frame; square
+   ends, so even 1 out of 100 shows as a dark sliver instead of hiding in a rounded end */
 .l-chance-bar {
   display: block;
   height: 26px;
-  border-radius: 13px;
-  background: #fbf9f4;
+  border-radius: 4px;
+  background: #fffdf8;
   box-shadow: inset 0 0 0 2px var(--l-ink);
   overflow: hidden;
 }
 .l-chance-bar i {
   display: block;
   height: 100%;
+  min-width: 7px;
   background: var(--l-ink);
-  transform-origin: left;
-  transition: transform 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
+  transition: width 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
 
 /* game review: the line draws itself, then the drop is marked */
@@ -686,11 +703,21 @@ html.kiai-landing {
   height: 220px;
   color: var(--l-ink);
 }
-.l-text.l-colophon {
-  max-width: 36em;
-  font-size: 17px;
-  line-height: 1.5;
+/* who made it and what does what: two short left-aligned lines, a book's colophon, not small print */
+.l-colophon {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 30em;
+  font-size: 19px;
+  line-height: 1.4;
   color: var(--l-ink-2);
+  text-align: left;
+  text-wrap: pretty;
+}
+.l-colophon p:first-child {
+  color: var(--l-ink);
+  font-weight: 600;
 }
 .l-links {
   display: flex;
@@ -878,6 +905,9 @@ html.kiai-landing {
   }
   .l-brush .brush {
     --brush-h: 110px !important;
+  }
+  .l-colophon {
+    font-size: 17px;
   }
 }
 
