@@ -88,7 +88,8 @@ export function Composer({ value, onChange, levels, level, onLevel, running, onS
           className={`think-menu${level === 'ultrago' ? ' ultra' : ''}`}
           label={
             <>
-              Reading: <LevelName level={levelById(level)} />
+              <span className="menu-word">Reading: </span>
+              <LevelName level={levelById(level)} />
             </>
           }
         >

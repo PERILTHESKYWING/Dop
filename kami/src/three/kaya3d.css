@@ -270,6 +270,13 @@
 .k3-evidence::before {
   border-color: #15130f;
 }
+/* on a stone (a line's numbered move) the frame would cover its number: a ring round the stone */
+.k3-mark.on-stone::before {
+  width: calc(var(--cell) * 1.12);
+  height: calc(var(--cell) * 1.12);
+  border-radius: 50%;
+  border-color: #a8322b;
+}
 .k3-mark b {
   font-size: max(9px, calc(var(--cell) * 0.34));
   font-weight: 700;

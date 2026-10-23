@@ -96,7 +96,7 @@ interface Props {
   onSgfText: (text: string) => boolean;
   onSgfFile: (f: File) => void;
   onSettings: (page?: SettingsPage) => void;
-  /** The conversation has an answer: on a phone the key under the board then gives its room back. */
+  /** The conversation has an answer: the engine's loading chip then folds to a dot. */
   answered?: boolean;
 }
 
@@ -120,6 +120,9 @@ const onPhoneChange = (l: () => void) => {
   return () => m.removeEventListener('change', l);
 };
 const isPhone = () => window.matchMedia(PHONE).matches;
+/** The row kept under the board for the key or the note, with the gap above it (px; styles.css .bp-under). */
+const UNDER_DESKTOP = 46;
+const UNDER_PHONE = 40;
 
 const TABS = [
   { id: 'trend', label: 'Win chance', icon: 'trend' },
@@ -376,8 +379,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const sideName = toPlay === 1 ? 'Black' : 'White';
   const keyNumber = decided ? `${sideName}’s lead in points after it. The game is decided.` : `how often ${sideName} wins after it, out of 100.`;
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
-  const keyOn = !preview && !!candidates?.length && !(phone && answered);
-  const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 44 : 0);
+  const keyOn = !preview && !!candidates?.length;
+  // One row under the board is always kept for the key or the note (filled or not), so the board
+  // never moves or changes size between a game, an answer and a hovered line.
+  const [boxRef, side] = useSquare(phone ? UNDER_PHONE : UNDER_DESKTOP);
   // A cropped board keeps its own shape inside the square.
   const aspect = crop ? cropAspect(crop, coords) : 1;
   const boxW = Math.round(aspect >= 1 ? side : side * aspect);
@@ -388,9 +393,14 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // The chip says what is happening ("Downloading KataGo · 40%"), not a bare "KataGo 0%".
   const chipText =
     status.state === 'failed' ? 'KataGo failed' : status.state === 'loading' ? `${status.text.replace(/\s*\(first time only\)/, '')}${status.pct !== undefined ? ` · ${status.pct}%` : ''}` : '';
+  // The chip shows only while something waits for KataGo (never for the quiet background
+  // measuring), and once the conversation has an answer it folds to a dot (its words in the title).
+  const chipOn = !preview && (status.state === 'failed' || (status.state === 'loading' && !status.background));
+  const chipFolded = chipOn && answered && status.state === 'loading';
 
   // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
-  const shown = withStones && !preview ? (read ?? last) : null;
+  // While a line is previewed the bar stays in place, dimmed, with the board's own read.
+  const shown = withStones ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
   const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'Black' : 'White'} +${Math.abs(lead).toFixed(1)}`;
@@ -424,12 +434,14 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             {player(2)}
           </div>
         )}
-        {status.state !== 'idle' && status.state !== 'ready' && !preview && (
-          <span className={`engine-chip ${status.state}`} title={engineLine ?? undefined}>
-            <span className="dot" />
-            <span className="engine-chip-text">{chipText}</span>
-          </span>
-        )}
+        <span className="engine-slot" role="status" aria-live="polite">
+          {chipOn && (
+            <span className={`engine-chip ${status.state}${chipFolded ? ' folded' : ''}`} title={engineLine ?? undefined}>
+              <span className="dot" aria-hidden="true" />
+              <span className={chipFolded ? 'sr-only' : 'engine-chip-text'}>{chipText}</span>
+            </span>
+          )}
+        </span>
         {zoomable && (
           <button
             className={`icon-btn${crop ? ' on' : ''}`}
@@ -568,9 +580,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         )}
       </div>
 
-      {!preview && (
-        <div
-          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}`}
+      <div
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}${preview ? ' dim' : ''}`}
+          inert={!!preview}
           title={
             shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
           }
@@ -582,9 +594,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
-          {pending && status.state === 'ready' && <span className="ev-dot" aria-label="KataGo is reading" />}
+          {pending && shown && <span className="ev-state">reading</span>}
         </div>
-      )}
 
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
@@ -618,6 +629,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               flatBoard
             )}
           </div>
+          <div className="bp-under">
           {keyOn && (
             <p className="bp-key">
               {book ? (
@@ -636,6 +648,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
             </p>
           )}
+          </div>
         </div>
 
         {panel && tabInfo && (
@@ -656,8 +669,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         )}
       </div>
 
-      {!preview && (
-        <div className="bp-foot">
+        <div className={`bp-foot${preview ? ' dim' : ''}`} inert={!!preview}>
           <div className="bp-nav" role="group" aria-label="Step through the game">
             <button type="button" className="step-btn" aria-label="First move" title="First move (Home)" disabled={!board.cursor} onClick={() => go(0)}>
               <Icon name="first" size={20} />
@@ -714,7 +726,6 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             )}
           </div>
         </div>
-      )}
 
       {paste !== null && (
         <div className="bp-sheet" role="dialog" aria-label="Paste SGF">

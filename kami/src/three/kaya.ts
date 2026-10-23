@@ -133,10 +133,11 @@ function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
   g.fillStyle = ink;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  // as big as the stone allows: a number should read at a glance even on a small board
-  const px = text.length >= 3 ? 76 : text.length === 2 ? 112 : 118;
+  // as big as the stone allows: a number should read at a glance even on a phone, so longer
+  // ones ("-11", "-0.9") keep their height and are set narrower rather than smaller
+  const px = text.length >= 4 ? 88 : text.length === 3 ? 98 : text.length === 2 ? 112 : 118;
   g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
-  g.fillText(text, 64, 71, 118);
+  g.fillText(text, 64, 71, 124);
 }
 
 export interface CandGlow {

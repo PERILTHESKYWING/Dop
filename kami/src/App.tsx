@@ -4,6 +4,7 @@ import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { untilAborted } from './lib/untilAborted';
 import { getAnswerProber } from './lib/analysis';
+import { questionStarted } from './lib/engine';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
 import { NOTES } from './lib/writer';
@@ -206,6 +207,8 @@ export function App() {
   const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false) => {
     const ctrl = new AbortController();
     controller.current = ctrl;
+    // KataGo never measures the device while a question is answered (it waits for a quiet moment after).
+    const asked = questionStarted();
     setRunning({ convId, msgId: kamiId, stage: 'thinking', steps: [], t0: Date.now() });
     // Steps that land in the same frame are drawn together: one render per frame at most.
     let queued: ThoughtStep[] = [];
@@ -267,6 +270,7 @@ export function App() {
       update(convId, (c) => (c.board.moves.length === board.moves.length ? { ...c, board: goTo(c.board, answer.upTo) } : c), false);
     }
     controller.current = null;
+    asked();
     setRunning(null);
   };
 

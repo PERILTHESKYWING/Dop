@@ -718,17 +718,24 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
       <div className="messages empty">
         <div className="hello">
           <HelloMark />
-          <h1>What shall we read?</h1>
-          <p>Ask about any Go position. KataGo reads it in your browser, and Kiai tells you why.</p>
-          <div className="ideas">
-            {ideas.map((t) => (
-              <button key={t} type="button" className="idea" onClick={() => onAsk(t)}>
-                <span className="idea-stone" aria-hidden="true" />
-                {t}
-              </button>
+          <p className="hello-line">
+            <span className="on-mouse">Click</span>
+            <span className="on-touch">Tap</span> {hasPosition(board) ? 'a point or ask about this position.' : 'a point to play, or ask about any Go idea.'}
+          </p>
+          <p className="ideas">
+            {ideas.map((t, i) => (
+              <span key={t}>
+                {i > 0 && (
+                  <span className="idea-sep" aria-hidden="true">
+                    {' · '}
+                  </span>
+                )}
+                <button type="button" className="idea" onClick={() => onAsk(t)}>
+                  {t}
+                </button>
+              </span>
             ))}
-          </div>
-          <p className="meta">Set up a position: click the board, paste an SGF or open a file. Name a point like R16 to ask about it.</p>
+          </p>
         </div>
       </div>
     );
