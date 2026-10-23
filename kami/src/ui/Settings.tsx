@@ -211,7 +211,7 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
   const asked = chats.reduce((n, c) => n + c.messages.filter((m) => m.role === 'user').length, 0);
   const mb = (b: number) => `${(b / 1e6).toFixed(b < 1e7 ? 1 : 0)} MB`;
   const stats: [string, string][] = [
-    ['Chats', String(chats.length)],
+    ['Boards', String(chats.length)],
     ['Questions asked', String(asked)],
     ['KataGo', status.state === 'idle' ? 'Starts with your first position' : status.text],
     ['ultraGO wording', llmOn === null ? 'Checking…' : llmOn ? 'On' : 'Off on this site: answers use engine text'],
@@ -219,7 +219,7 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
   if (bytes) stats.push(['Stored in this browser', `${mb(bytes.used)} of ${mb(bytes.quota)}`]);
   return (
     <>
-      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only ultraGO’s wording uses Kiai’s server, once per answer.</p>
+      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only ultraGO’s wording uses Kiai’s server, once per answer: it gets your question and KataGo’s notes on the position, and sends back the words.</p>
       <dl className="stats">
         {stats.map(([k, v]) => (
           <div key={k}>
@@ -250,18 +250,20 @@ function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: 
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `kami-chats-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `kiai-boards-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   return (
     <>
-      <p className="set-blurb">Chats, boards and settings are kept in this browser only. Nothing is uploaded.</p>
+      <p className="set-blurb">
+        Boards, answers and settings are kept in this browser. KataGo reads on your device. When you pick ultraGO, one request per answer goes to Kiai’s server to put KataGo’s reading into words: your question, your level from Settings, and KataGo’s notes (the side to play, the move number, its best moves, numbers and lines, and its own draft). No game file, player names or other boards are sent.
+      </p>
       <div className="set-list">
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Export chats</div>
-            <div className="set-help">Every chat and its board, as one JSON file.</div>
+            <div className="set-label">Export boards</div>
+            <div className="set-help">Every board with its questions and answers, as one JSON file.</div>
           </div>
           <div className="set-control">
             <button type="button" className="btn" onClick={exportChats} disabled={!chats.length}>
@@ -272,7 +274,7 @@ function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: 
         </div>
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Delete all chats</div>
+            <div className="set-label">Delete all boards</div>
             <div className="set-help">This can’t be undone.</div>
           </div>
           <div className="set-control">
