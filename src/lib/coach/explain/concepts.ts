@@ -466,14 +466,20 @@ export function movePurposes(ctx: Ctx, move: Loc, after: EngineRead | null | und
   return purposes(ctx.f.board, move, ctx.mover, after.ownership, t, ctx.groups);
 }
 
+/** "on the right side", "in the upper right", "at the top". */
+const regionWords = (r: string) => (r === 'top' || r === 'bottom' ? `at the ${r}` : r.endsWith('side') ? `on the ${r}` : `in the ${r}`);
+
 /** Reduction and attack (two purposes at once) from a move's purposes. */
 export function purposeHits(ctx: Ctx, move: Loc, ps: Purpose[], variation?: string): ConceptHit[] {
   const { C, mover, opp } = ctx;
   const v = variation ? { variation } : {};
   const out: ConceptHit[] = [];
   const red = ps.find((p) => p.kind === 'reduce');
-  if (red && red.kind === 'reduce') {
-    out.push({ id: 'reduction', at: [move], evidence: `${C(move)} trims ${colorWord(opp)}'s potential in the ${red.region}: about ${fmt1(red.amount)} points of it change hands compared with ${colorWord(opp)} playing there first.`, ...v });
+  // "Reduction" is a Go term for a shoulder hit or a cap from outside a framework: never for a
+  // move touching an opponent stone (a contact hane trims too, but it is not a reduction).
+  const contact = move !== PASS && ctx.f.board.neighbors(move).some((q) => ctx.f.board.stones[q] === opp);
+  if (red && red.kind === 'reduce' && !contact) {
+    out.push({ id: 'reduction', at: [move], evidence: `${C(move)} trims ${colorWord(opp)}'s potential ${regionWords(red.region)}: about ${fmt1(red.amount)} points of it change hands compared with ${colorWord(opp)} playing there first.`, ...v });
   }
   const press = ps.find((p) => p.kind === 'press');
   const build = ps.find((p) => p.kind === 'framework' || p.kind === 'territory' || p.kind === 'reduce');
@@ -481,7 +487,7 @@ export function purposeHits(ctx: Ctx, move: Loc, ps: Purpose[], variation?: stri
     out.push({
       id: 'attack',
       at: [move, press.at],
-      evidence: `${C(move)} presses the ${colorAdj(opp)} ${press.stones > 1 ? 'stones' : 'stone'} at ${C(press.at)} (${colorWord(opp)}'s ownership of ${press.stones > 1 ? 'them' : 'it'} drops by ${pct(press.amount / 2)}) while ${colorWord(mover)} gains in the ${'region' in build ? build.region : 'area'}.`,
+      evidence: `${C(move)} presses the ${colorAdj(opp)} ${press.stones > 1 ? 'stones' : 'stone'} at ${C(press.at)} (${colorWord(opp)}'s ownership of ${press.stones > 1 ? 'them' : 'it'} drops by ${pct(press.amount / 2)}) while ${colorWord(mover)} gains ${'region' in build ? regionWords(build.region) : 'in the area'}.`,
       ...v,
     });
   }

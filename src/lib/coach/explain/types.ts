@@ -215,6 +215,8 @@ export interface ThoughtStep {
 export interface Fact {
   id: string;
   text: string;
+  /** A rounded restatement the answer's text says already ("White leads by about 11 points"): in the checker's pool, not listed again. */
+  quiet?: boolean;
 }
 
 /** One check a built position passed or failed, for the "checked by" list under a diagram. */
@@ -272,6 +274,12 @@ export interface Explanation {
   reads: number;
   totalVisits: number;
   ms: number;
+  /**
+   * KataGo's read of the asked position that the answer's best move and alternatives come
+   * from (no ownership, top candidates only), so a site can show the same numbers on its
+   * board as in the text. Absent in answers made before it existed.
+   */
+  root?: EngineRead;
   /** What kind of position and answer this was (absent in answers made before it existed). */
   situation?: Situation;
   /** The part of the board that matters (x0, y0, x1, y1) for a local problem: the board zooms there. */

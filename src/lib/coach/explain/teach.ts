@@ -22,6 +22,9 @@ import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead,
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
+
+/** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
+export const NEAR_PTS = 0.35;
 import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
 export interface Teaching {
@@ -83,8 +86,9 @@ export function teach(input: TeachInput): Teaching {
   const best = f.best!;
   const level = student?.level ?? 'intermediate';
   const facts: Fact[] = [];
-  const fact = (text: string) => {
-    facts.push({ id: `t${facts.length + 1}`, text });
+  /** `quiet`: a rounded restatement the text needs for the number guard, not listed again under KataGo's numbers. */
+  const fact = (text: string, quiet = false) => {
+    facts.push({ id: `t${facts.length + 1}`, text, ...(quiet ? { quiet: true } : {}) });
     return text;
   };
   const ref = (id?: string) => (id ? ` [[${id}]]` : '');
@@ -298,7 +302,7 @@ export function teach(input: TeachInput): Teaching {
     const ahead = f.question.intent === 'ahead';
     const leadLine = abs < 2 ? `The game is close: ${L} is only slightly ahead.` : `${L} is ${abs < 6 ? 'a little' : abs < 15 ? 'clearly' : 'far'} ahead.`;
     const countLine = abs >= 2 ? `In all, that's about ${rounded} points for ${L}.` : '';
-    if (abs >= 2) fact(`Rounded, ${L}'s lead is about ${rounded} points.`);
+    if (abs >= 2) fact(`Rounded, ${L}'s lead is about ${rounded} points.`, true);
 
     // The board's picture: who has what, what is still open, which groups are weak.
     const why: string[] = [];
@@ -509,7 +513,8 @@ export function teach(input: TeachInput): Teaching {
       const last = lastContact();
       if (last) summary.push(last);
       const trails = best.lead <= -LOPSIDED_PTS;
-      summary.push(`${trails ? `KataGo's best try for ${me} is` : big ? 'The biggest move is' : 'KataGo plays'} ${shapeName(best.loc)}${ref(f.vars.best)}${reason ? `: it ${reason}` : ''}.`);
+      // The line's chip goes at the end of its sentence, never in the middle (critics, round 2).
+      summary.push(`${trails ? `KataGo's best try for ${me} is` : big ? 'The biggest move is' : 'KataGo plays'} ${shapeName(best.loc)}${reason ? `: it ${reason}` : ''}${ref(f.vars.best)}.`);
       const local = localLine();
       if (local) summary.push(local);
     } else {
@@ -553,7 +558,7 @@ export function teach(input: TeachInput): Teaching {
     const abs = Math.abs(lead);
     if (abs < 2) return 'The game is close.';
     const L = lead >= 0 ? me : them;
-    return fact(`${L} leads by about ${Math.round(abs)} points.`);
+    return fact(`${L} leads by about ${Math.round(abs)} points.`, true);
   }
 
   /** The last move, when it touched the mover's stones: "White's Q11 attaches to the black stone at R11." */
@@ -616,16 +621,41 @@ export function teach(input: TeachInput): Teaching {
     if (!o || f.moveOrder) return;
     const id = f.other ? f.vars.lineA : f.vars.alts[0];
     const g = best.lead - o.lead;
+    // Chips at the end of the sentence. In a sharp position the words follow the numbers the
+    // board shows (one decimal): "about as good" only when they round to 0.3 or less.
+    if (sit.sharp) {
+      if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out ${fmt1(-g)} points ahead${ref(id)}.`);
+      else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
+      else if (g < 2) summary.push(`${C(o.loc)} is a little worse${ref(id)}.`);
+      else summary.push(`${C(o.loc)} is clearly worse${ref(id)}.`);
+      nearLine([best.loc, o.loc], g < NEAR_PTS);
+      return;
+    }
     if (g < 0.5) {
-      summary.push(sit.sharp ? `${C(o.loc)}${ref(id)} is about as good.` : `${C(o.loc)}${ref(id)} is just as good: we're splitting hairs here, so play your style.`);
+      summary.push(`${C(o.loc)} is just as good: we're splitting hairs here, so play your style${ref(id)}.`);
       return;
     }
     if (g < 2) {
-      summary.push(sit.sharp ? `${C(o.loc)}${ref(id)} is a little worse.` : `${C(o.loc)}${ref(id)} is fine too, just a little less efficient.`);
+      summary.push(`${C(o.loc)} is fine too, just a little less efficient${ref(id)}.`);
       return;
     }
     const tp = f.consequence?.turning;
-    summary.push(`${C(o.loc)}${ref(id)} is clearly worse${tp ? `: by move ${tp.moveNumber} it costs ${me} ${inRegion(tp.region).replace(/^(in|on|at) /, 'in ')}` : ''}.`);
+    summary.push(`${C(o.loc)} is clearly worse${tp ? `: by move ${tp.moveNumber} it costs ${me} ${inRegion(tp.region)}` : ''}${ref(id)}.`);
+  }
+
+  /**
+   * Every other move the board marks as about as good as KataGo's choice (within 0.3 points
+   * in the same read), named so the board never shows a tie the text leaves out.
+   */
+  function nearLine(named: Loc[], tieSaid: boolean) {
+    const cands = f.root?.candidates.filter((c) => c.loc !== PASS) ?? [];
+    const top = cands[0]?.visits || 1;
+    const near = cands
+      .filter((c, i) => (i < 3 || c.visits >= Math.max(2, top * 0.02)) && !named.includes(c.loc))
+      .slice(0, 10)
+      .filter((c) => Math.abs(best.lead - c.scoreLead) < NEAR_PTS)
+      .map((c) => C(c.loc));
+    if (near.length) summary.push(`${near.length > 1 ? `${near.slice(0, -1).join(', ')} and ${near[near.length - 1]} are` : `${near[0]} is`} about as good${tieSaid ? ' too' : ` as ${C(best.loc)}`}.`);
   }
 
   /** Where the game stands, in a line (XIAO, item 14: "give the player some context"). */
@@ -638,7 +668,7 @@ export function teach(input: TeachInput): Teaching {
     const watch = weakMine ? ` Keep an eye on your group at ${C(weakMine.at)}.` : '';
     if (abs < 2) summary.push(`The game is close, so every point counts from here.${watch}`);
     else if (abs >= 10) {
-      fact(`Rounded, ${L}'s lead is about ${Math.round(abs)} points.`);
+      fact(`Rounded, ${L}'s lead is about ${Math.round(abs)} points.`, true);
       summary.push(lead > 0 ? `${me} is well ahead (about ${Math.round(abs)} points), so keep it safe and simple.${watch}` : `${me} is behind by about ${Math.round(abs)} points, so look for chances, but take the big points first.${watch}`);
     } else if (watch) summary.push(watch.trim());
   }
@@ -756,7 +786,7 @@ export function teach(input: TeachInput): Teaching {
     if (!/ \[\[v\d+\]\]/.test(summary.join(' '))) summary.push(sit.tone === 'relaxed' ? `${B}${ref(lineB)} is the more efficient choice.` : `Play ${B}${ref(lineB)} instead.`);
 
     // Details for the curious: the slow consequence, for stronger players.
-    const later = factLike(/^In the .* line, against the .* line, /);
+    const later = factLike(/^Without \S+, /);
     if (later && level === 'strong' && !order) sections.push({ title: 'What changes later', text: `${later}${ref(f.vars.lineA)}${ref(f.vars.lineB)}` });
     numbersSection(bestFact);
   }

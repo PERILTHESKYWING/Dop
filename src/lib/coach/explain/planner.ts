@@ -17,7 +17,7 @@
 import type { Board } from '../../go/board';
 import { chebyshev, lineOf as lineOfLoc } from '../../go/coords';
 import { other, PASS, type Color, type Loc, type Move } from '../../go/types';
-import { capitalize, cutAt, cutPly, ownerWords, playLines, regionLoss, turnPhrase, TURN_PTS, type ConsequenceResult, type RegionLoss } from './consequence';
+import { cutAt, cutPly, leansWords, ownerWords, plainTurn, playLines, regionLoss, TURN_PTS, type ConsequenceResult, type RegionLoss } from './consequence';
 import { afterMoves, boardOf, colorWord, coord, fmt1, lineMoves, sideLead, sideWin, trustedLen } from './geometry';
 import { localR } from './concepts';
 import { Reader, type ReaderOptions } from './reader';
@@ -423,14 +423,14 @@ export async function runPlan(pos: ExplainPosition, question: Question, prober: 
       moves: endA,
       highlight: tp?.highlight,
       scoreLoss: Math.max(0, loss),
-      note: tp ? `${capitalize(turnPhrase(tp, mover, { a: a.loc, b: b.loc, C }))}.` : order?.kind === 'same' ? undefined : 'No single area flips; the difference is spread over the board.',
+      note: tp ? plainTurn(tp, mover, C(a.loc), C(b.loc)) : order?.kind === 'same' ? undefined : 'No single area flips; the difference is spread over the board.',
     });
     f.vars.lineB = addVar({
       label: `${C(b.loc)} first`,
       kind: 'best',
       moves: endB,
       highlight: tp?.highlight,
-      note: tp && ownerWords(tp.ownB) !== ownerWords(tp.ownA) ? `Here the ${tp.region} is ${ownerWords(tp.ownB)}.` : undefined,
+      note: tp && ownerWords(tp.ownB) !== ownerWords(tp.ownA) ? `In this line the ${tp.region} ${leansWords(tp.ownB)}.` : undefined,
     });
     if (res.common.length) {
       const last = pos.moves.length + res.common[res.common.length - 1];
