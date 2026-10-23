@@ -113,16 +113,19 @@ try {
 :root .label.q, :root .tabs .badge { background: var(--amber); color: var(--on-amber); }
 
 /* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
-:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); }
 :root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
-:root .app > .side .pbtn, :root .app > .side .live, :root .app > .side .live.off { color: var(--kaya-ink); }
+:root .app > .side .pbtn { color: var(--kaya-ink); }
+:root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
 :root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
 @media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
-:root .app > .side .group { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); letter-spacing: .07em; }
+:root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .group { letter-spacing: .07em; }
+.tfind input::placeholder { color: var(--faint); opacity: 1; }
 :root .trow { border-radius: var(--r); padding: 10px 12px; }
 :root .trow .ttl { font-size: 16px; font-weight: 500; }
 :root .trow .tsub { font-size: 15px; }
@@ -133,13 +136,13 @@ try {
 :root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
 :root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
 :root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-/* Desktop: one line per thread, no per-row avatars (the header and Team panel say who). Phones keep two lines. */
+/* Desktop: titles wrap to two lines (full title in the tooltip), one small owner avatar per row. */
 @media (min-width: 861px) {
   :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
-  :root .trow.t1 .ttl { white-space: nowrap; display: block; -webkit-line-clamp: unset; font-size: 15px; font-weight: 500; }
-  :root .trow.t1 .avs { display: none; }
+  :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; text-wrap: balance; }
   :root .trow.tn .ttl { font-size: 15px; }
 }
+.trow.t1 .avs { opacity: .9; }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
@@ -198,9 +201,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 body { transition: background-color .2s, color .2s; }
 #login, .app { background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
 /* Panels over the background: frosted, so the wall carries under the sidebars and header. */
-:root { --glass: color-mix(in srgb, var(--panel) 66%, transparent); }
+/* A tint, not a blur: backdrop blur on the panes halved scroll smoothness over a picture (30 fps at 4x CPU). */
+:root { --glass: color-mix(in srgb, var(--panel) 88%, transparent); --glass-hi: color-mix(in srgb, var(--panel) 96%, transparent); }
 :root:not([data-bg]), :root[data-bg=""] { --glass: var(--panel); }
-.side, .team, .head, .tabs { background: var(--glass); -webkit-backdrop-filter: blur(2px) saturate(1.2); backdrop-filter: blur(2px) saturate(1.2); }
+.side, .team, .head, .tabs { background: var(--glass); }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -262,23 +266,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .logo.l { width: 40px; height: 40px; }
 .logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
-:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
+:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass-hi); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
+:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass-hi); border-radius: 10px; padding: 5px 12px; }
+:root[data-bg]:not([data-bg=""]) .thought { background: var(--glass-hi); border-radius: 0 10px 10px 0; padding: 2px 12px; }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
-.live:empty::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-:root .app > .side .live:empty::before { background: var(--kaya-green); }
+.live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
+:root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
+:root .app > .side .live:not(.off) { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); font-weight: 400; }
 .live.off { color: var(--red); }
 .newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 /* Quiet nav rows (Studio, Library, Project chat, Team lessons): icon and name, no box. */
 .navrows { display: grid; gap: 2px; padding: 2px 8px 6px; }
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
+.navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
-:root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); }
 .newtask { text-align: left; display: flex; gap: 8px; align-items: center; padding-left: 11px; padding-right: 8px; white-space: nowrap; }
 .newtask span { font-size: 19px; line-height: 1; }
 .newtask svg { width: 16px; height: 16px; flex: none; }
@@ -324,11 +330,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .ib { place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--r); background: none; color: var(--ink); flex: none; }
 .ib:hover { background: var(--sel); }
 .ponly { display: none; }
+:root .head a.btn { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
+/* Header controls share one quiet style: text or icon, no box until hover. */
+:root .head .btn.more { border-color: transparent; background: none; }
+@media (hover: hover) { :root .head .btn.more:hover, :root .head a.btn:hover { background: var(--sel); } }
 .psep { border-top: 1px solid var(--line); margin: 6px 4px; }
 a.opt { color: inherit; text-decoration: none; }
 .chip .ol { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed { flex: 1; overflow-y: auto; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 16px; container: feed / inline-size; }
-.feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; animation: rise .18s ease-out; }
+.feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; }
+/* Only a message that arrives while the thread is open rises in; opening a thread draws it at once. */
+.feed > .rise { animation: rise .18s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 
@@ -336,10 +348,9 @@ a.opt { color: inherit; text-decoration: none; }
    Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 6px 12px; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass-hi); border-radius: 10px; padding: 6px 12px; }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
-.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--soft); vertical-align: -0.15em; }
-.spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
+.spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -409,9 +420,19 @@ a.opt { color: inherit; text-decoration: none; }
 .ask { display: grid; gap: 10px; margin-top: 8px; }
 .ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
 .ask-h { font-size: 13px; font-weight: 500; color: var(--soft); }
-.ask-o { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 8px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
-.ask-o small { display: block; color: var(--soft); }
+/* An option: a radio circle (or checkbox square) before the label. Picked = filled mark, bolder label and a 2 px edge, not colour alone. */
+.ask-o { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: start; width: 100%; text-align: left; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.ask-o .mk { grid-row: 1 / span 2; width: 18px; height: 18px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--soft); border-radius: 50%; display: grid; place-items: center; color: var(--on-green); }
+.ask-o .mk.checkbox { border-radius: 4px; }
+.ask-o .ol { grid-column: 2; }
+.ask-o small { grid-column: 2; display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--soft); }
 .ask-o.on { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.ask-o.on .ol { font-weight: 500; }
+.ask-o.on .mk { border-color: var(--green); }
+.ask-o.on .mk.radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.ask-o.on .mk.checkbox { background: var(--green); }
+.ask-o .mk svg { display: block; }
+.ask-o:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ask-t { width: 100%; margin-top: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
 .ask-go { justify-self: start; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--green); color: var(--on-green); font: inherit; font-weight: 500; cursor: pointer; }
 .ask-done { color: var(--soft); font-size: 14px; }
@@ -474,9 +495,10 @@ a.opt { color: inherit; text-decoration: none; }
 .cp.done { color: var(--green); }
 .who .cp { margin-left: 0; }
 .who.mini .cp { margin-left: 0; }
-.row.me > .cp { align-self: flex-start; margin: 2px 0 0; }
+.row.me > .who.mine { align-self: flex-start; margin: 2px 0 0; }
 /* Computers: a message's Copy shows on hover or focus; phones always show it, quietly. */
-@media (hover: hover) { .feed .sw .cp { opacity: 0; transition: opacity .12s; } .feed .sw:hover .cp, .feed .sw:focus-within .cp { opacity: 1; } }
+/* Time and Copy sit together. On a computer a follow-on message (and your own) shows its time with Copy on hover or focus. */
+@media (hover: hover) { .feed .sw .cp, .feed .sw .who.mini .when, .feed .sw .who.mine .when { opacity: 0; transition: opacity .12s; } .feed .sw:hover .cp, .feed .sw:focus-within .cp, .feed .sw:hover .who .when, .feed .sw:focus-within .who .when { opacity: 1; } }
 /* hub notices: small and calm; an alert only gets an amber dot */
 .note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
@@ -594,13 +616,11 @@ button.fchip:hover { border-color: var(--faint); }
 /* team panel */
 .thead { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px; }
 .thead h3 { margin: 0; font-size: 19px; flex: 1; }
-.thead h3:has(+ .tcount) { flex: none; }
 .cap { padding: 0 16px 10px; margin: 0; font-size: 15px; }
 .acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 0 12px; }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 /* Team: no alarm borders; the red word and the red bar carry "running low". */
-.thead .tcount { flex: 1; min-width: 0; color: var(--soft); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.thead .tcount + .btn { margin-left: auto; }
+.tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .atop .btn.more { padding: 1px 8px 5px; margin: -4px -4px -4px 0; }
@@ -768,13 +788,13 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .app[data-tab="team"] .side, .app[data-tab="team"] .main { display: none; }
   .side, .team { border: 0; }
   .back { display: inline-grid; }
-  .head > .avs, .wide, .head .hs { display: none; }
+  .head > .avs, .wide, :root .head .hs, :root .head a.hs { display: none; }
   .ponly { display: inline-flex; }
   /* One header row: back, the title (up to two lines), the status dot, ⋯. */
   :root .head { flex-wrap: nowrap; min-height: 56px; gap: 4px; padding: 6px max(8px, env(safe-area-inset-right)) 6px max(4px, env(safe-area-inset-left)); }
-  :root .head h2 { font-size: 18px; flex: 1 1 auto; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow: hidden; }
-  .head .pill { position: relative; background: none; padding: 0 6px; min-width: 24px; min-height: 44px; justify-content: center; }
-  .head .pill .pl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  :root .head h2 { font-size: 18px; flex: 1 1 auto; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow: hidden; text-wrap: balance; }
+  /* Status: the dot and its word ("Working", "Needs you", "Done"), so it reads without colour. */
+  :root .head .pill { background: none; padding: 0 4px; min-height: 44px; gap: 5px; font-size: 14px; white-space: nowrap; flex: none; }
   :root .head .btn.more { min-width: 44px; padding: 0; display: inline-grid; place-items: center; border-color: transparent; background: none; }
   .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   /* One composer row: +, Options (sums up the picks), status, Send. */
@@ -788,9 +808,18 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Phone tap targets: at least 44px tall. */
   .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
+  /* A follow-on message's time + Copy stays one text line tall (the 44 px tap area overhangs), so the text beside it isn't squeezed. */
+  .who.mini, .who.mine { height: 20px; margin-bottom: 0; }
+  .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
   summary, .tk, .trow.tn { min-height: 44px; }
+  /* The last heading in a tab never ends flush under the tab bar. */
+  .team, .side .list { padding-bottom: 56px; }
+  /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
+  .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+  .navrows { padding-bottom: 2px; }
+  .brand { padding-top: 10px; padding-bottom: 6px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   html.kb .tabs { display: none; }
@@ -820,7 +849,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" aria-label="Live" title="Live"></span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
+    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" title="Live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <div class="newrow">
       <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
@@ -857,6 +886,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <script src="/ui/md.js"></script>
 <script src="ui/icons.js"></script>
+<script src="/ui/people.js"></script>
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
@@ -985,12 +1015,14 @@ function pace() {
 // 30 s, so older means the page is behind, e.g. just shown again); the tooltip says when.
 function setLive(ok) {
   const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
-  // Live is a quiet green dot; the words show only when something is wrong.
-  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : '';
-  el.classList.toggle('off', !ok || stale);
+  // Live: a green dot and the quiet word; Offline or Updating… in red when something is wrong.
+  // Each poll calls this twice; writing only what changed keeps an idle page from re-laying out.
+  const word = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
+  if (el.textContent !== word) el.textContent = word;
+  if (el.classList.contains('off') !== (!ok || stale)) el.classList.toggle('off', !ok || stale);
   const at = lastOk ? new Date(lastOk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  el.title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
-  el.setAttribute('aria-label', ok && !stale ? 'Live' : el.textContent);
+  const title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
+  if (el.title !== title) el.title = title;
 }
 async function tick() {
   clearTimeout(timer); timer = 0;
@@ -1030,23 +1062,11 @@ function assignColors() {
   initials = {};
   for (const n of names) initials[n] = initialOf(n, names);
 }
-// One letter when it is unique. On a clash: the letter plus the trailing number ("Alt 2" → A2; the one
-// without a number keeps the bare letter), else the first letter of the second word, else the next
-// consonant. Never "Al", "AI" or "Ai": these avatars stand for accounts, and must not read as "AI".
-function initialOf(n, names) {
-  const f = n[0].toUpperCase();
-  const clash = names.filter((x) => x !== n && x[0].toUpperCase() === f);
-  if (!clash.length) return f;
-  const num = (x) => /(\d+)\s*$/.exec(x)?.[1];
-  if (num(n)) return f + num(n);
-  if (clash.every((x) => num(x))) return f;
-  const bad = (x) => /^a[il]$/i.test(x);
-  const word = n.split(/[\s_-]+/)[1];
-  if (word && !bad(f + word[0])) return f + word[0].toUpperCase();
-  for (const c of n.slice(1)) if (/[bcdfghjkmnpqrstvwxz]/i.test(c) && !bad(f + c)) return f + c.toLowerCase();
-  return f;
-}
-const acctOf = (from) => S.accounts.find((a) => from === a.name || String(from).startsWith(a.name + ' '));
+// ui/people.js; a plain fallback keeps the page working if that file did not load.
+const PEOPLE = window.hubPeople || { acctOf: (l, f) => l.find((a) => a.name === f) || null, initialOf: (n) => n[0].toUpperCase() };
+const { initialOf } = PEOPLE;
+// The account a message is from: exact name first, else the longest prefix, so Alt 2 is never Alt.
+const acctOf = (from) => PEOPLE.acctOf(S.accounts, from);
 const av = (name, size = '') => name ? `<span class="av ${size}" style="--c:${colors[name] || 'var(--faint)'}" title="${esc(name)}">${esc(initials[name] || name.slice(0, 1).toUpperCase())}</span>` : '';
 const avList = (names, size = 's') => names.length ? `<span class="avs">${names.slice(0, 4).map((n) => av(n, size)).join('')}</span>` : '';
 const meter = (lvl) => `<span class="meter">${THINK.map((t, i) => `<i class="${i <= THINK.indexOf(lvl) ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -1160,10 +1180,11 @@ $('feed').addEventListener('click', (e) => {
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
 // Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
 let lastByThread = new Map(), lastByThreadAcct = new Map();
+let sameWhen = false; // every row would say the same age: then rows show none
+const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
-  const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 2))}<span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></button>`;
+  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1190,17 +1211,23 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
+  sameWhen = new Set(groups.flatMap((g) => g[1]).map(rowWhen)).size < 2;
   // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
   let html;
   if (q) {
     html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else html = `<button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '')
+  } else html = `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+  // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
   setHtml($('threads'), html);
+  const box = $('threads');
+  for (const el of box.querySelectorAll('.trow.on')) if (el.dataset.thread !== String(sel)) { el.classList.remove('on'); el.removeAttribute('aria-current'); }
+  const cur = box.querySelector(`.trow[data-thread="${sel}"]`);
+  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
@@ -1208,7 +1235,7 @@ function renderSide() {
 // ---------- feed ----------
 function threadCard(t) {
   return `<button class="tcard st-${t.status}" data-thread="${t.id}"><span class="dot"></span><span class="ttl">${esc(t.title)}</span><span class="go">Open</span>
-    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(t.archived ? 'Archived' : STATUS[t.status])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span>${meter(t.thinking || 'medium')}</span></span></button>`;
+    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(t.archived ? 'Archived' : STATUS[t.status])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
 }
 function picksOf(meta) {
   if (!meta) return '';
@@ -1220,7 +1247,7 @@ const copyText = new Map();
 function copyBtn(m, text = m.text) {
   if (!text) return '';
   copyText.set(String(m.id), text);
-  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy this message" aria-label="Copy this message">${icon('copy', 16)}</button>`;
+  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy message" aria-label="Copy message">${icon('copy', 16)}</button>`;
 }
 async function copyToClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch {}
@@ -1273,7 +1300,7 @@ function helloHtml() {
 }
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
-  if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : copyBtn(m)}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
+  if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
   if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
@@ -1299,7 +1326,7 @@ function msgHtml(m) {
   if (prs.length) text = MD.withoutTrailingPr(text);
   const card = m.kind === 'question' && m.meta?.questions ? askHtml(m) : '';
   const cont = contOf(m);
-  const head = cont ? `<div class="who mini" title="${esc(clock(m.at))}">${copyBtn(m)}</div>` : `<div class="who">${a ? av(a.name, 's in') : ''}<b class="nm">${esc(m.from)}</b>${label}${when}${copyBtn(m)}</div>`;
+  const head = cont ? `<div class="who mini">${when}${copyBtn(m)}</div>` : `<div class="who">${a ? av(a.name, 's in') : ''}<b class="nm">${esc(m.from)}</b>${label}${when}${copyBtn(m)}</div>`;
   return `<div class="row k-${kind}${ans ? ' answered' : ''}${cont ? ' cont' : ''}">${cont ? '<span class="av-gap"></span>' : a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble${card ? ' bwide' : ''}">${head}${card || (text ? bodyHtml(m, text) : '')}${prs.map(prCard).join('')}${imgOf(m.meta)}</div></div>`;
 }
 // Tappable question card (an agent's ask_user). Picks live in askSel so the 3 s refresh keeps them.
@@ -1310,11 +1337,33 @@ function askHtml(m) {
   const sel = (askSel[m.id] ||= {});
   const qs = m.meta.questions.map((q, qi) => {
     const mine = sel[qi] || (sel[qi] = { picks: [], other: '' });
-    const opts = q.options.map((o, oi) => `<button type="button" class="ask-o${mine.picks.includes(o.label) ? ' on' : ''}" data-ask="${m.id}:${qi}:${oi}">${esc(o.label)}${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`).join('');
-    return `<div class="ask-q"><div class="ask-h">${esc(q.header)}</div><div>${esc(q.question)}</div>${opts}<input class="ask-t" data-ask-other="${m.id}:${qi}" placeholder="Other…" value="${esc(mine.other)}"></div>`;
+    // Single choice is a radiogroup (arrow keys move and pick); several choices are checkboxes. One option takes Tab.
+    const role = q.multiSelect ? 'checkbox' : 'radio';
+    const tabAt = Math.max(0, q.options.findIndex((o) => mine.picks.includes(o.label)));
+    const opts = q.options.map((o, oi) => { const on = mine.picks.includes(o.label); return `<button type="button" role="${role}" aria-checked="${on}" tabindex="${q.multiSelect || oi === tabAt ? 0 : -1}" class="ask-o${on ? ' on' : ''}" data-ask="${m.id}:${qi}:${oi}"><span class="mk ${role}" aria-hidden="true">${on && q.multiSelect ? icon('check', 14) : ''}</span><span class="ol">${esc(o.label)}</span>${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`; }).join('');
+    const hid = `askh-${m.id}-${qi}`;
+    return `<div class="ask-q"><div class="ask-h" id="${hid}">${esc(q.header)}${q.multiSelect ? ' · pick any' : ''}</div><div id="${hid}q">${esc(q.question)}</div><div role="${q.multiSelect ? 'group' : 'radiogroup'}" aria-labelledby="${hid} ${hid}q">${opts}</div><input class="ask-t" data-ask-other="${m.id}:${qi}" placeholder="Other…" aria-label="Other answer" value="${esc(mine.other)}"></div>`;
   }).join('');
   return `<div class="ask">${qs}<button type="button" class="ask-go" data-ask-go="${m.id}">Send answers</button></div>`;
 }
+// Redraw the card and keep focus on the option the keyboard or pointer is on.
+function askRefocus(key) {
+  renderFeed();
+  const el = document.querySelector(`[data-ask="${key}"]`);
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+}
+// Arrow keys in a single-choice group move to the next option and pick it, as radios do.
+$('feed').addEventListener('keydown', (e) => {
+  const o = e.target.closest?.('[data-ask][role="radio"]');
+  if (!o || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+  e.preventDefault();
+  const [id, qi, oi] = o.dataset.ask.split(':').map(Number);
+  const m = S.messages.find((x) => x.id === id); const q = m?.meta?.questions?.[qi]; if (!q) return;
+  const n = q.options.length;
+  const to = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (oi + (['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : -1) + n) % n;
+  askSel[id][qi].picks = [q.options[to].label];
+  askRefocus(`${id}:${qi}:${to}`);
+});
 async function askSend(id) {
   const m = S.messages.find((x) => x.id === id); const sel = askSel[id] || {};
   if (!m) return;
@@ -1384,7 +1433,8 @@ function togglePanel(k) { panels[k] = !panels[k]; ls.set('hub-panels', JSON.stri
 const panelBtn = (k) => `<button type="button" class="btn quiet pbtn" data-panel="${k}"></button>`;
 function renderHead(t) {
   const back = `<button class="back ib" id="back" type="button" aria-label="Threads" title="Threads">${icon('chevron-left', 22)}</button>` + panelBtn('side');
-  // Phones: the status shows as its dot (the word stays for screen readers); Session and Thinking move into ⋯.
+  // The header holds status, Session and ⋯ only; how agents' thinking shows is a setting in ⋯.
+  // Phones: Session moves into ⋯ too.
   const pill = (cls, dot, word) => `<span class="pill ${cls}" title="${esc(word)}"><span class="dot"${dot}></span><span class="pl">${esc(word)}</span></span>`;
   const more = (cls = '') => `<button type="button" class="btn small more ${cls}" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>`;
   if (!t && sel === NEW_CHAT) {
@@ -1393,15 +1443,14 @@ function renderHead(t) {
   }
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} running` : 'All quiet')}<button type="button" class="btn small quiet hs" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${more('ponly')}${panelBtn('team')}`);
+    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} thread${running > 1 ? 's' : ''} running` : 'All quiet')}${more()}${panelBtn('team')}`);
     applyPanels(); return;
   }
   // Title, who is on it, status; one contextual action (Start again / Restore); Mark done, Archive and Delete live in ⋯.
   setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${t.status}`, '', t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status])}
-    ${t.sessionUrl ? `<a class="hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session">Session</a>` : ''}
+    ${t.sessionUrl ? `<a class="btn small quiet hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : ''}
-    <button type="button" class="btn small quiet hs" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
     ${more()}${panelBtn('team')}`);
   applyPanels();
 }
@@ -1493,8 +1542,10 @@ function renderFeed() {
     items.push({ k: 'empty:' + sel, h: html });
   }
   // A different view starts from scratch; the same view keeps its nodes.
+  const fresh = feed.dataset.sel !== String(sel) || !feedItems.length;
   if (feed.dataset.sel !== String(sel)) { feedItems = []; feed.textContent = ''; }
   const added = patchFeed(feed, items);
+  if (added && !fresh && added.length <= 3) for (const x of added) if (typeof x.k === 'number' || String(x.k).startsWith('tmp')) for (const n of x.nodes) if (n.nodeType === 1) n.classList.add('rise');
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
   if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed);
   feed.dataset.sel = String(sel);
@@ -1693,13 +1744,13 @@ function openPop(kind, anchor) {
       <p style="margin:8px 10px">Agents post a short note at key decisions. Their full private reasoning stays in each session (Open session).</p>
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   } else if (kind === 'tmenu') {
-    // Phones: the header's Session link and Thinking modes live here too.
+    // The thinking setting lives here (a setting, not a status); phones also get the Session link.
     const phone = matchMedia('(max-width: 860px)').matches;
-    const thinkOpts = phone ? `<h4>Agents' thinking</h4>${[['hide', 'Hidden'], ['fold', 'Folded'], ['open', 'Open']].map(([v, n]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}"><span></span><b>${n}</b><span class="tick">${icon('check', 16)}</span></button>`).join('')}<button type="button" class="opt" data-tact="think"><span></span><b>Thinking per account</b><small>Whose notes and working line to show</small></button>` : '';
+    const thinkOpts = `<h4>Show agents' thinking notes</h4>${[['hide', 'Hidden', 'Only a count'], ['fold', 'Folded', 'One line each'], ['open', 'Open', 'In full']].map(([v, n, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}" aria-pressed="${think.mode === v}"><span></span><b>${n}</b><span class="tick">${icon('check', 16)}</span><small>${h}</small></button>`).join('')}<button type="button" class="opt" data-tact="think"><span></span><b>Per account</b><small>Whose notes and working line to show</small></button>`;
     if (!t) { pop.innerHTML = thinkOpts; }
     else pop.innerHTML = `${phone && t.sessionUrl ? `<a class="opt" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener"><span></span><b>Open session</b><small>This thread's Claude session</small></a>` : ''}${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
       ${t.archived ? '<button type="button" class="opt" data-tact="restore"><span></span><b>Restore</b><small>Put it back in the list</small></button>' : '<button type="button" class="opt" data-tact="archive"><span></span><b>Archive</b><small>Hide it and start no new sessions. You can restore it.</small></button>'}
-      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button>${thinkOpts ? `<div class="psep"></div>${thinkOpts}` : ''}`;
+      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button><div class="psep"></div>${thinkOpts}`;
   } else if (kind.startsWith('amenu:')) {
     pop.innerHTML = acctMenu(kind.slice(6));
   } else if (kind === 'accounts') {
@@ -1820,7 +1871,7 @@ function accountCard(a) {
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${conn}
-    ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>` : ''}
+    ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Mark usage reset</button>` : ''}</div>` : ''}
     ${act}
     ${usage}
   </div>`;
@@ -1853,7 +1904,7 @@ function taskRow(t) {
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
   if (!live.length) return '';
-  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
+  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} task${live.length === 1 ? '' : 's'} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
     const rows = live.filter(f);
     return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
   }).join('')}</div>`;
@@ -1872,7 +1923,7 @@ function agentPanel() {
   if (!list.length) return '';
   const run = list.filter((g) => g.status === 'running').length;
   const names = [...new Set(list.map((g) => g.account))];
-  return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run} running</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
+  return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run ? `${run} agent${run > 1 ? 's' : ''} running` : 'None running'}</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
 }
 function renderTeam() {
   // Accounts that need XIAO come first.
@@ -1882,14 +1933,16 @@ function renderTeam() {
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
   // The header says only what is not routine: how many work, run low or need XIAO.
-  const counts = [n('fix') && `${n('fix')} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${n('busy')} working`, n('low') + n('paused') && `${n('low') + n('paused')} low`].filter(Boolean).join(' · ');
-  setHtml($('team'), `<div class="thead"><h3>Team</h3>${counts ? `<span class="tcount">${esc(counts)}</span>` : ''}<button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
+  const accts = (k) => `${k} account${k > 1 ? 's' : ''}`;
+  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
+  setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
+    ${counts ? `<p class="tsum">${esc(counts)}</p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
+      <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens in this 5-hour window, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
       <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
@@ -1930,14 +1983,14 @@ document.addEventListener('click', async (e) => {
   if (cp) {
     const ok = await copyToClipboard(copyText.get(cp.dataset.mcopy) || '');
     cp.innerHTML = icon(ok ? 'check' : 'x', 16); cp.title = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
-    setTimeout(() => { cp.innerHTML = icon('copy', 16); cp.title = 'Copy this message'; cp.classList.remove('done'); }, 1500);
+    setTimeout(() => { cp.innerHTML = icon('copy', 16); cp.title = 'Copy message'; cp.classList.remove('done'); }, 1500);
     return;
   }
   const ak = e.target.closest('[data-ask]');
   if (ak) {
     const [id, qi, oi] = ak.dataset.ask.split(':').map(Number); const m = S.messages.find((x) => x.id === id); const q = m.meta.questions[qi]; const label = q.options[oi].label;
     const v = askSel[id][qi]; v.picks = q.multiSelect ? (v.picks.includes(label) ? v.picks.filter((l) => l !== label) : [...v.picks, label]) : v.picks[0] === label ? [] : [label];
-    return renderFeed();
+    return askRefocus(ak.dataset.ask);
   }
   const ag = e.target.closest('[data-ask-go]'); if (ag) return askSend(Number(ag.dataset.askGo));
   if (e.target.closest('[data-attach]')) return $('fileIn').click();
@@ -2162,7 +2215,7 @@ async function openSheet(kind, name) {
       ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
       <div class="sgrp"><h4>Or just mark it</h4>
         <p>${a?.low ? `${esc(name)} is marked as running low.` : 'New work then goes to other accounts.'}</p>
-        <div><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Usage is back' : 'Running low'}</button></div></div>
+        <div><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Mark usage reset' : 'Running low'}</button></div></div>
       <div class="err" id="uErr" role="alert"></div>
     </div>` + sFoot(`<button class="btn" data-close>Cancel</button><button class="btn primary" data-saveusage="${esc(name)}">Save</button>`);
   } else if (kind === 'lessons') {
