@@ -231,6 +231,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 #login { min-height: 100%; display: grid; place-items: center; padding: 16px; }
 #login form { background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 32px; width: min(380px, 100%); display: grid; gap: 14px; }
 #login h1 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
+/* Flat card, like the rest of the Kaya look; the error line takes no room until there is one. */
+:root #login form { box-shadow: none; border-radius: 12px; }
+#login .err:empty { display: none; }
 
 /* layout */
 .app { --sw: 272px; --tw: 320px; display: grid; grid-template-columns: var(--sw) minmax(0, 1fr) var(--tw); height: 100vh; height: 100dvh; }
