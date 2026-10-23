@@ -119,15 +119,18 @@ function gunzipSink() {
   const ds = new DecompressionStream('gzip');
   const w = ds.writable.getWriter();
   const out = new Response(ds.readable).arrayBuffer();
-  out.catch(() => {});
-  return {
-    push: (c) => void w.write(c).catch(() => {}),
+  // The first unzip error, so a broken stream stops the download instead of reading it to the end.
+  const sink = { failed: null };
+  const fail = (e) => void (sink.failed = sink.failed || e || new Error('unzip failed'));
+  out.catch(fail);
+  return Object.assign(sink, {
+    push: (c) => void w.write(c).catch(fail),
     end: async () => {
       await w.close();
       return new Uint8Array(await out);
     },
     drop: () => void w.abort().catch(() => {}),
-  };
+  });
 }
 
 function collectSink(size) {
@@ -191,6 +194,10 @@ async function download(url, id) {
           if (!sink) sink = isGzip(value) && typeof DecompressionStream === 'function' ? gunzipSink() : collectSink(total && !encoded ? total : 0);
           sink.push(value);
           loaded += value.length;
+          if (sink.failed) {
+            reader.cancel().catch(() => {});
+            throw new Error(`the download is damaged (unzip failed after ${Math.round(loaded / 1e6)} MB)`);
+          }
           const now = Date.now();
           if (now - lastPost > 150) {
             lastPost = now;
