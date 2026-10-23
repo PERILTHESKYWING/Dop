@@ -32,7 +32,7 @@ try {
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
-  --kaya: #e8c88f; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #c9a465; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
   --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
@@ -133,6 +133,13 @@ try {
 :root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
 :root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
 :root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Desktop: one line per thread, no per-row avatars (the header and Team panel say who). Phones keep two lines. */
+@media (min-width: 861px) {
+  :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
+  :root .trow.t1 .ttl { white-space: nowrap; display: block; -webkit-line-clamp: unset; font-size: 15px; font-weight: 500; }
+  :root .trow.t1 .avs { display: none; }
+  :root .trow.tn .ttl { font-size: 15px; }
+}
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
@@ -261,11 +268,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .live:empty::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 :root .app > .side .live:empty::before { background: var(--kaya-green); }
 .live.off { color: var(--red); }
-.newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+/* Quiet nav rows (Studio, Library, Project chat, Team lessons): icon and name, no box. */
+.navrows { display: grid; gap: 2px; padding: 2px 8px 6px; }
+.side > .navrows { min-width: calc(var(--sw) - 1px); }
+.trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
+.trow.tn .ico { opacity: .8; }
+.trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
+.trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
+:root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); }
 .newtask { text-align: left; display: flex; gap: 8px; align-items: center; padding-left: 11px; padding-right: 8px; white-space: nowrap; }
 .newtask span { font-size: 19px; line-height: 1; }
 .newtask svg { width: 16px; height: 16px; flex: none; }
-.studio-link { text-decoration: none; color: inherit; }
 /* Quick filter (shown once there are enough threads to need it). */
 .tfind { padding: 2px 12px 4px; }
 .tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
@@ -772,7 +786,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
-  summary, .tk { min-height: 44px; }
+  summary, .tk, .trow.tn { min-height: 44px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   html.kb .tabs { display: none; }
@@ -806,8 +820,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
     <div class="newrow">
       <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
-      <a class="btn newtask studio-link" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i>Studio</a>
-      <a class="btn newtask studio-link" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i>Library</a>
+    </div>
+    <div class="navrows">
+      <a class="trow tn" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
+      <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -1169,8 +1185,8 @@ function renderSide() {
     $('threads').innerHTML = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
-    + (S.accounts.length ? `<button class="trow" data-open="lessons"><span class="ttl">Team lessons · ${S.lessons.length}</span><span class="tsub"><span class="lsub">${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}</span></span></button>` : '')
+  } else $('threads').innerHTML = `<button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
