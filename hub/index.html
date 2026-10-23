@@ -113,7 +113,7 @@ try {
 :root .label.q, :root .tabs .badge { background: var(--amber); color: var(--on-amber); }
 
 /* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
-:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); }
 :root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
 :root .app > .side .pbtn { color: var(--kaya-ink); }
 :root .app > .side .live.off { color: var(--red); }
@@ -201,9 +201,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 body { transition: background-color .2s, color .2s; }
 #login, .app { background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
 /* Panels over the background: frosted, so the wall carries under the sidebars and header. */
-:root { --glass: color-mix(in srgb, var(--panel) 66%, transparent); }
+/* A tint, not a blur: backdrop blur on the panes halved scroll smoothness over a picture (30 fps at 4x CPU). */
+:root { --glass: color-mix(in srgb, var(--panel) 88%, transparent); --glass-hi: color-mix(in srgb, var(--panel) 96%, transparent); }
 :root:not([data-bg]), :root[data-bg=""] { --glass: var(--panel); }
-.side, .team, .head, .tabs { background: var(--glass); -webkit-backdrop-filter: blur(2px) saturate(1.2); backdrop-filter: blur(2px) saturate(1.2); }
+.side, .team, .head, .tabs { background: var(--glass); }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -265,10 +266,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .logo.l { width: 40px; height: 40px; }
 .logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
-:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
+:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass-hi); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
+:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass-hi); border-radius: 10px; padding: 5px 12px; }
+:root[data-bg]:not([data-bg=""]) .thought { background: var(--glass-hi); border-radius: 0 10px 10px 0; padding: 2px 12px; }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
 .live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
 :root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
@@ -343,7 +345,7 @@ a.opt { color: inherit; text-decoration: none; }
    Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
 .thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 6px 12px; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass-hi); border-radius: 10px; padding: 6px 12px; }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
 .spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
