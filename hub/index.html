@@ -1325,7 +1325,7 @@ function msgHtml(m) {
   const kind = ['question', 'done', 'progress', 'answer', 'lesson'].includes(m.kind) ? m.kind : 'note';
   const ans = m.kind === 'question' && answered(m);
   const label = m.kind === 'question' ? (ans ? '<span class="label">Answered</span>' : '<span class="label q">Question for you</span>') : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
-  let text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
+  let text = m.kind === 'lesson' ? lessonProse(m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '')) : m.text;
   // A "done" shows its PR links as small cards; a link at the very end leaves the text.
   const prs = m.kind === 'done' && MD ? MD.prLinks(text) : [];
   if (prs.length) text = MD.withoutTrailingPr(text);
@@ -1954,6 +1954,18 @@ function renderTeam() {
 }
 
 // ---------- team lessons ----------
+// A lesson as the hub stores it ("Don't: Never X. (why: Y)") read as plain prose: "Never X. Why: Y."
+// Only the drawing changes; the stored text stays the agents' format.
+const NEG = /^(never|don'?t|do not|avoid|no|stop)\b/i;
+const lowerFirst = (s) => (/^[A-Z][a-z]*\b/.test(s) && !/^[A-Z][a-z]*[A-Z]/.test(s) && !/^I\b/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+const stop = (s) => (s = s.trim(), /[.!?]$/.test(s) ? s : s + '.');
+function lessonProse(s) {
+  const m = /^(Do|Don't): ([\s\S]*?)(?: \(why: ([\s\S]*)\))?$/.exec(s.trim());
+  if (!m) return s;
+  const [, kind, body, why] = m;
+  const say = kind === "Don't" && !NEG.test(body) ? `Don't ${lowerFirst(body)}` : body;
+  return `${stop(say[0].toUpperCase() + say.slice(1))}${why ? ` Why: ${stop(why)}` : ''}`;
+}
 const kindTag = (l) => `<span class="lk ${l.kind === 'dont' ? 'dont' : 'do'}">${l.kind === 'dont' ? 'Don\'t' : 'Do'}</span>`;
 function lessonRows() {
   if (!S.lessons.length) return '<p class="lempty">No lessons yet.</p>';
