@@ -255,7 +255,7 @@ function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : nul
   );
 }
 
-const secs = (ms: number) => (ms < 1000 ? '<1s' : `${Math.round(ms / 1000)}s`);
+const secs = (ms: number) => (ms < 1000 ? 'under 1 s' : `${Math.round(ms / 1000)} s`);
 
 /** Seconds since `t0`, ticking, so a read that has not reported a step yet still visibly runs. */
 function Elapsed({ t0 }: { t0: number }) {
@@ -270,7 +270,10 @@ function Elapsed({ t0 }: { t0: number }) {
 function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
-  const text = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Thinking…') : `Thought for ${secs(ms)}`;
+  // Done, it says what was done: how many positions KataGo read (its largest step's visits).
+  const most = steps.reduce((n, s) => Math.max(n, s.visits ?? 0), 0);
+  const done = most ? `KataGo read ${most.toLocaleString()} positions · ${secs(ms)}` : `Read for ${secs(ms)}`;
+  const text = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Reading…') : done;
   // ultraGO says so while it works: its name in the running rainbow before the stage.
   const label = live && ultra && stage !== 'engine' ? (
     <>
@@ -283,7 +286,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   return (
     <details className={`thoughts${live ? ' live' : ''}${live && ultra ? ' think-live ultra' : ''}`} open={live || undefined}>
       <summary>
-        {live ? <span className="dive" aria-hidden="true" /> : <Icon name="spark" size={15} />}
+        {live && <span className="dive" aria-hidden="true" />}
         {label}
         <Icon name="down" size={14} />
       </summary>
@@ -382,9 +385,9 @@ function ExplainAnswer({ a, msg, link }: { a: Extract<Answer, { type: 'explain' 
       {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {ex.facts.length > 0 && (
-        <details className="facts">
+        <details className="facts" open>
           <summary>
-            Facts from KataGo ({ex.facts.length}) <Icon name="down" size={14} />
+            KataGo’s numbers ({ex.facts.length}) <Icon name="down" size={14} />
           </summary>
           <ul>
             {ex.facts.map((f, i) => (
@@ -683,10 +686,28 @@ function HelloMark() {
 
 export function Messages({ messages, running, board, link, onAsk, onRegenerate, onEdit, onShowBoard, busy }: Props) {
   const end = useRef<HTMLDivElement>(null);
+  const pane = useRef<HTMLDivElement>(null);
   const steps = running?.steps.length ?? 0;
+  const last = messages[messages.length - 1];
+  const answeredId = last?.role === 'kami' && last.answer ? last.id : null;
+  const placed = useRef<string | null>(null);
   useEffect(() => {
+    // While KataGo's steps stream, follow the end. When an answer arrives that is taller than the
+    // pane (a phone), open it at its first line instead of its last; after that, leave the reader's
+    // place alone.
+    const first = answeredId !== null && placed.current !== answeredId;
+    placed.current = answeredId;
+    const box = pane.current;
+    if (answeredId && box) {
+      const all = box.querySelectorAll<HTMLElement>('.msg.kami');
+      const el = all[all.length - 1];
+      if (el && el.offsetHeight > box.clientHeight) {
+        if (first) box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+        return;
+      }
+    }
     end.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, steps, messages[messages.length - 1]?.answer]);
+  }, [messages.length, steps, last?.answer, answeredId]);
 
   if (!messages.length && board) {
     const side = colorName(toPlayAt(board));
@@ -716,7 +737,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
   messages.forEach((m, i) => m.role === 'user' && (lastUser = i));
   return (
     <AskContext.Provider value={busy ? null : onAsk}>
-      <div className="messages" aria-live="polite">
+      <div className="messages" aria-live="polite" ref={pane}>
         {messages.map((m, i) =>
           m.role === 'user' ? (
             <UserMessage key={m.id} m={m} canEdit={i === lastUser && !busy} onEdit={onEdit} />

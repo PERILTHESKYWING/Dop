@@ -254,29 +254,35 @@
 .k3-last.on-w::before {
   background: #15130f;
 }
+/* a point marked as a Go book marks it: a printed square frame, seal red (the point an answer
+   names) or ink (the stones it is about). Hairline paper edges keep it clear on black stones and
+   wood alike; the frame is open, so a line's move number still reads inside it. No glow. */
 .k3-mark::before {
-  width: calc(var(--cell) * 0.7);
-  height: calc(var(--cell) * 0.7);
-  border: 2px solid #2fd3ff;
-  box-shadow: 0 0 calc(var(--cell) * 0.25) rgba(47, 211, 255, 0.75);
+  width: calc(var(--cell) * 0.74);
+  height: calc(var(--cell) * 0.74);
+  border: 2px solid #a8322b;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px #f7f3ea,
+    inset 0 0 0 1px #f7f3ea;
 }
 .k3-evidence::before {
-  border-radius: 22%;
-  border-color: #ffb057;
-  box-shadow: 0 0 calc(var(--cell) * 0.25) rgba(255, 176, 87, 0.7);
+  border-color: #15130f;
 }
 .k3-mark b {
   font-size: max(9px, calc(var(--cell) * 0.34));
   font-weight: 700;
   color: #fff;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+  text-shadow: none;
 }
 
 .k3-coord b {
-  /* in step with the squares, so a small board's letters never run into each other */
-  font-size: clamp(13px, calc(var(--cell) * 0.82), 19px);
-  font-weight: 600;
-  color: #1d242c;
+  /* in step with the squares, so a small board's letters never run into each other; a quiet
+     book-margin grey, so the labels frame the board without crowding it */
+  font-size: clamp(12px, calc(var(--cell) * 0.7), 16px);
+  font-weight: 500;
+  color: var(--muted, #5f584d);
 }
 
 /* on a phone the app's discs drop their visits; a tag's coordinate stays */

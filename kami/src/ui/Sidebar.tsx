@@ -139,10 +139,10 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
         <button className="icon-btn" aria-label="Open sidebar" title="Open sidebar" onClick={onToggle}>
           <Icon name="sidebar" size={20} />
         </button>
-        <button className="icon-btn new-dot" aria-label="New chat" title="New chat" onClick={onNew}>
+        <button className="icon-btn new-dot" aria-label="New board" title="New board" onClick={onNew}>
           <Icon name="plus" size={16} />
         </button>
-        <button className="icon-btn" aria-label="Chats" title="Chats" onClick={onToggle}>
+        <button className="icon-btn" aria-label="Boards" title="Boards" onClick={onToggle}>
           <Icon name="chat" size={19} />
         </button>
         <span className="grow" />
@@ -169,11 +169,11 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
         <span className="new-dot" aria-hidden="true">
           <Icon name="plus" size={14} />
         </span>
-        New chat
+        New board
       </button>
-      <div className="side-label">Recents</div>
+      <div className="side-label">Boards</div>
       <ul className="conv-list">
-        {!convs.length && <li className="conv-empty">Your chats show here. They stay in this browser.</li>}
+        {!convs.length && <li className="conv-empty">Your boards show here. They stay in this browser.</li>}
         {convs.map((c) => (
           <li key={c.id} className={`conv${c.id === currentId ? ' on' : ''}`}>
             {editing === c.id ? (
@@ -184,11 +184,11 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
                   finish();
                 }}
               >
-                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onBlur={finish} aria-label="Chat name" maxLength={80} />
+                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onBlur={finish} aria-label="Board name" maxLength={80} />
               </form>
             ) : confirm === c.id ? (
               <div className="conv-confirm">
-                <span className="grow">Delete this chat?</span>
+                <span className="grow">Delete this board?</span>
                 <button className="link danger" onClick={() => onDelete(c.id)}>
                   Delete
                 </button>

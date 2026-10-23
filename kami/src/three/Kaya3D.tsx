@@ -22,6 +22,8 @@ export interface Kaya3DProps {
   coords?: boolean;
   crop?: { x0: number; y0: number; x1: number; y1: number };
   candidates?: CandidateMark[] | null;
+  /** The figure on a pale stone in place of the win chance (e.g. the lead once a game is decided). */
+  candLabel?: (c: CandidateMark) => string;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   variation?: Move[] | null;
@@ -132,9 +134,9 @@ export default function Kaya3D(p: Kaya3DProps) {
     const marks = (p.candidates ?? [])
       .filter((c) => c.loc !== PASS && !p.stones[c.loc])
       // on the pale shin-kaya a see-through cream stone would vanish, so it is nearly solid there
-      .map((c) => ({ loc: c.loc, color: side, text: winText(c.winrate), alpha: light ? (c.rank === 0 ? 0.97 : 0.9) : c.rank === 0 ? 0.86 : 0.72, cream: true }));
+      .map((c) => ({ loc: c.loc, color: side, text: p.candLabel ? p.candLabel(c) : winText(c.winrate), alpha: light ? (c.rank === 0 ? 0.97 : 0.9) : c.rank === 0 ? 0.86 : 0.72, cream: true }));
     v.setPale(marks.length ? marks : null);
-  }, [ready, p.candidates, p.variation, p.toPlay, p.stones, p.wood]);
+  }, [ready, p.candidates, p.candLabel, p.variation, p.toPlay, p.stones, p.wood]);
 
   const hadOwn = useRef(false);
   useEffect(() => {

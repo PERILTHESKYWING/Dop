@@ -81,7 +81,7 @@ export function App() {
   }, []);
   const [drawer, setDrawer] = useState(false);
   const [boardHidden, setBoardHidden] = useState(false);
-  const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') === '1');
+  const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') !== '0'); // folded by default: the board comes first
   const fold = useCallback(
     () =>
       setFolded((f) => {
@@ -346,7 +346,7 @@ export function App() {
     clearPreview();
     setConvs([fresh]);
     setCurrentId(fresh.id);
-    setToast('All chats deleted');
+    setToast('All boards deleted');
   };
 
   const listed = useMemo(() => convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated), [convs]);
@@ -401,10 +401,10 @@ export function App() {
       <div className="scrim" onClick={() => setDrawer(false)} />
       <div className="work split">
         <header className="topbar">
-          <button className="icon-btn only-phone" aria-label="Open chats" onClick={() => setDrawer(true)}>
+          <button className="icon-btn only-phone" aria-label="Open boards" onClick={() => setDrawer(true)}>
             <Icon name="sidebar" size={20} />
           </button>
-          <span className="topbar-title">{current.messages.length ? current.title : 'New chat'}</span>
+          <span className="topbar-title">{current.messages.length ? current.title : 'New board'}</span>
           <button
             className="icon-btn"
             aria-label={boardHidden ? 'Show board' : 'Hide board'}
@@ -414,7 +414,7 @@ export function App() {
           >
             <Icon name="board" />
           </button>
-          <button className="icon-btn only-phone" aria-label="New chat" onClick={newChat}>
+          <button className="icon-btn only-phone" aria-label="New board" onClick={newChat}>
             <Icon name="plus" />
           </button>
         </header>
@@ -453,6 +453,7 @@ export function App() {
             onSgfText={loadSgfText}
             onSgfFile={loadSgfFile}
             onSettings={boardSettings}
+            answered={current.messages.some((m) => m.role === 'kami' && !!m.answer)}
           />
         )}
       </div>

@@ -36,12 +36,12 @@ export const newId = () => `${Date.now().toString(36)}${Math.random().toString(3
 
 export function newConversation(board: BoardState = emptyBoard()): Conversation {
   const now = Date.now();
-  return { id: newId(), title: 'New chat', created: now, updated: now, messages: [], board };
+  return { id: newId(), title: 'New board', created: now, updated: now, messages: [], board };
 }
 
 export const titleFrom = (text: string) => {
   const t = text.replace(/\s+/g, ' ').trim();
-  return t.length > 42 ? `${t.slice(0, 40)}…` : t || 'New chat';
+  return t.length > 42 ? `${t.slice(0, 40)}…` : t || 'New board';
 };
 
 const LS_KEY = 'kami.conversations';
