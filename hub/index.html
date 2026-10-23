@@ -280,6 +280,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* Quiet nav rows (Studio, Library, Project chat, Team lessons): icon and name, no box. */
 .navrows { display: grid; gap: 2px; padding: 2px 8px 6px; }
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
+.navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
@@ -799,6 +800,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
   summary, .tk, .trow.tn { min-height: 44px; }
+  /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
+  .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+  .navrows { padding-bottom: 2px; }
+  .brand { padding-top: 10px; padding-bottom: 6px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   html.kb .tabs { display: none; }
@@ -1194,8 +1199,8 @@ function renderSide() {
     html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else html = `<button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '')
+  } else html = `<div class="navpair"><button class="trow tn ${sel === 0 ? 'on' : ''}" data-thread="0"${sel === 0 ? ' aria-current="true"' : ''} title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   setHtml($('threads'), html);
