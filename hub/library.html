@@ -15,8 +15,7 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 /* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
 @font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-500-normal.woff2) format("woff2"); font-weight: 500 600; font-display: swap; }
-@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700; font-display: swap; }
-@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-800-normal.woff2) format("woff2"); font-weight: 800 900; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700 900; font-display: swap; }
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
@@ -55,7 +54,7 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root .top .sub { color: var(--kaya-ink); font-size: 15px; }
 :root .top select { border-color: var(--kaya-line); background: color-mix(in srgb, var(--panel) 80%, var(--kaya)); }
 :root .tabs button { font-size: 16px; }
-:root .tabs button[aria-selected="true"] { border-bottom: 3px solid var(--stone); color: var(--ink); font-weight: 800; }
+:root .tabs button[aria-selected="true"] { border-bottom: 3px solid var(--stone); color: var(--ink); font-weight: 700; }
 :root .tabs .n { font-size: 14px; }
 :root .card { border-radius: 10px; box-shadow: none; }
 :root dialog { border-radius: 12px; }

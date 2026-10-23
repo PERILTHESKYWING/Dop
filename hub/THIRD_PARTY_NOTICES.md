@@ -50,7 +50,7 @@
 
 ## Alegreya Sans font
 
-`hub/fonts/alegreya-sans-latin-{400,500,700,800}-normal.woff2` are the Latin subsets of Alegreya Sans from the npm package @fontsource/alegreya-sans 5.3.0, unchanged. Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans). Licensed under the SIL Open Font License 1.1, text as shipped with the package:
+`hub/fonts/alegreya-sans-latin-{400,500,700}-normal.woff2` are the Latin subsets of Alegreya Sans from the npm package @fontsource/alegreya-sans 5.3.0, unchanged. Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans). Licensed under the SIL Open Font License 1.1, text as shipped with the package:
 
     This Font Software is licensed under the SIL Open Font License, Version 1.1.
     This license is copied below, and is also available with a FAQ at:
