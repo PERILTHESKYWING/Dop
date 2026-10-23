@@ -270,7 +270,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass-hi); border-radius: 10px; padding: 5px 12px; }
-:root[data-bg]:not([data-bg=""]) .thought { background: var(--glass-hi); border-radius: 0 10px 10px 0; padding: 2px 12px; }
+/* Over a picture a thought is a compact card like the message cards: same left edge (past the avatar), same border and radius, only as wide as it needs. */
+:root[data-bg]:not([data-bg=""]) .thought { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2px 16px; margin-left: 36px; width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .thought { margin-left: 0; max-width: 100%; } }
 .live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
 .live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
 :root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
