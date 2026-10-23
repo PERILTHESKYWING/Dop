@@ -1004,10 +1004,13 @@ function pace() {
 function setLive(ok) {
   const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
   // Live: a green dot and the quiet word; Offline or Updating… in red when something is wrong.
-  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
-  el.classList.toggle('off', !ok || stale);
+  // Each poll calls this twice; writing only what changed keeps an idle page from re-laying out.
+  const word = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
+  if (el.textContent !== word) el.textContent = word;
+  if (el.classList.contains('off') !== (!ok || stale)) el.classList.toggle('off', !ok || stale);
   const at = lastOk ? new Date(lastOk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  el.title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
+  const title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
+  if (el.title !== title) el.title = title;
 }
 async function tick() {
   clearTimeout(timer); timer = 0;
