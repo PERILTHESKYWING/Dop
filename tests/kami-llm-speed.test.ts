@@ -71,8 +71,10 @@ describe('client cache', () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ text: 'A.', model: 'm' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const req = { kind: 'explain' as const, prompt: 'Facts:\n- x' };
-    expect(await callKamiWrite(req)).toEqual({ text: 'A.', model: 'm' });
-    expect(await callKamiWrite({ ...req })).toEqual({ text: 'A.', model: 'm' });
+    const first = await callKamiWrite(req);
+    expect(first).toMatchObject({ text: 'A.', model: 'm' });
+    first.accept!();
+    expect(await callKamiWrite({ ...req })).toMatchObject({ text: 'A.', model: 'm' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await callKamiWrite({ ...req, prompt: 'Facts:\n- y' });
     await callKamiWrite({ ...req, kind: 'concept' });
@@ -89,8 +91,12 @@ describe('client cache', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     const req = { kind: 'explain' as const, prompt: 'fresh-test' };
-    expect((await callKamiWrite(req)).text).toBe('T1.');
-    expect((await callKamiWrite({ ...req, fresh: true })).text).toBe('T2.');
+    const t1 = await callKamiWrite(req);
+    expect(t1.text).toBe('T1.');
+    t1.accept!();
+    const t2 = await callKamiWrite({ ...req, fresh: true });
+    expect(t2.text).toBe('T2.');
+    t2.accept!();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(bodies[0]).fresh).toBeUndefined();
     expect(JSON.parse(bodies[1]).fresh).toBe(true);
@@ -102,6 +108,30 @@ describe('client cache', () => {
     const callLlm = vi.fn<CallLlm>(async () => ({ text: 'Q16 [[v1]] takes the corner.' }));
     await answerQuestion('What should White play?', game, 'myoshu', 'high', { explain: (async () => explanation()) as ExplainFn, getProber: async () => ({}) as Prober, findConcepts: () => [], callLlm, checkAnswer: pass, fresh: true });
     expect(callLlm.mock.calls[0][0]).toMatchObject({ fresh: true });
+  });
+
+  it('caches only wording that passed the fact check; after a failed one the next ask is fresh', async () => {
+    const bodies: string[] = [];
+    const fetchMock = vi.fn(async (_u: string, init: { body: string }) => {
+      bodies.push(init.body);
+      // First reply invents a point (fails the check), the second is fine.
+      return new Response(JSON.stringify({ text: bodies.length === 1 ? 'Play K10 [[v1]].' : 'Q16 [[v1]] takes the corner.' }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const check = (_ex: Explanation, text: string) => ({ ...pass(), pass: !text.includes('K10') });
+    const deps = { explain: (async () => explanation()) as ExplainFn, getProber: async () => ({}) as Prober, findConcepts: () => [], callLlm: callKamiWrite, checkAnswer: check };
+    const a1 = await answerQuestion('What should White play?', game, 'myoshu', 'high', deps);
+    expect(a1).toMatchObject({ writing: { by: 'engine', note: NOTES.failed } });
+    // Same ask again: not replayed from a cache, and the server is told to skip its own.
+    const a2 = await answerQuestion('What should White play?', game, 'myoshu', 'high', deps);
+    expect(a2).toMatchObject({ writing: { by: 'gemini', text: 'Q16 [[v1]] takes the corner.' } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(bodies[0]).fresh).toBeUndefined();
+    expect(JSON.parse(bodies[1]).fresh).toBe(true);
+    // The accepted wording is now cached: a third ask makes no request.
+    const a3 = await answerQuestion('What should White play?', game, 'myoshu', 'high', deps);
+    expect(a3).toMatchObject({ writing: { by: 'gemini' } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('never caches an error', async () => {
@@ -118,7 +148,7 @@ describe('client cache', () => {
     const ss = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
     vi.stubGlobal('sessionStorage', new Proxy(ss, { ownKeys: () => [...store.keys()], getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }) }));
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ text: 'B.' }), { status: 200 })));
-    await callKamiWrite({ kind: 'explain', prompt: 'q' });
+    (await callKamiWrite({ kind: 'explain', prompt: 'q' })).accept!();
     expect([...store.keys()].some((k) => k.startsWith('kiai.llm.'))).toBe(true);
   });
 });

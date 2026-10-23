@@ -151,7 +151,11 @@ export async function writeAnswer(ex: Explanation, pick: PickId, deps: WriterDep
   }
   try {
     const r = await deps.callLlm({ kind: 'explain', prompt, ...(deps.fresh ? { fresh: true } : {}) }, deps.signal);
-    return await finish(r.text, 'gemini', r.model);
+    const w = await finish(r.text, 'gemini', r.model);
+    // Only wording that passed the fact check is cached; a failed one is asked fresh next time.
+    if (w.by === 'gemini') r.accept?.();
+    else r.reject?.();
+    return w;
   } catch (e) {
     if (isAbort(e)) throw e;
     return { by: 'engine', note: e instanceof LlmUnavailable ? NOTES.noLlm : NOTES.llmError };
@@ -176,7 +180,11 @@ export interface Expansion {
 export async function expandConcept(entry: ConceptEntry, question: string, callLlm: CallLlm, signal?: AbortSignal, fresh?: boolean): Promise<Expansion> {
   try {
     const r = await callLlm({ kind: 'concept', prompt: conceptPrompt(entry, question), ...(fresh ? { fresh: true } : {}) }, signal);
-    if (hasCoordinates(r.text)) return { note: 'The extra wording named board points, so it was left out.' };
+    if (hasCoordinates(r.text)) {
+      r.reject?.();
+      return { note: 'The extra wording named board points, so it was left out.' };
+    }
+    r.accept?.();
     return { text: r.text, model: r.model };
   } catch (e) {
     if (isAbort(e)) throw e;

@@ -5,7 +5,17 @@ import type { KamiWriteKind, KamiWriteResponse } from '../../../shared/kami';
 export class LlmUnavailable extends Error {}
 
 /** `fresh`: Regenerate, so skip every cache (this tab's and the server's) and ask the model again. */
-export type CallLlm = (req: { kind: KamiWriteKind; prompt: string; fresh?: boolean }, signal?: AbortSignal) => Promise<KamiWriteResponse>;
+export type CallLlm = (req: { kind: KamiWriteKind; prompt: string; fresh?: boolean }, signal?: AbortSignal) => Promise<LlmReply>;
+
+/**
+ * A reply plus the writer's verdict on it. `accept` after the wording passes the fact check
+ * (only then is it cached); `reject` when it fails, so the next identical ask goes to the
+ * model again, past the server's cache too. Neither: nothing is kept.
+ */
+export interface LlmReply extends KamiWriteResponse {
+  accept?: () => void;
+  reject?: () => void;
+}
 
 /**
  * Identical requests (same kind, same prompt: the same engine read) are answered from this tab's
@@ -15,6 +25,8 @@ export type CallLlm = (req: { kind: KamiWriteKind; prompt: string; fresh?: boole
 const MEM_MAX = 40;
 const SS_PREFIX = 'kiai.llm.';
 const mem = new Map<string, KamiWriteResponse>();
+/** Requests whose last wording failed the fact check: the next ask is fresh. */
+const rejected = new Set<string>();
 
 /** FNV-1a over the request, two 32-bit lanes: a short, stable key (not a security hash). */
 export function requestKey(req: { kind: KamiWriteKind; prompt: string }): string {
@@ -58,9 +70,19 @@ function remember(key: string, r: KamiWriteResponse) {
   }
 }
 
+function forget(key: string) {
+  mem.delete(key);
+  try {
+    sessionStorage.removeItem(SS_PREFIX + key);
+  } catch {
+    /* no storage */
+  }
+}
+
 /** Forget every cached answer (tests). */
 export function clearLlmCache() {
   mem.clear();
+  rejected.clear();
   try {
     for (const k of Object.keys(sessionStorage)) if (k.startsWith(SS_PREFIX)) sessionStorage.removeItem(k);
   } catch {
@@ -70,14 +92,15 @@ export function clearLlmCache() {
 
 export const callKamiWrite: CallLlm = async (req, signal) => {
   const key = requestKey(req);
-  const hit = req.fresh ? null : cached(key);
-  if (hit) return hit;
+  const fresh = req.fresh || rejected.has(key);
+  const hit = fresh ? null : cached(key);
+  if (hit) return { ...hit };
   let res: Response;
   try {
     res = await fetch('/api/llm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ task: 'kami-write', kind: req.kind, prompt: req.prompt, ...(req.fresh ? { fresh: true } : {}) }),
+      body: JSON.stringify({ task: 'kami-write', kind: req.kind, prompt: req.prompt, ...(fresh ? { fresh: true } : {}) }),
       signal,
     });
   } catch (e) {
@@ -88,8 +111,17 @@ export const callKamiWrite: CallLlm = async (req, signal) => {
   if (res.status === 503 || res.status === 404 || res.status === 405 || !body) throw new LlmUnavailable(body?.error ?? `HTTP ${res.status}`);
   if (!res.ok || typeof body.text !== 'string') throw new Error(body.error ?? `HTTP ${res.status}`);
   const out: KamiWriteResponse = { text: body.text, ...(body.model ? { model: body.model } : {}) };
-  remember(key, out);
-  return out;
+  return {
+    ...out,
+    accept: () => {
+      rejected.delete(key);
+      remember(key, out);
+    },
+    reject: () => {
+      rejected.add(key);
+      forget(key);
+    },
+  };
 };
 
 /** Whether /api/llm has a key (a status GET; no model call). Null when unknown. */
