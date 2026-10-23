@@ -45,7 +45,7 @@ const BOARD_DELAY_MS = 150;
 const BOARD_UPDATE_MS = 500;
 const MAX_CACHE = 1500;
 
-interface Entry {
+export interface Entry {
   read: EngineRead;
   /** The visits a finished read was asked for (0: stopped early, only good for a quick look). */
   asked: number;
@@ -84,12 +84,23 @@ function inTurn<T>(job: () => Promise<T>): Promise<T> {
 /** Board and answer reads waiting their turn: a background trend read steps aside for them. */
 let urgent = 0;
 
+/**
+ * Which read a position keeps: a finished read always beats an unfinished one (a board read
+ * stopped at 90 visits must not hide the finished 60-visit trend read, or the trend has a
+ * hole and reads it again and again); between two of the same kind, the deeper one.
+ */
+export function keepEntry(old: Entry | undefined, e: Entry): Entry {
+  if (!old) return e;
+  const oldDone = old.asked > 0;
+  const newDone = e.asked > 0;
+  if (oldDone !== newDone) return oldDone ? old : e;
+  return old.read.visits > e.read.visits ? old : e;
+}
+
 function remember(key: string, e: Entry) {
   const old = cache.get(key);
   cache.delete(key);
-  // A shallower or unfinished read never replaces a finished deeper one.
-  const keep = old && (old.read.visits > e.read.visits || (old.asked > 0 && e.asked === 0)) ? old : e;
-  cache.set(key, keep);
+  cache.set(key, keepEntry(old, e));
   if (cache.size > MAX_CACHE) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
@@ -242,9 +253,11 @@ export function readPosition(p: ExplainPosition, visits: number, maxMs: number, 
  * read as deep is known (the board's read of the position asked about), and continue the
  * board's search when the position follows it.
  */
-export async function getAnswerProber(): Promise<Prober> {
+export async function getAnswerProber(signal?: AbortSignal): Promise<Prober> {
   await kitSource();
-  return { read: (pos, budget) => readPosition(pos, budget.visits, budget.maxMs, () => true, { lane: 'board' }) };
+  // Stop ends the answer's read at once (a queued one is skipped), so the board is not kept waiting.
+  const wanted = () => !signal?.aborted;
+  return { read: (pos, budget) => readPosition(pos, budget.visits, budget.maxMs, wanted, { lane: 'board' }) };
 }
 
 export interface BoardRead {

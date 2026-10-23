@@ -41,7 +41,8 @@ async function quickLook(prober: Prober, pos: ExplainPosition, onThought: (t: Th
 
 export interface AnswerDeps extends Omit<WriterDeps, 'signal'> {
   explain: ExplainFn;
-  getProber: () => Promise<Prober>;
+  /** The engine for this answer; `signal` is the answer's Stop. */
+  getProber: (signal?: AbortSignal) => Promise<Prober>;
   findConcepts: (text: string) => ConceptEntry[];
   /** Diagram settings (Kami's Settings: minimum winrate, reads); false turns diagrams off. */
   illustrate?: () => Partial<IllustrateOptions> | false;
@@ -82,7 +83,7 @@ export async function answerQuestion(
   }
   const { pos, question, upTo } = askFor(board, route.parsed);
   ev.onStage?.('engine');
-  const prober = await deps.getProber();
+  const prober = await deps.getProber(signal);
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
   ev.onStage?.('thinking');
   if (ev.onThought) await quickLook(prober, pos, ev.onThought, signal);

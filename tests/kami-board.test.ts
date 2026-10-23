@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextToRead, positionKey, valueOf } from '../kami/src/lib/analysis';
+import { keepEntry, nextToRead, positionKey, valueOf, type Entry } from '../kami/src/lib/analysis';
 import { boardFromSgf } from '../kami/src/lib/position';
 import { candidateMarks, lineOf } from '../src/lib/analysis/candidates';
 import type { EngineRead, ExplainPosition } from '../src/lib/coach/explain/types';
@@ -48,6 +48,21 @@ describe('candidate discs and variations (shared by Dop and Kami)', () => {
 describe('names of a loaded game (Kami)', () => {
   it('keeps the players for the eval bar', () => {
     expect(boardFromSgf('(;GM[1]SZ[19]PB[A]PW[B];B[pd])')).toMatchObject({ black: 'A', white: 'B' });
+  });
+});
+
+describe('read cache (Kiai)', () => {
+  const entry = (visits: number, asked: number): Entry => ({ read: { visits, bWin: 0.5, bLead: 0, ownership: null, candidates: [] }, asked, cappedMs: 0 });
+  it('a finished trend read replaces a deeper board read that was stopped', () => {
+    const stopped = entry(90, 0);
+    const trend = entry(60, 60);
+    expect(keepEntry(stopped, trend)).toBe(trend);
+    expect(keepEntry(trend, stopped)).toBe(trend);
+  });
+  it('keeps the deeper of two finished (or two unfinished) reads', () => {
+    expect(keepEntry(entry(120, 120), entry(60, 60)).read.visits).toBe(120);
+    expect(keepEntry(entry(60, 60), entry(120, 120)).read.visits).toBe(120);
+    expect(keepEntry(entry(30, 0), entry(20, 0)).read.visits).toBe(30);
   });
 });
 

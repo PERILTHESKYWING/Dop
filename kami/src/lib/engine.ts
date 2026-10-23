@@ -1,6 +1,6 @@
 /**
- * KataGo for Kami, loaded on the first position question and wrapped in the explainer's
- * Prober. Tuned once per device like Dop's main engine.
+ * KataGo for Kami, loaded on the first position question; every read goes through the
+ * searches in kami/src/lib/analysis.ts (getSearchKit). Tuned once per device like Dop's main engine.
  *
  * The network decides how good the answers are, so Kami takes the strongest one the device
  * can run, by Dop's own rule (src/state/brain.ts): kata1 b18 (about 97 MB, downloaded once
@@ -11,8 +11,6 @@ import { BrowserEngine, detectCapabilities, type LoadProgress } from '../../../s
 import { governEngine, isPhoneLike, setCool } from '../../../src/lib/engine/governor';
 import { engineEvaluator, type LeafEvaluator } from '../../../src/lib/engine/mcts';
 import { bundledModel, MODELS, type ModelSpec } from '../../../src/lib/engine/models';
-import { searchProber } from '../../../src/lib/coach/explain/searchProber';
-import type { Prober } from '../../../src/lib/coach/explain/types';
 import { getSetting } from './settings';
 
 export type EngineStatus = { state: 'idle' } | { state: 'loading'; text: string; pct?: number } | { state: 'ready'; text: string } | { state: 'failed'; text: string };
@@ -205,26 +203,6 @@ export function readStarted(): () => void {
     ended = true;
     reading--;
     lastRead = Date.now();
-  };
-}
-
-/**
- * The engine as a Prober, loading it the first time. Each read takes the engine current at
- * that moment, so an answer started on the untuned engine carries on with the tuned one.
- */
-export async function getProber(): Promise<Prober> {
-  await current();
-  return {
-    async read(pos, budget) {
-      const eng = await current();
-      reading++;
-      try {
-        return await searchProber(engineEvaluator(eng), { batch: eng.batch }).read(pos, budget);
-      } finally {
-        reading--;
-        lastRead = Date.now();
-      }
-    },
   };
 }
 
