@@ -108,7 +108,7 @@ function kiaiLoader(): Plugin {
         const assets = Object.fromEntries(files.map((f) => [f.key, '/' + f.fileName])) as unknown as LoaderAssets;
         const sheets: string[] = [];
         html = html.replace(/[ \t]*<link rel="stylesheet"[^>]*>\n?/g, (tag) => (sheets.push(tag.trim()), ''));
-        const critical = "<style>body{background:#f6f8fb}@media (prefers-color-scheme:dark){body{background:#0a0e14}}</style>";
+        const critical = "<style>body{background:#f7f3ea}@media (prefers-color-scheme:dark){body{background:#15130f}}</style>";
         html = html.replace('<!--kiai-loader-->', critical + loaderHtml(assets) + landingPreload(ctx.bundle) + sheets.join(''));
         return html;
       },

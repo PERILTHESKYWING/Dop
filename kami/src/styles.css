@@ -1,35 +1,35 @@
-/* Kiai. A high-altitude look: cloud-white paper, sumi-black ink, one clear sky blue, one seal red.
+/* Kiai. The landing's look: washi paper, sumi-black ink, one seal red. No blue.
  * Light and dark come from the tokens below; nothing else names a colour except the board. */
 :root {
   /* motion: short and physical. --spring settles with a small overshoot (menus, the split line),
    * --glide decelerates like a thrown card (the phone drawer). */
   --spring: cubic-bezier(0.2, 0.8, 0.2, 1);
   --glide: cubic-bezier(0.3, 0.7, 0.2, 1);
-  --bg: #f6f8fb;
-  --side: #eef2f7;
-  --panel: #e8eef5;
+  --bg: #f7f3ea;
+  --side: #f0ebdf;
+  --panel: #ebe4d4;
   --board-sky: none;
-  --card: #ffffff;
-  --raised: #ffffff;
-  --ink: #0b0f14;
-  --ink-2: #2a323c;
-  --muted: #5d6875;
-  --faint: #95a0ad;
-  --line: #dde4ec;
-  --line-strong: #c8d2de;
-  --hover: rgba(11, 15, 20, 0.05);
-  --press: rgba(11, 15, 20, 0.085);
-  --bubble: #e7eef6;
-  --accent: #1d63d8;
-  --accent-hover: #1754ba;
-  --accent-soft: rgba(29, 99, 216, 0.09);
-  --accent-line: rgba(29, 99, 216, 0.3);
-  --on-accent: #ffffff;
+  --card: #fffdf8;
+  --raised: #fffdf8;
+  --ink: #15130f;
+  --ink-2: #2b2722;
+  --muted: #5f584d;
+  --faint: #8a8173;
+  --line: #e4ddce;
+  --line-strong: #cfc5b2;
+  --hover: rgba(21, 19, 15, 0.05);
+  --press: rgba(21, 19, 15, 0.085);
+  --bubble: #ece5d6;
+  --accent: #a8322b;
+  --accent-hover: #8f2a24;
+  --accent-soft: rgba(168, 50, 43, 0.08);
+  --accent-line: rgba(168, 50, 43, 0.32);
+  --on-accent: #fffdf8;
   --danger: #c0392b;
-  --shadow-sm: 0 1px 2px rgba(16, 32, 56, 0.06);
-  --shadow: 0 6px 24px rgba(16, 32, 56, 0.07), 0 1px 3px rgba(16, 32, 56, 0.06);
-  --shadow-pop: 0 14px 44px rgba(16, 32, 56, 0.16), 0 2px 6px rgba(16, 32, 56, 0.07);
-  --scroll: rgba(11, 15, 20, 0.16);
+  --shadow-sm: 0 1px 2px rgba(40, 30, 15, 0.06);
+  --shadow: 0 6px 24px rgba(40, 30, 15, 0.07), 0 1px 3px rgba(40, 30, 15, 0.06);
+  --shadow-pop: 0 14px 44px rgba(40, 30, 15, 0.16), 0 2px 6px rgba(40, 30, 15, 0.07);
+  --scroll: rgba(21, 19, 15, 0.16);
   --font: 'Alegreya Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
   --read: ui-serif, 'Iowan Old Style', Charter, 'Sitka Text', Cambria, Georgia, 'Songti SC', 'SimSun', serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
@@ -50,54 +50,54 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0a0e14;
-    --side: #070a0f;
-    --panel: #0c1118;
+    --bg: #15130f;
+    --side: #110f0c;
+    --panel: #1b1813;
     --board-sky: none;
-    --card: #121923;
-    --raised: #17202b;
-    --ink: #eef3f8;
-    --ink-2: #c4cdd8;
-    --muted: #8793a1;
-    --faint: #5a6674;
-    --line: #1d2733;
-    --line-strong: #2a3644;
-    --hover: rgba(238, 243, 248, 0.06);
-    --press: rgba(238, 243, 248, 0.1);
-    --bubble: #17212c;
-    --accent: #5b9dff;
-    --accent-hover: #7db1ff;
-    --accent-soft: rgba(91, 157, 255, 0.13);
-    --accent-line: rgba(91, 157, 255, 0.4);
-    --on-accent: #06101e;
+    --card: #1f1c16;
+    --raised: #25211a;
+    --ink: #f1ece2;
+    --ink-2: #d6cfc2;
+    --muted: #a69d8e;
+    --faint: #6f675a;
+    --line: #2c2820;
+    --line-strong: #3a352b;
+    --hover: rgba(241, 236, 226, 0.06);
+    --press: rgba(241, 236, 226, 0.1);
+    --bubble: #26221b;
+    --accent: #e0675c;
+    --accent-hover: #ea7f75;
+    --accent-soft: rgba(224, 103, 92, 0.14);
+    --accent-line: rgba(224, 103, 92, 0.4);
+    --on-accent: #15130f;
     --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
-    --scroll: rgba(238, 243, 248, 0.16);
+    --scroll: rgba(241, 236, 226, 0.16);
     color-scheme: dark;
   }
 }
 :root[data-theme='dark'] {
-  --bg: #0a0e14;
-  --side: #070a0f;
-  --panel: #0c1118;
+  --bg: #15130f;
+  --side: #110f0c;
+  --panel: #1b1813;
   --board-sky: none;
-  --card: #121923;
-  --raised: #17202b;
-  --ink: #eef3f8;
-  --ink-2: #c4cdd8;
-  --muted: #8793a1;
-  --faint: #5a6674;
-  --line: #1d2733;
-  --line-strong: #2a3644;
-  --hover: rgba(238, 243, 248, 0.06);
-  --press: rgba(238, 243, 248, 0.1);
-  --bubble: #17212c;
-  --accent: #5b9dff;
-  --accent-hover: #7db1ff;
-  --accent-soft: rgba(91, 157, 255, 0.13);
-  --accent-line: rgba(91, 157, 255, 0.4);
-  --on-accent: #06101e;
+  --card: #1f1c16;
+  --raised: #25211a;
+  --ink: #f1ece2;
+  --ink-2: #d6cfc2;
+  --muted: #a69d8e;
+  --faint: #6f675a;
+  --line: #2c2820;
+  --line-strong: #3a352b;
+  --hover: rgba(241, 236, 226, 0.06);
+  --press: rgba(241, 236, 226, 0.1);
+  --bubble: #26221b;
+  --accent: #e0675c;
+  --accent-hover: #ea7f75;
+  --accent-soft: rgba(224, 103, 92, 0.14);
+  --accent-line: rgba(224, 103, 92, 0.4);
+  --on-accent: #15130f;
   --shadow-pop: 0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
-  --scroll: rgba(238, 243, 248, 0.16);
+  --scroll: rgba(241, 236, 226, 0.16);
   color-scheme: dark;
 }
 
@@ -476,7 +476,7 @@ kbd {
 /* Wide: the chat's title bar sits over the chat only, so the board column runs to the top. */
 .work.split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto var(--board-w, clamp(360px, 44%, 820px));
+  grid-template-columns: minmax(0, 1fr) auto var(--board-w, clamp(380px, 54%, 980px));
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     'top split board'
@@ -799,7 +799,7 @@ kbd {
   overscroll-behavior: contain;
 }
 .msg {
-  max-width: 700px;
+  max-width: 680px;
   margin: 0 auto 26px;
 }
 .msg.user {
@@ -809,7 +809,8 @@ kbd {
 }
 .bubble {
   background: var(--bubble);
-  border-radius: 14px;
+  border-radius: 10px;
+  font-size: 17px;
   padding: 9px 14px;
   max-width: 85%;
   white-space: pre-wrap;
@@ -849,7 +850,7 @@ kbd {
   opacity: 1;
 }
 .who {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--muted);
   margin-bottom: 8px;
@@ -863,15 +864,15 @@ kbd {
 .msg.kami .rich,
 .msg.kami .ans-section,
 .concept {
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 18px;
+  line-height: 1.6;
   color: var(--ink);
 }
 .font-serif .msg.kami .rich,
 .font-serif .msg.kami .ans-section,
 .font-serif .concept {
   font-family: var(--read);
-  font-size: 16.5px;
+  font-size: 18.5px;
 }
 .rich p {
   margin: 0 0 12px;
@@ -897,7 +898,7 @@ kbd {
 }
 .note {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   margin: 4px 0 8px;
   font-family: var(--font);
 }
@@ -912,7 +913,7 @@ kbd {
   border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent);
-  font: 600 13px/1.6 var(--font);
+  font: 600 15px/1.6 var(--font);
   vertical-align: 1px;
   white-space: nowrap;
   transition:
@@ -935,7 +936,7 @@ kbd {
   padding: 0 2px;
   margin: 0 -1px;
   border-radius: 4px;
-  border-bottom: 1px dashed var(--accent-line);
+  border-bottom: 1.5px solid var(--accent-line);
   cursor: pointer;
 }
 .pt:hover,
@@ -1022,7 +1023,7 @@ kbd {
   gap: 8px;
   align-items: center;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 15px;
   list-style: none;
   border-radius: 10px;
 }
@@ -1056,7 +1057,7 @@ kbd {
 .thoughts ol {
   margin: 0;
   padding: 0 14px 8px 34px;
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--ink-2);
 }
 .thoughts li {
@@ -1065,29 +1066,14 @@ kbd {
 .thoughts li .meta {
   margin-left: 8px;
 }
-/* before the first step lands, the line shimmers so the wait reads as work */
+/* before the first step lands: plain words and the seconds ticking, no light effect */
 .thoughts li.wait {
   list-style: none;
   margin-left: -20px;
-  color: transparent;
-  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 38%, var(--accent) 50%, var(--muted) 62%, var(--muted) 100%) 0 0 / 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: think-sheen 1.8s linear infinite;
+  color: var(--muted);
 }
-@keyframes think-sheen {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -150% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .thoughts li.wait {
-    animation: none;
-    color: var(--muted);
-  }
+.thoughts li.wait .meta {
+  font-variant-numeric: tabular-nums;
 }
 .thoughts > .meta {
   margin: 0;
@@ -1104,7 +1090,7 @@ kbd {
 .tag {
   border: 1px solid var(--line-strong);
   background: transparent;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 2px 10px;
   font-size: 13px;
   color: var(--ink-2);
@@ -1128,7 +1114,7 @@ kbd {
 .facts summary {
   cursor: pointer;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1137,7 +1123,7 @@ kbd {
 .facts ul {
   margin: 6px 0;
   padding-left: 22px;
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--ink-2);
 }
 .concept h3 {
@@ -1230,7 +1216,7 @@ kbd {
   gap: 9px;
   border: 1px solid var(--line);
   background: var(--card);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 7px 14px 7px 9px;
   font-size: 14px;
   color: var(--ink-2);
@@ -1281,7 +1267,7 @@ kbd {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink-2);
   animation: kiai-sink 1.5s cubic-bezier(0.5, 0, 0.6, 1) infinite;
 }
 @keyframes kiai-sink {
@@ -1320,7 +1306,7 @@ kbd {
   width: calc(100% - 40px);
   max-width: 720px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 14px;
   background: var(--card);
   padding: 12px 12px 10px 16px;
   box-shadow: var(--shadow);
@@ -1502,18 +1488,25 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: 13px;
   color: var(--muted);
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--hover);
   white-space: nowrap;
 }
+.engine-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .engine-chip .dot {
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink-2);
 }
 .engine-chip.failed {
   color: var(--danger);
@@ -1541,7 +1534,7 @@ kbd {
   gap: 6px;
   min-width: 0;
   padding: 3px 9px 3px 7px;
-  border-radius: 999px;
+  border-radius: 6px;
   transition: background-color 0.12s;
 }
 .pl.turn {
@@ -2524,7 +2517,7 @@ kbd {
   }
   .board-panel {
     width: auto;
-    height: var(--board-h, 62dvh);
+    height: var(--board-h, 58dvh);
     padding: 2px 10px 6px;
     gap: 4px;
   }
