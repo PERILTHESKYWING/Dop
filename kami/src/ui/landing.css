@@ -308,7 +308,7 @@ html.kiai-landing {
   pointer-events: auto;
   will-change: opacity, transform;
   /* a soft paper-coloured edge round the letters, so they hold over cloud as well as marble */
-  text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 0 16px rgba(247, 243, 234, 0.85), 0 0 32px rgba(247, 243, 234, 0.6);
+  text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 1px 3px rgba(247, 243, 234, 0.7);
 }
 .l-btn,
 .l-steps button {
@@ -880,7 +880,7 @@ html.kiai-landing {
     border-radius: 0;
     background: none;
     box-shadow: none;
-    text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 0 16px rgba(247, 243, 234, 0.85), 0 0 32px rgba(247, 243, 234, 0.6);
+    text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 1px 3px rgba(247, 243, 234, 0.7);
   }
   .l-brush {
     height: 140px;
