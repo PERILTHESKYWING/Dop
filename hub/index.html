@@ -324,6 +324,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .ib { place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--r); background: none; color: var(--ink); flex: none; }
 .ib:hover { background: var(--sel); }
 .ponly { display: none; }
+:root .head a.btn { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
+/* Header controls share one quiet style: text or icon, no box until hover. */
+:root .head .btn.more { border-color: transparent; background: none; }
+@media (hover: hover) { :root .head .btn.more:hover, :root .head a.btn:hover { background: var(--sel); } }
 .psep { border-top: 1px solid var(--line); margin: 6px 4px; }
 a.opt { color: inherit; text-decoration: none; }
 .chip .ol { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -338,8 +342,7 @@ a.opt { color: inherit; text-decoration: none; }
 .thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
 :root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 6px 12px; }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
-.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--soft); vertical-align: -0.15em; }
-.spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
+.spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -1373,7 +1376,8 @@ function togglePanel(k) { panels[k] = !panels[k]; ls.set('hub-panels', JSON.stri
 const panelBtn = (k) => `<button type="button" class="btn quiet pbtn" data-panel="${k}"></button>`;
 function renderHead(t) {
   const back = `<button class="back ib" id="back" type="button" aria-label="Threads" title="Threads">${icon('chevron-left', 22)}</button>` + panelBtn('side');
-  // Phones: the status shows as its dot (the word stays for screen readers); Session and Thinking move into ⋯.
+  // The header holds status, Session and ⋯ only; how agents' thinking shows is a setting in ⋯.
+  // Phones: Session moves into ⋯ too.
   const pill = (cls, dot, word) => `<span class="pill ${cls}" title="${esc(word)}"><span class="dot"${dot}></span><span class="pl">${esc(word)}</span></span>`;
   const more = (cls = '') => `<button type="button" class="btn small more ${cls}" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>`;
   if (!t && sel === NEW_CHAT) {
@@ -1382,15 +1386,14 @@ function renderHead(t) {
   }
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} running` : 'All quiet')}<button type="button" class="btn small quiet hs" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${more('ponly')}${panelBtn('team')}`);
+    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} running` : 'All quiet')}${more()}${panelBtn('team')}`);
     applyPanels(); return;
   }
   // Title, who is on it, status; one contextual action (Start again / Restore); Mark done, Archive and Delete live in ⋯.
   setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${t.status}`, '', t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status])}
-    ${t.sessionUrl ? `<a class="hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session">Session</a>` : ''}
+    ${t.sessionUrl ? `<a class="btn small quiet hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : ''}
-    <button type="button" class="btn small quiet hs" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
     ${more()}${panelBtn('team')}`);
   applyPanels();
 }
@@ -1682,13 +1685,13 @@ function openPop(kind, anchor) {
       <p style="margin:8px 10px">Agents post a short note at key decisions. Their full private reasoning stays in each session (Open session).</p>
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   } else if (kind === 'tmenu') {
-    // Phones: the header's Session link and Thinking modes live here too.
+    // The thinking setting lives here (a setting, not a status); phones also get the Session link.
     const phone = matchMedia('(max-width: 860px)').matches;
-    const thinkOpts = phone ? `<h4>Agents' thinking</h4>${[['hide', 'Hidden'], ['fold', 'Folded'], ['open', 'Open']].map(([v, n]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}"><span></span><b>${n}</b><span class="tick">${icon('check', 16)}</span></button>`).join('')}<button type="button" class="opt" data-tact="think"><span></span><b>Thinking per account</b><small>Whose notes and working line to show</small></button>` : '';
+    const thinkOpts = `<h4>Show agents' thinking notes</h4>${[['hide', 'Hidden', 'Only a count'], ['fold', 'Folded', 'One line each'], ['open', 'Open', 'In full']].map(([v, n, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}" aria-pressed="${think.mode === v}"><span></span><b>${n}</b><span class="tick">${icon('check', 16)}</span><small>${h}</small></button>`).join('')}<button type="button" class="opt" data-tact="think"><span></span><b>Per account</b><small>Whose notes and working line to show</small></button>`;
     if (!t) { pop.innerHTML = thinkOpts; }
     else pop.innerHTML = `${phone && t.sessionUrl ? `<a class="opt" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener"><span></span><b>Open session</b><small>This thread's Claude session</small></a>` : ''}${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
       ${t.archived ? '<button type="button" class="opt" data-tact="restore"><span></span><b>Restore</b><small>Put it back in the list</small></button>' : '<button type="button" class="opt" data-tact="archive"><span></span><b>Archive</b><small>Hide it and start no new sessions. You can restore it.</small></button>'}
-      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button>${thinkOpts ? `<div class="psep"></div>${thinkOpts}` : ''}`;
+      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button><div class="psep"></div>${thinkOpts}`;
   } else if (kind.startsWith('amenu:')) {
     pop.innerHTML = acctMenu(kind.slice(6));
   } else if (kind === 'accounts') {
