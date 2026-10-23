@@ -122,7 +122,7 @@ export function Splitter() {
       ref={ref}
       className="splitter"
       role="separator"
-      aria-label="Resize the board and the chat"
+      aria-label="Resize the board and the answers"
       aria-orientation="vertical"
       tabIndex={0}
       title="Drag to resize"

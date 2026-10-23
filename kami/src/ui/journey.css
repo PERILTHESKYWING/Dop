@@ -28,15 +28,14 @@
   font-size: 14px;
   font-weight: 600;
 }
-.journey-big {
+.journey .journey-head {
+  margin: 0;
   font-family: var(--read);
-  font-size: 34px;
-  line-height: 1.1;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
   color: var(--ink);
-}
-.journey-sub {
-  font-size: 15px;
-  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .journey-classical {
   margin-top: 4px;
@@ -86,21 +85,12 @@
   }
 }
 
-/* days in a row */
-.journey-count {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-.journey-n {
-  font-family: var(--read);
-  font-size: 34px;
-  line-height: 1;
+/* days in a row: one quiet line */
+.journey-dayline {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-2);
   font-variant-numeric: tabular-nums;
-}
-.journey-best {
-  font-size: 14px;
-  color: var(--muted);
 }
 
 /* seven points on one board line */
@@ -158,7 +148,18 @@
 }
 .week-line .m-rest .week-pt {
   background: var(--stone-w);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42);
+}
+/* a used rest day carries a dash, so it is told from today (a small ring) by more than size */
+.week-line .m-rest .week-pt::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--stone-b);
 }
 .week-line .m-today .week-pt {
   width: 10px;
@@ -168,8 +169,8 @@
   border: 1.5px solid var(--muted);
 }
 .week-line .week-wd {
-  font-size: 11.5px;
-  color: var(--faint);
+  font-size: 12.5px;
+  color: var(--muted);
 }
 
 /* seals */
@@ -186,6 +187,11 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+}
+/* every seal sits in the same height, so the words under a row of seals line up */
+.seal-slot {
+  display: flex;
+  align-items: flex-end;
 }
 .seal-text .set-help {
   line-height: 1.4;
@@ -211,22 +217,17 @@
   border: 0;
   background: var(--seal);
   color: var(--seal-paper);
+  /* a carved seal's frame: the red edge, a hair of paper inside it, then the red face */
   box-shadow:
-    inset 0 0 0 2px var(--seal-paper),
-    inset 0 0 0 3.5px var(--seal);
+    inset 0 0 0 2px var(--seal),
+    inset 0 0 0 3.5px var(--seal-paper);
 }
-/* Columns of two, top to bottom, the first column on the right (as carved seals read). */
+/* One column, top to bottom: the same word for every reader (Seal.tsx). */
 .seal-glyphs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, 1.04em);
-  direction: rtl;
-  column-gap: 0.1em;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-items: center;
-}
-.seal-badge.one .seal-glyphs {
-  grid-template-rows: 1em;
+  gap: 0.06em;
 }
 .seal-glyphs span {
   display: block;

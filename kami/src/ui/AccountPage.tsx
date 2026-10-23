@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 import './account.css';
 
 const COPY = {
-  blurb: 'Optional and free. Sign in to keep your path, days in a row and settings the same on every device. Chats and boards stay on this device.',
+  blurb: 'Optional and free. Sign in to keep your path, days in a row and settings the same on every device. Boards stay on this device.',
   small: 'Kiai keeps a one-way fingerprint of your email, not the address, and never sends email. Your password is hashed on the server and never stored.',
   codeHead: 'Save your recovery code',
   codeText: "Kiai can't email you, so this code is the only way back in if you forget your password. It is shown once. Keep it in a password manager or on paper.",
@@ -285,7 +285,7 @@ function SignedIn({ onCode }: { onCode: (code: string, email: string) => void })
         <div className="set-row">
           <div className="set-text">
             <div className="set-label">Sync now</div>
-            <div className="set-help">Your path, days in a row and synced settings. Chats and boards stay on this device.</div>
+            <div className="set-help">Your path, days in a row and synced settings. Boards stay on this device.</div>
           </div>
           <div className="set-control">
             <button type="button" className="btn" disabled={v.syncing} onClick={() => void account.syncNow()}>

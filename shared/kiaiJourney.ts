@@ -66,16 +66,18 @@ export const COPY: Record<string, string> = {
   blurb: 'A quiet record of your study: games reviewed and questions answered. Nothing is locked behind it, and nothing reminds you.',
   off: 'Off. Nothing is counted or shown.',
   notStarted: 'Your path starts with your first reviewed game or answered question.',
-  onPath: 'on your study path',
+  head: 'Study path · stage {n} of {of} · {label}',
   toNext: '{into} of {span} points to {next}',
   last: "The last station. The path stops here; study doesn't.",
   honesty: "The path counts study, not strength. It is not a rank. Kiai's estimate of how you play is the Strength graph of a reviewed game.",
   daysTitle: 'Days in a row',
+  daysLine: '{n} days in a row',
+  dayLine: '1 day in a row',
   best: 'best {best}',
   restsSaved: '{n} rest day saved',
   restsSavedMany: '{n} rest days saved',
   noRests: 'no rest day saved',
-  restHelp: 'A rest day is used by itself when you miss a day. You start with one and get another for every 7 days in a row, up to 2.',
+  restHelp: 'A rest day (a white stone with a dash) is used by itself when you miss a day. You start with one and get another for every 7 days in a row, up to 2.',
   sealsTitle: 'Seals',
   stamped: 'stamped {date}',
   progress: '{n} of {of}',
@@ -91,8 +93,7 @@ export const COPY: Record<string, string> = {
   classical: 'Dan stations carry the nine classical grades of Go, from 守拙 to 入神.',
   noteStation: 'On the path: {label}',
   noteSeal: 'Seal: {kanji} {title}',
-  sidebarLine: 'Path {label}',
-  sidebarDays: '{n} days',
+  sidebarLine: 'Study path · {label}',
   resetConfirm: 'Reset your path? Points, days and seals go back to the start on every device you sync.',
 };
 
@@ -558,8 +559,7 @@ export function stationName(s: Station): string {
   return s.classical ? `${s.label}, ${s.classical.kanji} ${s.classical.gloss}` : s.label;
 }
 
-/** The sidebar line: "Path 14 kyu · 5 days" (days only from 2). */
+/** The sidebar line: "Study path · 14 kyu" (a place on the path, never a rank; no days in a row). */
 export function pathLine(s: JourneySummary): string {
-  const head = fill('sidebarLine', { label: s.station.label });
-  return s.streak.current >= 2 ? `${head} · ${fill('sidebarDays', { n: s.streak.current })}` : head;
+  return fill('sidebarLine', { label: s.station.label });
 }

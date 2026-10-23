@@ -1,5 +1,5 @@
 /**
- * The sidebar's study-path line ("Path 14 kyu · 5 days"), without the path maths in the
+ * The sidebar's study-path line ("Study path · 14 kyu"), without the path maths in the
  * first-paint bundle: lib/journey.ts (loaded when the browser is idle, or at the first counted
  * study) writes the line here and to localStorage `kiai.pathLine`, so a return visit shows it at
  * once. Empty until the path has started.

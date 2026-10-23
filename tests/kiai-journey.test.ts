@@ -5,10 +5,12 @@ import {
   dayPoints,
   emptyDoc,
   emptyJourney,
+  fill,
   LIMITS,
   mergeDoc,
   mergeJourney,
   PATH,
+  pathLine,
   PER_DAY,
   POINTS,
   record,
@@ -317,5 +319,25 @@ describe('copy', () => {
     expect(withRank.map(([k]) => k)).toEqual(['honesty']);
     expect(COPY.honesty).toContain('It is not a rank.');
     expect(strings.filter((s) => /rank/i.test(s))).toHaveLength(1);
+  });
+});
+
+describe('presented with restraint', () => {
+  const studied = (n: number) => j({ [A]: Object.fromEntries(Array.from({ length: n }, (_, i) => [addDays(D0, i), [2, 6, 0, 0, 1] as DayCounts])) });
+  it('names a place on the path, never a rank: the sidebar line has no days in a row', () => {
+    const s = summarise(studied(17), addDays(D0, 16), NO);
+    expect(s.streak.current).toBe(17);
+    expect(pathLine(s)).toBe(`Study path · ${s.station.label}`);
+    expect(pathLine(s)).not.toMatch(/day/);
+  });
+  it('heads the Journey page with the stage on the path, the kyu last', () => {
+    const s = summarise(studied(17), addDays(D0, 16), NO);
+    const head = fill('head', { n: s.station.i + 1, of: PATH.length, label: s.station.label });
+    expect(head).toMatch(new RegExp(`^Study path · stage \\d+ of ${PATH.length} · \\d+ kyu$`));
+  });
+  it('uses real Go words for its seals', () => {
+    // each checked by hand: the sanrensei opening, ladder, replaying game records, life and death,
+    // "hand talk" (an old name for Go), tesuji; 一日一局 and 百局 are plain phrases a player reads at once
+    expect(SEALS.map((x) => x.kanji)).toEqual(['三連星', '一日一局', '征', '棋譜並べ', '百局', '死活', '手談', '手筋']);
   });
 });

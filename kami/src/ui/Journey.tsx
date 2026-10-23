@@ -1,4 +1,4 @@
-import { COPY, fill, PER_DAY, POINTS, type DayMark, type JourneySummary } from '../../../shared/kiaiJourney';
+import { COPY, fill, PATH, PER_DAY, POINTS, type DayMark, type JourneySummary } from '../../../shared/kiaiJourney';
 import { FEATURES, useJourney } from '../lib/journey';
 import { useSetting } from '../lib/settings';
 import { dayLabel, SealMark } from './Seal';
@@ -73,8 +73,7 @@ export function JourneyPanel() {
     <div className="journey">
       <p className="set-blurb">{COPY.blurb}</p>
       <section className="journey-station" aria-label="Station">
-        <div className="journey-big">{s.station.label}</div>
-        <div className="journey-sub">{COPY.onPath}</div>
+        <h4 className="journey-head">{fill('head', { n: s.station.i + 1, of: PATH.length, label: s.station.label })}</h4>
         {c && (
           <div className="journey-classical" title={`Japanese ${c.ja} · Chinese ${c.zh}`}>
             <span lang="ja">{c.kanji}</span> · {c.gloss}
@@ -87,13 +86,10 @@ export function JourneyPanel() {
       </section>
 
       <section className="journey-days" aria-label={COPY.daysTitle}>
-        <h4>{COPY.daysTitle}</h4>
-        <div className="journey-count">
-          <span className="journey-n">{s.streak.current}</span>
-          <span className="journey-best">
-            {fill('best', { best: s.streak.best })} · {rests === 0 ? COPY.noRests : fill(rests === 1 ? 'restsSaved' : 'restsSavedMany', { n: rests })}
-          </span>
-        </div>
+        <p className="journey-dayline">
+          {s.streak.current === 1 ? COPY.dayLine : fill('daysLine', { n: s.streak.current })} · {fill('best', { best: s.streak.best })} ·{' '}
+          {rests === 0 ? COPY.noRests : fill(rests === 1 ? 'restsSaved' : 'restsSavedMany', { n: rests })}
+        </p>
         <WeekLine s={s} />
         <p className="set-help">{COPY.restHelp}</p>
       </section>

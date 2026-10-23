@@ -2731,16 +2731,18 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
+  /* every page name in view at once: a wrapped grid, never a strip that scrolls sideways */
   .set-nav {
-    flex-direction: row;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding: 4px 12px 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 2px 4px;
+    padding: 2px 12px 8px;
     border-bottom: 1px solid var(--line);
   }
   .set-nav button {
+    justify-content: center;
     white-space: nowrap;
-    padding: 6px 10px;
+    padding: 7px 6px;
   }
   .set-nav button .icon {
     display: none;
