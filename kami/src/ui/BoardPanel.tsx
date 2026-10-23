@@ -6,6 +6,7 @@ import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
 import { replay } from '../../../src/lib/go/board';
 import { colorName, PASS, type Loc, type Move } from '../../../src/lib/go/types';
 import { cachedRead, useBoardRead, useLineReads } from '../lib/analysis';
+import { loadJourney } from '../lib/pathLine';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { emptyBoard, explainPositionOf, goTo, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import { useGameRating } from '../lib/rating';
@@ -207,6 +208,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     [tab, n, preview, board.moves, board.setup, board.size, board.komi, board.rules, board.first],
   );
   const lineReads = useLineReads(line, board.cursor);
+  // The study path: a graph open and KataGo has read every position of a game of 30+ moves (once per game, ever).
+  useEffect(() => {
+    if (tab && n > 0 && lineReads.total === n + 1 && lineReads.done === lineReads.total)
+      loadJourney()
+        .then((m) => m.recordGameReview(board.size, board.moves))
+        .catch(() => {});
+  }, [tab, n, lineReads.done, lineReads.total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const view = useMemo(() => {
     if (preview) {

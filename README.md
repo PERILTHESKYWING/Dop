@@ -320,6 +320,12 @@ To switch accounts on for a Vercel deployment (free Hobby plan is enough):
 hashed with scrypt on the server and never stored or logged; the session is an HttpOnly cookie. For
 local development, `ACCOUNT_STORE=memory npm run dev` keeps accounts in memory until the server stops.
 
+The same function and store also serve **Kiai's** optional email + password accounts (`?action=kiai-…`,
+`shared/kiaiAccount.ts`), called cross-origin from the Kiai site with no cookies: they sync Kiai's study
+path and a few settings, keep only a SHA-256 fingerprint of the email, and use a one-time recovery code
+instead of email resets. Open `/api/account?action=kiai-status` to check it is on
+(`"configured":true`). Details: `docs/handoff/kami.md`, "Account and path".
+
 ## Browser support
 
 Chrome/Edge 113+ (WebGPU), Safari 18+/Firefox with WebGPU enabled; other modern browsers use the CPU
