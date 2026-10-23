@@ -387,10 +387,21 @@ describe('Kami explain: concepts', () => {
 
   it('sente when the reply is local and playing elsewhere costs; not when it is cheap', () => {
     const ctx = conceptContext(findings());
-    const after = (tenukiLead: number) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60 }, { at: 'G5', lead: tenukiLead, visits: 8 }]);
+    // KataGo's line: White answers at D3, then Black plays elsewhere (J9).
+    const after = (tenukiLead: number, pv = ['D3', 'J9']) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60, pv }, { at: 'G5', lead: tenukiLead, visits: 8 }]);
     expect(senteGote(ctx, P('D4'), after(-3.1))?.id).toBe('sente');
     expect(senteGote(ctx, P('D4'), after(-3.1))?.evidence).toContain('2.1 points');
     expect(senteGote(ctx, P('D4'), after(-1.2))).toBeNull();
+  });
+
+  it('no sente when the line does not show the mover playing elsewhere next', () => {
+    const ctx = conceptContext(findings());
+    const after = (pv: string[]) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60, pv }, { at: 'G5', lead: -3.1, visits: 8 }]);
+    // The reply starts a fight: Black has to go on locally (C3), so D4 is not sente.
+    expect(senteGote(ctx, P('D4'), after(['D3', 'C3']))).toBeNull();
+    // A line that stops at the reply shows nothing.
+    expect(senteGote(ctx, P('D4'), after(['D3']))).toBeNull();
+    expect(senteGote(ctx, P('D4'), after(['D3', 'J9']))?.id).toBe('sente');
   });
 
   it('gote when a contact move lets the opponent play elsewhere; nothing for a move in open space', () => {
