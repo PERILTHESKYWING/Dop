@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, keyNumberText } from '../lib/candLabels';
+import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
 import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
@@ -259,7 +259,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
   // Whole points on a phone's board, so the labels stay readable (11+ px) and never touch.
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone), [candidates, phone]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverPv(null);
@@ -387,7 +387,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone);
+  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone, !!candLabel && !!candidates?.some((c) => candLabel(c) === SAME));
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board

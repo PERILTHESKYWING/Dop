@@ -550,11 +550,11 @@ export function teach(input: TeachInput): Teaching {
   }
 
   /**
-   * Where the game stands now, in points, from the position's own read (the same number the
-   * board's eval bar shows): "White leads by about 11 points." (a fact for the guard).
+   * Where the game stands now, in points, from KataGo's best move (the number the list and the
+   * board's eval bar show, rounded): "White leads by about 10 points." (a fact for the guard).
    */
   function positionLine(): string {
-    const lead = f.root ? sideLead(f.root.bLead, mover) : best.lead;
+    const lead = best ? best.lead : sideLead(f.root!.bLead, mover);
     const abs = Math.abs(lead);
     if (abs < 2) return 'The game is close.';
     const L = lead >= 0 ? me : them;

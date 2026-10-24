@@ -84,7 +84,9 @@ export async function explainWithBudget(pos: ExplainPosition, question: Question
     facts: text.facts,
     concepts,
     variations: f.variations,
-    ...(f.root ? { root: { ...f.root, ownership: null, candidates: f.root.candidates.slice(0, 12).map((c) => ({ ...c, pv: c.pv.slice(0, 12) })) } } : {}),
+    // The board's bar shows the answer's numbers: Black's side of KataGo's best move, the same
+    // figures as "Black trails by 10.4" in the list and "about 10" in the first sentence.
+    ...(f.root ? { root: { ...f.root, ...(f.best ? { bWin: f.mover === 1 ? f.best.win : 1 - f.best.win, bLead: f.mover === 1 ? f.best.lead : -f.best.lead } : {}), ownership: null, candidates: f.root.candidates.slice(0, 12).map((c) => ({ ...c, pv: c.pv.slice(0, 12) })) } } : {}),
     ...(illustrations ? { illustrations } : {}),
     ...(situation ? { situation } : {}),
     ...(view ? { view } : {}),
