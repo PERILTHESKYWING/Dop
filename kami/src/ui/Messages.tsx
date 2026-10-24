@@ -282,12 +282,22 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   // the device's speed, all measured (critics, round 2).
   const positions = ex?.totalVisits || most;
   const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
-  const done = positions ? `KataGo read ${positions.toLocaleString()} positions · ${secs(ms)}${rate ? ` · ${rate.toLocaleString()} a second on this device` : ''}` : `Read for ${secs(ms)}`;
+  // On a phone the folded line is just "225 positions · 2 s" (one row by the chevron); the
+  // rest shows when the card is open (styles.css .th-wide).
+  const done = positions ? (
+    <span>
+      <span className="th-wide">KataGo read </span>
+      {positions.toLocaleString()} positions · {secs(ms)}
+      {rate ? <span className="th-wide"> · {rate.toLocaleString()} a second on this device</span> : null}
+    </span>
+  ) : (
+    `Read for ${secs(ms)}`
+  );
   const text = live ? (stage === 'engine' ? 'Starting KataGo…' : stage === 'writing' ? 'Writing…' : 'Reading…') : done;
   // ultraGO says so while it works: its name in the running rainbow before the stage.
   const label = live && ultra && stage !== 'engine' ? (
     <>
-      <UltraGo /> {text.toLowerCase()}
+      <UltraGo /> {typeof text === 'string' ? text.toLowerCase() : text}
     </>
   ) : (
     text

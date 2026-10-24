@@ -169,10 +169,11 @@ describe('candidate labels in a lopsided game', () => {
   const c = (winrate: number, scoreLead: number, rank?: number) => ({ winrate, scoreLead, ...(rank !== undefined ? { rank } : {}) });
   it('show the loss against KataGo’s choice, not the same lead everywhere', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.8, 3)];
-    const label = candidateLabeler(cands)!;
     // KataGo's choice is a ring (never "0.0"), the others the answer's own rounding; a thinner
-    // read that came out ahead says so.
-    expect(cands.map(label)).toEqual(['○', '−0.9', '−1.3', '+0.3']);
+    // read that came out ahead says so once an answer explains it, and is "≈" before that.
+    expect(cands.map(candidateLabeler(cands, false, true)!)).toEqual(['○', '−0.9', '−1.3', '+0.3']);
+    expect(cands.map(candidateLabeler(cands)!)).toEqual(['○', '−0.9', '−1.3', '≈']);
+    expect(cands.map(candidateLabeler(cands, true)!).some((l) => l.startsWith('+'))).toBe(false);
     expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19.0');
     expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
   });
@@ -188,6 +189,7 @@ describe('candidate labels in a lopsided game', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
     expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11.');
     expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the ring.');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true, true)).toBe('points Black loses against the ring; ≈ about as good.');
     expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11; the game is decided.');
   });
 });
@@ -198,6 +200,15 @@ describe('round 2: one read on screen, each fact once', () => {
     expect(ex.root?.candidates[0].loc).toBe(P('Q10'));
     expect(ex.root?.ownership).toBeNull();
     expect(ex.root?.candidates.length).toBeLessThanOrEqual(12);
+  });
+
+  it('the first sentence, the bar and the list round the same number', async () => {
+    const ex = await move34();
+    const trails = Number(/Black trails by ([\d.]+) points/.exec(ex.facts.map((f) => f.text).join(' '))?.[1]);
+    expect(trails).toBeGreaterThan(5);
+    // the bar shows the answer's root lead: Black's side of KataGo's best move
+    expect(ex.root?.bLead.toFixed(1)).toBe((-trails).toFixed(1));
+    expect(ex.summary.startsWith(`White leads by about ${Math.round(trails)} points.`)).toBe(true);
   });
 
   it('names every move the board marks as about as good, chips at the end of the sentence', async () => {

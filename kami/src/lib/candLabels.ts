@@ -49,11 +49,17 @@ export function lossLabel(c: Cand, best: Cand, compact = false): string {
 }
 
 /** The label function for the candidate stones (undefined: the default win chance). */
-export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | undefined, compact = false): ((c: C) => string) | undefined {
+export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | undefined, compact = false, explained = false): ((c: C) => string) | undefined {
   if (!cands?.length || !lopsidedRead(cands)) return undefined;
   // KataGo's choice is the most visited move (the answer's "best move" too), not a thin read's higher lead.
   const best = cands.find((c) => c.rank === 0) ?? cands[0];
-  return (c) => (c === best ? RING : lossLabel(c, best, compact));
+  // A thin read that came out ahead of the ring shows "+0.5" only when an answer says why
+  // ("KataGo read it less, and it came out 0.5 points ahead"); before that it is "≈".
+  return (c) => {
+    if (c === best) return RING;
+    const l = lossLabel(c, best, compact);
+    return !explained && l.startsWith('+') ? SAME : l;
+  };
 }
 
 /**
@@ -61,10 +67,10 @@ export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | un
  * ringed stone, KataGo's choice. White leads by about 11." `moveNumber` is the move to be
  * played, `bLead` Black's lead.
  */
-export function keyNumberText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', moveNumber: number, bLead: number | null, size: number, compact = false): string {
+export function keyNumberText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', moveNumber: number, bLead: number | null, size: number, compact = false, same = false): string {
   if (!lopsidedRead(cands)) return `how often ${side} wins after it, out of 100.`;
   // A phone has two short lines under the board; the lead is in the bar above it.
-  if (compact) return `points ${side} loses against the ring.`;
+  if (compact) return `points ${side} loses against the ring${same ? '; ≈ about as good' : ''}.`;
   const lead = bLead ?? 0;
   const leader = lead >= 0 ? 'Black' : 'White';
   const abs = Math.round(Math.abs(lead));

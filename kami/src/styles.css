@@ -2523,6 +2523,9 @@ kbd {
 
 /* ---------------------------------------------------------------- phones and small tablets */
 @media (max-width: 899px) {
+  .thoughts:not([open]) .th-wide {
+    display: none;
+  }
   .kami-app,
   .kami-app.side-folded {
     display: flex;
