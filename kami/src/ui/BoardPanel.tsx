@@ -2,10 +2,11 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import { Board, type Mark } from '../../../src/components/Board';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
-import type { ExplainPosition } from '../../../src/lib/coach/explain/types';
+import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
 import { replay } from '../../../src/lib/go/board';
 import { colorName, PASS, type Loc, type Move } from '../../../src/lib/go/types';
-import { cachedRead, useBoardRead, useLineReads } from '../lib/analysis';
+import { cachedRead, positionKey, useBoardRead, useLineReads } from '../lib/analysis';
+import { loadJourney } from '../lib/pathLine';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { emptyBoard, explainPositionOf, goTo, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import { useGameRating } from '../lib/rating';
@@ -20,6 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
+import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
 import { Term } from './Term';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
@@ -96,7 +98,22 @@ interface Props {
   onSgfText: (text: string) => boolean;
   onSgfFile: (f: File) => void;
   onSettings: (page?: SettingsPage) => void;
+  /** The conversation has an answer: the engine's loading chip then folds to a dot. */
+  answered?: boolean;
+  /** KataGo's reads behind the conversation's answers, by position key, newest first (one read on screen). */
+  answerReads?: readonly { key: string; read: EngineRead }[];
 }
+
+const PHONE = '(max-width: 899px)';
+const onPhoneChange = (l: () => void) => {
+  const m = window.matchMedia(PHONE);
+  m.addEventListener('change', l);
+  return () => m.removeEventListener('change', l);
+};
+const isPhone = () => window.matchMedia(PHONE).matches;
+/** The row kept under the board for the key or the note, with the gap above it (px; styles.css .bp-under). */
+const UNDER_DESKTOP = 46;
+const UNDER_PHONE = 40;
 
 const TABS = [
   { id: 'trend', label: 'Win chance', icon: 'trend' },
@@ -150,7 +167,7 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
  * step buttons, and the game's graphs (Win chance, Mistakes, Strength). Everything else (best moves,
  * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
-export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings }: Props) {
+export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings, answered = false, answerReads }: Props) {
   const status = useSyncExternalStore(onEngineStatus, engineStatus);
   const [paste, setPaste] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId | null>(null);
@@ -175,7 +192,18 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
   // The position on the board, read by KataGo for the best moves and territory.
   const position = useMemo(() => (withStones && !preview ? explainPositionOf(board) : null), [board, preview, withStones]);
-  const { read, last, pending } = useBoardRead(position);
+  const boardRead = useBoardRead(position);
+  // One read on screen (critics, round 2): once an answer about this very position exists, the
+  // candidates, their labels and the eval bar show the answer's own read, so the text's "Q12 is
+  // 1.1 points worse" is Q12's label. Territory still comes from the board's read.
+  const answerRead = useMemo(() => {
+    if (!position || !answerReads?.length) return null;
+    const k = positionKey(position);
+    return answerReads.find((a) => a.key === k)?.read ?? null;
+  }, [position, answerReads]);
+  const read = answerRead ?? boardRead.read;
+  const last = answerRead ?? boardRead.last;
+  const pending = answerRead ? false : boardRead.pending;
 
   // Every position along the game, read quickly while a graph is open.
   const line = useMemo(
@@ -184,6 +212,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     [tab, n, preview, board.moves, board.setup, board.size, board.komi, board.rules, board.first],
   );
   const lineReads = useLineReads(line, board.cursor);
+  // The study path: a graph open and KataGo has read every position of a game of 30+ moves (once per game, ever).
+  useEffect(() => {
+    if (tab && n > 0 && lineReads.total === n + 1 && lineReads.done === lineReads.total)
+      loadJourney()
+        .then((m) => m.recordGameReview(board.size, board.moves))
+        .catch(() => {});
+  }, [tab, n, lineReads.done, lineReads.total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const view = useMemo(() => {
     if (preview) {
@@ -220,7 +255,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const hovered = !preview && hoverPv?.length ? lineOf(hoverPv, toPlay) : null;
   const variation = preview ? view.variation : hovered;
   const candidates = useMemo(() => (!preview && bestOn && read ? candidateMarks(read.candidates, bestCount) : null), [preview, bestOn, read, bestCount]);
-  const ownership = !preview && territoryOn && read ? read.ownership : null;
+  const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
+  // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
+  const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
+  // Whole points on a phone's board, so the labels stay readable (11+ px) and never touch.
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverPv(null);
@@ -334,6 +373,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       marks={view.marks}
       candidates={candidates}
       candStyle="plain"
+      candLabel={candLabel}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}
@@ -346,9 +386,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     />
   );
   const caps = view.captures;
+  const sideName = toPlay === 1 ? 'Black' : 'White';
+  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone, !!candLabel && !!candidates?.some((c) => candLabel(c) === SAME));
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
-  const [boxRef, side] = useSquare(preview ? 42 : keyOn ? 44 : 0);
+  // One row under the board is always kept for the key or the note (filled or not), so the board
+  // never moves or changes size between a game, an answer and a hovered line.
+  const [boxRef, side] = useSquare(phone ? UNDER_PHONE : UNDER_DESKTOP);
   // A cropped board keeps its own shape inside the square.
   const aspect = crop ? cropAspect(crop, coords) : 1;
   const boxW = Math.round(aspect >= 1 ? side : side * aspect);
@@ -356,9 +400,17 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const namesTitle = board.black || board.white ? `${board.black ?? 'Black'} vs ${board.white ?? 'White'}` : '';
   const title = board.title && board.title !== namesTitle ? board.title : '';
   const engineLine = status.state === 'idle' ? null : `${status.text}${status.state === 'loading' && status.pct !== undefined ? ` ${status.pct}%` : ''}`;
+  // The chip says what is happening ("Downloading KataGo · 40%"), not a bare "KataGo 0%".
+  const chipText =
+    status.state === 'failed' ? 'KataGo failed' : status.state === 'loading' ? `${status.text.replace(/\s*\(first time only\)/, '')}${status.pct !== undefined ? ` · ${status.pct}%` : ''}` : '';
+  // The chip shows only while something waits for KataGo (never for the quiet background
+  // measuring), and once the conversation has an answer it folds to a dot (its words in the title).
+  const chipOn = !preview && (status.state === 'failed' || (status.state === 'loading' && !status.background));
+  const chipFolded = chipOn && answered && status.state === 'loading';
 
   // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
-  const shown = withStones && !preview ? (read ?? last) : null;
+  // While a line is previewed the bar stays in place, dimmed, with the board's own read.
+  const shown = withStones ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
   const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'Black' : 'White'} +${Math.abs(lead).toFixed(1)}`;
@@ -392,12 +444,14 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             {player(2)}
           </div>
         )}
-        {status.state !== 'idle' && status.state !== 'ready' && !preview && (
-          <span className={`engine-chip ${status.state}`} title={engineLine ?? undefined}>
-            <span className="dot" />
-            {status.state === 'failed' ? 'KataGo failed' : `KataGo${status.pct !== undefined ? ` ${status.pct}%` : ''}`}
-          </span>
-        )}
+        <span className="engine-slot" role="status" aria-live="polite">
+          {chipOn && (
+            <span className={`engine-chip ${status.state}${chipFolded ? ' folded' : ''}`} title={engineLine ?? undefined}>
+              <span className="dot" aria-hidden="true" />
+              <span className={chipFolded ? 'sr-only' : 'engine-chip-text'}>{chipText}</span>
+            </span>
+          )}
+        </span>
         {zoomable && (
           <button
             className={`icon-btn${crop ? ' on' : ''}`}
@@ -536,9 +590,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         )}
       </div>
 
-      {!preview && (
-        <div
-          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}`}
+      <div
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}${preview ? ' dim' : ''}`}
+          inert={!!preview}
           title={
             shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
           }
@@ -550,9 +604,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
-          {pending && status.state === 'ready' && <span className="ev-dot" aria-label="KataGo is reading" />}
+          {pending && shown && <span className="ev-state">reading</span>}
         </div>
-      )}
 
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
@@ -569,6 +622,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   onPlay={onBoardPlay}
                   marks={view.marks}
                   candidates={candidates}
+                  candLabel={candLabel}
                   onCandidateHover={onCandidateHover}
                   onCandidateClick={onCandidateClick}
                   variation={variation}
@@ -585,15 +639,16 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               flatBoard
             )}
           </div>
+          <div className="bp-under">
           {keyOn && (
             <p className="bp-key">
               {book ? (
                 <>
-                  Numbers on the board: KataGo’s best moves (best underlined). Each: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                  Numbers on the board: KataGo’s best moves (best underlined). Each: {keyNumber}
                 </>
               ) : (
                 <>
-                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: how often {toPlay === 1 ? 'Black' : 'White'} wins after it, out of 100.
+                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: {keyNumber}
                 </>
               )}
             </p>
@@ -603,6 +658,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
             </p>
           )}
+          </div>
         </div>
 
         {panel && tabInfo && (
@@ -623,8 +679,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
         )}
       </div>
 
-      {!preview && (
-        <div className="bp-foot">
+        <div className={`bp-foot${preview ? ' dim' : ''}`} inert={!!preview}>
           <div className="bp-nav" role="group" aria-label="Step through the game">
             <button type="button" className="step-btn" aria-label="First move" title="First move (Home)" disabled={!board.cursor} onClick={() => go(0)}>
               <Icon name="first" size={20} />
@@ -681,7 +736,6 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             )}
           </div>
         </div>
-      )}
 
       {paste !== null && (
         <div className="bp-sheet" role="dialog" aria-label="Paste SGF">

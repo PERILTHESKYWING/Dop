@@ -13,6 +13,7 @@
  */
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { PC_TUNNEL_RE, pairingCode } from './pcLink.js';
+import { handleKiaiRequest } from './kiaiAccount.js';
 
 export interface AccountHttpResult {
   status: number;
@@ -86,8 +87,8 @@ export function upstashKv(url: string, token: string, fetchFn: FetchLike): Kv {
   };
 }
 
-/** An in-memory store, for tests and for trying accounts in `vite dev` (ACCOUNT_STORE=memory). */
-export function memoryKv(): Kv {
+/** An in-memory store, for tests and for trying accounts in `vite dev` (ACCOUNT_STORE=memory). `entries()` lets tests scan what is stored. */
+export function memoryKv(): Kv & { entries(): [string, string][] } {
   const m = new Map<string, { v: string; until?: number }>();
   const live = (k: string) => {
     const e = m.get(k);
@@ -98,6 +99,12 @@ export function memoryKv(): Kv {
     return e;
   };
   return {
+    entries() {
+      return [...m.keys()].flatMap((k) => {
+        const e = live(k);
+        return e ? [[k, e.v] as [string, string]] : [];
+      });
+    },
     async get(k) {
       return live(k)?.v ?? null;
     },
@@ -137,9 +144,17 @@ let devMemory: Kv | null = null;
 const scrypt = (pw: string, salt: Buffer, len: number, opts: { N: number; r: number; p: number }) =>
   new Promise<Buffer>((res, rej) => scryptCb(pw.normalize('NFKC'), salt, len, { ...opts, maxmem: 64 * 1024 * 1024 }, (e, k) => (e ? rej(e) : res(k))));
 
-const SCRYPT = { N: 16384, r: 8, p: 1 };
+/**
+ * OWASP's listed equivalent of N=2^17, p=1 at 16 MiB memory (measured in the sandbox: about
+ * 250 ms per hash on a 4-core box). Records hashed with older params still verify with their own
+ * and are rehashed at the next successful sign-in (needsRehash).
+ */
+export const SCRYPT = { N: 16384, r: 8, p: 5 };
 
-interface UserRecord {
+export const needsRehash = (u: { params: { N: number; r: number; p: number } }) =>
+  u.params.N !== SCRYPT.N || u.params.r !== SCRYPT.r || u.params.p !== SCRYPT.p;
+
+export interface UserRecord {
   name: string;
   salt: string;
   hash: string;
@@ -197,9 +212,9 @@ const sessKey = (t: string) => `sess:${sha(t)}`;
 const snapKey = (n: string) => `snap:${n}`;
 const partKey = (n: string, id: string, i: number) => `part:${n}:${id}:${i}`;
 
-const json = (status: number, body: unknown, cookies?: string[]): AccountHttpResult => ({ status, body, cookies });
+export const json = (status: number, body: unknown, cookies?: string[]): AccountHttpResult => ({ status, body, cookies });
 
-function parse(body: string | undefined): Record<string, unknown> {
+export function parseBody(body: string | undefined): Record<string, unknown> {
   try {
     const v = JSON.parse(body ?? '{}');
     return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
@@ -233,13 +248,14 @@ async function snapshotOf(kv: Kv, name: string): Promise<SnapshotMeta | null> {
 /** Too many tries from one name or one address: wait a while. */
 const PC_ADDRESS_DAYS = 30;
 
-async function limited(kv: Kv, keys: string[], max: number): Promise<boolean> {
+export async function limited(kv: Kv, keys: string[], max: number): Promise<boolean> {
   let over = false;
   for (const k of keys) if ((await kv.incr(k, 900)) > max) over = true;
   return over;
 }
 
 export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): Promise<AccountHttpResult> {
+  if (req.action.startsWith('kiai-')) return handleKiaiRequest(req, kv);
   const { method, action } = req;
   if (!kv) {
     if (action === 'status') return json(200, { configured: false, user: null, snapshot: null });
@@ -253,7 +269,7 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
     }
 
     if ((action === 'register' || action === 'login') && method === 'POST') {
-      const b = parse(req.body);
+      const b = parseBody(req.body);
       const name = normaliseName(b.username);
       const pw = typeof b.password === 'string' ? b.password : '';
       if (!name) return json(400, { error: 'Usernames are 3 to 32 letters, digits, dots, dashes or underscores, starting with a letter or digit.' });
@@ -270,13 +286,14 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
       const rec = raw ? (JSON.parse(raw) as UserRecord) : null;
       // The same answer for an unknown name and a wrong password.
       if (!rec || !(await checkPassword(pw, rec))) return json(401, { error: 'Wrong username or password.' });
+      if (needsRehash(rec)) await kv.set(userKey(name), JSON.stringify({ ...rec, ...(await hashPassword(pw)) }));
       return json(200, { user: { name }, snapshot: await snapshotOf(kv, name) }, [await startSession(kv, name)]);
     }
 
     // Where the user's PC helper is now (pc-helper/dop_pc.py announces its tunnel address on
     // every start). No sign-in: the pairing code is the key, and only its hash is stored.
     if ((action === 'pc-here' || action === 'pc-where') && method === 'POST') {
-      const b = parse(req.body);
+      const b = parseBody(req.body);
       const code = pairingCode(b.code);
       if (!code) return json(400, { error: 'Bad pairing code.' });
       if (await limited(kv, [`rl:pc:${req.ip ?? 'unknown'}`], 120)) return json(429, { error: 'Too many tries. Wait 15 minutes and try again.' });
@@ -301,7 +318,7 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
 
     // Upload: parts first (each kept an hour), then a commit that makes them the account's copy.
     if (action === 'part' && method === 'PUT') {
-      const b = parse(req.body);
+      const b = parseBody(req.body);
       const id = typeof b.id === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(b.id) ? b.id : null;
       const i = Number(b.index);
       const data = typeof b.data === 'string' ? b.data : null;
@@ -312,7 +329,7 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
     }
 
     if (action === 'commit' && method === 'POST') {
-      const b = parse(req.body);
+      const b = parseBody(req.body);
       const id = typeof b.id === 'string' && /^[A-Za-z0-9_-]{8,40}$/.test(b.id) ? b.id : null;
       const parts = Number(b.parts);
       if (!id || !Number.isInteger(parts) || parts < 1 || parts > MAX_PARTS) return json(400, { error: 'Bad upload.' });
@@ -344,7 +361,7 @@ export async function handleAccountRequest(req: AccountRequest, kv: Kv | null): 
     }
 
     if (action === 'delete' && method === 'POST') {
-      const b = parse(req.body);
+      const b = parseBody(req.body);
       const raw = await kv.get(userKey(me));
       const rec = raw ? (JSON.parse(raw) as UserRecord) : null;
       if (!rec || typeof b.password !== 'string' || !(await checkPassword(b.password, rec))) return json(401, { error: 'Wrong password.' });

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Connect, type Plugin, type Rollup } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleLlmRequest } from '../shared/llmServer.js';
+import { handleAccountRequest, kvFromEnv } from '../shared/accountServer.js';
 import { loaderFiles, loaderHtml, type LoaderAssets } from './src/ui/brand/loader';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -77,6 +78,42 @@ function llmApi(env: Record<string, string>): Plugin {
 }
 
 /**
+ * /api/account during `vite dev` and `vite preview` (Dop's handler, which serves Kiai's kiai-…
+ * actions), with an in-memory store unless KV_REST_API_URL/TOKEN are set: accounts work locally
+ * and are forgotten on restart. Production Kiai calls Dop's /api/account cross-origin (src/config.ts).
+ */
+function accountApi(env: Record<string, string>): Plugin {
+  const handler: Connect.NextHandleFunction = async (req, res) => {
+    let body = '';
+    if (req.method === 'POST' || req.method === 'PUT') {
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 1_000_000) break;
+      }
+    }
+    const url = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost');
+    const query = Object.fromEntries(url.searchParams);
+    const result = await handleAccountRequest(
+      { method: req.method ?? 'GET', action: query.action ?? '', query, body: body || undefined, cookie: req.headers.cookie, ip: req.socket.remoteAddress },
+      kvFromEnv({ ACCOUNT_STORE: 'memory', ...process.env, ...env }, fetch as never),
+    );
+    res.statusCode = result.status;
+    res.setHeader('content-type', 'application/json');
+    if (result.cookies?.length) res.setHeader('set-cookie', result.cookies);
+    res.end(JSON.stringify(result.body));
+  };
+  return {
+    name: 'kiai-account-api',
+    configureServer(server) {
+      server.middlewares.use('/api/account', handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/account', handler);
+    },
+  };
+}
+
+/**
  * The 気合 loading sheet, inlined so it shows before any script loads (src/ui/brand/loader.ts).
  * In the build it also makes that sheet the first paint:
  * - the seal and tagline (not seen until ~2.9 s) go to hashed /assets SVGs, cached for a year;
@@ -108,7 +145,7 @@ function kiaiLoader(): Plugin {
         const assets = Object.fromEntries(files.map((f) => [f.key, '/' + f.fileName])) as unknown as LoaderAssets;
         const sheets: string[] = [];
         html = html.replace(/[ \t]*<link rel="stylesheet"[^>]*>\n?/g, (tag) => (sheets.push(tag.trim()), ''));
-        const critical = "<style>body{background:#f6f8fb}@media (prefers-color-scheme:dark){body{background:#0a0e14}}</style>";
+        const critical = "<style>body{background:#f7f3ea}@media (prefers-color-scheme:dark){body{background:#15130f}}</style>";
         html = html.replace('<!--kiai-loader-->', critical + loaderHtml(assets) + landingPreload(ctx.bundle) + sheets.join(''));
         return html;
       },
@@ -164,7 +201,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: here,
     publicDir: 'public',
-    plugins: [react(), llmApi(env), kiaiLoader()],
+    plugins: [react(), llmApi(env), accountApi(env), kiaiLoader()],
     worker: { format: 'es' },
     // The strong network (kata1 b18) downloads through /katago-models, as on Dop (vercel.json has the same rewrite).
     server: { port: 5174, fs: { allow: [repo] }, proxy: { '/katago-models': katagoProxy } },

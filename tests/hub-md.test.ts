@@ -92,6 +92,8 @@ describe('hub mini markdown: fold and PR cards', () => {
     expect(md.prLinks(t)).toEqual([{ url: 'https://github.com/PERILTHESKYWING/Dop/pull/212', repo: 'PERILTHESKYWING/Dop', n: 212 }]);
     expect(md.withoutTrailingPr('Done: https://github.com/a/b/pull/7')).toBe('Done');
     expect(md.withoutTrailingPr('See https://github.com/a/b/pull/7 first')).toBe('See https://github.com/a/b/pull/7 first');
+    expect(md.withoutTrailingPr('Done. Fixed. PR: https://github.com/a/b/pull/7')).toBe('Done. Fixed.');
+    expect(md.withoutTrailingPr('Done, see pull request https://github.com/a/b/pull/7.')).toBe('Done, see');
     expect(md.prLinks('https://github.com/a/b/pull/7"><script>')).toEqual([{ url: 'https://github.com/a/b/pull/7', repo: 'a/b', n: 7 }]);
   });
 });

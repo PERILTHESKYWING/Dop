@@ -14,12 +14,17 @@
  *   number is also in a fact, so the guard in text.ts and checkAnswer still hold.
  */
 import { chebyshev, zoneOf } from '../../go/coords';
+import { replay } from '../../go/board';
 import { other, PASS, type Color, type Loc } from '../../go/types';
 import { boardPicture, purposes, strongNear, type Purpose } from './effects';
 import { keyPointOf, localR, movePurposes, type ConceptContext } from './concepts';
 import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead, zoneName } from './geometry';
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
+import { LOPSIDED_PTS } from './situation';
+
+/** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
+export const NEAR_PTS = 0.35;
 import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
 export interface Teaching {
@@ -81,8 +86,9 @@ export function teach(input: TeachInput): Teaching {
   const best = f.best!;
   const level = student?.level ?? 'intermediate';
   const facts: Fact[] = [];
-  const fact = (text: string) => {
-    facts.push({ id: `t${facts.length + 1}`, text });
+  /** `quiet`: a rounded restatement the text needs for the number guard, not listed again under KataGo's numbers. */
+  const fact = (text: string, quiet = false) => {
+    facts.push({ id: `t${facts.length + 1}`, text, ...(quiet ? { quiet: true } : {}) });
     return text;
   };
   const ref = (id?: string) => (id ? ` [[${id}]]` : '');
@@ -296,7 +302,7 @@ export function teach(input: TeachInput): Teaching {
     const ahead = f.question.intent === 'ahead';
     const leadLine = abs < 2 ? `The game is close: ${L} is only slightly ahead.` : `${L} is ${abs < 6 ? 'a little' : abs < 15 ? 'clearly' : 'far'} ahead.`;
     const countLine = abs >= 2 ? `In all, that's about ${rounded} points for ${L}.` : '';
-    if (abs >= 2) fact(`Rounded, ${L}'s lead is about ${rounded} points.`);
+    if (abs >= 2) fact(`Rounded, ${L}'s lead is about ${rounded} points.`, true);
 
     // The board's picture: who has what, what is still open, which groups are weak.
     const why: string[] = [];
@@ -444,8 +450,8 @@ export function teach(input: TeachInput): Teaching {
       fact(`This is move ${moveNo} of a handicap game.`);
       summary.push(`Honestly, it's only move ${moveNo} of a handicap game, so don't stress 😊. There are plenty of good answers here.`);
     } else {
-      fact(`There are ${n} stones on the board.`);
-      summary.push(`${pick(['The board is still wide open!', 'Plenty of room to play here!', "It's still early, so relax!"])} With only ${n} stones down there's no single correct move, so play to your style${n <= 6 ? ' 😊' : ''}.`);
+      // No stone count: "There are 34 stones on the board" is filler, not a reason (critics, 2026-10-23).
+      summary.push(`${pick(['The board is still wide open!', 'Plenty of room to play here!', "It's still early, so relax!"])} ${n <= 12 ? 'With only a few stones down' : 'In an opening this open'} there's no single correct move, so play to your style${n <= 6 ? ' 😊' : ''}.`);
     }
     // A few good options, each with the kind of game it makes.
     const options: { loc: Loc; id?: string; style: MoveStyle; ps: Purpose[]; fav: boolean }[] = [];
@@ -500,8 +506,21 @@ export function teach(input: TeachInput): Teaching {
     const ds = hit('double-sente');
     const rs = hit('reverse-sente');
     const big = f.question.intent === 'biggest';
-    const react = reaction();
-    summary.push(`${react ? `${react} ` : ''}${big ? `The biggest move is ${shapeName(best.loc)}` : `${me} should play ${shapeName(best.loc)}`}${ref(f.vars.best)}${reason ? `: it ${reason}` : ''}.`);
+    if (sit.sharp) {
+      // Not a calm position: where the game stands, what the last move did, KataGo's move and
+      // the local fight from its own line. No cheer, no "play your style", no closing question.
+      summary.push(positionLine());
+      const last = lastContact();
+      if (last) summary.push(last);
+      const trails = best.lead <= -LOPSIDED_PTS;
+      // The line's chip goes at the end of its sentence, never in the middle (critics, round 2).
+      summary.push(`${trails ? `KataGo's best try for ${me} is` : big ? 'The biggest move is' : 'KataGo plays'} ${shapeName(best.loc)}${reason ? `: it ${reason}` : ''}${ref(f.vars.best)}.`);
+      const local = localLine();
+      if (local) summary.push(local);
+    } else {
+      const react = reaction();
+      summary.push(`${react ? `${react} ` : ''}${big ? `The biggest move is ${shapeName(best.loc)}` : `${me} should play ${shapeName(best.loc)}`}${ref(f.vars.best)}${reason ? `: it ${reason}` : ''}.`);
+    }
     if (saved) {
       summary.push(`Without it, ${them} plays ${C(t!.move)}${ref(f.vars.threat)} and the stones at ${C(saved.at[0])} die.`);
     } else if (ds) {
@@ -526,8 +545,74 @@ export function teach(input: TeachInput): Teaching {
       // Two moves that end in the same place: say so, and why one first is still a good habit (item 14).
       summary.push(`Honestly, ${C(f.other.loc)}${ref(f.vars.lineA)} and ${C(best.loc)}${ref(f.vars.lineB)} end up in practically the same position, so neither is wrong.${sente ? ` I'd still play ${C(best.loc)} first: it's a good habit to play an obvious sente move before ${them} gets the chance to ignore it.` : ''}`);
     }
-    gameContext();
+    if (!sit.sharp) gameContext();
     numbersSection(bestFact, f.other ? factLike(new RegExp(`^${C(f.other.loc)} is `)) : undefined);
+  }
+
+  /**
+   * Where the game stands now, in points, from KataGo's best move (the number the list and the
+   * board's eval bar show, rounded): "White leads by about 10 points." (a fact for the guard).
+   */
+  function positionLine(): string {
+    const lead = best ? best.lead : sideLead(f.root!.bLead, mover);
+    const abs = Math.abs(lead);
+    if (abs < 2) return 'The game is close.';
+    const L = lead >= 0 ? me : them;
+    return fact(`${L} leads by about ${Math.round(abs)} points.`, true);
+  }
+
+  /** The last move, when it touched the mover's stones: "White's Q11 attaches to the black stone at R11." */
+  function lastContact(): string {
+    if (!sit.contact) return '';
+    const m = f.pos.moves[f.pos.moves.length - 1];
+    if (!m || m.loc === PASS) return '';
+    const before = replay(size, f.pos.setup, f.pos.moves, f.pos.moves.length - 1);
+    const touched = f.board.neighbors(m.loc).filter((q) => f.board.stones[q] === mover);
+    if (!touched.length) return '';
+    const sh = shapeOf(before, m.loc, m.color);
+    const whose = `the ${colorAdj(mover)} ${touched.length > 1 ? 'stones' : 'stone'} at ${touched.map(C).join(' and ')}`;
+    const W = `${colorWord(m.color)}'s ${C(m.loc)}`;
+    switch (sh?.id) {
+      case 'attach':
+        return `${W} attaches to ${whose}.`;
+      case 'hane':
+        return `${W} is a hane against ${whose}.`;
+      case 'cut':
+        return `${W} cuts ${whose}.`;
+      case 'atari':
+        return `${W} puts ${whose} in atari.`;
+      case 'block':
+        return `${W} blocks ${whose}.`;
+      default:
+        return `${W} touches ${whose}.`;
+    }
+  }
+
+  /**
+   * The local fight from KataGo's own line after its move: the opponent's reply and the
+   * mover's next move, each named by its shape on the board where it is played.
+   */
+  function localLine(): string {
+    const moves = f.variations.find((v) => v.id === f.vars.best)?.moves ?? [];
+    if (moves.length < 2 || moves[0].loc !== best.loc) return '';
+    const b = f.board.clone();
+    const named: string[] = [];
+    for (let i = 0; i < Math.min(3, moves.length); i++) {
+      const m = moves[i];
+      if (m.loc === PASS) break;
+      if (i > 0) {
+        const near = chebyshev(m.loc, best.loc, size) <= localR(size) + 1;
+        if (!near) {
+          if (i === 1) return `${them} then plays elsewhere, at ${C(m.loc)}: the local exchange ends there.`;
+          break;
+        }
+        const sh = shapeOf(b, m.loc, m.color);
+        named.push(sh ? `${sh.name} at ${C(m.loc)}` : C(m.loc));
+      }
+      b.play(m.loc, m.color, true);
+    }
+    if (!named.length) return '';
+    return `${them}'s main reply in KataGo's line is ${named[0]}${named[1] ? `, and ${me} continues with ${named[1]}` : ''}.`;
   }
 
   /** The runner-up, in words that match the gap (never a tenth-of-a-point comparison). */
@@ -536,16 +621,41 @@ export function teach(input: TeachInput): Teaching {
     if (!o || f.moveOrder) return;
     const id = f.other ? f.vars.lineA : f.vars.alts[0];
     const g = best.lead - o.lead;
+    // Chips at the end of the sentence. In a sharp position the words follow the numbers the
+    // board shows (one decimal): "about as good" only when they round to 0.3 or less.
+    if (sit.sharp) {
+      if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out ${fmt1(-g)} points ahead${ref(id)}.`);
+      else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
+      else if (g < 2) summary.push(`${C(o.loc)} is a little worse${ref(id)}.`);
+      else summary.push(`${C(o.loc)} is clearly worse${ref(id)}.`);
+      nearLine([best.loc, o.loc], g < NEAR_PTS);
+      return;
+    }
     if (g < 0.5) {
-      summary.push(`${C(o.loc)}${ref(id)} is just as good: we're splitting hairs here, so play your style.`);
+      summary.push(`${C(o.loc)} is just as good: we're splitting hairs here, so play your style${ref(id)}.`);
       return;
     }
     if (g < 2) {
-      summary.push(`${C(o.loc)}${ref(id)} is fine too, just a little less efficient.`);
+      summary.push(`${C(o.loc)} is fine too, just a little less efficient${ref(id)}.`);
       return;
     }
     const tp = f.consequence?.turning;
-    summary.push(`${C(o.loc)}${ref(id)} is clearly worse${tp ? `: by move ${tp.moveNumber} it costs ${me} ${inRegion(tp.region).replace(/^(in|on|at) /, 'in ')}` : ''}.`);
+    summary.push(`${C(o.loc)} is clearly worse${tp ? `: by move ${tp.moveNumber} it costs ${me} ${inRegion(tp.region)}` : ''}${ref(id)}.`);
+  }
+
+  /**
+   * Every other move the board marks as about as good as KataGo's choice (within 0.3 points
+   * in the same read), named so the board never shows a tie the text leaves out.
+   */
+  function nearLine(named: Loc[], tieSaid: boolean) {
+    const cands = f.root?.candidates.filter((c) => c.loc !== PASS) ?? [];
+    const top = cands[0]?.visits || 1;
+    const near = cands
+      .filter((c, i) => (i < 3 || c.visits >= Math.max(2, top * 0.02)) && !named.includes(c.loc))
+      .slice(0, 10)
+      .filter((c) => Math.abs(best.lead - c.scoreLead) < NEAR_PTS)
+      .map((c) => C(c.loc));
+    if (near.length) summary.push(`${near.length > 1 ? `${near.slice(0, -1).join(', ')} and ${near[near.length - 1]} are` : `${near[0]} is`} about as good${tieSaid ? ' too' : ` as ${C(best.loc)}`}.`);
   }
 
   /** Where the game stands, in a line (XIAO, item 14: "give the player some context"). */
@@ -558,7 +668,7 @@ export function teach(input: TeachInput): Teaching {
     const watch = weakMine ? ` Keep an eye on your group at ${C(weakMine.at)}.` : '';
     if (abs < 2) summary.push(`The game is close, so every point counts from here.${watch}`);
     else if (abs >= 10) {
-      fact(`Rounded, ${L}'s lead is about ${Math.round(abs)} points.`);
+      fact(`Rounded, ${L}'s lead is about ${Math.round(abs)} points.`, true);
       summary.push(lead > 0 ? `${me} is well ahead (about ${Math.round(abs)} points), so keep it safe and simple.${watch}` : `${me} is behind by about ${Math.round(abs)} points, so look for chances, but take the big points first.${watch}`);
     } else if (watch) summary.push(watch.trim());
   }
@@ -676,7 +786,7 @@ export function teach(input: TeachInput): Teaching {
     if (!/ \[\[v\d+\]\]/.test(summary.join(' '))) summary.push(sit.tone === 'relaxed' ? `${B}${ref(lineB)} is the more efficient choice.` : `Play ${B}${ref(lineB)} instead.`);
 
     // Details for the curious: the slow consequence, for stronger players.
-    const later = factLike(/^In the .* line, against the .* line, /);
+    const later = factLike(/^Without \S+, /);
     if (later && level === 'strong' && !order) sections.push({ title: 'What changes later', text: `${later}${ref(f.vars.lineA)}${ref(f.vars.lineB)}` });
     numbersSection(bestFact);
   }

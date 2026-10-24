@@ -1,16 +1,18 @@
 /**
- * The landing's one picture: Kiai's kaya board on a marble table above the cloud sea (a
- * path-traced 360° sky, tools/kiai-art/sky_pano.py), drawn live with three.js. It stays put while
- * the page scrolls; the scroll moves the camera between one view per chapter (`camAt`), so the
- * same sky is always behind it. What the board shows follows the chapter (`show`).
+ * The landing's one picture: Kiai's kaya board resting on a sheet of washi, drawn live with
+ * three.js on a transparent canvas over the paper (`.l-paper` in landing.css), as a product shot
+ * on a paper sweep. A soft shadow drawn under it (`paperShadow`) lays the board on the page; no
+ * sky, no pedestal. It stays put while the page scrolls; the scroll moves the camera between one
+ * view per chapter (`camAt`). What the board shows follows the chapter (`show`).
  */
 import { useEffect, useRef, useState } from 'react';
+import { CanvasTexture, DefaultLoadingManager, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from 'three';
 import { KayaView, type PaleMark, type StoneColor } from '../../three/kaya';
 import { webglOk } from '../../three/support';
 import { DEMO, FINAL, GAME, loc, STONES } from './data';
 import FlatStage from './FlatStage';
 import { LINE, PICK, READS, TURN } from './story';
-import { camAt, SKY_TURN, skyUrl, T, type Box, type Cam } from './camera';
+import { camAt, T, type Box, type Cam } from './camera';
 
 /** What the board shows. */
 export type Show =
@@ -23,14 +25,65 @@ export type Show =
 
 export type { Box };
 
-const SUN_ELEV = 34;
-const SUN = 3.2;
-const ENV = 0.75;
-const EXPOSURE = 1.15;
+// a soft window light from the upper left, as on a studio paper sweep
+const SUN_ELEV = 42;
+const SUN_AZIM = 135;
+const SUN = 2.8;
+const ENV = 0.8;
+const EXPOSURE = 1.1;
+/** The live board shows once its textures are in, or after this long at the latest. */
+const READY_MAX = 1500;
 
 let devCam: Partial<Cam> = {};
 
-const cream = (at: string, alpha: number): PaleMark => ({ loc: loc(at), color: 1, alpha, cream: true });
+/**
+ * The board's shadow on the paper, as under a large soft window light: a wide, faint penumbra
+ * thrown away from the light, and a tight dark line where the wood meets the paper. A shadow map
+ * would give one hard-edged slab, so it is painted once on a 2D canvas (blurred with shadowBlur,
+ * which every browser has) and laid flat under the board.
+ */
+function paperShadow(T: number): Mesh<PlaneGeometry, MeshBasicMaterial> {
+  // the 19×19 board's footprint (kaya.ts: 18 lines of 0.022 × 0.0237 plus margins), in metres
+  const W = 0.424, L = 0.454;
+  // where the shadow falls: away from the sun, as far as the board's thickness throws it
+  const se = (SUN_ELEV * Math.PI) / 180, sa = (SUN_AZIM * Math.PI) / 180;
+  const len = T / Math.tan(se);
+  const dx = -Math.cos(sa) * len, dz = Math.sin(sa) * len;
+  const P = 1.1; // the painted square's side, in metres
+  const N = 1024;
+  const px = N / P;
+  const c = document.createElement('canvas');
+  c.width = c.height = N;
+  const g = c.getContext('2d')!;
+  const X = (x: number) => (x + P / 2) * px, Z = (z: number) => (z + P / 2) * px;
+  const far = 4 * N; // the shapes are drawn off the canvas; only their blurred shadows land on it
+  const shape = (pts: [number, number][], blur: number, alpha: number) => {
+    g.save();
+    g.shadowColor = `rgba(58, 40, 18, ${alpha})`;
+    g.shadowBlur = blur * px;
+    g.shadowOffsetX = far;
+    g.beginPath();
+    pts.forEach(([x, z], i) => (i ? g.lineTo(X(x) - far, Z(z)) : g.moveTo(X(x) - far, Z(z))));
+    g.closePath();
+    g.fillStyle = '#000';
+    g.fill();
+    g.restore();
+  };
+  const w = W / 2, l = L / 2;
+  // the board's outline swept along the shadow's direction (both offsets point the same way)
+  shape([[-w, -l], [w, -l], [w + dx, -l + dz], [w + dx, l + dz], [-w + dx, l + dz], [-w, l]], 0.05, 0.36);
+  shape([[-w, -l], [w, -l], [w + dx * 0.5, -l + dz * 0.5], [w + dx * 0.5, l + dz * 0.5], [-w + dx * 0.5, l + dz * 0.5], [-w, l]], 0.016, 0.38);
+  shape([[-w, -l], [w, -l], [w, l], [-w, l]], 0.004, 0.5);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  const m = new Mesh(new PlaneGeometry(P, P).rotateX(-Math.PI / 2), new MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
+  m.position.y = 0.0001;
+  m.renderOrder = -1;
+  return m;
+}
+
+/** KataGo's choice for the side to play: a see-through stone of that colour, so it reads as Black's move, not a white stone. */
+const choice = (at: string, alpha: number): PaleMark => ({ loc: loc(at), color: DEMO.toPlay as StoneColor, alpha });
 
 /**
  * The point the words talk about, named beside it on the board: a seal-red label on a short line
@@ -63,12 +116,12 @@ function apply(v: KayaView, show: Show) {
   }
   v.setStones(STONES);
   // only the points KataGo is fairly sure of, so the picture stays calm
-  v.setOwnership(show.kind === 'ahead' ? FINAL.own.map((o) => (Math.abs(o) < 0.45 ? 0 : o)) : null, true, 1.45);
-  if (show.kind === 'ask' || show.kind === 'start') v.setPale([cream(PICK, 0.92)]);
+  v.setOwnership(show.kind === 'ahead' ? FINAL.own.map((o) => (Math.abs(o) < 0.45 ? 0 : o)) : null, true, 1.45, true);
+  if (show.kind === 'ask' || show.kind === 'start') v.setPale([choice(PICK, 0.72)]);
   else if (show.kind === 'reading') {
     // only KataGo's current favourite, named above it: the bars beside the board show the rest
     const r = READS[Math.min(show.step, READS.length - 1)];
-    v.setPale([cream(r.cands[0].at, 0.95)]);
+    v.setPale([choice(r.cands[0].at, 0.72)]);
   } else if (show.kind === 'next') {
     // the stones go down as played; their numbers are on the book diagram beside the board
     v.setPale(LINE.slice(0, show.n).map((g, i) => ({ loc: loc(g), color: (i % 2 === 0 ? DEMO.toPlay : 3 - DEMO.toPlay) as StoneColor, alpha: 1 })));
@@ -98,16 +151,10 @@ export default function Stage({ show, at, camRef, boxRef, onReady }: { show: Sho
       canvas: c,
       size: 19,
       thickness: T,
-      table: true,
+      table: false,
+      // the paper under the canvas shows through; only the board's shadow is drawn on it
       fill: 0.9,
-      skyUrl: skyUrl(),
-      // the panorama's sun sits at azimuth 130 as rendered (tools/kiai-art/sky_pano.py); three.js
-      // turns an equirectangular background the other way round, so turned by SKY_TURN the sun
-      // stands to the left of the first view (azimuth 180): the clouds ahead are lit from the side
-      // and show their shape, and the wrap seam is behind. The light is a little higher than the
-      // disc, for the board.
-      skyTurn: SKY_TURN,
-      sun: { elev: SUN_ELEV, azim: 130 + SKY_TURN },
+      sun: { elev: SUN_ELEV, azim: SUN_AZIM },
       sunStrength: SUN,
       envIntensity: ENV,
       toneMapping: 'aces',
@@ -116,6 +163,8 @@ export default function Stage({ show, at, camRef, boxRef, onReady }: { show: Sho
       lite,
     });
     view.current = v;
+    const shade = paperShadow(T);
+    v.scene.add(shade);
     // the labels follow their stones as the camera moves
     v.onFrame = () => {
       const el = marks.current;
@@ -162,10 +211,20 @@ export default function Stage({ show, at, camRef, boxRef, onReady }: { show: Sho
       done = true;
       onReady();
     };
-    v.onSky = () => requestAnimationFrame(ready);
-    const t = window.setTimeout(ready, 4000);
+    // the board's woods and the stones' shell load through three's default manager
+    const prevLoad = DefaultLoadingManager.onLoad;
+    DefaultLoadingManager.onLoad = () => {
+      prevLoad?.();
+      requestAnimationFrame(ready);
+    };
+    const t = window.setTimeout(ready, READY_MAX);
     return () => {
       window.clearTimeout(t);
+      DefaultLoadingManager.onLoad = prevLoad;
+      v.scene.remove(shade);
+      shade.geometry.dispose();
+      shade.material.map?.dispose();
+      shade.material.dispose();
       ro.disconnect();
       camRef.current = null;
       v.dispose();

@@ -7,14 +7,17 @@
  * alone, so no UI code is needed.
  */
 import { useSyncExternalStore } from 'react';
+import type { SyncedSetting } from '../../../shared/kiaiJourney';
 
-export type SettingGroup = 'general' | 'profile' | 'board' | 'katago' | 'positions';
+export type SettingGroup = 'general' | 'profile' | 'journey' | 'board' | 'katago' | 'positions';
 
 interface Base {
   key: string;
   group: SettingGroup;
   label: string;
   help?: string;
+  /** Synced to the Kiai account when signed in (device-bound settings, such as KataGo's, are not). */
+  sync?: true;
 }
 export type SettingDef =
   | (Base & { type: 'toggle'; default: boolean })
@@ -52,6 +55,7 @@ export const SETTINGS: SettingDef[] = [
   // General
   {
     key: 'profile.name',
+    sync: true,
     group: 'general',
     type: 'text',
     label: 'What should Kiai call you?',
@@ -61,6 +65,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'theme',
+    sync: true,
     group: 'general',
     type: 'select',
     label: 'Appearance',
@@ -73,6 +78,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'answerFont',
+    sync: true,
     group: 'general',
     type: 'select',
     label: 'Answer font',
@@ -85,6 +91,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'chat.enterSends',
+    sync: true,
     group: 'general',
     type: 'toggle',
     label: 'Enter sends',
@@ -95,6 +102,7 @@ export const SETTINGS: SettingDef[] = [
   // Profile: how answers are pitched (style memory itself lives in style.ts).
   {
     key: 'profile.level',
+    sync: true,
     group: 'profile',
     type: 'select',
     label: 'Your Go level',
@@ -108,6 +116,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'profile.style',
+    sync: true,
     group: 'profile',
     type: 'select',
     label: 'How you like to play',
@@ -122,9 +131,38 @@ export const SETTINGS: SettingDef[] = [
     ],
   },
 
+  // Journey (shared/kiaiJourney.ts: the study path, days in a row, seals)
+  {
+    key: 'journey.on',
+    sync: true,
+    group: 'journey',
+    type: 'toggle',
+    label: 'Keep a study path',
+    help: 'Off: nothing is counted or shown.',
+    default: true,
+  },
+  {
+    key: 'journey.sidebar',
+    sync: true,
+    group: 'journey',
+    type: 'toggle',
+    label: 'Show it under your name',
+    default: true,
+  },
+  {
+    key: 'journey.notes',
+    sync: true,
+    group: 'journey',
+    type: 'toggle',
+    label: 'Note stations and seals',
+    help: 'One short line at the bottom of the screen. No sounds.',
+    default: true,
+  },
+
   // Board
   {
     key: 'board.style',
+    sync: true,
     group: 'board',
     type: 'select',
     label: 'Board',
@@ -155,6 +193,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'board.coords',
+    sync: true,
     group: 'board',
     type: 'toggle',
     label: 'Coordinates',
@@ -163,6 +202,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'board.best',
+    sync: true,
     group: 'board',
     type: 'toggle',
     label: 'Show best moves',
@@ -171,6 +211,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'board.bestCount',
+    sync: true,
     group: 'board',
     type: 'number',
     label: 'Best moves shown',
@@ -181,6 +222,7 @@ export const SETTINGS: SettingDef[] = [
   },
   {
     key: 'board.territory',
+    sync: true,
     group: 'board',
     type: 'toggle',
     label: 'Show territory',
@@ -314,8 +356,10 @@ export const GROUPS: { id: SettingGroup; label: string; blurb: string }[] = [
   {
     id: 'profile',
     label: 'Profile',
-    blurb: 'What Kiai knows about you, so answers fit your level and the way you play. Kept in this browser only.',
+    blurb: 'What Kiai knows about you, so answers fit your level and the way you play. Kept in this browser, and synced to your account if you sign in.',
   },
+  // Settings › Journey shows shared/kiaiJourney.ts COPY.blurb above its own panel instead.
+  { id: 'journey', label: 'Journey', blurb: 'Your study path, days in a row and seals.' },
   { id: 'board', label: 'Board', blurb: 'What the board shows.' },
   {
     id: 'katago',
@@ -370,15 +414,93 @@ export function getSetting<T extends SettingValue = SettingValue>(key: string): 
 export function setSetting(key: string, v: SettingValue) {
   const d = settingDef(key);
   if (!d) return;
+  const before = getSetting(key);
   values = { ...values, [key]: valid(d, v) };
+  const changed = d.sync && before !== values[key];
+  if (changed) stamp([key]);
   save();
+  if (changed) for (const l of syncListeners) l();
 }
 
 export function resetSettings(group?: SettingGroup) {
   const next = { ...values };
-  for (const d of SETTINGS) if (!group || d.group === group) delete next[d.key];
+  const synced: string[] = [];
+  for (const d of SETTINGS) {
+    if (group && d.group !== group) continue;
+    if (d.sync && d.key in next) synced.push(d.key);
+    delete next[d.key];
+  }
   values = next;
+  if (synced.length) stamp(synced);
   save();
+  if (synced.length) for (const l of syncListeners) l();
+}
+
+// ---------------------------------------------------------------- sync (the Kiai account)
+
+/** When each synced setting was last changed on this device (`kiai.settingsAt`), for last-writer-wins. */
+const AT_STORE = 'kiai.settingsAt';
+let changedAt: Record<string, number> = loadAt();
+const syncListeners = new Set<() => void>();
+
+function loadAt(): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem(AT_STORE) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function stamp(keys: string[], at = Date.now()) {
+  changedAt = { ...changedAt };
+  for (const k of keys) changedAt[k] = at;
+  try {
+    localStorage.setItem(AT_STORE, JSON.stringify(changedAt));
+  } catch {
+    /* blocked */
+  }
+}
+
+/** The synced settings this device has changed, with when. */
+export function syncedSettings(): Record<string, SyncedSetting> {
+  const out: Record<string, SyncedSetting> = {};
+  for (const d of SETTINGS) if (d.sync && typeof changedAt[d.key] === 'number') out[d.key] = { v: getSetting(d.key), at: changedAt[d.key] };
+  return out;
+}
+
+/** Settings from the account (already merged): written with their times, in one save. Never fires the sync listeners. */
+export function applySyncedSettings(m: Record<string, SyncedSetting>) {
+  let any = false;
+  const next = { ...values };
+  const at = { ...changedAt };
+  for (const [k, s] of Object.entries(m)) {
+    const d = settingDef(k);
+    if (!d?.sync) continue;
+    const localAt = at[k] ?? -1;
+    const v = valid(d, s.v);
+    if (localAt > s.at || (localAt === s.at && getSetting(k) === v)) continue;
+    next[k] = v;
+    at[k] = s.at;
+    any = true;
+  }
+  if (!any) return;
+  values = next;
+  changedAt = at;
+  try {
+    localStorage.setItem(AT_STORE, JSON.stringify(changedAt));
+  } catch {
+    /* blocked */
+  }
+  save();
+}
+
+/** A synced setting changed on this device (not from the account). */
+export function onSyncedSettingChange(l: () => void) {
+  syncListeners.add(l);
+  return () => {
+    syncListeners.delete(l);
+  };
 }
 
 function save() {

@@ -124,7 +124,7 @@
     }
     return out;
   }
-  // The text without a PR link at its very end (the card shows it instead).
-  const withoutTrailingPr = (raw) => clean(raw).replace(/[\s:]*https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+\/?[.]?\s*$/, '');
+  // The text without a PR link at its very end, or its "PR:" label (the card shows it instead).
+  const withoutTrailingPr = (raw) => clean(raw).replace(/[\s:]*(?:\b(?:PRs?|pull request)\b[\s:#]*)?https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+\/?[.]?\s*$/i, '');
   root.hubMd = { esc, md, inline, fold, prLinks, withoutTrailingPr };
 })(typeof window !== 'undefined' ? window : globalThis);

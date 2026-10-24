@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Conversation } from '../lib/store';
 import { useSetting } from '../lib/settings';
+import { ago, useAccountView } from '../lib/accountView';
+import { usePathLine } from '../lib/pathLine';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
 import { Popover } from './Popover';
@@ -27,13 +29,20 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
   const name = useSetting<string>('profile.name').trim();
   const shown = name || 'Guest';
   const initial = (shown.match(/\p{L}|\p{N}/u)?.[0] ?? 'K').toUpperCase();
+  // The study path under the name (Settings › Journey), else "Synced" when signed in.
+  const line = usePathLine();
+  const pathOn = useSetting<boolean>('journey.on');
+  const pathShown = useSetting<boolean>('journey.sidebar');
+  const acct = useAccountView();
+  const plan = pathOn && pathShown && line ? line : acct.signedIn ? 'Synced' : 'Free · on this device';
+  const head = acct.signedIn && acct.email ? `${acct.email}${acct.lastSync ? ` · synced ${ago(acct.lastSync, Date.now(), true)}` : ''}` : name ? `${shown} · this browser` : 'Guest · saved in this browser';
   return (
     <Popover
       className="account"
       place="up-stretch"
       label="Account"
       trigger={({ open, toggle }) => (
-        <button type="button" className={`account-btn${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={compact ? shown : undefined}>
+        <button type="button" className={`account-btn${open ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={open} title={compact ? `${shown} · ${plan}` : undefined}>
           <span className="avatar" aria-hidden="true">
             {initial}
           </span>
@@ -41,7 +50,7 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
             <>
               <span className="account-text">
                 <span className="account-name">{shown}</span>
-                <span className="account-plan">Free · on this device</span>
+                <span className="account-plan">{plan}</span>
               </span>
               <Icon name="updown" size={16} />
             </>
@@ -56,12 +65,24 @@ function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?
         };
         return (
           <>
-            <div className="pop-head">{name ? `${shown} · this browser` : 'Guest · saved in this browser'}</div>
+            <div className="pop-head">{head}</div>
             <button type="button" role="menuitem" className="pop-item" onClick={go('general')}>
               <Icon name="gear" />
               <span className="grow">Settings</span>
               <kbd>Ctrl+,</kbd>
             </button>
+            {pathOn && (
+              <button type="button" role="menuitem" className="pop-item" onClick={go('journey')}>
+                <Icon name="seal" />
+                <span className="grow">Journey</span>
+              </button>
+            )}
+            {(acct.available || acct.signedIn) && (
+              <button type="button" role="menuitem" className="pop-item" onClick={go('account')}>
+                <Icon name="key" />
+                <span className="grow">{acct.signedIn ? 'Account' : 'Sync across devices'}</span>
+              </button>
+            )}
             <button type="button" role="menuitem" className="pop-item" onClick={go('usage')}>
               <Icon name="usage" />
               <span className="grow">Usage</span>
@@ -139,10 +160,10 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
         <button className="icon-btn" aria-label="Open sidebar" title="Open sidebar" onClick={onToggle}>
           <Icon name="sidebar" size={20} />
         </button>
-        <button className="icon-btn new-dot" aria-label="New chat" title="New chat" onClick={onNew}>
+        <button className="icon-btn new-dot" aria-label="New board" title="New board" onClick={onNew}>
           <Icon name="plus" size={16} />
         </button>
-        <button className="icon-btn" aria-label="Chats" title="Chats" onClick={onToggle}>
+        <button className="icon-btn" aria-label="Boards" title="Boards" onClick={onToggle}>
           <Icon name="chat" size={19} />
         </button>
         <span className="grow" />
@@ -169,11 +190,11 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
         <span className="new-dot" aria-hidden="true">
           <Icon name="plus" size={14} />
         </span>
-        New chat
+        New board
       </button>
-      <div className="side-label">Recents</div>
+      <div className="side-label">Boards</div>
       <ul className="conv-list">
-        {!convs.length && <li className="conv-empty">Your chats show here. They stay in this browser.</li>}
+        {!convs.length && <li className="conv-empty">Your boards show here. They stay in this browser.</li>}
         {convs.map((c) => (
           <li key={c.id} className={`conv${c.id === currentId ? ' on' : ''}`}>
             {editing === c.id ? (
@@ -184,11 +205,11 @@ export function Sidebar({ convs, currentId, collapsed, onToggle, onSelect, onNew
                   finish();
                 }}
               >
-                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onBlur={finish} aria-label="Chat name" maxLength={80} />
+                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onBlur={finish} aria-label="Board name" maxLength={80} />
               </form>
             ) : confirm === c.id ? (
               <div className="conv-confirm">
-                <span className="grow">Delete this chat?</span>
+                <span className="grow">Delete this board?</span>
                 <button className="link danger" onClick={() => onDelete(c.id)}>
                   Delete
                 </button>

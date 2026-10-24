@@ -3,14 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f4f1ec">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#27221c" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Dop hub">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preload" href="/fonts/alegreya-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/alegreya-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/alegreya-sans-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <title>Dop hub</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <script>
 // Look (theme + background) is per device; set it before the page paints. A background
@@ -25,12 +28,11 @@ try {
 /* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
 @font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-500-normal.woff2) format("woff2"); font-weight: 500 600; font-display: swap; }
-@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700; font-display: swap; }
-@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-800-normal.woff2) format("woff2"); font-weight: 800 900; font-display: swap; }
+@font-face { font-family: "Alegreya Sans"; src: url(/fonts/alegreya-sans-latin-700-normal.woff2) format("woff2"); font-weight: 700 900; font-display: swap; }
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
-  --kaya: #e8c88f; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #c9a465; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
   --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
@@ -88,41 +90,44 @@ try {
 :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
 :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
 :root .walls button, :root .sect, :root .md pre code, :root .sheet code, :root .copyline, :root #connLog { font-size: 14px; }
-:root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+:root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
 :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state, :root .pseg button { font-size: 15px; }
 /* Desktop: one step up again, since Alegreya's x-height is ~12% smaller than the old system font. */
 @media (min-width: 861px) {
   :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
   :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan, :root .trow.t1 .when { font-size: 15px; }
-  :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .stats span, :root .use,
+  :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
   :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state { font-size: 16px; }
 }
 
 /* buttons: flat with a 2 px bottom edge; the main one is a black stone (white in dark) */
-:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 700; font-size: 16px; }
+:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 500; font-size: 16px; }
 :root .btn.primary, :root .ask-go, :root .send { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; box-shadow: none; }
 @media (hover: hover) { :root .btn.primary:hover, :root .ask-go:hover, :root .send:hover:not(:disabled) { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; } }
 :root .send { border-radius: 50%; }
 :root .attach { border-radius: 50%; background: var(--panel); border-color: var(--line-2); }
 :root .pbtn { border-radius: var(--r); }
-:root .chip { border-radius: var(--r); background: var(--panel); border-color: var(--line-2); font-size: 15px; font-weight: 700; }
+:root .chip { border-radius: var(--r); background: var(--panel); border-color: var(--line-2); font-size: 15px; font-weight: 500; }
 :root .chip[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); border-color: var(--stone); }
 :root .pill { border-radius: var(--r); background: var(--chip); }
 :root .label.q, :root .tabs .badge { background: var(--amber); color: var(--on-amber); }
 
 /* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
-:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); }
 :root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
-:root .app > .side .pbtn, :root .app > .side .live, :root .app > .side .live.off { color: var(--kaya-ink); }
+:root .app > .side .pbtn { color: var(--kaya-ink); }
+:root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
 :root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
 @media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
-:root .brand b { font-weight: 800; font-size: 22px; letter-spacing: -.01em; }
-:root .app > .side .group { color: color-mix(in srgb, var(--kaya-ink) 72%, var(--kaya)); letter-spacing: .07em; }
+:root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
+:root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .group { letter-spacing: .07em; }
+.tfind input::placeholder { color: var(--faint); opacity: 1; }
 :root .trow { border-radius: var(--r); padding: 10px 12px; }
-:root .trow .ttl { font-size: 16px; font-weight: 700; }
+:root .trow .ttl { font-size: 16px; font-weight: 500; }
 :root .trow .tsub { font-size: 15px; }
 :root .app > .side .trow { color: var(--kaya-ink); }
 :root .app > .side .trow:hover { background: color-mix(in srgb, var(--panel) 35%, var(--kaya)); }
@@ -131,6 +136,13 @@ try {
 :root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
 :root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
 :root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Desktop: titles wrap to two lines (full title in the tooltip), one small owner avatar per row. */
+@media (min-width: 861px) {
+  :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
+  :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; text-wrap: balance; }
+  :root .trow.tn .ttl { font-size: 15px; }
+}
+.trow.t1 .avs { opacity: .9; }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
@@ -140,13 +152,13 @@ try {
 
 /* header + feed */
 :root .head { min-height: 64px; }
-:root .head h2 { font-size: 22px; font-weight: 800; }
+:root .head h2 { font-size: 22px; font-weight: 700; }
 :root .head a, :root .text a, :root .bubble a { color: var(--ink); text-decoration-thickness: 2px; text-decoration-color: var(--kaya-2); }
-:root .feed { gap: 18px; }
+:root .feed { gap: 20px; }
 :root .bubble { border-radius: 10px; box-shadow: none; padding: 12px 16px; }
 :root .row.me .bubble { border-radius: 10px; }
 :root .text { font-size: 17px; line-height: 1.5; }
-:root .who .nm { font-weight: 800; }
+:root .who .nm { font-weight: 500; }
 :root .task, :root .handover { box-shadow: none; border-radius: 10px; }
 :root .task { border-left-color: var(--kaya-2); }
 :root .tcard { border-radius: 10px; background: var(--panel); border-bottom-width: 2px; }
@@ -155,14 +167,13 @@ try {
 :root .cbox { border-radius: 12px; box-shadow: none; border-color: var(--line-2); border-bottom-width: 2px; }
 :root .cbox:focus-within { border-color: var(--stone); }
 :root .cbox textarea { font-size: 17px; }
-:root .hello h3 { font-weight: 800; font-size: 32px; }
+:root .hello h3 { font-weight: 700; font-size: 32px; }
 :root .ask-o { border-radius: var(--r); }
 
 /* team panel: type and colour only (its layout belongs to the sidebar + team work) */
-:root .thead h3 { font-weight: 800; font-size: 22px; }
-:root .stats div, :root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
-:root .stats b { font-size: 34px; font-weight: 800; }
-:root .aname .nm { font-size: 18px; font-weight: 800; }
+:root .thead h3 { font-weight: 700; font-size: 22px; }
+:root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
+:root .aname .nm { font-size: 18px; font-weight: 500; }
 :root .track { background: var(--chip); }
 
 /* compose Options popup, sheets, Look sheet */
@@ -172,10 +183,10 @@ try {
 :root .opt.on .box { background: var(--stone); border-color: var(--stone); color: var(--on-stone); }
 :root .opt .tick { color: var(--ink); }
 :root .sheet .sbox { border-radius: 12px; }
-:root .sheet h3 { font-size: 22px; font-weight: 800; }
+:root .sheet h3 { font-size: 22px; font-weight: 700; }
 :root .seg, :root .pseg { border-radius: var(--r); border-color: var(--line-2); }
 :root .seg button, :root .pseg button { border-radius: 4px; }
-:root .seg button[aria-pressed="true"], :root .pseg button[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); font-weight: 700; box-shadow: none; }
+:root .seg button[aria-pressed="true"], :root .pseg button[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); font-weight: 500; box-shadow: none; }
 :root .walls i { border-radius: var(--r); }
 :root .walls button[aria-pressed="true"] i { border-color: var(--stone); box-shadow: none; }
 
@@ -190,9 +201,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 body { transition: background-color .2s, color .2s; }
 #login, .app { background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
 /* Panels over the background: frosted, so the wall carries under the sidebars and header. */
-:root { --glass: color-mix(in srgb, var(--panel) 66%, transparent); }
+/* A tint, not a blur: backdrop blur on the panes halved scroll smoothness over a picture (30 fps at 4x CPU). */
+:root { --glass: color-mix(in srgb, var(--panel) 88%, transparent); --glass-hi: color-mix(in srgb, var(--panel) 96%, transparent); }
 :root:not([data-bg]), :root[data-bg=""] { --glass: var(--panel); }
-.side, .team, .head, .tabs { background: var(--glass); -webkit-backdrop-filter: blur(2px) saturate(1.2); backdrop-filter: blur(2px) saturate(1.2); }
+.side, .team, .head, .tabs { background: var(--glass); }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -201,7 +213,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
 .hidden { display: none !important; }
 input, select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: 16px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
-.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 600; transition: transform .12s ease-out; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 500; transition: transform .12s ease-out; }
 .btn:active { transform: translateY(1px); }
 @media (hover: hover) { .btn:hover { background: var(--sel); } }
 .btn.primary { background: var(--green); color: var(--on-green); border-color: var(--green); box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
@@ -223,6 +235,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 #login { min-height: 100%; display: grid; place-items: center; padding: 16px; }
 #login form { background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 32px; width: min(380px, 100%); display: grid; gap: 14px; }
 #login h1 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
+/* Flat card, like the rest of the Kaya look; the error line takes no room until there is one. */
+:root #login form { box-shadow: none; border-radius: 12px; }
+#login .err:empty { display: none; }
 
 /* layout */
 .app { --sw: 272px; --tw: 320px; display: grid; grid-template-columns: var(--sw) minmax(0, 1fr) var(--tw); height: 100vh; height: 100dvh; }
@@ -246,34 +261,47 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* sidebar */
 .brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
 .brand b { font-size: 19px; white-space: nowrap; }
-/* The logo (hub/logo.svg): a cream D with an amber echo on a navy tile. */
-.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231f2a44'/><path d='M21 14h12a18 18 0 0 1 0 36H21z' fill='none' stroke='%23f2b84b' stroke-width='5' stroke-linejoin='round' transform='translate(5 3)' opacity='.55'/><path d='M17 14h12a18 18 0 0 1 0 36H17z' fill='none' stroke='%23f6efe2' stroke-width='5' stroke-linejoin='round'/></svg>") center / contain no-repeat; }
+/* The logo (hub/logo.svg): a black stone and its white copy on diagonal points of a kaya board, inlined so it paints with no wait. */
+.logo { width: 28px; height: 28px; flex: none; display: inline-block; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='b' cx='.36' cy='.3' r='.78'%3E%3Cstop offset='0' stop-color='%23615a50'/%3E%3Cstop offset='.5' stop-color='%231f1b17'/%3E%3Cstop offset='1' stop-color='%23080706'/%3E%3C/radialGradient%3E%3CradialGradient id='w' cx='.36' cy='.3' r='.82'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.65' stop-color='%23f1ebe1'/%3E%3Cstop offset='1' stop-color='%23c9bfb0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='12' fill='%23dcb26e'/%3E%3Cpath d='M0 21.5H64M0 42.5H64M21.5 0V64M42.5 0V64' stroke='%233a2610' stroke-opacity='.45' stroke-width='1.5'/%3E%3Ccircle cx='42.5' cy='42.5' r='10.6' fill='%233a2610' fill-opacity='.18' transform='translate(1 1.4)'/%3E%3Ccircle cx='21.5' cy='21.5' r='10.6' fill='%233a2610' fill-opacity='.22' transform='translate(1 1.4)'/%3E%3Ccircle cx='42.5' cy='42.5' r='10.6' fill='url(%23w)'/%3E%3Ccircle cx='21.5' cy='21.5' r='10.6' fill='url(%23b)'/%3E%3C/svg%3E") center / contain no-repeat; }
 .logo.l { width: 40px; height: 40px; }
 .logo.hero { width: 72px; height: 72px; }
 /* Over a background the welcome text sits on frosted glass, so it stays readable on every scene. */
-:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
+:root[data-bg]:not([data-bg=""]) .hello { background: var(--glass-hi); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); border-radius: 18px; padding: 28px 32px; box-shadow: var(--shadow); }
 :root .note.hubn { justify-content: flex-start; text-align: left; width: fit-content; max-width: min(62ch, 100%); }
 :root .note.hubn .nt { white-space: nowrap; }
-:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 10px; padding: 5px 12px; }
-.live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 600; }
+:root[data-bg]:not([data-bg=""]) .note { align-self: center; max-width: 100%; background: var(--glass-hi); border-radius: 10px; padding: 5px 12px; }
+/* Over a picture a thought is a compact card like the message cards: same left edge (past the avatar), same border and radius, only as wide as it needs. */
+:root[data-bg]:not([data-bg=""]) .thought { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2px 16px; margin-left: 36px; width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .thought { margin-left: 0; max-width: 100%; } }
+.live { margin-left: auto; white-space: nowrap; font-size: 14px; color: var(--green); font-weight: 500; display: inline-flex; align-items: center; min-width: 20px; min-height: 20px; justify-content: center; }
+.live:not(.off)::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; }
+:root .app > .side .live:not(.off)::before { background: var(--kaya-green); }
+:root .app > .side .live:not(.off) { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); font-weight: 400; }
 .live.off { color: var(--red); }
-.newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.newrow { margin: 4px 12px 6px; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+/* Quiet nav rows (Studio, Library, Project chat, Team lessons): icon and name, no box. */
+.navrows { display: grid; gap: 2px; padding: 2px 8px 6px; }
+.side > .navrows { min-width: calc(var(--sw) - 1px); }
+.navpair { display: contents; }
+.trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
+.trow.tn .ico { opacity: .8; }
+.trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
+.trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
 .newtask { text-align: left; display: flex; gap: 8px; align-items: center; padding-left: 11px; padding-right: 8px; white-space: nowrap; }
 .newtask span { font-size: 19px; line-height: 1; }
 .newtask svg { width: 16px; height: 16px; flex: none; }
-.studio-link { text-decoration: none; color: inherit; }
 /* Quick filter (shown once there are enough threads to need it). */
 .tfind { padding: 2px 12px 4px; }
 .tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
 .newtask[aria-pressed="true"] { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 .list { overflow-y: auto; padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 2px; }
-.group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 700; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
+.group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
 .group.need { color: var(--amber); }
 .trow { text-align: left; border: 0; background: none; border-radius: 6px; padding: 9px 10px; display: grid; gap: 4px; width: 100%; }
 .trow:hover, .trow.on { background: var(--sel); }
 .trow.on { box-shadow: inset 3px 0 0 var(--ink); }
-.trow .ttl { font-weight: 600; font-size: 15px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow .ttl { font-weight: 500; font-size: 15px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trow .tsub { display: flex; gap: 7px; align-items: center; font-size: 14px; min-width: 0; }
 .trow .tsub .when { margin-left: auto; color: var(--soft); white-space: nowrap; }
 /* Thread rows: one line (status dot, title, who, age); the group says the status. */
@@ -282,7 +310,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
 .trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
-.stx { font-weight: 600; white-space: nowrap; }
+.stx { font-weight: 500; white-space: nowrap; }
 .st-working .stx, .st-new .stx { color: var(--green); }
 .st-waiting .stx { color: var(--amber); }
 .st-queued .stx { color: var(--soft); }
@@ -298,30 +326,45 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .main { min-width: 0; }
 .head { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-bottom: 1px solid var(--line); min-height: 60px; flex-wrap: wrap; }
 .head h2 { margin: 0; font-size: 19px; flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; background: var(--chip); }
-.head a { color: var(--green); font-size: 15px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; padding: 4px 10px; border-radius: 6px; background: var(--chip); }
+.head a { color: var(--green); font-size: 15px; font-weight: 500; }
 .back { display: none; }
+.ib { place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--r); background: none; color: var(--ink); flex: none; }
+.ib:hover { background: var(--sel); }
+.ponly { display: none; }
+:root .head a.btn { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; }
+/* Header controls share one quiet style: text or icon, no box until hover. */
+:root .head .btn.more { border-color: transparent; background: none; }
+@media (hover: hover) { :root .head .btn.more:hover, :root .head a.btn:hover { background: var(--sel); } }
+.psep { border-top: 1px solid var(--line); margin: 6px 4px; }
+a.opt { color: inherit; text-decoration: none; }
+.chip .ol { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed { flex: 1; overflow-y: auto; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 16px; container: feed / inline-size; }
-.feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; animation: rise .18s ease-out; }
+.feed > * { width: 100%; max-width: 820px; margin-left: auto; margin-right: auto; }
+/* Only a message that arrives while the thread is open rises in; opening a thread draws it at once. */
+.feed > .rise { animation: rise .18s ease-out; }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 
-/* Claude-style thinking: ✻ spinner, shimmering verb, elapsed time (frames, verbs and colours from Claude Code) */
-.thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--clay); min-width: 0; }
-.spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--clay); flex: none; vertical-align: -0.15em; }
-.star { display: inline-block; width: 1em; height: 1em; margin-right: 4px; color: var(--clay); vertical-align: -0.15em; }
-.spin svg, .star svg { width: 100%; height: 100%; fill: currentColor; display: block; }
-.thinking .verb { font-weight: 600; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
-.thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Working line: a still ✻, the name, how long, and the running step. Look › Working line › Lively brings back
+   Claude Code's turning spinner, shimmering verbs and Clawd (XIAO's first pick), off by default. */
+.thinking { display: flex; gap: 8px; align-items: center; font-size: 15px; color: var(--soft); min-width: 0; }
+.thinking b { color: var(--ink); font-weight: 500; white-space: nowrap; }
+:root[data-bg]:not([data-bg=""]) .feed > .thinking { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px; margin-left: max(36px, calc((100% - 820px) / 2 + 36px)); width: fit-content; max-width: calc(100% - 36px); box-sizing: border-box; }
+@container feed (max-width: 560px) { :root[data-bg]:not([data-bg=""]) .feed > .thinking { margin-left: 0; max-width: 100%; } }
+.spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
+.spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
+.thinking.lively, .thinking.lively .spin { color: var(--clay); }
+.thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-.trow .spin { font-size: 14px; width: 9px; }
 /* agents' thinking notes, folded like Claude's "Thought process" */
 .thought { border-left: 2px solid var(--line); padding: 0 0 0 12px; color: var(--soft); }
 .thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; min-height: 32px; }
 .thought summary::-webkit-details-marker { display: none; }
 .thought summary::after { content: '›'; font-size: 16px; transition: transform .15s; }
 .thought[open] summary::after { transform: rotate(90deg); }
-.thought summary b { color: var(--ink); font-weight: 600; }
+.thought summary b { color: var(--ink); font-weight: 500; }
 .thought .text { font-size: 15px; margin: 0 0 6px; }
 .thoughts-hidden { font-size: 13px; }
 /* Clawd, Claude Code's mascot, redrawn from its terminal sprite */
@@ -331,8 +374,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .clawd .cl-body, .clawd .cl-legs { fill: var(--clay); }
 .clawd .cl-eyes { fill: var(--clay-eye); }
 .clawd g, .clawd rect { transform-box: fill-box; transform-origin: center bottom; }
-.clawd .cl-eyes { transform-origin: center; animation: cl-blink 4.2s infinite; }
-.clawd .cl-up { animation: cl-bob 1.8s steps(2, jump-none) infinite; }
+.clawd .cl-eyes { transform-origin: center; }
+.clawd.anim .cl-eyes { animation: cl-blink 4.2s infinite; }
+.clawd.anim .cl-up { animation: cl-bob 1.8s steps(2, jump-none) infinite; }
 .clawd.busy .cl-up { animation: none; }
 .clawd.busy .lg.a { animation: cl-step .36s steps(2, jump-none) infinite; }
 .clawd.busy .lg.b { animation: cl-step .36s steps(2, jump-none) infinite reverse; }
@@ -357,25 +401,45 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .row.me .bubble { background: var(--me); border-color: transparent; border-radius: 10px 4px 10px 10px; max-width: 78%; box-shadow: none; }
 /* sender line: name, kind, time, then Copy at the right */
 .who { font-size: 14px; line-height: 20px; display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; margin-bottom: 3px; color: var(--soft); }
-.who .nm { color: var(--ink); font-weight: 700; }
+.who .nm { color: var(--ink); font-weight: 500; }
 .who .when { font-size: 13px; font-variant-numeric: tabular-nums; }
 .who .av.in { display: none; }
-.who.mini { float: right; margin: 0 0 0 12px; }
+/* A follow-on message's time + Copy never sit inside its first text line: on a computer at the row's right edge (past the 68ch text), on a phone in a small meta row above it. */
+.row.cont { position: relative; }
+.who.mini { position: absolute; right: 0; top: 0; margin: 0; }
 .feed > .cont { margin-top: -10px; }
-.label { font-size: 12px; font-weight: 700; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
+.label { font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
 .label.q { background: var(--amber); color: #fff; }
 /* message kinds: a question waiting for XIAO and a finished job carry a side bar; notes sit quieter */
 .k-question:not(.answered) > .bubble { border-left: 3px solid var(--amber); }
 .k-done > .bubble { border-left: 3px solid var(--green); }
 .k-note > .bubble { box-shadow: none; background: color-mix(in srgb, var(--panel) 72%, transparent); }
+/* Agents' text reads like a document: no bubble, just the name line and the text at reading width.
+   A question waiting for XIAO and a finished job keep a quiet card with a side bar. */
+.row:not(.me) > .bubble { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; }
+.row.k-question:not(.answered):not(.me) > .bubble, .row.k-done:not(.me) > .bubble { background: var(--panel); border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 10px 14px 12px; }
+.row.k-question:not(.answered):not(.me) > .bubble { border-left-color: var(--amber); }
+.row.k-done:not(.me) > .bubble { border-left-color: var(--green); }
+/* Over a background picture bare text is unreadable, so the bubbles come back there. */
+:root[data-bg]:not([data-bg=""]) .row:not(.me) > .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 .ask { display: grid; gap: 10px; margin-top: 8px; }
 .ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
-.ask-h { font-size: 13px; font-weight: 700; color: var(--soft); }
-.ask-o { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 8px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
-.ask-o small { display: block; color: var(--soft); }
+.ask-h { font-size: 13px; font-weight: 500; color: var(--soft); }
+/* An option: a radio circle (or checkbox square) before the label. Picked = filled mark, bolder label and a 2 px edge, not colour alone. */
+.ask-o { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: start; width: 100%; text-align: left; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.ask-o .mk { grid-row: 1 / span 2; width: 18px; height: 18px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--soft); border-radius: 50%; display: grid; place-items: center; color: var(--on-green); }
+.ask-o .mk.checkbox { border-radius: 4px; }
+.ask-o .ol { grid-column: 2; }
+.ask-o small { grid-column: 2; display: block; margin-top: 2px; font-size: 15px; line-height: 1.4; color: var(--soft); }
 .ask-o.on { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.ask-o.on .ol { font-weight: 500; }
+.ask-o.on .mk { border-color: var(--green); }
+.ask-o.on .mk.radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.ask-o.on .mk.checkbox { background: var(--green); }
+.ask-o .mk svg { display: block; }
+.ask-o:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ask-t { width: 100%; margin-top: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
-.ask-go { justify-self: start; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--green); color: var(--on-green); font: inherit; font-weight: 700; cursor: pointer; }
+.ask-go { justify-self: start; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--green); color: var(--on-green); font: inherit; font-weight: 500; cursor: pointer; }
 .ask-done { color: var(--soft); font-size: 14px; }
 .label.ok { background: var(--green); color: var(--on-green); }
 .text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.55; }
@@ -393,14 +457,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (max-width: 860px) { :root .md pre, :root .md pre code { white-space: pre-wrap; overflow-wrap: anywhere; } }
 .md pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
 .md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--soft); }
-.showmore { display: block; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--green); font-size: 14px; font-weight: 700; }
+.showmore { display: block; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--green); font-size: 14px; font-weight: 500; }
 .showmore:hover { text-decoration: underline; }
 /* a PR link in a "done" message, as a small card */
 .bubble a.prc { display: flex; align-items: center; gap: 10px; max-width: 420px; min-height: 44px; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); text-decoration: none; }
 .bubble a.prc:hover { border-color: var(--faint); }
-.prc b { white-space: nowrap; }
+.prc b { white-space: nowrap; font-weight: 500; }
 .prc span { flex: 1; min-width: 0; color: var(--soft); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prc i { font-style: normal; font-size: 14px; font-weight: 700; color: var(--green); }
+.prc i { font-style: normal; font-size: 14px; font-weight: 500; color: var(--green); }
 /* narrow feed (phones, or a computer with both sidebars open on a small screen): avatar moves into the sender line */
 @container feed (max-width: 560px) {
   .row:not(.me) { gap: 0; }
@@ -411,7 +475,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .pic { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; background: var(--line); min-height: 40px; }
 .text a, .bubble a { color: var(--green); }
 .picks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
-.picks span { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
+.picks span { font-size: 13px; font-weight: 500; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
 /* swipe a message left (or use its ⋯ on a computer) to show Delete */
 .sw { position: relative; overflow: hidden; flex: none; }
 /* Long feeds: skip layout and paint for messages far off screen (T3 render speed). */
@@ -419,8 +483,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 #feed > .sw:nth-last-child(-n+8) { content-visibility: visible; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
+/* Without bubbles the text would slide over the red Delete; a page-coloured backing hides it. */
+:root:not([data-bg]) .sw-in, :root[data-bg=""] .sw-in { background: var(--bg); }
 .sw.open .sw-in { transform: translateX(-104px); }
-.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 700; transition: opacity .15s; }
+.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s; }
 .sw.open .sw-del, .sw.drag .sw-del { opacity: 1; pointer-events: auto; }
 .sw-x { position: absolute; top: 2px; right: 2px; z-index: 2; opacity: 0; border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; background: var(--panel); color: var(--soft); font: inherit; font-size: 15px; line-height: 1.3; }
 .sw:hover .sw-x, .sw-x:focus-visible { opacity: 1; }
@@ -428,37 +494,41 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (hover: none) { .sw-x { display: none; } }
 /* Copy on every prompt and reply */
 /* quiet text button; the padding makes a 32 px tap area without growing the line */
-.cp { border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--soft); font: inherit; font-size: 13px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.cp { display: inline-grid; place-items: center; border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--faint); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
+.cp svg { display: block; }
 .cp:hover, .cp:focus-visible { color: var(--ink); background: var(--chip); }
 .cp.done { color: var(--green); }
-.who .cp { margin-left: auto; }
+.who .cp { margin-left: 0; }
 .who.mini .cp { margin-left: 0; }
-.me-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+.row.me > .who.mine { align-self: flex-start; margin: 2px 0 0; }
+/* Computers: a message's Copy shows on hover or focus; phones always show it, quietly. */
+/* Time and Copy sit together. On a computer a follow-on message (and your own) shows its time with Copy on hover or focus. */
+@media (hover: hover) { .feed .sw .cp, .feed .sw .who.mini .when, .feed .sw .who.mine .when { opacity: 0; transition: opacity .12s; } .feed .sw:hover .cp, .feed .sw:focus-within .cp, .feed .sw:hover .who .when, .feed .sw:focus-within .who .when { opacity: 1; } }
 /* hub notices: small and calm; an alert only gets an amber dot */
 .note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
-.task .who, .handover .who { font-weight: 700; }
+.task .who, .handover .who { font-weight: 500; }
 .handover .who { color: var(--ink); }
 .handover { border: 1px solid var(--line); border-left: 4px solid var(--green); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .handover dl { margin: 6px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
-.handover dt { font-weight: 700; }
+.handover dt { font-weight: 500; }
 .handover dd { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
 .handover dd.md { white-space: normal; }
 .cards { display: grid; gap: 8px; margin-top: 10px; }
 .tcard { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 11px 13px; width: 100%; transition: transform .12s ease-out; }
 .tcard:hover { background: var(--sel); border-color: var(--faint); transform: translateY(-1px); }
-.tcard .ttl { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcard .ttl { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tcard .meta { grid-column: 2; display: flex; gap: 8px; align-items: center; font-size: 14px; flex-wrap: wrap; }
-.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 14px; font-weight: 700; color: var(--green); }
+.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 14px; font-weight: 500; color: var(--green); }
 
 /* empty project chat */
 .hello { margin: auto; text-align: center; max-width: 560px; padding: 24px 8px; display: grid; gap: 14px; justify-items: center; }
 .hello h3 { margin: 0; font-size: 28px; line-height: 1.2; }
 .hello p { margin: 0; font-size: 17px; line-height: 1.5; max-width: 44ch; }
 .empty { margin: auto; text-align: center; display: grid; gap: 6px; max-width: 40ch; padding: 24px 8px; font-size: 16px; line-height: 1.5; }
-.empty b { font-size: 18px; }
+.empty b { font-size: 18px; font-weight: 500; }
 .starters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* composer */
@@ -468,21 +538,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .cbox textarea { width: 100%; border: 0; background: none; resize: none; padding: 4px 0; min-height: 28px; max-height: 40vh; outline: none; line-height: 1.45; }
 .cbox textarea:focus-visible { box-shadow: none; }
 .tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 5px 10px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: transform .12s ease-out; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 5px 10px; font-size: 14px; font-weight: 500; white-space: nowrap; transition: transform .12s ease-out; }
 .chip:hover { background: var(--sel); border-color: var(--faint); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .chip .caret { font-size: 11px; opacity: .7; }
 /* Options: the quiet button that opens every pick; only picks changed from the default show as chips. */
 .chip.quiet { background: none; border-color: transparent; color: var(--soft); }
 .chip.quiet:hover, .chip.quiet[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
-.cstate { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--soft); white-space: nowrap; }
+.cstate { margin-left: auto; font-size: 14px; font-weight: 500; color: var(--soft); white-space: nowrap; }
 .cstate.ok { color: var(--green); }
 .cstate.bad { color: var(--red); }
 .meter { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
 .meter i { width: 3px; border-radius: 1px; background: currentColor; opacity: .25; }
 .meter i:nth-child(1) { height: 4px; } .meter i:nth-child(2) { height: 6px; } .meter i:nth-child(3) { height: 8px; } .meter i:nth-child(4) { height: 10px; } .meter i:nth-child(5) { height: 12px; }
 .meter i.on { opacity: 1; }
-.send { flex: none; width: 38px; height: 38px; border-radius: 10px; transition: transform .1s, filter .15s; border: 0; background: var(--green); color: var(--on-green); font-size: 19px; font-weight: 700; display: grid; place-items: center; }
+.send { flex: none; width: 38px; height: 38px; border-radius: 10px; transition: transform .1s, filter .15s; border: 0; background: var(--green); color: var(--on-green); font-size: 19px; font-weight: 500; display: grid; place-items: center; }
 .send:hover:not(:disabled) { filter: brightness(1.08); }
 .send:active:not(:disabled) { transform: scale(.94); }
 .send:disabled { opacity: .45; cursor: default; }
@@ -493,7 +563,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .attach svg { width: 18px; height: 18px; }
 .cbox.over { border-color: var(--green); border-style: dashed; }
 .att { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.att-msg { font-size: 13px; font-weight: 600; color: var(--red); margin: -2px 0 6px; }
+.att-msg { font-size: 13px; font-weight: 500; color: var(--red); margin: -2px 0 6px; }
 .att-msg.info { color: var(--soft); }
 .fchip { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 240px; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 13px; line-height: 1.25; color: inherit; text-align: left; overflow: hidden; }
 button.fchip { cursor: pointer; font: inherit; font-size: 13px; }
@@ -501,7 +571,7 @@ button.fchip:hover { border-color: var(--faint); }
 .fchip .th { width: 36px; height: 36px; border-radius: 7px; background: var(--chip); flex: none; display: grid; place-items: center; overflow: hidden; font: 700 10px/1 ui-monospace, Menlo, monospace; color: var(--soft); }
 .fchip .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fchip .nm { min-width: 0; display: grid; }
-.fchip .nm b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fchip .nm b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fchip .nm small { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fchip.err { border-color: var(--red); }
 .fchip.err small { color: var(--red); }
@@ -517,13 +587,13 @@ button.fchip:hover { border-color: var(--faint); }
 /* popover menus */
 .pop { position: fixed; z-index: 6; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; width: 300px; max-width: calc(100vw - 24px); max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
 .pop.big { width: 360px; max-height: min(600px, 78vh); }
-.pop h4 { margin: 6px 10px 6px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.pop h4 { margin: 6px 10px 6px; font-size: 14px; font-weight: 500; color: var(--ink); }
 /* Options: every pick in one menu, one tap each */
 .pgrp { display: grid; gap: 6px; padding: 8px 8px 10px; }
 .pgrp + .pgrp, .pgrp + .pcheck { border-top: 1px solid var(--line); }
 .pgrp h4 { margin: 0; }
 .pseg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; border-radius: 9px; background: var(--chip); border: 1px solid var(--line); }
-.pseg button { border: 0; background: none; border-radius: 7px; padding: 7px 2px; min-height: 36px; font-size: 14px; font-weight: 600; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pseg button { border: 0; background: none; border-radius: 7px; padding: 7px 2px; min-height: 36px; font-size: 14px; font-weight: 500; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pseg button:hover { color: var(--ink); }
 .pseg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
 .ptogs { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -532,13 +602,13 @@ button.fchip:hover { border-color: var(--faint); }
 .pcheck { display: flex; gap: 10px; align-items: center; padding: 10px 8px; cursor: pointer; }
 .pcheck input { width: 20px; height: 20px; margin: 0; accent-color: var(--green); flex: none; }
 .pcheck span { display: grid; }
-.pcheck b { font-size: 15px; }
+.pcheck b { font-size: 15px; font-weight: 500; }
 .pcheck small { font-size: 14px; color: var(--soft); }
 .pop .foot .btn + .btn { margin-left: 6px; }
 .opt { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; width: 100%; text-align: left; border: 0; background: none; border-radius: 8px; padding: 9px 10px; transition: background-color .12s; }
 .opt:hover { background: var(--sel); }
 .opt.on { background: color-mix(in srgb, var(--green) 9%, transparent); }
-.opt b { font-size: 15px; }
+.opt b { font-size: 15px; font-weight: 500; }
 .opt small { grid-column: 2; font-size: 14px; color: var(--soft); }
 .opt .tick { grid-row: 1 / span 2; grid-column: 3; font-weight: 700; color: var(--green); visibility: hidden; }
 .opt.on .tick { visibility: visible; }
@@ -552,19 +622,16 @@ button.fchip:hover { border-color: var(--faint); }
 .thead { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px; }
 .thead h3 { margin: 0; font-size: 19px; flex: 1; }
 .cap { padding: 0 16px 10px; margin: 0; font-size: 15px; }
-.stats { display: flex; gap: 5px; padding: 0 12px 10px; }
-.stats div { flex: 1 1 auto; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; display: flex; align-items: baseline; gap: 5px; background: var(--bg); white-space: nowrap; }
-.stats b { font-size: 20px; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.stats b.ready { color: var(--green); } .stats b.low { color: var(--red); }
-.stats span { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 0 12px; }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
-.acard.low { border-color: var(--red); }
+/* Team: no alarm borders; the red word and the red bar carry "running low". */
+.tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; }
+.atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .atop .btn.more { padding: 1px 8px 5px; margin: -4px -4px -4px 0; }
 .ameta { display: flex; gap: 8px; align-items: center; min-width: 0; font-size: 14px; }
 .ameta .btn { padding: 3px 10px; }
-.ameta .state { margin-left: auto; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.ameta .state { margin-left: auto; font-size: 14px; font-weight: 500; white-space: nowrap; }
 .ameta .conn { white-space: nowrap; }
 .asub { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .asub .sub { flex: 1; min-width: 0; margin-top: 0; }
@@ -572,68 +639,71 @@ button.fchip:hover { border-color: var(--faint); }
 /* One usage line: 5-hour and weekly side by side. */
 .use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
-.u1 .lbl { font-weight: 600; color: var(--soft); }
-.u1 b { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
-.u1 .track { display: block; height: 6px; }
+.u1 .lbl { font-weight: 500; color: var(--soft); }
+.u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.u1 .track { display: block; height: 4px; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .nmrow { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
-.conn { font-size: 14px; font-weight: 600; color: var(--green); }
+.conn { font-size: 14px; color: var(--soft); }
 .conn.no { color: var(--amber); }
 .bubble.pending { opacity: .7; }
-.sending { font-size: 13px; font-weight: 600; margin-top: 6px; text-align: right; }
+.sending { font-size: 13px; font-weight: 500; margin-top: 6px; text-align: right; }
 .opt.danger b { color: var(--red); }
 .group.arch { border: 0; background: none; text-align: left; cursor: pointer; width: 100%; }
 .group.arch:hover { color: var(--ink); }
 .btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; }
-.aname .nm { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: var(--chip); }
-.state.ready, .state.busy { color: var(--green); } .state.low, .state.fix { color: var(--red); } .state.chat, .state.paused { color: var(--soft); }
-.acard .sub { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
+.aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan { font-weight: 400; color: var(--soft); }
+.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
+.acard .sub { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 .acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
-.use .lbl { font-weight: 600; }
-.use .pct { text-align: right; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.use .lbl { font-weight: 500; }
+.use .pct { text-align: right; font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums; }
 .use .rs { grid-column: 2 / span 2; color: var(--soft); font-size: 13px; margin-top: -2px; }
-.track { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
-.fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .4s ease; }
+.track { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+/* Usage bars are ink; amber and red warn. Green means "working" and nothing else. */
+.fill { height: 100%; background: color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 2px; transition: width .4s ease; }
 .fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
 .act { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 14px; border-left: 3px solid var(--green); padding-left: 8px; }
 .act-top { display: flex; gap: 8px; justify-content: space-between; }
-.act .ttl { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act .ttl { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act small { color: var(--soft); font-size: 12px; flex: none; white-space: nowrap; }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
-.ag-who { font-weight: 700; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
+.ag-who { font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
 .ag { display: grid; gap: 4px; padding: 7px 8px; border-radius: 8px; background: var(--sel); min-width: 0; }
 .ag-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ag-top .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ag-top .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .ag-top small { color: var(--soft); flex: none; }
 .ag .dot { background: var(--green); } .ag.done .dot { background: var(--faint); } .ag.failed .dot { background: var(--red); } .ag.stale .dot { background: var(--amber); }
 .ag-step { color: var(--soft); font-size: 14px; overflow-wrap: anywhere; }
 .ag .track { height: 5px; border-radius: 3px; background: var(--line, rgba(128,128,128,.25)); overflow: hidden; }
 .ag .track .fill { height: 100%; background: var(--green); transition: width .4s; } .ag.failed .fill { background: var(--red); }
 .tasks { padding: 14px 12px 0; display: grid; gap: 6px; }
+/* Tasks repeat the threads sidebar, so on a computer they show only while that sidebar is closed. */
+@media (min-width: 861px) { .app:not([data-side="off"]) .tasks { display: none; } }
 .tasks > *, .tgroup { min-width: 0; }
 .tasks .cap { white-space: nowrap; }
 .tasks .thead { padding: 4px 4px 0; }
 .tasks .cap { padding: 0; font-size: 14px; color: var(--soft); }
-.tgroup summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 7px 4px; font-weight: 700; font-size: 15px; list-style: none; }
+.tgroup summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 7px 4px; font-weight: 500; font-size: 15px; list-style: none; }
 .tgroup summary::-webkit-details-marker { display: none; }
 .tgroup summary::before { content: ""; width: 0; height: 0; border: 5px solid transparent; border-left: 6px solid var(--soft); margin-right: -2px; transition: transform .15s; }
 .tgroup[open] summary::before { transform: translateX(-2px) rotate(90deg); }
-.tgroup summary b { font-weight: 700; font-size: 13px; padding: 0 7px; border-radius: 9px; background: var(--chip); font-variant-numeric: tabular-nums; }
+.tgroup summary b { font-weight: 500; font-size: 13px; padding: 0 7px; border-radius: 9px; background: var(--chip); font-variant-numeric: tabular-nums; }
 .tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
 .tk:hover { background: var(--sel); }
 .tk .tk-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); }
-.tk .spin { width: 14px; }
+.tk.st-working .tk-dot { border-color: var(--green); }
 .tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
 .tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
-.tk .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.tk .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
 .tk small { color: var(--soft); font-size: 12px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
@@ -641,7 +711,7 @@ button.act:hover .ttl { text-decoration: underline; }
 .lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
 .lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
 .trow .lsub { color: var(--soft); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lk { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.lk { font-size: 12px; font-weight: 500; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .lk.do { background: var(--green); color: var(--on-green); }
 .lk.dont { background: var(--red); color: var(--bg); }
 .lempty { margin: 0; font-size: 15px; line-height: 1.45; }
@@ -678,15 +748,15 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .routine input { min-width: 0; }
 .routine .ferr { grid-column: 2; }
 #fRoutines { display: grid; gap: 8px; }
-.field { display: grid; gap: 6px; font-size: 15px; font-weight: 600; min-width: 0; }
+.field { display: grid; gap: 6px; font-size: 15px; font-weight: 500; min-width: 0; }
 .field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
 .field > span i { font-style: normal; font-weight: 400; color: var(--soft); }
 .field input[readonly] { color: var(--soft); }
-.ferr { font-size: 14px; font-weight: 600; color: var(--red); }
+.ferr { font-size: 14px; font-weight: 500; color: var(--red); }
 .ferr:empty { display: none; }
 .sheet [aria-invalid="true"] { border-color: var(--red); }
 .sdet { border-top: 1px solid var(--line); padding-top: 14px; }
-.sdet summary { cursor: pointer; font-weight: 700; font-size: 16px; }
+.sdet summary { cursor: pointer; font-weight: 500; font-size: 16px; }
 .sdet > div { display: grid; gap: 8px; margin-top: 10px; }
 #connLog { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .lacts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
@@ -698,15 +768,18 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .sheet .sbox { width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; border-bottom: 0; }
 }
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; border-radius: 9px; background: var(--chip); border: 1px solid var(--line); justify-self: start; }
-.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 14px; font-weight: 600; color: var(--soft); }
+.seg button { border: 0; background: none; border-radius: 7px; padding: 6px 14px; font-weight: 500; color: var(--soft); }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
 .walls { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
-.walls button { display: grid; gap: 6px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 600; color: var(--soft); text-align: center; }
+.walls button { display: grid; gap: 6px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; color: var(--soft); text-align: center; }
 .walls i { display: block; height: 58px; border-radius: 10px; border: 2px solid var(--line); background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
 .walls button[aria-pressed="true"] { color: var(--ink); }
 .walls button[aria-pressed="true"] i { border-color: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
-.sect { font-size: 13px; font-weight: 700; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.sect { font-size: 13px; font-weight: 500; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
 .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Team footer: four quiet text buttons of one style; Sign out last and muted. */
+.acts.foot { gap: 2px; margin: 0 -10px; }
+.acts.foot .so { margin-left: auto; color: var(--soft); }
 .acts a.btn { color: inherit; text-decoration: none; }
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tabs { display: none; }
@@ -722,24 +795,50 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .app[data-tab="chat"] .side, .app[data-tab="chat"] .team { display: none; }
   .app[data-tab="team"] .side, .app[data-tab="team"] .main { display: none; }
   .side, .team { border: 0; }
-  .back { display: inline-flex; }
-  .head > .avs, .wide { display: none; }
-  /* Title gets the first row next to Threads; status and actions wrap under it. */
-  .head { row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-  .head h2 { flex: 1 1 calc(100% - 120px); }
-  .head, .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
-  .compose { padding: 0 max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .back { display: inline-grid; }
+  .head > .avs, .wide, :root .head .hs, :root .head a.hs { display: none; }
+  .ponly { display: inline-flex; }
+  /* One header row: back, the title (up to two lines), the status dot, ⋯. */
+  :root .head { flex-wrap: nowrap; min-height: 56px; gap: 4px; padding: 6px max(8px, env(safe-area-inset-right)) 6px max(4px, env(safe-area-inset-left)); }
+  :root .head h2 { font-size: 18px; flex: 1 1 auto; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow: hidden; text-wrap: balance; }
+  /* Status: the dot and its word ("Working", "Needs you", "Done"), so it reads without colour. */
+  :root .head .pill { background: none; padding: 0 4px; min-height: 44px; gap: 5px; font-size: 14px; white-space: nowrap; flex: none; }
+  :root .head .btn.more { min-width: 44px; padding: 0; display: inline-grid; place-items: center; border-color: transparent; background: none; }
+  .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  /* One composer row: +, Options (sums up the picks), status, Send. */
+  .tools { flex-wrap: nowrap; margin-top: 4px; }
+  .tools .chip:not(.quiet) { display: none; }
+  .tools .chip.quiet { min-width: 0; max-width: 50vw; }
+  .cstate { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  :root .cbox { padding: 8px 8px 8px 14px; }
+  .compose { padding: 0 max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .app { height: var(--vvh, 100dvh); }
   /* Phone tap targets: at least 44px tall. */
   .btn, .btn.small, .back, .chip, .sw-del, .cp { min-height: 44px; }
   .btn.small, .chip, .cp, .sw-del { min-width: 44px; }
+  /* Follow-on time + Copy: one 20 px meta row (the 44 px tap area overhangs it). */
+  .who.mini { position: static; height: 20px; margin: 0 0 4px; }
+  .who.mine { height: 20px; margin-bottom: 0; }
+  .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
-  summary, .tk { min-height: 44px; }
+  summary, .tk, .trow.tn { min-height: 44px; }
+  /* The last heading in a tab never ends flush under the tab bar. */
+  .team, .side .list { padding-bottom: 56px; }
+  /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
+  .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+  .navrows { padding-bottom: 2px; }
+  /* Project chat and Team lessons: two cells on one surface; the open one is marked by weight and an underline, the count is a badge after its label. */
+  :root .app > .side .navpair .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
+  :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); box-shadow: inset 0 -3px 0 var(--kaya-ink); }
+  :root .app > .side .navpair .trow.tn.on .ttl { font-weight: 700; }
+  .navpair .trow.tn .ttl { flex: 0 1 auto; }
+  :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
+  .brand { padding-top: 10px; padding-bottom: 6px; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   html.kb .tabs { display: none; }
-  .tabs button { border: 0; background: none; padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 700; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; transition: color .15s, box-shadow .15s, background-color .15s; }
+  .tabs button { border: 0; background: none; padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 500; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; transition: color .15s, box-shadow .15s, background-color .15s; }
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
@@ -765,12 +864,14 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <div class="app hidden" id="app" data-tab="chat">
   <aside class="col side">
-    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
+    <div class="brand"><i class="logo" role="img" aria-label="Dop hub logo"></i><b>Dop hub</b><span id="clawdMark" title="Clawd"></span><span class="live" id="live" role="status" title="Live">Live</span><button type="button" class="btn quiet pbtn" data-panel="side" aria-label="Close threads" title="Close threads ( [ )"></button></div>
     <div class="newrow">
       <button class="btn newtask" id="newTask" type="button" title="Project chat: the coordinator splits it into threads"><i data-ico="plus" data-size="16"></i>New task</button>
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
-      <a class="btn newtask studio-link" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i>Studio</a>
-      <a class="btn newtask studio-link" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i>Library</a>
+    </div>
+    <div class="navrows">
+      <a class="trow tn" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
+      <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -800,9 +901,14 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 
 <script src="/ui/md.js"></script>
 <script src="ui/icons.js"></script>
+<script src="/ui/people.js"></script>
 <script>
 const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
+// The hub's own notes name models in lower case ("Started Main on opus."); the page shows the product names.
+const capModels = (s) => String(s).replace(/\b(opus|sonnet|haiku|fable)\b/g, (w) => MODEL_NAME[w]);
+// A thread the coordinator made: Project chat's routed reply names it (#id).
+const routedThread = (id) => S.messages.some((x) => x.thread === 0 && x.kind === 'routed' && new RegExp(`#${id}\\b`).test(x.text));
 const MODEL_HINT = { '': 'The coordinator picks per thread', opus: 'Hardest work and design', sonnet: 'Everyday coding', haiku: 'Quick, small jobs', fable: 'If your account has it' };
 // Claude's own effort levels.
 const THINK = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -928,9 +1034,14 @@ function pace() {
 // 30 s, so older means the page is behind, e.g. just shown again); the tooltip says when.
 function setLive(ok) {
   const el = $('live'), stale = ok && Date.now() - lastOk > 75_000;
-  el.textContent = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
-  el.classList.toggle('off', !ok || stale);
-  el.title = lastOk ? `Checked ${new Date(lastOk).toLocaleTimeString()}` : '';
+  // Live: a green dot and the quiet word; Offline or Updating… in red when something is wrong.
+  // Each poll calls this twice; writing only what changed keeps an idle page from re-laying out.
+  const word = !ok ? 'Offline' : stale ? 'Updating…' : 'Live';
+  if (el.textContent !== word) el.textContent = word;
+  if (el.classList.contains('off') !== (!ok || stale)) el.classList.toggle('off', !ok || stale);
+  const at = lastOk ? new Date(lastOk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const title = ok && !stale ? `Live${at ? ' · checked ' + at : ''}` : at ? `Last checked ${at}` : '';
+  if (el.title !== title) el.title = title;
 }
 async function tick() {
   clearTimeout(timer); timer = 0;
@@ -968,9 +1079,13 @@ function assignColors() {
     used.add(i); colors[n] = PALETTE[i];
   }
   initials = {};
-  for (const n of names) { const f = n[0].toUpperCase(); initials[n] = names.filter((x) => x[0].toUpperCase() === f).length > 1 ? f + (n[1] || '').toLowerCase() : f; }
+  for (const n of names) initials[n] = initialOf(n, names);
 }
-const acctOf = (from) => S.accounts.find((a) => from === a.name || String(from).startsWith(a.name + ' '));
+// ui/people.js; a plain fallback keeps the page working if that file did not load.
+const PEOPLE = window.hubPeople || { acctOf: (l, f) => l.find((a) => a.name === f) || null, initialOf: (n) => n[0].toUpperCase() };
+const { initialOf } = PEOPLE;
+// The account a message is from: exact name first, else the longest prefix, so Alt 2 is never Alt.
+const acctOf = (from) => PEOPLE.acctOf(S.accounts, from);
 const av = (name, size = '') => name ? `<span class="av ${size}" style="--c:${colors[name] || 'var(--faint)'}" title="${esc(name)}">${esc(initials[name] || name.slice(0, 1).toUpperCase())}</span>` : '';
 const avList = (names, size = 's') => names.length ? `<span class="avs">${names.slice(0, 4).map((n) => av(n, size)).join('')}</span>` : '';
 const meter = (lvl) => `<span class="meter">${THINK.map((t, i) => `<i class="${i <= THINK.indexOf(lvl) ? 'on' : ''}"></i>`).join('')}</span>`;
@@ -994,29 +1109,33 @@ const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
 
 // ---------- thinking and Clawd ----------
-// Spinner frames, verbs and colours are Claude Code's own (read from its CLI).
-// Drawn as SVG, not text: phones turn ✳ and friends into emoji and grey them.
-// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot].
+// The ✻ is Claude Code's own glyph, drawn as SVG (phones turn ✳ and friends into grey emoji).
+// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot]. Calm (default) shows ✻ still;
+// Look › Working line › Lively turns it, adds Claude Code's verbs and Clawd, as XIAO first asked.
 const petals = (n, len, w, dot) => `<svg viewBox="0 0 24 24" aria-hidden="true">${Array.from({ length: n }, (_, i) => `<ellipse cx="12" cy="${12 - len / 2}" rx="${w}" ry="${len / 2}" transform="rotate(${(i * 360) / n} 12 12)"/>`).join('')}${dot ? `<circle cx="12" cy="12" r="${dot}"/>` : ''}</svg>`;
 const SPIN = [petals(0, 0, 0, 2.2), petals(4, 9, 2.2, 1.6), petals(8, 10, 1, 1.4), petals(6, 10, 2.4, 2), petals(8, 10, 1.9, 0), petals(8, 11, 2.6, 1.8)];
 const SPIN_LOOP = [...SPIN, ...SPIN.slice().reverse()];
 let spinI = 0;
-const spin = () => `<span class="spin">${SPIN_LOOP[spinI]}</span>`;
+const lively = () => look.motion === 'lively';
 const VERBS = ['Accomplishing', 'Architecting', 'Baking', 'Beboppin\'', 'Brewing', 'Calculating', 'Canoodling', 'Cerebrating', 'Churning', 'Clauding', 'Cogitating', 'Combobulating', 'Concocting', 'Contemplating', 'Cooking', 'Crafting', 'Crunching', 'Deciphering', 'Deliberating', 'Doodling', 'Elucidating', 'Envisioning', 'Fermenting', 'Finagling', 'Forging', 'Frolicking', 'Generating', 'Germinating', 'Hatching', 'Herding', 'Honking', 'Ideating', 'Imagining', 'Incubating', 'Inferring', 'Kneading', 'Manifesting', 'Marinating', 'Meandering', 'Moseying', 'Mulling', 'Noodling', 'Orchestrating', 'Percolating', 'Philosophizing', 'Pondering', 'Pontificating', 'Puttering', 'Puzzling', 'Reticulating', 'Ruminating', 'Scampering', 'Schlepping', 'Simmering', 'Spelunking', 'Stewing', 'Synthesizing', 'Thinking', 'Tinkering', 'Transmogrifying', 'Unfurling', 'Vibing', 'Whirring', 'Wibbling', 'Working', 'Wrangling', 'Zigzagging'];
-// Each line starts on its own verb and moves to a new one every few seconds.
+// Lively: each line starts on its own verb and moves to a new one every few seconds.
 const VERB_MS = 3000;
 const verbSeed = (key) => { let h = 0; for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % VERBS.length; };
 const verbAt = (seed) => VERBS[(seed + Math.floor(Date.now() / VERB_MS) * 17) % VERBS.length];
 const span = (ms) => { const sec = Math.max(0, Math.floor(ms / 1000)); return sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${Math.floor(sec / 3600)}h ${Math.floor(sec / 60) % 60}m`; };
-// Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks.
+// Clawd: 18 x 5 pixels, each pixel 1 wide and 2 tall like the terminal's quarter blocks. Still unless lively.
 function clawd(cls = '') {
   return `<svg class="clawd ${cls}" viewBox="0 0 18 10" aria-hidden="true" shape-rendering="crispEdges"><g class="cl-up"><g class="cl-body"><rect x="3" y="0" width="12" height="8"/><rect class="cl-arm l" x="1" y="4" width="2" height="2"/><rect class="cl-arm r" x="15" y="4" width="2" height="2"/></g><g class="cl-eyes"><rect x="5" y="2" width="1" height="2"/><rect x="12" y="2" width="1" height="2"/></g></g><g class="cl-legs"><rect class="lg a" x="4" y="8" width="1" height="2"/><rect class="lg b" x="6" y="8" width="1" height="2"/><rect class="lg a" x="11" y="8" width="1" height="2"/><rect class="lg b" x="13" y="8" width="1" height="2"/></g></svg>`;
 }
-// One live line per agent at work: the text stays fixed so the feed only
-// redraws on news; the spinner and clock tick in place.
-function thinkingLine(who, since, key) {
-  return `<div class="thinking">${clawd('s busy')}${spin()}<span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(<span class="since" data-since="${since}"></span> · ${esc(who)})</span></div>`;
+const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.now() - at)}</span>`;
+// One live line per agent at work: who, how long, and the step its running sub-agent reports
+// ("Main working · 1m 16s · Run 3 of 5"). The clock ticks in place, so the feed only redraws on news.
+function thinkingLine(who, since, key, state = 'working', step = '') {
+  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''})</span></div>`;
+  return `<div class="thinking"><span class="spin" aria-hidden="true">${SPIN[4]}</span><b>${esc(who)}</b><span class="tmeta">${state} · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}</span></div>`;
 }
+// The step of a sub-agent this account is running for this thread, if it reported one.
+const stepOf = (t, name) => { const g = (S.agents || []).find((x) => x.thread === t.id && x.account === name && x.status === 'running'); return g ? g.step || g.title || '' : ''; };
 // Who is working in this view right now.
 function liveLines(t, msgs) {
   if (!t) {
@@ -1027,27 +1146,29 @@ function liveLines(t, msgs) {
   }
   if (t.archived || !['working', 'new'].includes(t.status)) return '';
   const out = [];
-  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.status === 'new' ? `${t.account}, starting` : t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`));
-  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`));
+  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`, t.status === 'new' ? 'starting' : 'working', stepOf(t, t.account)));
+  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', stepOf(t, n)));
   return out.join('');
 }
 let verbStep = Math.floor(Date.now() / VERB_MS);
 // Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
+// Calm: one tick a second, clock text only. Lively: Claude Code's 120 ms spinner.
 const SPINS = document.getElementsByClassName('spin'), VERB_ELS = document.getElementsByClassName('verb'), SINCE_ELS = document.getElementsByClassName('since');
 let spinTimer = 0;
 function spinTick() {
-  if (!SPINS.length && !SINCE_ELS.length) return;
-  spinI = (spinI + 1) % SPIN_LOOP.length;
-  for (const el of SPINS) el.innerHTML = SPIN_LOOP[spinI];
-  if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
-    verbStep = Math.floor(Date.now() / VERB_MS);
-    for (const el of VERB_ELS) if (el.dataset.verb) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+  if (!SINCE_ELS.length && !VERB_ELS.length) return;
+  if (VERB_ELS.length) {
+    spinI = (spinI + 1) % SPIN_LOOP.length;
+    for (const el of SPINS) if (el.dataset.spin !== undefined) el.innerHTML = SPIN_LOOP[spinI];
+    if (Math.floor(Date.now() / VERB_MS) !== verbStep) {
+      verbStep = Math.floor(Date.now() / VERB_MS);
+      for (const el of VERB_ELS) if (el.dataset.verb) el.textContent = verbAt(Number(el.dataset.verb)) + '…';
+    }
   }
-  for (const el of SINCE_ELS) el.textContent = span(Date.now() - Number(el.dataset.since));
+  for (const el of SINCE_ELS) { const v = span(Date.now() - Number(el.dataset.since)); if (el.textContent !== v) el.textContent = v; }
 }
-function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, 120); if (!document.hidden) spinTick(); }
+function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, lively() ? 120 : 1000); if (!document.hidden) spinTick(); }
 document.addEventListener('visibilitychange', spinRun);
-spinRun();
 // Agents' thinking notes: hidden, folded (default) or open, and per account.
 let think = { mode: 'fold', hide: [] };
 try { think = { ...think, ...JSON.parse(ls.get('hub-think') || '{}') }; } catch {}
@@ -1076,18 +1197,24 @@ $('feed').addEventListener('click', (e) => {
 
 // ---------- sidebar ----------
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
-let lastByThread = new Map(); // filled once per renderSide
+// Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
+let lastByThread = new Map(), lastByThreadAcct = new Map();
+let sameWhen = false; // every row would say the same age: then rows show none
+const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
-  const last = lastByThread.get(t.id);
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status} ${sel === t.id ? 'on' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"${sel === t.id ? ' aria-current="true"' : ''}>${t.status === 'working' && !t.archived ? spin() : '<span class="dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 2))}<span class="when">${last ? ago(Date.now() - last.at).replace('just now', 'now') : ''}</span></button>`;
+  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
-  lastByThread = new Map(); for (const m of S.messages) lastByThread.set(m.thread, m);
-  setHtml($('clawdMark'), clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'busy' : ''));
+  lastByThread = new Map(); lastByThreadAcct = new Map();
+  for (const m of S.messages) {
+    lastByThread.set(m.thread, m);
+    if (m.kind !== 'thinking' && m.from !== 'XIAO' && m.from !== 'hub') { const a = acctOf(m.from); if (a) lastByThreadAcct.set(`${m.thread}|${a.name}`, m); }
+  }
+  setHtml($('clawdMark'), lively() ? clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'anim busy' : 'anim') : '');
   $('newChat').setAttribute('aria-pressed', sel === NEW_CHAT);
   const find = $('tFind');
   find.parentElement.classList.toggle('hidden', S.threads.length < FIND_AT && !find.value);
@@ -1103,14 +1230,23 @@ function renderSide() {
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
   const last = S.messages.filter((m) => m.thread === 0 && m.from === 'XIAO').at(-1);
+  sameWhen = new Set(groups.flatMap((g) => g[1]).map(rowWhen)).size < 2;
+  // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
+  let html;
   if (q) {
-    $('threads').innerHTML = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else $('threads').innerHTML = `<button class="trow ${sel === 0 ? 'on' : ''}" data-thread="0"><span class="ttl">Project chat</span><span class="tsub"><span class="stx" style="color:var(--soft);font-weight:400;overflow:hidden;text-overflow:ellipsis">${last ? esc('You: ' + (last.text.split('\n')[0] || (last.meta?.files || []).map((f) => f.name).join(', ')).slice(0, 60)) : 'Start here'}</span></span></button>`
-    + (S.accounts.length ? `<button class="trow" data-open="lessons"><span class="ttl">Team lessons · ${S.lessons.length}</span><span class="tsub"><span class="lsub">${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}</span></span></button>` : '')
+  } else html = `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
+  // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
+  setHtml($('threads'), html);
+  const box = $('threads');
+  for (const el of box.querySelectorAll('.trow.on')) if (el.dataset.thread !== String(sel)) { el.classList.remove('on'); el.removeAttribute('aria-current'); }
+  const cur = box.querySelector(`.trow[data-thread="${sel}"]`);
+  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
@@ -1118,7 +1254,7 @@ function renderSide() {
 // ---------- feed ----------
 function threadCard(t) {
   return `<button class="tcard st-${t.status}" data-thread="${t.id}"><span class="dot"></span><span class="ttl">${esc(t.title)}</span><span class="go">Open</span>
-    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(t.archived ? 'Archived' : STATUS[t.status])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span>${meter(t.thinking || 'medium')}</span></span></button>`;
+    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(t.archived ? 'Archived' : STATUS[t.status])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
 }
 function picksOf(meta) {
   if (!meta) return '';
@@ -1130,7 +1266,7 @@ const copyText = new Map();
 function copyBtn(m, text = m.text) {
   if (!text) return '';
   copyText.set(String(m.id), text);
-  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy this message" aria-label="Copy this message">Copy</button>`;
+  return `<button type="button" class="cp" data-mcopy="${esc(String(m.id))}" title="Copy message" aria-label="Copy message">${icon('copy', 16)}</button>`;
 }
 async function copyToClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch {}
@@ -1174,7 +1310,7 @@ function emptyHtml(t) {
 }
 function helloHtml() {
   return `<div class="hello">
-      <span class="stroll">${clawd('l wave')}</span>
+      ${lively() ? `<span class="stroll">${clawd('l anim wave')}</span>` : clawd('l')}
       <span class="avs">${(S.accounts.length ? S.accounts : [{ name: 'D' }, { name: 'O' }, { name: 'P' }]).slice(0, 5).map((a) => av(a.name, 'l')).join('')}</span>
       <h3>What should the team work on?</h3>
       <p>Write a task below. The coordinator splits it into threads and gives each one to an account.</p>
@@ -1183,11 +1319,11 @@ function helloHtml() {
 }
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
-  if (m.from === 'XIAO') return `<div class="row me"><div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : `<div class="me-foot">${copyBtn(m)}</div>`}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(m.text)} <span class="nt">· ${clock(m.at)}</span></span></div>`;
+  if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(capModels(m.text))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
-  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from !== 'hub' ? ` · from ${esc(m.from)}` : ''} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
+  if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from === 'hub' ? '' : routedThread(m.thread) ? ` · from coordinator (${esc(m.from)})` : ` · from ${esc(m.from)}`} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
   if (m.kind === 'handover') {
     const get = (k) => (new RegExp(`^${k}: ([\\s\\S]*?)(?=\\n(?:Done|Next|Branch): |$)`, 'm').exec(m.text) || [])[1] || '';
     return `<div class="handover"><div class="who">${av(a?.name, 's')}Handover from ${esc(m.from)} ${when} ${copyBtn(m)}</div><dl><dt>Done</dt><dd class="md">${mdHtml(get('Done'))}</dd><dt>Next</dt><dd class="md">${mdHtml(get('Next'))}</dd>${get('Branch') ? `<dt>Branch</dt><dd>${esc(get('Branch'))}</dd>` : ''}</dl></div>`;
@@ -1203,13 +1339,13 @@ function msgHtml(m) {
   const kind = ['question', 'done', 'progress', 'answer', 'lesson'].includes(m.kind) ? m.kind : 'note';
   const ans = m.kind === 'question' && answered(m);
   const label = m.kind === 'question' ? (ans ? '<span class="label">Answered</span>' : '<span class="label q">Question for you</span>') : m.kind === 'done' ? '<span class="label ok">Done</span>' : m.kind === 'answer' ? '<span class="label">Answer</span>' : m.kind === 'lesson' ? '<span class="label">Lesson for the team</span>' : '';
-  let text = m.kind === 'lesson' ? m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '') : m.text;
+  let text = m.kind === 'lesson' ? lessonProse(m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '')) : m.text;
   // A "done" shows its PR links as small cards; a link at the very end leaves the text.
   const prs = m.kind === 'done' && MD ? MD.prLinks(text) : [];
   if (prs.length) text = MD.withoutTrailingPr(text);
   const card = m.kind === 'question' && m.meta?.questions ? askHtml(m) : '';
   const cont = contOf(m);
-  const head = cont ? `<div class="who mini" title="${esc(clock(m.at))}">${copyBtn(m)}</div>` : `<div class="who">${a ? av(a.name, 's in') : ''}<b class="nm">${esc(m.from)}</b>${label}${when}${copyBtn(m)}</div>`;
+  const head = cont ? `<div class="who mini">${when}${copyBtn(m)}</div>` : `<div class="who">${a ? av(a.name, 's in') : ''}<b class="nm">${esc(m.from)}</b>${label}${when}${copyBtn(m)}</div>`;
   return `<div class="row k-${kind}${ans ? ' answered' : ''}${cont ? ' cont' : ''}">${cont ? '<span class="av-gap"></span>' : a ? av(a.name) : '<span class="av hub">?</span>'}<div class="bubble${card ? ' bwide' : ''}">${head}${card || (text ? bodyHtml(m, text) : '')}${prs.map(prCard).join('')}${imgOf(m.meta)}</div></div>`;
 }
 // Tappable question card (an agent's ask_user). Picks live in askSel so the 3 s refresh keeps them.
@@ -1220,11 +1356,33 @@ function askHtml(m) {
   const sel = (askSel[m.id] ||= {});
   const qs = m.meta.questions.map((q, qi) => {
     const mine = sel[qi] || (sel[qi] = { picks: [], other: '' });
-    const opts = q.options.map((o, oi) => `<button type="button" class="ask-o${mine.picks.includes(o.label) ? ' on' : ''}" data-ask="${m.id}:${qi}:${oi}">${esc(o.label)}${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`).join('');
-    return `<div class="ask-q"><div class="ask-h">${esc(q.header)}</div><div>${esc(q.question)}</div>${opts}<input class="ask-t" data-ask-other="${m.id}:${qi}" placeholder="Other…" value="${esc(mine.other)}"></div>`;
+    // Single choice is a radiogroup (arrow keys move and pick); several choices are checkboxes. One option takes Tab.
+    const role = q.multiSelect ? 'checkbox' : 'radio';
+    const tabAt = Math.max(0, q.options.findIndex((o) => mine.picks.includes(o.label)));
+    const opts = q.options.map((o, oi) => { const on = mine.picks.includes(o.label); return `<button type="button" role="${role}" aria-checked="${on}" tabindex="${q.multiSelect || oi === tabAt ? 0 : -1}" class="ask-o${on ? ' on' : ''}" data-ask="${m.id}:${qi}:${oi}"><span class="mk ${role}" aria-hidden="true">${on && q.multiSelect ? icon('check', 14) : ''}</span><span class="ol">${esc(o.label)}</span>${o.description ? `<small>${esc(o.description)}</small>` : ''}</button>`; }).join('');
+    const hid = `askh-${m.id}-${qi}`;
+    return `<div class="ask-q"><div class="ask-h" id="${hid}">${esc(q.header)}${q.multiSelect ? ' · pick any' : ''}</div><div id="${hid}q">${esc(q.question)}</div><div role="${q.multiSelect ? 'group' : 'radiogroup'}" aria-labelledby="${hid} ${hid}q">${opts}</div><input class="ask-t" data-ask-other="${m.id}:${qi}" placeholder="Other…" aria-label="Other answer" value="${esc(mine.other)}"></div>`;
   }).join('');
   return `<div class="ask">${qs}<button type="button" class="ask-go" data-ask-go="${m.id}">Send answers</button></div>`;
 }
+// Redraw the card and keep focus on the option the keyboard or pointer is on.
+function askRefocus(key) {
+  renderFeed();
+  const el = document.querySelector(`[data-ask="${key}"]`);
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+}
+// Arrow keys in a single-choice group move to the next option and pick it, as radios do.
+$('feed').addEventListener('keydown', (e) => {
+  const o = e.target.closest?.('[data-ask][role="radio"]');
+  if (!o || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
+  e.preventDefault();
+  const [id, qi, oi] = o.dataset.ask.split(':').map(Number);
+  const m = S.messages.find((x) => x.id === id); const q = m?.meta?.questions?.[qi]; if (!q) return;
+  const n = q.options.length;
+  const to = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (oi + (['ArrowDown', 'ArrowRight'].includes(e.key) ? 1 : -1) + n) % n;
+  askSel[id][qi].picks = [q.options[to].label];
+  askRefocus(`${id}:${qi}:${to}`);
+});
 async function askSend(id) {
   const m = S.messages.find((x) => x.id === id); const sel = askSel[id] || {};
   if (!m) return;
@@ -1293,23 +1451,26 @@ function applyPanels() {
 function togglePanel(k) { panels[k] = !panels[k]; ls.set('hub-panels', JSON.stringify(panels)); applyPanels(); }
 const panelBtn = (k) => `<button type="button" class="btn quiet pbtn" data-panel="${k}"></button>`;
 function renderHead(t) {
-  const back = '<button class="btn small back" id="back" type="button">Threads</button>' + panelBtn('side');
+  const back = `<button class="back ib" id="back" type="button" aria-label="Threads" title="Threads">${icon('chevron-left', 22)}</button>` + panelBtn('side');
+  // The header holds status, Session and ⋯ only; how agents' thinking shows is a setting in ⋯.
+  // Phones: Session moves into ⋯ too.
+  const pill = (cls, dot, word) => `<span class="pill ${cls}" title="${esc(word)}"><span class="dot"${dot}></span><span class="pl">${esc(word)}</span></span>`;
+  const more = (cls = '') => `<button type="button" class="btn small more ${cls}" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>`;
   if (!t && sel === NEW_CHAT) {
     setHtml($('head'), `${back}<h2>New chat</h2><span class="pill wide">One agent · no coordinator</span>`);
     return;
   }
   if (!t) {
     const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
-    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}<span class="pill"><span class="dot" style="background:${running ? 'var(--green)' : 'var(--faint)'}"></span>${running ? `${running} running` : 'All quiet'}</span><button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>${panelBtn('team')}`);
+    setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} thread${running > 1 ? 's' : ''} running` : 'All quiet')}${more()}${panelBtn('team')}`);
     applyPanels(); return;
   }
   // Title, who is on it, status; one contextual action (Start again / Restore); Mark done, Archive and Delete live in ⋯.
-  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}<span class="pill st-${t.status}"><span class="dot"></span>${esc(t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status])}</span>
-    ${t.sessionUrl ? `<a href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session">Session</a>` : ''}
+  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${t.status}`, '', t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status])}
+    ${t.sessionUrl ? `<a class="btn small quiet hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : ''}
-    <button type="button" class="btn small quiet" data-pop="think" title="Show or hide the agents' thinking"><span class="wide star">${SPIN[4]}</span>Thinking</button>
-    <button type="button" class="btn small more" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>${panelBtn('team')}`);
+    ${more()}${panelBtn('team')}`);
   applyPanels();
 }
 // The feed is a list of keyed items (one per message, plus the handover, the
@@ -1368,13 +1529,23 @@ function feedToBottom(f) {
   const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
   go();
 }
+// Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
+function oneStartPerAccount(list) {
+  let last = '';
+  return list.filter((m) => {
+    if (m.from !== 'hub' || m.kind !== 'start') return true;
+    const who = (/started on (.+?) \(/.exec(m.text) || [])[1] || m.text;
+    if (who === last) return false;
+    last = who; return true;
+  });
+}
 function renderFeed() {
   const feed = $('feed');
   const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   const t = S.threads.find((x) => x.id === sel);
   if (sel > 0 && !t) sel = 0;
   renderHead(t);
-  const msgs = S.messages.filter((m) => m.thread === sel);
+  const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
   const ctx = feedCtx();
   // The first message drawn stays put while new ones arrive, so the old ones keep their nodes.
   if (feedEarly[sel] === undefined) feedEarly[sel] = Math.max(0, msgs.length - FEED_SHOW);
@@ -1386,8 +1557,8 @@ function renderFeed() {
   const hid = think.mode === 'hide' ? msgs.filter((m) => m.kind === 'thinking').length : 0;
   if (hid) items.push({ k: 'hidden', h: `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>` });
   const live = liveLines(t, msgs);
-  // c: what counts as a change; the spinner frame and verb tick in place, so the line keeps its node.
-  if (live) items.push({ k: 'live', h: live, c: live.replace(/<span class="spin">.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
+  // c: what counts as a change; the clock (and a lively spinner and verb) tick in place, so the line keeps its node.
+  if (live) items.push({ k: 'live', h: live, c: live.replace(/(class="since"[^>]*>)[^<]*/g, '$1').replace(/<span class="spin" data-spin>.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
   if (!items.length) {
     let html = S.loading ? '<div class="note">Loading…</div>' : '';
     if (!html && sel === NEW_CHAT) html = `<div class="hello">
@@ -1400,8 +1571,10 @@ function renderFeed() {
     items.push({ k: 'empty:' + sel, h: html });
   }
   // A different view starts from scratch; the same view keeps its nodes.
+  const fresh = feed.dataset.sel !== String(sel) || !feedItems.length;
   if (feed.dataset.sel !== String(sel)) { feedItems = []; feed.textContent = ''; }
   const added = patchFeed(feed, items);
+  if (added && !fresh && added.length <= 3) for (const x of added) if (typeof x.k === 'number' || String(x.k).startsWith('tmp')) for (const n of x.nodes) if (n.nodeType === 1) n.classList.add('rise');
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
   if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed);
   feed.dataset.sel = String(sel);
@@ -1535,6 +1708,8 @@ function setSendSt(k, s, msg = '') { sendSt[k] = s ? { s, msg } : null; if (k ==
 let sendingNow = false;
 const OPT_DEF = { model: '', thinking: 'medium', accounts: [], team: 1, direct: false };
 // Only picks changed from the default show as chips; Options opens all of them.
+const PHONE = matchMedia('(max-width: 860px)');
+PHONE.addEventListener?.('change', () => renderTools(S.threads.find((x) => x.id === sel)));
 function renderTools(t) {
   const p = curPicks(t), st = sendSt[sel];
   const caret = `<span class="caret">${icon('chevron-down', 12)}</span>`;
@@ -1545,10 +1720,12 @@ function renderTools(t) {
     p.team > 1 && `<button type="button" class="chip" data-pop="team" title="How many accounts work this together">${teamName(p.team)}${caret}</button>`,
     !t && sel !== NEW_CHAT && opts.direct && '<button type="button" class="chip" data-toggle="direct" aria-pressed="true" title="Skip the coordinator and make one thread. Tap to turn off.">One thread</button>',
   ].filter(Boolean);
+  // Phones: the changed picks are summed up on the Options button instead of chips, so Send stays on the row.
+  const sum = PHONE.matches ? [p.model && MODEL_NAME[p.model], p.thinking !== 'medium' && THINK_NAME[p.thinking], p.accounts.length && (p.accounts.length === 1 ? p.accounts[0] : `${p.accounts.length} accounts`), p.team > 1 && teamName(p.team), !t && sel !== NEW_CHAT && opts.direct && 'One thread'].filter(Boolean).join(' · ') : '';
   const label = { up: 'Uploading…', sending: 'Sending…', sent: 'Sent', failed: `Not sent: ${st?.msg || 'try again'}` }[st?.s] || '';
   const html = `
     <button type="button" class="attach" data-attach title="Add files (or drop or paste them here)" aria-label="Add files">${icon('plus', 18)}</button>
-    <button type="button" class="chip quiet" data-pop="opts" aria-haspopup="true" aria-expanded="${popKind === 'opts'}" title="Model, thinking, accounts and team">Options${caret}</button>${chips.join('')}
+    <button type="button" class="chip quiet" data-pop="opts" aria-haspopup="true" aria-expanded="${popKind === 'opts'}" title="Model, thinking, accounts and team"><span class="ol">${esc(sum || 'Options')}</span>${caret}</button>${chips.join('')}
     <span class="cstate ${st?.s === 'sent' ? 'ok' : st?.s === 'failed' ? 'bad' : ''}" role="status">${esc(label)}</span>
     <button class="send" type="submit" aria-label="Send" title="Send (Enter)" id="sendBtn" ${sendingNow ? 'disabled aria-busy="true"' : ''}>${icon('arrow-up', 20)}</button>`;
   const tools = $('tools');
@@ -1596,9 +1773,13 @@ function openPop(kind, anchor) {
       <p style="margin:8px 10px">Agents post a short note at key decisions. Their full private reasoning stays in each session (Open session).</p>
       <div class="foot"><button type="button" class="btn small primary" data-popdone>Done</button></div>`;
   } else if (kind === 'tmenu') {
-    pop.innerHTML = `${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
+    // The thinking setting lives here (a setting, not a status); phones also get the Session link.
+    const phone = matchMedia('(max-width: 860px)').matches;
+    const thinkOpts = `<h4>Show agents' thinking notes</h4>${[['hide', 'Hidden', 'Only a count'], ['fold', 'Folded', 'One line each'], ['open', 'Open', 'In full']].map(([v, n, h]) => `<button type="button" class="opt ${think.mode === v ? 'on' : ''}" data-pick="think-mode" data-v="${v}" aria-pressed="${think.mode === v}"><span></span><b>${n}</b><span class="tick">${icon('check', 16)}</span><small>${h}</small></button>`).join('')}<button type="button" class="opt" data-tact="think"><span></span><b>Per account</b><small>Whose notes and working line to show</small></button>`;
+    if (!t) { pop.innerHTML = thinkOpts; }
+    else pop.innerHTML = `${phone && t.sessionUrl ? `<a class="opt" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener"><span></span><b>Open session</b><small>This thread's Claude session</small></a>` : ''}${t.status !== 'done' && !t.archived ? '<button type="button" class="opt" data-tact="done"><span></span><b>Mark done</b><small>The work is finished</small></button>' : ''}
       ${t.archived ? '<button type="button" class="opt" data-tact="restore"><span></span><b>Restore</b><small>Put it back in the list</small></button>' : '<button type="button" class="opt" data-tact="archive"><span></span><b>Archive</b><small>Hide it and start no new sessions. You can restore it.</small></button>'}
-      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button>`;
+      <button type="button" class="opt danger" data-tact="delete"><span></span><b>Delete</b><small>Remove it and its messages for good</small></button><div class="psep"></div>${thinkOpts}`;
   } else if (kind.startsWith('amenu:')) {
     pop.innerHTML = acctMenu(kind.slice(6));
   } else if (kind === 'accounts') {
@@ -1660,6 +1841,7 @@ $('pop').addEventListener('click', async (e) => {
   }
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.popdone !== undefined) return closePop();
+  if (b.dataset.tact === 'think') return openPop('think', document.querySelector('#head [data-pop="tmenu"]') || b);
   if (b.dataset.tact) return threadAction(b.dataset.tact);
   const t = S.threads.find((x) => x.id === sel);
   const cur = curPicks(t).accounts.slice();
@@ -1668,7 +1850,8 @@ $('pop').addEventListener('click', async (e) => {
     if (b.dataset.pick === 'think-mode') think.mode = v;
     else think.hide = think.hide.includes(v) ? think.hide.filter((x) => x !== v) : [...think.hide, v];
     saveThink(); render();
-    return openPop('think', document.querySelector('[data-pop="think"]') || b);
+    const from = popKind === 'tmenu' ? 'tmenu' : 'think';
+    return openPop(from, document.querySelector(`#head [data-pop="${from}"]`) || b);
   }
   if (b.dataset.pick === 'model') { closePop(); return setPick({ model: b.dataset.v }); }
   if (b.dataset.pick === 'thinking') { closePop(); return setPick({ thinking: b.dataset.v }); }
@@ -1698,7 +1881,7 @@ function activityOf(a) {
   const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
   const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   const row = (t) => {
-    const last = S.messages.filter((m) => m.thread === t.id && acctOf(m.from)?.name === a.name && m.kind !== 'thinking').at(-1);
+    const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
     return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${t.account === a.name ? 'lead' : 'member'}${last ? ' · ' + esc(since(last.at)) : ''}</small></div></button>`;
   };
   return `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div></div>`).join('')}`;
@@ -1710,15 +1893,14 @@ function accountCard(a) {
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
   const sub = a.problem || (a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${back(a.lowUntil)}, then its threads continue` : ''}` : a.pausedUntil > Date.now() ? `${a.pausedNote} · tries again ${back(a.pausedUntil) === 'now' ? 'now' : 'at ' + back(a.pausedUntil)}` : '');
   const act = activityOf(a);
-  const conn = a.oldLink || !a.connected
-    ? `<button class="btn small primary" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>`
-    : '<span class="conn">' + icon('check', 14) + ' Connected</span>';
+  // Only a missing or old connection is worth a line; a working one says nothing.
+  const conn = a.oldLink || !a.connected ? `<div class="ameta"><button class="btn small primary" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : ''}</div>` : '';
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : `<div class="nouse" title="${esc(a.usageErr || '')}">${a.usageErr ? 'No usage shared yet' : a.models.length ? 'Usage not read yet' : 'Free plans don\'t share usage'}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
-    <div class="ameta">${conn}<span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span></div>
-    ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Usage is back</button>` : ''}</div>` : ''}
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    ${conn}
+    ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Mark usage reset</button>` : ''}</div>` : ''}
     ${act}
     ${usage}
   </div>`;
@@ -1746,12 +1928,12 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}">${t.status === 'working' ? spin() : '<span class="tk-dot" aria-hidden="true"></span>'}<span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
   if (!live.length) return '';
-  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
+  return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} task${live.length === 1 ? '' : 's'} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
     const rows = live.filter(f);
     return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
   }).join('')}</div>`;
@@ -1770,7 +1952,7 @@ function agentPanel() {
   if (!list.length) return '';
   const run = list.filter((g) => g.status === 'running').length;
   const names = [...new Set(list.map((g) => g.account))];
-  return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run} running</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
+  return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run ? `${run} agent${run > 1 ? 's' : ''} running` : 'None running'}</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
 }
 function renderTeam() {
   // Accounts that need XIAO come first.
@@ -1779,19 +1961,35 @@ function renderTeam() {
   const n = (k) => S.accounts.filter((a) => acctState(a)[0] === k).length;
   const ov = S.overhead || {};
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
-  setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small quiet" data-refresh title="Read usage from Claude now">Refresh</button><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${S.accounts.length ? `<div class="stats"><div><b class="ready">${n('ready') + n('chat')}</b><span>Ready</span></div><div><b class="busy">${n('busy')}</b><span>Working</span></div><div><b class="${n('low') + n('paused') ? 'low' : ''}">${n('low') + n('paused')}</b><span>Low</span></div>${n('fix') ? `<div><b class="low">${n('fix')}</b><span>Needs you</span></div>` : ''}</div>` : '<p class="cap">No accounts yet. Press Add to start.</p>'}
+  // The header says only what is not routine: how many work, run low or need XIAO.
+  const accts = (k) => `${k} account${k > 1 ? 's' : ''}`;
+  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
+  setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
+    ${counts ? `<p class="tsum">${esc(counts)}</p>` : ''}
+    ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens this 5 hours, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
-      <div class="acts"><button class="btn small" data-open="settings">Settings</button><button class="btn small" data-open="look">Look</button><button class="btn small quiet" data-open="logout">Sign out</button></div>
+      <div class="use"><span class="lbl">Hub</span><div class="track"><div class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></div></div><span class="pct">${Math.round(ovPct)}%</span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens in this 5-hour window, ${ov.coordinatorSessions || 0} coordinator runs</span></div>
+      <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
 }
 
 // ---------- team lessons ----------
+// A lesson as the hub stores it ("Don't: Never X. (why: Y)") read as plain prose: "Never X. Why: Y."
+// Only the drawing changes; the stored text stays the agents' format.
+const NEG = /^(never|don'?t|do not|avoid|no|stop)\b/i;
+const lowerFirst = (s) => (/^[A-Z][a-z]*\b/.test(s) && !/^[A-Z][a-z]*[A-Z]/.test(s) && !/^I\b/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+const stop = (s) => (s = s.trim(), /[.!?]$/.test(s) ? s : s + '.');
+function lessonProse(s) {
+  const m = /^(Do|Don't): ([\s\S]*?)(?: \(why: ([\s\S]*)\))?$/.exec(s.trim());
+  if (!m) return s;
+  const [, kind, body, why] = m;
+  const say = kind === "Don't" && !NEG.test(body) ? `Don't ${lowerFirst(body)}` : body;
+  return `${stop(say[0].toUpperCase() + say.slice(1))}${why ? ` Why: ${stop(why)}` : ''}`;
+}
 const kindTag = (l) => `<span class="lk ${l.kind === 'dont' ? 'dont' : 'do'}">${l.kind === 'dont' ? 'Don\'t' : 'Do'}</span>`;
 function lessonRows() {
   if (!S.lessons.length) return '<p class="lempty">No lessons yet.</p>';
@@ -1825,15 +2023,15 @@ document.addEventListener('click', async (e) => {
   const cp = e.target.closest('[data-mcopy]');
   if (cp) {
     const ok = await copyToClipboard(copyText.get(cp.dataset.mcopy) || '');
-    cp.textContent = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
-    setTimeout(() => { cp.textContent = 'Copy'; cp.classList.remove('done'); }, 1500);
+    cp.innerHTML = icon(ok ? 'check' : 'x', 16); cp.title = ok ? 'Copied' : 'Copy failed'; cp.classList.toggle('done', ok);
+    setTimeout(() => { cp.innerHTML = icon('copy', 16); cp.title = 'Copy message'; cp.classList.remove('done'); }, 1500);
     return;
   }
   const ak = e.target.closest('[data-ask]');
   if (ak) {
     const [id, qi, oi] = ak.dataset.ask.split(':').map(Number); const m = S.messages.find((x) => x.id === id); const q = m.meta.questions[qi]; const label = q.options[oi].label;
     const v = askSel[id][qi]; v.picks = q.multiSelect ? (v.picks.includes(label) ? v.picks.filter((l) => l !== label) : [...v.picks, label]) : v.picks[0] === label ? [] : [label];
-    return renderFeed();
+    return askRefocus(ak.dataset.ask);
   }
   const ag = e.target.closest('[data-ask-go]'); if (ag) return askSend(Number(ag.dataset.askGo));
   if (e.target.closest('[data-attach]')) return $('fileIn').click();
@@ -1850,7 +2048,8 @@ document.addEventListener('click', async (e) => {
   const pp = e.target.closest('[data-pop]'); if (pp) { if (popKind === pp.dataset.pop) return closePop(); return openPop(pp.dataset.pop, pp); }
   const tg = e.target.closest('[data-toggle="direct"]'); if (tg) { opts.direct = !opts.direct; saveOpts(); return renderTools(null); }
   const st = e.target.closest('[data-starter]'); if (st) { $('text').value = st.dataset.starter; drafts[sel] = st.dataset.starter; grow(); $('text').focus(); return; }
-  if (e.target.closest('[data-refresh]')) { e.target.textContent = 'Reading…'; await readUsage(true); return; }
+  const rf = e.target.closest('[data-refresh]');
+  if (rf) { const was = rf.textContent; rf.textContent = 'Reading…'; await readUsage(true); if (rf.isConnected) rf.textContent = was; return; }
   if (e.target.closest('[data-archived]')) { showArchived = !showArchived; return renderSide(); }
   const op = e.target.closest('[data-open]'); if (op) return openSheet(op.dataset.open, op.dataset.name);
   const low = e.target.closest('[data-low]'); if (low) { await api('account-low', { name: low.dataset.low, low: low.dataset.v === '1', note: 'marked on the page' }); closeSheet(); return load(true); }
@@ -1939,7 +2138,7 @@ $('compose').addEventListener('submit', async (e) => {
 // ---------- look (per device) ----------
 const THEMES = [['', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 const WALLS = [['', 'Plain'], ['dots', 'Dots'], ['grid', 'Grid'], ['board', 'Go board'], ['stones', 'Stones'], ['dawn', 'Dawn'], ['sea', 'Sea'], ['forest', 'Forest'], ['night', 'Night sky']];
-let look = { theme: '', bg: '' };
+let look = { theme: '', bg: '', motion: '' };
 try { look = { ...look, ...JSON.parse(ls.get('hub-look') || '{}') }; } catch {}
 // The background pictures (hub/walls.css, written by hub/walls.mjs, ~20 KB zipped) load only
 // when a background or the Look sheet needs them. A device showing a picture keeps a copy
@@ -1967,8 +2166,12 @@ function applyLook() {
   // Painted from the kept copy: refresh it once the page has settled; else read it now.
   if (needsPics(look.bg) && !wallsP) { if ($('wallsCss')) setTimeout(loadWalls, 4000); else loadWalls(); }
   keepWalls();
+  // Sign-in: Clawd waves only in the lively working line.
+  const h1 = $('loginForm').querySelector('h1'); h1.querySelector('.clawd')?.remove(); if (lively()) h1.insertAdjacentHTML('beforeend', clawd('anim wave'));
+  spinRun();
   // Phone status bar follows the page colour.
-  document.querySelector('meta[name="theme-color"]').content = getComputedStyle(r).getPropertyValue('--panel').trim() || '#f4f1ec';
+  const bar = getComputedStyle(r).getPropertyValue('--panel').trim() || '#ffffff';
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.content = bar;
 }
 applyLook();
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyLook);
@@ -1979,6 +2182,9 @@ function lookHtml() {
     <p>Auto follows your phone or computer. Night sky is always dark.</p>
     <div class="sect">Background</div>
     <div class="walls">${WALLS.map(([v, n]) => `<button type="button" data-look="bg" data-v="${v}" aria-pressed="${look.bg === v}"><i data-bg-demo="${v}"></i>${n}</button>`).join('')}</div>
+    <div class="sect">Working line</div>
+    <div class="seg">${[['', 'Calm'], ['lively', 'Lively']].map(([v, n]) => `<button type="button" data-look="motion" data-v="${v}" aria-pressed="${(look.motion || '') === v}">${n}</button>`).join('')}</div>
+    <p>Calm shows who is working, for how long, and the step. Lively adds Claude Code's turning spinner, its verbs and Clawd.</p>
     <div class="acts"><button class="btn primary" data-close>Done</button></div>`;
 }
 
@@ -2050,7 +2256,7 @@ async function openSheet(kind, name) {
       ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
       <div class="sgrp"><h4>Or just mark it</h4>
         <p>${a?.low ? `${esc(name)} is marked as running low.` : 'New work then goes to other accounts.'}</p>
-        <div><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Usage is back' : 'Running low'}</button></div></div>
+        <div><button class="btn" data-low="${esc(name)}" data-v="${a?.low ? '0' : '1'}">${a?.low ? 'Mark usage reset' : 'Running low'}</button></div></div>
       <div class="err" id="uErr" role="alert"></div>
     </div>` + sFoot(`<button class="btn" data-close>Cancel</button><button class="btn primary" data-saveusage="${esc(name)}">Save</button>`);
   } else if (kind === 'lessons') {
@@ -2106,13 +2312,13 @@ $('sheetBox').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) return closeSheet();
   const fd = t.closest('[data-fdl]'); if (fd) return downloadFile(fd.dataset.fdl, fd);
-  const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); $('sheetBox').innerHTML = lookHtml(); return; }
+  const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); if (lk.dataset.look === 'motion' && pw) render(); $('sheetBox').innerHTML = lookHtml(); return; }
   if (t.closest('[data-copy]')) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy it'; } return; }
   if (t.closest('[data-test]')) {
     const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--soft)'; out.textContent = 'Testing…';
     try {
       const j = await (await fetch(t.dataset.test, { headers: { accept: 'application/json' } })).json();
-      out.style.color = j.ok ? 'var(--green)' : 'var(--red)'; out.style.fontWeight = '600';
+      out.style.color = j.ok ? 'var(--green)' : 'var(--red)'; out.style.fontWeight = '500';
       out.textContent = j.ok ? `This link works for ${j.account}. Now do step 2.` : `This link doesn't work: ${j.problem || 'unknown problem'}`;
     } catch (err) { out.style.color = 'var(--red)'; out.textContent = `Could not reach the hub: ${err.message}`; }
     return;
@@ -2122,7 +2328,7 @@ $('sheetBox').addEventListener('click', async (e) => {
     if (!confirm(`Make a new link for ${n}? Connectors made with the old link stop working, and so do routines that use them, until you add the new link on claude.ai.`)) return;
     await api('account-newkey', { name: n });
     await openSheet('connect', n);
-    const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--green)'; out.style.fontWeight = '600';
+    const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--green)'; out.style.fontWeight = '500';
     out.textContent = 'New link made. The old one no longer works.';
     return;
   }
@@ -2200,7 +2406,6 @@ $('sheetBox').addEventListener('click', async (e) => {
 });
 
 setTab('chat');
-$('loginForm').querySelector('h1').insertAdjacentHTML('beforeend', clawd('wave'));
 // With a saved password the page opens straight away (from the last view)
 // and catches up; only a wrong password brings the sign-in box back.
 if (pw) {

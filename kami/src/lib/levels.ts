@@ -29,13 +29,23 @@ export const LEVELS: readonly Level[] = [
 
 export const LOCAL_LEVEL: Level = { id: 'local', name: 'Local', blurb: 'Beta. Kiai’s own small model, running on this device.', pick: 'local', thinking: 'medium' };
 
-export const DEFAULT_LEVEL: LevelId = 'medium';
+/**
+ * Low by default (critics, round 2): the first answer on a phone's CPU then takes a few seconds,
+ * not 13; every quick answer offers "Read longer" (longerLevel).
+ */
+export const DEFAULT_LEVEL: LevelId = 'low';
+
+/** The level "Read longer" asks again at, for a quick read (null: already a long one). */
+export function longerLevel(id: LevelId | null | undefined): Level | null {
+  if (id === 'low' || id === 'medium' || id === 'local') return levelById('high');
+  return null;
+}
 
 export function levelList(withLocal: boolean): Level[] {
   return withLocal ? [...LEVELS, LOCAL_LEVEL] : [...LEVELS];
 }
 
-export const levelById = (id: LevelId | null | undefined): Level => (id === 'local' ? LOCAL_LEVEL : LEVELS.find((l) => l.id === id) ?? LEVELS[1]);
+export const levelById = (id: LevelId | null | undefined): Level => (id === 'local' ? LOCAL_LEVEL : LEVELS.find((l) => l.id === id) ?? LEVELS[0]);
 
 /**
  * The level an older saved choice (a depth and a thinking level, before 2026-10-20) maps to,

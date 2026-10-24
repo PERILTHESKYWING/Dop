@@ -132,6 +132,17 @@ export interface Situation {
   styleChoice?: boolean;
   /** The two compared lines meet again (same position or the same moves in another order). */
   transposes?: boolean;
+  /**
+   * Not a calm position: one side is far ahead (`lopsided`: 5+ points or a win chance of 10% or
+   * less), the last move touched the mover's stones (`contact`), or KataGo has one clear first
+   * choice. The answer then states the position and the local fight first, with no "play your
+   * style", no "!" and no closing question (answerCheck's wording rules enforce it).
+   */
+  sharp?: boolean;
+  lopsided?: boolean;
+  contact?: boolean;
+  /** The mover's lead in points after KataGo's best move (one decimal). */
+  lead?: number;
 }
 
 export type VariationKind = 'best' | 'refutation' | 'consequence' | 'what-if' | 'alternative';
@@ -204,6 +215,8 @@ export interface ThoughtStep {
 export interface Fact {
   id: string;
   text: string;
+  /** A rounded restatement the answer's text says already ("White leads by about 11 points"): in the checker's pool, not listed again. */
+  quiet?: boolean;
 }
 
 /** One check a built position passed or failed, for the "checked by" list under a diagram. */
@@ -261,6 +274,12 @@ export interface Explanation {
   reads: number;
   totalVisits: number;
   ms: number;
+  /**
+   * KataGo's read of the asked position that the answer's best move and alternatives come
+   * from (no ownership, top candidates only), so a site can show the same numbers on its
+   * board as in the text. Absent in answers made before it existed.
+   */
+  root?: EngineRead;
   /** What kind of position and answer this was (absent in answers made before it existed). */
   situation?: Situation;
   /** The part of the board that matters (x0, y0, x1, y1) for a local problem: the board zooms there. */

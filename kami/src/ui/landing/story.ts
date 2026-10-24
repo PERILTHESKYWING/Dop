@@ -9,12 +9,18 @@ const COORD = /\b([A-HJ-T](?:1[0-9]|[1-9]))\b/g;
 /** The points an answer names, in order. */
 export const pointsIn = (text: string) => [...text.replace(/\s*\[\[v\d+\]\]/g, '').matchAll(COORD)].map((m) => m[1]);
 
-export const PLAY = answer('What should Black play here?', 'Deep');
-export const SCORE = answer('Who is ahead, and why?', 'Deep');
+/** The answers at ultraGO's depth (its engine text: the move and numbers are KataGo's at any level of wording). */
+export const LEVEL = 'ultraGO';
+export const PLAY = answer('What should Black play here?', LEVEL);
+export const SCORE = answer('Who is ahead, and why?', LEVEL);
 
-/** Kiai's Deep pick for Black, and the black group it says the move makes safer. */
-export const PICK = pointsIn(PLAY.summary)[0];
-export const GROUP = pointsIn(PLAY.summary)[1];
+/** Kiai's pick for Black, and the black group it says the move makes safer. */
+// the answer opens with the position ("White leads by about 10 points. White's Q11 attaches...");
+// its move is the first line it shows ([[v1]]), and the group is the one it says gets safer
+export const PICK = PLAY.variations.find((v) => v.id === 'v1')?.moves[0] ?? pointsIn(PLAY.summary)[0];
+export const GROUP = /black group at ([A-HJ-T]\d{1,2}) safer/.exec(PLAY.summary)?.[1] ?? '';
+/** The answer's own first words: who leads, and by how much. */
+export const PLAY_LEAD = Number(/^White leads by about (\d+) points/.exec(PLAY.summary)?.[1] ?? NaN);
 
 /** The score answer's own numbers: White's lead and Black's win chance (out of 100). */
 const scoreNums = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections.find((x) => x.title === "KataGo's numbers")?.text ?? '');
@@ -26,7 +32,7 @@ export const FIRST = DEMO.reads[0];
 export const FIRST_PICK = FIRST.cands[0].at;
 export const LAST_PICK = FINAL.cands[0].at;
 
-/** The line of play Kiai showed with its Deep pick. */
+/** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
 
 /** The review's biggest swing. */
@@ -35,7 +41,14 @@ const w = DEMO.review.bWin;
 export const TURN_FROM = Math.round(w[TURN.n - 1] * 100);
 export const TURN_TO = Math.round(w[TURN.n] * 100);
 
-export const TAGLINE = 'Ask what to play in any Go position.';
+export const TAGLINE = 'KataGo, in plain words.';
+/** What KataGo is, in a few words, under the title (a visitor may never have heard of it). */
+export const WHAT = 'The open-source Go engine, running in your browser.';
+/** Who made it, said once on the last screen. The KataGo credit is as in THIRD_PARTY_NOTICES.md. */
+// (no line break inside the name)
+export const COLOPHON = 'Made by a professional Go player. The engine: KataGo, open source, by David\u00a0J.\u00a0Wu.';
+/** What does what, said once on the last screen (the language model is never named: XIAO's rule). */
+export const HOW = 'A language model only turns KataGo’s numbers into words, and Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
 
 export interface Chapter {
   id: string;
@@ -51,7 +64,7 @@ export const CHAPTERS: Chapter[] = [
   { id: 'ask', rail: 'Ask', title: TAGLINE },
   { id: 'reading', rail: 'Reading', title: 'It reads before it answers.' },
   { id: 'next', rail: 'Next moves', title: 'See what happens next.' },
-  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: 'Black’s best chance: the upper right.' },
+  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: `Black’s best chance: the right side, around ${FINAL.cands[0].at}.` },
   { id: 'review', rail: 'Game review', title: 'Find where a game turned.', text: 'Load a game. The graph shows where it turned.' },
   { id: 'start', rail: 'Start', title: 'Ask about your own game.', text: 'Free. No sign-up. Runs in your browser.' },
 ];
@@ -59,10 +72,10 @@ export const CHAPTERS: Chapter[] = [
 /** The reading chapter's picture in words: KataGo's first favourite, then its final pick. */
 export const PICKS = { first: { label: 'At first', at: FIRST_PICK }, then: { label: 'After a longer look', at: LAST_PICK } };
 
-/** The question and answer the first screen shows (a plain rewording of Kiai's Deep answer). */
+/** The question and answer the first screen shows (a plain rewording of Kiai's answer). */
 export const ASK = {
   q: PLAY.question,
-  a: `Play at ${PICK}. It takes away some of White’s area on the right, and it makes the black stones below it safer.`,
+  a: `White leads by about ${PLAY_LEAD} points. Black’s best try is ${PICK}: it takes away some of White’s area on the right and makes the black stones below it safer.`,
 };
 
 /** The reads KataGo grew through, for the reading chart: its top moves' share of the looking. */
@@ -70,7 +83,7 @@ export const READS = DEMO.reads.map((r) => {
   const total = r.cands.reduce((s, c) => s + c.visits, 0);
   return { visits: r.visits, cands: r.cands.slice(0, 4).map((c) => ({ at: c.at, share: c.visits / Math.max(1, total), win: c.win })) };
 });
-/** The moves the chart has a row for: KataGo's final pick and its first favourite. */
-export const READ_ROWS: string[] = [LAST_PICK, FIRST_PICK];
+/** The moves the chart has a row for: every move that was KataGo's favourite at some point, the final pick first. */
+export const READ_ROWS: string[] = [...new Set([LAST_PICK, ...[...DEMO.reads].reverse().map((r) => r.cands[0].at)])];
 
 export const locOf = loc;

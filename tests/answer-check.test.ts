@@ -41,9 +41,16 @@ const ex: Explanation = {
 
 const good =
   'C3 is too slow: it loses 4.2 points [[v2]] and Black drops from 62% to 48%. R16 is the move [[v1]] because it attacks the weak group at Q13; ' +
-  'if White saves it, Black gets sente and builds territory on the right [[v3]].';
+  'if White saves it, Black builds territory on the right [[v3]].';
 
 describe('checkAnswer: truth', () => {
+  it('rejects "sente" that no concept or draft shows (wordingProblems)', () => {
+    const s = checkAnswer(ex, good.replace('Black builds', 'Black gets sente and builds'));
+    expect(s.truth).toBe(1);
+    expect(s.wording).toEqual(['"sente" without KataGo evidence']);
+    expect(s.pass).toBe(false);
+  });
+
   it('passes an answer that only uses the explanation', () => {
     const s = checkAnswer(ex, good);
     expect(s.unsupported).toEqual([]);

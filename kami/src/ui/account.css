@@ -1,0 +1,83 @@
+/* Settings › Account (AccountPage.tsx): plain Settings styling, a few layout rules only. */
+.acct-seg {
+  margin-bottom: 16px;
+}
+.acct-head {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.acct-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 380px;
+}
+.acct-form.inline {
+  max-width: 360px;
+  margin-top: 4px;
+}
+.acct-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.acct-field .textbox {
+  width: 100%;
+  box-sizing: border-box;
+  height: 38px;
+}
+.acct-field .mono-in {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+.acct-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.acct-error {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--danger);
+}
+.acct-small {
+  margin-top: 22px;
+  max-width: 60ch;
+}
+.acct-state {
+  color: var(--muted);
+}
+.acct-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.acct-code {
+  max-width: 520px;
+}
+.acct-code h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.acct-code-value {
+  font-family: var(--mono);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--card);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.acct-code .set-help {
+  margin: 12px 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}

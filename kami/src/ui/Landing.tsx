@@ -1,15 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { markReady } from '../lib/ready';
+import { glKind } from '../three/support';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
 import type { Box } from './landing/camera';
-import Poster from './landing/Poster';
 import type { Show } from './landing/Stage';
-import { ASK, CHAPTERS, LINE, PICK, READS } from './landing/story';
+import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, READS, WHAT } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
-// three.js is large (about 140 kB gzipped): the words and a still sky (Poster) paint first, and
-// it loads once the page is idle or the reader first moves
+// three.js is large (about 140 kB gzipped): the words on their paper paint first, and it loads
+// once the page is idle or the reader first moves
 // (a failed download falls back to the flat board rather than a blank page)
 const Stage = lazy(() => import('./landing/Stage').catch(() => import('./landing/FlatStage') as unknown as Promise<typeof import('./landing/Stage')>));
 // no WebGL, or only a software one (it takes the main thread for many seconds): the flat board
@@ -26,6 +26,16 @@ function whenIdle(fn: () => void, ms: number): () => void {
   return () => window.clearTimeout(t);
 }
 
+/**
+ * Whether the live 3D board should run here: WebGL that a graphics card draws. A WebGL drawn on
+ * the CPU (SwiftShader, llvmpipe) would take the main thread for seconds, so those get the flat
+ * board; `?kiai3d` keeps the live board anyway (for testing it on such a machine).
+ */
+function liveGl(): boolean {
+  if (/[?&]kiai3d\b/.test(location.search)) return true;
+  return glKind() === 'hw';
+}
+
 const reduced = () => {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -35,7 +45,7 @@ const reduced = () => {
 };
 
 /**
- * Kiai's front door: one live picture (the board on a marble table above the clouds) that stays
+ * Kiai's front door: one live picture (the kaya board lying on washi paper) that stays
  * put while the page scrolls through six short chapters. The scroll moves the camera; each
  * chapter's words appear only once the camera has arrived and are gone before the next ones come,
  * so nothing ever overlaps. The rail on the left shows where you are and jumps to a chapter.
@@ -52,13 +62,11 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
   const anchors = useRef<(HTMLElement | null)[]>([]);
   const fill = useRef<HTMLSpanElement>(null);
   const camRef = useRef<((p: number) => void) | null>(null);
-  const posterRef = useRef<((p: number) => void) | null>(null);
-  // the still sky is drawn (or cannot be); three.js may load; the live board is in and shown
+  // the words and paper are painted; three.js may load; the live board is in and shown
   const [painted, setPainted] = useState(false);
-  const [flat, setFlat] = useState(false);
+  const [flat] = useState(() => !liveGl());
   const [wantLive, setWantLive] = useState(false);
   const [live, setLive] = useState(false);
-  const [posterGone, setPosterGone] = useState(false);
   // the chapters whose diagrams are drawn: the one in view and the next (the rest wait until near)
   const [near, setNear] = useState(1);
   const progress = useRef(0);
@@ -78,7 +86,8 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     if (tall) {
       // above the sheet the words sit on
       const top = 118;
-      const bottom = sec && r > 0 ? sec.offsetTop - 14 : H * 0.56;
+      // (the words' own top, less the sheet's padding: the last chapter's words have no sheet)
+      const bottom = sec && r > 0 ? t - 36 : H * 0.56;
       return [12 / W, top / H, (W - 12) / W, Math.max(top + 140, bottom) / H];
     }
     return [(r > 0 ? r + 44 : W * 0.45) / W, 84 / H, (W - 28) / W, (H - 28) / H];
@@ -88,7 +97,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     document.documentElement.classList.add('kiai-landing');
     const meta = document.querySelector('meta[name="theme-color"]');
     const was = meta?.getAttribute('content');
-    meta?.setAttribute('content', '#dfe8f1');
+    meta?.setAttribute('content', '#f4efe4');
     return () => {
       document.documentElement.classList.remove('kiai-landing');
       if (meta && was) meta.setAttribute('content', was);
@@ -106,7 +115,6 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       const p = Math.max(0, Math.min(N - 1, window.scrollY / Math.max(1, ch)));
       progress.current = p;
       camRef.current?.(p);
-      posterRef.current?.(p);
       words.current.forEach((el, i) => {
         if (!el) return;
         const d = p - i;
@@ -173,27 +181,16 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     e?.preventDefault();
     onEnter();
   };
-  // the page is ready (the loading sheet may go) once the words and the still sky are painted
-  const painting = useCallback(() => {
-    setPainted(true);
-    markReady();
-  }, []);
-  const noPoster = useCallback(() => {
-    setFlat(true);
-    setPainted(true);
-    markReady();
-  }, []);
+  // the page is ready (the loading sheet may go) as soon as the words are on the paper: both are
+  // plain CSS and paint with this first render. A layout effect, so it is said before the first
+  // frame, which can be slow (a passive effect waited for it: about 350 ms in a CPU-drawn browser)
+  useLayoutEffect(markReady, []);
+  useEffect(() => setPainted(true), []);
   const shown = useCallback(() => setLive(true), []);
   // a chapter's diagram just mounted (the words' room changed): place the camera again
   useEffect(() => {
     camRef.current?.(progress.current);
-    posterRef.current?.(progress.current);
   }, [near]);
-  // a slow sky never keeps the loading sheet up for long: the words are already there
-  useEffect(() => {
-    const t = window.setTimeout(markReady, 3000);
-    return () => window.clearTimeout(t);
-  }, []);
   // three.js: when the page is idle after its first paint, or at once if the reader moves first
   useEffect(() => {
     if (wantLive) return;
@@ -206,12 +203,6 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       ev.forEach((e) => window.removeEventListener(e, go));
     };
   }, [painted, wantLive]);
-  // the poster stays under the live picture until it has faded in, then frees its WebGL context
-  useEffect(() => {
-    if (!live) return;
-    const t = window.setTimeout(() => setPosterGone(true), reduced() ? 0 : 700);
-    return () => window.clearTimeout(t);
-  }, [live]);
 
   const show: Show =
     active === 1 ? { kind: 'reading', step } : active === 2 ? { kind: 'next', n } : active === 3 ? { kind: 'ahead' } : active === 4 ? { kind: 'review' } : active === 5 ? { kind: 'start' } : { kind: 'ask' };
@@ -222,8 +213,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className={`landing${flat ? ' flat' : ''}${live ? ' live' : ''}`}>
-      <div className="l-sky" aria-hidden="true" />
-      {!flat && !posterGone && <Poster at={progress} drawRef={posterRef} boxRef={boxRef} onDrawn={painting} onFail={noPoster} />}
+      <div className="l-paper" aria-hidden="true" />
       {wantLive && (
         <Suspense fallback={null}>
           {flat ? <FlatStage show={show} boxRef={boxRef} onReady={shown} /> : <Stage show={show} at={progress} camRef={camRef} boxRef={boxRef} onReady={shown} />}
@@ -254,13 +244,28 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
       <main className="l-words">
         <section ref={ref(0)} className="l-ch l-ask" aria-labelledby="l-h-ask">
-          <h1 id="l-h-ask">{ask.title}</h1>
+          {/* broken after the comma, so it never breaks after "in" */}
+          <h1 id="l-h-ask">
+            {ask.title.split(', ').map((part, i, all) => (
+              <span key={i}>
+                {part}
+                {i < all.length - 1 && (
+                  <>
+                    ,<br />
+                  </>
+                )}
+              </span>
+            ))}
+          </h1>
+          <p className="l-what">{WHAT}</p>
           <div className="l-qa">
             <p className="l-q">{ASK.q}</p>
             <p className="l-a">
               <Logo size={38} className="l-a-mark" />
               <span>
-                Play at <b className="l-at">{PICK}.</b> {ASK.a.slice(`Play at ${PICK}. `.length)}
+                {ASK.a.slice(0, ASK.a.indexOf(`${PICK}:`))}
+                <b className="l-at">{PICK}</b>
+                {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length)}
               </span>
             </p>
           </div>
@@ -317,6 +322,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             Open Kiai
           </a>
           <p className="l-text">{start.text}</p>
+          <div className="l-colophon">
+            <p>{COLOPHON}</p>
+            <p>{HOW}</p>
+          </div>
           <p className="l-links">
             <a href="https://github.com/lightvector/KataGo" target="_blank" rel="noreferrer">
               KataGo

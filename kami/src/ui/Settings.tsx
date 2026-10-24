@@ -1,20 +1,27 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { COPY as PATH_COPY } from '../../../shared/kiaiJourney';
 import { KAMI_VERSION } from '../../../src/lib/coach/explain/types';
 import { engineStatus, onEngineStatus } from '../lib/engine';
 import { GROUPS, resetSettings, setSetting, SETTINGS, useSetting, type SettingDef, type SettingGroup } from '../lib/settings';
 import type { Conversation } from '../lib/store';
 import { resetStyle, STYLE_LABELS, STYLE_MIN, useLearnedStyle } from '../lib/style';
+import { useAccountView } from '../lib/accountView';
+import { exportJourney, resetJourney, useJourney } from '../lib/journey';
+import { AccountPage } from './AccountPage';
 import { Icon } from './Icon';
+import { JourneyPanel } from './Journey';
 
-export type SettingsPage = SettingGroup | 'usage' | 'data' | 'about';
+export type SettingsPage = SettingGroup | 'account' | 'usage' | 'data' | 'about';
 
 const PAGES: { id: SettingsPage; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: 'user' },
   { id: 'profile', label: 'Profile', icon: 'profile' },
+  { id: 'journey', label: 'Journey', icon: 'seal' },
   { id: 'board', label: 'Board', icon: 'board' },
   { id: 'katago', label: 'KataGo', icon: 'spark' },
   { id: 'positions', label: 'Positions', icon: 'stones' },
   { id: 'usage', label: 'Usage', icon: 'usage' },
+  { id: 'account', label: 'Account', icon: 'key' },
   { id: 'data', label: 'Data', icon: 'folder' },
   { id: 'about', label: 'About', icon: 'info' },
 ];
@@ -146,12 +153,12 @@ function Row({ def }: { def: SettingDef }) {
   );
 }
 
-function GroupPage({ group, extra }: { group: SettingGroup; extra?: ReactNode }) {
+function GroupPage({ group, extra, blurb = true }: { group: SettingGroup; extra?: ReactNode; blurb?: boolean }) {
   const g = GROUPS.find((x) => x.id === group)!;
   const defs = SETTINGS.filter((d) => d.group === group);
   return (
     <>
-      <p className="set-blurb">{g.blurb}</p>
+      {blurb && <p className="set-blurb">{g.blurb}</p>}
       <div className="set-list">
         {defs.map((d) => (
           <Row key={d.key} def={d} />
@@ -211,7 +218,7 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
   const asked = chats.reduce((n, c) => n + c.messages.filter((m) => m.role === 'user').length, 0);
   const mb = (b: number) => `${(b / 1e6).toFixed(b < 1e7 ? 1 : 0)} MB`;
   const stats: [string, string][] = [
-    ['Chats', String(chats.length)],
+    ['Boards', String(chats.length)],
     ['Questions asked', String(asked)],
     ['KataGo', status.state === 'idle' ? 'Starts with your first position' : status.text],
     ['ultraGO wording', llmOn === null ? 'Checking…' : llmOn ? 'On' : 'Off on this site: answers use engine text'],
@@ -219,7 +226,7 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
   if (bytes) stats.push(['Stored in this browser', `${mb(bytes.used)} of ${mb(bytes.quota)}`]);
   return (
     <>
-      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only ultraGO’s wording uses Kiai’s server, once per answer.</p>
+      <p className="set-blurb">Kiai runs KataGo on your device, so reading positions has no limit. Only ultraGO’s wording uses Kiai’s server, once per answer: it gets your question and KataGo’s notes on the position, and sends back the words. If you sign in, your path and settings sync through Kiai’s server too.</p>
       <dl className="stats">
         {stats.map(([k, v]) => (
           <div key={k}>
@@ -243,6 +250,16 @@ function UsagePage({ convs, llmOn }: { convs: Conversation[]; llmOn: boolean | n
 
 function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: () => void }) {
   const [sure, setSure] = useState(false);
+  const [resetSure, setResetSure] = useState(false);
+  const signedIn = useAccountView().signedIn;
+  const path = useJourney();
+  const exportPath = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(exportJourney());
+    a.download = `kiai-path-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   const chats = convs.filter((c) => c.messages.length);
   const exportChats = () => {
     const blob = new Blob([JSON.stringify(chats, null, 2)], {
@@ -250,18 +267,21 @@ function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: 
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `kami-chats-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `kiai-boards-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   return (
     <>
-      <p className="set-blurb">Chats, boards and settings are kept in this browser only. Nothing is uploaded.</p>
+      <p className="set-blurb">
+        Boards, answers and settings are kept in this browser. KataGo reads on your device. When you pick ultraGO, one request per answer goes to Kiai’s server to put KataGo’s reading into words: your question, your level from Settings, and KataGo’s notes (the side to play, the move number, its best moves, numbers and lines, and its own draft). No game file, player names or other boards are sent.
+        {signedIn ? ' You are signed in, so your path and settings also sync to your account (boards and answers stay here).' : ''}
+      </p>
       <div className="set-list">
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Export chats</div>
-            <div className="set-help">Every chat and its board, as one JSON file.</div>
+            <div className="set-label">Export boards</div>
+            <div className="set-help">Every board with its questions and answers, as one JSON file.</div>
           </div>
           <div className="set-control">
             <button type="button" className="btn" onClick={exportChats} disabled={!chats.length}>
@@ -272,7 +292,7 @@ function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: 
         </div>
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Delete all chats</div>
+            <div className="set-label">Delete all boards</div>
             <div className="set-help">This can’t be undone.</div>
           </div>
           <div className="set-control">
@@ -295,6 +315,47 @@ function DataPage({ convs, onDeleteAll }: { convs: Conversation[]; onDeleteAll: 
             ) : (
               <button type="button" className="btn danger-outline" onClick={() => setSure(true)} disabled={!chats.length}>
                 Delete all
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="set-row">
+          <div className="set-text">
+            <div className="set-label">Export path</div>
+            <div className="set-help">Your study path and its counts, as one JSON file.</div>
+          </div>
+          <div className="set-control">
+            <button type="button" className="btn" onClick={exportPath} disabled={!path.started}>
+              <Icon name="download" size={16} />
+              Export
+            </button>
+          </div>
+        </div>
+        <div className={`set-row${resetSure ? ' stack' : ''}`}>
+          <div className="set-text">
+            <div className="set-label">Reset path</div>
+            <div className="set-help">{resetSure ? PATH_COPY.resetConfirm : 'Points, days in a row and seals start again.'}</div>
+          </div>
+          <div className="set-control">
+            {resetSure ? (
+              <span className="confirm-row">
+                <button type="button" className="btn" onClick={() => setResetSure(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() => {
+                    resetJourney();
+                    setResetSure(false);
+                  }}
+                >
+                  Reset path
+                </button>
+              </span>
+            ) : (
+              <button type="button" className="btn danger-outline" onClick={() => setResetSure(true)} disabled={!path.started}>
+                Reset path
               </button>
             )}
           </div>
@@ -341,7 +402,9 @@ export function Settings({
     card.current?.focus();
     return () => document.removeEventListener('keydown', esc);
   }, []);
-  const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
+  const acct = useAccountView();
+  const pages = PAGES.filter((p) => p.id !== 'account' || acct.available || acct.signedIn);
+  const current = pages.find((p) => p.id === page) ?? pages[0];
   return (
     <div className="modal-wrap" role="presentation" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal settings" role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} ref={card}>
@@ -353,7 +416,7 @@ export function Settings({
         </header>
         <div className="settings-body">
           <nav className="set-nav" aria-label="Settings pages">
-            {PAGES.map((p) => (
+            {pages.map((p) => (
               <button key={p.id} type="button" className={p.id === current.id ? 'on' : ''} aria-current={p.id === current.id ? 'page' : undefined} onClick={() => onPage(p.id)}>
                 <Icon name={p.icon} size={17} />
                 {p.label}
@@ -370,6 +433,13 @@ export function Settings({
               <AboutPage />
             ) : current.id === 'profile' ? (
               <ProfilePage />
+            ) : current.id === 'journey' ? (
+              <>
+                <JourneyPanel />
+                <GroupPage group="journey" blurb={false} />
+              </>
+            ) : current.id === 'account' ? (
+              <AccountPage />
             ) : (
               <GroupPage group={current.id} />
             )}

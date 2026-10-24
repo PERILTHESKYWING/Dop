@@ -59,16 +59,16 @@ function glitter(mx, c, dark) {
     o += `<rect x='${n(x - w / 2)}' y='${n(y)}' width='${n(w)}' height='${(1 + t * 2).toFixed(1)}' rx='1' fill='${c}' opacity='${((dark ? .35 : .6) * (1 - Math.abs(x - mx) / (spread * 1.1)) * (1 - t * .5)).toFixed(2)}'/>`; }
   return o;
 }
-// ---- Sea: open water to the horizon, sun (or moon) glitter, wave texture.
+// ---- Sea: open water to the horizon, glitter from a sun (or moon) out of frame, wave texture. No disc, no glow.
 const sea = (dark) => {
   const sky = dark ? [[0, '#0b1420'], [.6, '#16283a'], [1, '#26405a']] : [[0, '#b9d3e3'], [.6, '#dbe8ee'], [1, '#eef2f0']];
   const water = dark ? [[0, '#1d3448'], [.4, '#122435'], [1, '#08131d']] : [[0, '#a9c9d3'], [.35, '#7fa9b9'], [1, '#4f7f94']];
   const light = dark ? '#e9eef7' : '#fffaf0';
-  const defs = lg('s', sky) + lg('w', water) + rg('g', [[0, light, dark ? .5 : .9], [.3, light, dark ? .15 : .35], [1, light, 0]]) + lg('h', [[0, light, 0], [.5, light, dark ? .25 : .5], [1, light, 0]], 1, 0)
+  const defs = lg('s', sky) + lg('w', water) + lg('h', [[0, light, 0], [.5, light, dark ? .25 : .5], [1, light, 0]], 1, 0)
     + `<filter id='t' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='0.0012 0.035' numOctaves='3' seed='4'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -0.75'/></filter>`
     + `<clipPath id='c'><rect y='560' width='${W}' height='440'/></clipPath>`;
   const mx = 1150;
-  return scene(`<rect width='${W}' height='560' fill='url(#s)'/><circle cx='${mx}' cy='${dark ? 300 : 470}' r='360' fill='url(#g)'/><circle cx='${mx}' cy='${dark ? 300 : 470}' r='${dark ? 30 : 44}' fill='${light}' opacity='.95'/>
+  return scene(`<rect width='${W}' height='560' fill='url(#s)'/>
     <rect y='560' width='${W}' height='440' fill='url(#w)'/><g clip-path='url(#c)'><rect y='560' width='${W}' height='440' filter='url(#t)' opacity='${dark ? .22 : .45}'/>${glitter(mx, light, dark)}</g><rect y='556' width='${W}' height='8' fill='${light}' opacity='${dark ? .12 : .35}'/>`, defs);
 };
 

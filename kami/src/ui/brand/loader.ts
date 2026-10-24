@@ -3,28 +3,29 @@
  * name Kiai appears under it with one line saying what it is; then the sheet fades to the page. vite.config.ts puts this markup straight into index.html, so it shows
  * before any script loads.
  *
- * First visit: the whole word is written (about 2.6 s), then the sheet waits for the page to say
- * it is ready (`markReady`, kami/src/lib/ready.ts). Later visits: nothing shows unless loading
- * takes longer than 450 ms. A click or key finishes the writing at once. After 9 s it goes
- * regardless, so a failed script never leaves a blank sheet.
+ * It is not an intro: nothing shows unless the page takes longer than 450 ms to say it is ready
+ * (`markReady`, kami/src/lib/ready.ts), first visit or not. Ready counts from the moment the page's
+ * first render is in the document (`__kiaiReady`), not from its paint: the 'kiai-ready' event waits
+ * two frames so a sheet already showing never uncovers an unpainted page, but a first frame can
+ * be slow (a CPU-drawn compositor took about 390 ms), and a sheet that is not up yet has nothing
+ * to uncover. The sheet leaves as soon as it
+ * is, without waiting for the word to be finished (if it was still fading in, it fades back out
+ * from where it got to, so a page that is just late does not flash). 気合 still writes itself, for free, on the
+ * landing's last chapter and on the app's empty board. A click or key finishes the writing at
+ * once. After 9 s it goes regardless, so a failed script never leaves a blank sheet.
  *
- * The build passes `assets`: the seal and the tagline (first seen about 2.9 s in, ~14 KB of
- * paths) then load as cached /assets SVGs instead of riding in every index.html; the brush and
- * the name, which paint first, stay inline. Without `assets` (dev, tests) all of it is inline.
+ * The build passes `assets`: the seal and the tagline (~14 KB of paths, seen only on a slow load)
+ * then load as cached /assets SVGs instead of riding in every index.html; the brush and the name,
+ * which paint first, stay inline. Without `assets` (dev, tests) all of it is inline.
  */
 import { brushMarkup, BRUSH_CSS, timeline } from './brush';
 import { TAGLINE, WORDMARK } from './glyphs';
 import { sealMarkup } from './seal';
 
 const START = 250;
-const HOLD = 420;
 const SEAL = 260;
-/**
- * The landing's first picture (`.l-sky` in landing.css). It is a CSS background inside a lazy
- * chunk, so the browser would only find it after main.js, Landing.js and its CSS; when this
- * visit will open on the landing (same test as main.tsx), it is fetched at once, at high priority.
- */
-const LANDING_STILL = '/kiai/sky-1536.webp';
+/** How long the page may take before the sheet shows at all. */
+const GRACE = 450;
 const INK = '#191613';
 /** The tagline's glyphs reach above its 860-unit-high viewBox (to y 198); the file version takes a taller box. */
 const TAG_TOP = 190;
@@ -49,7 +50,6 @@ export function loaderFiles(): LoaderAssets {
 export function loaderHtml(assets?: LoaderAssets): string {
   const { done } = timeline(1, START);
   const sealAt = done + 140;
-  const finished = sealAt + SEAL + HOLD;
   const css =
     BRUSH_CSS +
     '#kiai-loader{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;' +
@@ -71,21 +71,18 @@ export function loaderHtml(assets?: LoaderAssets): string {
     '.kl-repeat #kiai-loader:not(.kl-show) .kb-s,.kl-repeat #kiai-loader:not(.kl-show) .kb-all,.kl-repeat #kiai-loader:not(.kl-show) .kl-seal,.kl-repeat #kiai-loader:not(.kl-show) .kl-name{animation-play-state:paused}' +
     '#kiai-loader.kl-skip .kb-s,#kiai-loader.kl-skip .kb-all,#kiai-loader.kl-skip .kl-seal,#kiai-loader.kl-skip .kl-name{animation-delay:0s!important;animation-duration:1ms!important}' +
     '@media (prefers-reduced-motion:reduce){.kl-seal,.kl-name{animation:none;opacity:1}}';
-  // Runs before the page's scripts: decides first visit or not, then waits for 'kiai-ready'.
+  // Runs before the page's scripts: hidden at first; shows only if 'kiai-ready' is late.
   const script = `(function(){var d=document.documentElement,el=document.getElementById('kiai-loader');if(!el)return;
-var seen=false;try{seen=localStorage.getItem('kiai.seen')==='1'}catch(e){}
-var h=location.hash,ent=true;try{ent=localStorage.getItem('kiai.entered')==='1'}catch(e){}
-if(h==='#welcome'||(!ent&&h!=='#annotate')){var pl=document.createElement('link');pl.rel='preload';pl.as='image';pl.href='${LANDING_STILL}';pl.setAttribute('fetchpriority','high');document.head.appendChild(pl)}
-var ready=!!window.__kiaiReady,written=seen,gone=false,shownAt=seen?0:Date.now();
-if(seen)d.classList.add('kl-repeat');else d.classList.add('kl-lock');
-function hide(){if(gone)return;gone=true;el.classList.add('kl-out');d.classList.remove('kl-lock');try{localStorage.setItem('kiai.seen','1')}catch(e){}setTimeout(function(){el.remove();d.classList.remove('kl-repeat')},700)}
-function check(){if(!ready||!written)return;if(seen&&!shownAt)return hide();setTimeout(hide,Math.max(0,500-(Date.now()-shownAt)))}
+var ready=!!window.__kiaiReady,gone=false,shownAt=0;
+d.classList.add('kl-repeat');
+function hide(){if(gone)return;gone=true;el.classList.add('kl-out');d.classList.remove('kl-lock');setTimeout(function(){el.remove();d.classList.remove('kl-repeat')},shownAt?700:0)}
+function check(){if(ready)hide()}
 window.addEventListener('kiai-ready',function(){ready=true;check()});
-if(seen)setTimeout(function(){if(!ready){el.classList.add('kl-show');d.classList.add('kl-lock');shownAt=Date.now()}},450);
-else setTimeout(function(){written=true;check()},${finished});
-function skip(){el.classList.add('kl-skip');written=true;setTimeout(check,${SEAL + 120})}
+setTimeout(function(){if(!ready&&!window.__kiaiReady&&!gone){el.classList.add('kl-show');d.classList.add('kl-lock');shownAt=Date.now()}},${GRACE});
+function skip(){el.classList.add('kl-skip')}
 el.addEventListener('pointerdown',skip);window.addEventListener('keydown',function k(){skip();window.removeEventListener('keydown',k)});
-setTimeout(function(){ready=written=true;check()},9000);
+setTimeout(function(){ready=true;check()},9000);
+check();
 })();`;
   return (
     `<style>${css}</style>` +

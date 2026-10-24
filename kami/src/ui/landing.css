@@ -1,7 +1,7 @@
-/* Kiai's landing: one live picture (the board on a marble pillar above the clouds) behind six
- * short chapters. The picture stays; the scroll moves its camera. Words are few and large, one
- * chapter at a time; diagrams do the rest. Flat colours and seal red, no glows: the light comes
- * from the rendered sky. */
+/* Kiai's landing: one live picture (the kaya board lying on washi) behind six short chapters.
+ * The picture stays; the scroll moves its camera. Words are few and large, one chapter at a time;
+ * diagrams do the rest. Flat colours, ink and seal red on paper, no glows: the only light effect
+ * is the board's own shadow on the page. */
 html.kiai-landing,
 html.kiai-landing body,
 html.kiai-landing #root {
@@ -10,7 +10,7 @@ html.kiai-landing #root {
   overflow: visible;
 }
 html.kiai-landing body {
-  background: #dfe8f1;
+  background: #f4efe4;
 }
 /* settle on a chapter when the scrolling stops near one */
 html.kiai-landing {
@@ -51,25 +51,14 @@ html.kiai-landing {
   margin: 0;
 }
 
-/* the sky's colour until the poster (landing/Poster.tsx) draws it through the live camera; the
- * panorama as a flat picture only where that cannot run (no WebGL) */
-.l-sky {
+/* the page is a sheet of washi (a 6 KB tile, the loading sheet's own paper): it paints with the
+ * first frame, and the board, 3D or flat, lies on it */
+.l-paper {
   position: fixed;
   inset: 0;
-  background: #c9d9ea;
+  background: #f4efe4 url('/kiai/washi.webp') 0 0 / 640px repeat;
 }
-.landing.flat .l-sky {
-  background: #c9d9ea url('/kiai/sky-1536.webp') 62% 46% / cover no-repeat;
-}
-.l-poster {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-/* the live board fades in over the still sky; the sky under it is the same, so only the board
- * (and its labels) appear */
+/* the live board fades in over the paper with its shadow, so only the board (and its labels) appear */
 .l-stage,
 .l-callouts {
   opacity: 0;
@@ -87,6 +76,10 @@ html.kiai-landing {
 }
 .l-flat {
   position: fixed;
+}
+/* the flat board lies on the paper too: a soft shadow below it, offset as from a window light */
+.landing.flat .l-flat {
+  filter: drop-shadow(0 18px 22px rgba(60, 40, 15, 0.22)) drop-shadow(0 3px 4px rgba(60, 40, 15, 0.25));
 }
 .l-flat svg {
   width: 100%;
@@ -307,12 +300,6 @@ html.kiai-landing {
   visibility: hidden;
   pointer-events: auto;
   will-change: opacity, transform;
-  /* a soft paper-coloured edge round the letters, so they hold over cloud as well as marble */
-  text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 1px 3px rgba(247, 243, 234, 0.7);
-}
-.l-btn,
-.l-steps button {
-  text-shadow: none;
 }
 .l-lead {
   font-size: clamp(32px, 2.8vw, 44px);
@@ -365,6 +352,13 @@ html.kiai-landing {
 .l-at {
   color: var(--l-seal);
   font-weight: 800;
+}
+.l-what {
+  margin-top: -6px;
+  font-size: clamp(23px, 1.9vw, 28px);
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--l-ink-2);
 }
 .l-cta {
   display: flex;
@@ -423,7 +417,7 @@ html.kiai-landing {
   font-size: 27px;
   font-weight: 800;
 }
-/* each bar is drawn on its own paper track with an ink edge, so it reads over cloud or marble */
+/* each bar is drawn on its own paper track with an ink edge */
 .l-bar {
   flex: 1;
   height: 22px;
@@ -536,6 +530,14 @@ html.kiai-landing {
 .l-diagram svg.board .bd-var text.cur {
   fill: var(--l-seal);
 }
+/* the newest move on a black stone: a cream number (red on black is about 2.9:1) in a seal-red ring */
+.l-diagram svg.board .bd-var.b text.cur {
+  fill: #fbf8f1;
+}
+.l-diagram svg.board .bd-var.b:has(text.cur) circle {
+  stroke: var(--l-seal);
+  stroke-width: 0.08;
+}
 .l-steps {
   display: flex;
   align-items: center;
@@ -584,20 +586,22 @@ html.kiai-landing {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+/* Black's share in ink from the left, White's as a white stone's colour in an ink frame; square
+   ends, so even 1 out of 100 shows as a dark sliver instead of hiding in a rounded end */
 .l-chance-bar {
   display: block;
   height: 26px;
-  border-radius: 13px;
-  background: #fbf9f4;
+  border-radius: 4px;
+  background: #fffdf8;
   box-shadow: inset 0 0 0 2px var(--l-ink);
   overflow: hidden;
 }
 .l-chance-bar i {
   display: block;
   height: 100%;
+  min-width: 7px;
   background: var(--l-ink);
-  transform-origin: left;
-  transition: transform 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
+  transition: width 1.4s cubic-bezier(0.3, 0.7, 0.2, 1);
 }
 
 /* game review: the line draws itself, then the drop is marked */
@@ -691,13 +695,29 @@ html.kiai-landing {
   font-variant-numeric: tabular-nums;
 }
 
-/* the last chapter: 気合 written over the sky */
+/* the last chapter: 気合 written on the paper, and who made it */
 .l-start {
   align-items: flex-start;
 }
 .l-brush {
   height: 220px;
   color: var(--l-ink);
+}
+/* who made it and what does what: two short left-aligned lines, a book's colophon, not small print */
+.l-colophon {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 30em;
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--l-ink-2);
+  text-align: left;
+  text-wrap: pretty;
+}
+.l-colophon p:first-child {
+  color: var(--l-ink);
+  font-weight: 600;
 }
 .l-links {
   display: flex;
@@ -781,18 +801,16 @@ html.kiai-landing {
     justify-content: flex-start;
     gap: 14px;
     padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
-    border-radius: 26px 26px 0 0;
-    background: var(--l-paper);
-    box-shadow: 0 -10px 30px rgba(21, 19, 15, 0.12);
-    text-shadow: none;
+    background: #f4efe4 url('/kiai/washi.webp') 0 0 / 640px repeat;
+    border-top: 1px solid rgba(21, 19, 15, 0.12);
   }
-  /* and the top bar is paper too, with the row of dots, so no edge of the scene runs behind them */
+  /* and the top bar is paper too, with the row of dots, so the board never runs behind them */
   .l-nav {
     z-index: 14;
     height: 114px;
     align-items: flex-start;
-    background: var(--l-paper);
-    box-shadow: 0 8px 24px rgba(21, 19, 15, 0.1);
+    background: #f4efe4 url('/kiai/washi.webp') 0 0 / 640px repeat;
+    border-bottom: 1px solid rgba(21, 19, 15, 0.12);
   }
   .l-lead {
     font-size: 28px;
@@ -872,21 +890,24 @@ html.kiai-landing {
   .l-callout i {
     height: 26px;
   }
+  /* the last words sit low, so the board has the screen above them */
   .l-start {
     top: 0;
-    justify-content: center;
+    justify-content: flex-end;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
     align-items: center;
     text-align: center;
-    border-radius: 0;
     background: none;
-    box-shadow: none;
-    text-shadow: 0 0 1px rgba(247, 243, 234, 0.9), 0 1px 3px rgba(247, 243, 234, 0.7);
+    border-top: 0;
   }
   .l-brush {
-    height: 140px;
+    height: 110px;
   }
   .l-brush .brush {
-    --brush-h: 140px !important;
+    --brush-h: 110px !important;
+  }
+  .l-colophon {
+    font-size: 17px;
   }
 }
 

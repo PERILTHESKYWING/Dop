@@ -303,7 +303,7 @@ export interface LineStarts {
 export function turnPhrase(tp: TurningPoint, mover: Color, starts?: LineStarts): string {
   const me = mover === 1 ? 'Black' : 'White';
   const c = `${ownerWords(tp.ownA)} instead of ${ownerWords(tp.ownB)}`;
-  const trade = tp.gain ? `, though ${me} gets more in the ${tp.gain.region}` : '';
+  const trade = tp.gain ? `, though ${me} gets more ${tp.gain.region === 'top' || tp.gain.region === 'bottom' ? `at the ${tp.gain.region}` : tp.gain.region.endsWith('side') ? `on the ${tp.gain.region}` : `in the ${tp.gain.region}`}` : '';
   const n = tp.boardSize ?? 19;
   const inZone = (l: Loc | undefined) => l !== undefined && l !== PASS && l >= 0 && zoneOf(l, n) === tp.zone;
   const whereB = starts && inZone(starts.b) ? `, where ${starts.C(starts.b)} would have gone,` : '';
@@ -311,6 +311,32 @@ export function turnPhrase(tp: TurningPoint, mover: Color, starts?: LineStarts):
   if (tp.ply > 1) return `by move ${tp.moveNumber} the ${tp.region}${whereB}${ownA} is ${c}${trade}`;
   if (whereB) return `the ${tp.region} is where ${starts!.C(starts!.b)} belongs: without it, by move ${tp.shownMove} the ${tp.region} is ${c}${trade}`;
   return `by move ${tp.shownMove} the ${tp.region}${ownA} is ${c}${trade}`;
+}
+
+/**
+ * The turning point in plain words for the facts list (critics, round 2: the "In the Q12 line,
+ * against the Q10 line, ..." sentence took three reads): "Without Q10, White gets the right
+ * side: after Q12, by move 40 it is White's (80%); after Q10 it is leaning Black's (61%)."
+ * `a` is the move that loses, `b` the better one.
+ */
+export function plainTurn(tp: TurningPoint, mover: Color, a: string, b: string): string {
+  const me = mover === 1 ? 'Black' : 'White';
+  const whose = (v: number) => (v >= 0.2 ? 'Black' : v <= -0.2 ? 'White' : null);
+  const getsA = whose(tp.ownA);
+  const head = getsA && getsA !== whose(tp.ownB) ? `Without ${b}, ${getsA} gets the ${tp.region}` : getsA ? `Without ${b}, the ${tp.region} goes further ${getsA}'s way` : `Without ${b}, the ${tp.region} is unsettled again`;
+  const when = tp.ply > 1 ? tp.moveNumber : tp.shownMove;
+  const where = (r: string) => (r === 'top' || r === 'bottom' ? `at the ${r}` : r.endsWith('side') ? `on the ${r}` : `in the ${r}`);
+  const trade = tp.gain ? ` In return ${me} gets more ${where(tp.gain.region)}.` : '';
+  return `${head}: after ${a}, by move ${when} it is ${ownerWords(tp.ownA)}; after ${b} it is ${ownerWords(tp.ownB)}.${trade}`;
+}
+
+/** An area's owner as a verb phrase: "is Black's (80%)", "leans White's way (61%)", "is still open". */
+export function leansWords(v: number): string {
+  const a = Math.abs(v);
+  if (a < 0.2) return 'is still open';
+  const who = v > 0 ? 'Black' : 'White';
+  const p = Math.round(50 + 50 * a);
+  return a >= 0.6 ? `is ${who}'s (${p}%)` : `leans ${who}'s way (${p}%)`;
 }
 
 /** Where a consequence line is cut: where the turning point is shown. */

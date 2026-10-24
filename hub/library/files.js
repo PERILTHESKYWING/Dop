@@ -4,7 +4,8 @@
 // upload: a 'view' JPEG of big images, and for videos up to 48 stills picked
 // around the cuts, contact sheets, and a timeline of motion, cuts and sound
 // (video-scan.js). Everything goes up in chunks the API accepts.
-import { AUDIO_STEP, findCuts, greyDiff, pickTimes, rmsWindows, scanStep, scanTimes, shotsOf, soundHits, tempo } from './video-scan.js';
+// video-scan.js loads only when a video is added, so opening the Library or the hub chat skips it.
+const videoScan = () => import('./video-scan.js');
 const RAW_CHUNK = 675_000; // bytes per chunk = 900,000 base64 characters, the API's limit
 const MAX_B64 = 900_000;
 const VIEW_PX = 1568; // longest side of the copies agents see
@@ -162,6 +163,7 @@ async function seekTo(v, t) {
 // clip has no sound or this browser can't decode it.
 async function soundOf(file) {
   if (file.size > 120 * 1024 * 1024) return { why: 'not measured (file too big to decode in the browser)' };
+  const { AUDIO_STEP, rmsWindows, soundHits, tempo } = await videoScan();
   const AC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
   if (!AC) return { why: 'not measured (this browser has no audio decoder)' };
   try {
@@ -191,6 +193,7 @@ async function soundOf(file) {
 // chosen around the cuts, contact sheets of 12, and the sound's loudness,
 // hits and beat. All measured here, so it costs nothing and needs no key.
 async function videoFrames(file, step) {
+  const { findCuts, greyDiff, pickTimes, scanStep, scanTimes, shotsOf } = await videoScan();
   const url = URL.createObjectURL(file);
   const v = document.createElement('video');
   v.muted = true;

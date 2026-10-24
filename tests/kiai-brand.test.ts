@@ -45,6 +45,17 @@ describe('Kiai brand: 気合 brush, seal and loader', () => {
     expect(html).not.toMatch(/ikki|razorbill/i);
   });
 
+  it('is no forced intro: the sheet shows only when the page is late, first visit or not', () => {
+    const html = loaderHtml();
+    expect(html).not.toContain('kiai.seen');
+    expect(html).toContain('},450)');
+    // a page whose first render is in by then never sees the sheet, even if its first frame is late
+    expect(html).toContain('if(!ready&&!window.__kiaiReady&&!gone)');
+    // hidden until then, and gone the moment the page is ready
+    expect(html).toMatch(/d\.classList\.add\('kl-repeat'\)/);
+    expect(html).toContain('function check(){if(ready)hide()}');
+  });
+
   it('moves the seal and tagline to files when the build gives URLs, keeping the brush inline', () => {
     const html = loaderHtml({ seal: '/assets/s.svg', tagline: '/assets/t.svg' });
     expect(html).toContain('<img src="/assets/s.svg"');

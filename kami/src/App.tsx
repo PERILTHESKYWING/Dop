@@ -1,15 +1,17 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useEvent } from './lib/useEvent';
 import type { ThoughtStep } from '../../src/lib/coach/explain/types';
 import { decodeSgfBytes } from '../../src/lib/util/charset';
 import { untilAborted } from './lib/untilAborted';
-import { getAnswerProber } from './lib/analysis';
+import { getAnswerProber, positionKey } from './lib/analysis';
+import { questionStarted } from './lib/engine';
+import { loadJourney, onPathNote } from './lib/pathLine';
 import { callKamiWrite, llmConfigured, LlmUnavailable, type CallLlm } from './lib/llm';
 import { localAvailable, localWrite } from './lib/local';
 import { NOTES } from './lib/writer';
-import { boardFromSgf, emptyBoard, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
+import { boardFromSgf, emptyBoard, explainPositionOf, goTo, looksLikeSgf, playAt, undo, type BoardState } from './lib/position';
 import { deleteConversation, loadConversations, newConversation, newId, saveConversation, titleFrom, type Answer, type ChatMessage, type Conversation } from './lib/store';
-import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, type LevelId } from './lib/levels';
+import { DEFAULT_LEVEL, levelById, levelFromOld, levelList, levelOfMessage, longerLevel, type Level, type LevelId } from './lib/levels';
 import { BoardPanel as BoardPanelView, type Preview } from './ui/BoardPanel';
 import { Composer as ComposerView } from './ui/Composer';
 import { Icon } from './ui/Icon';
@@ -81,7 +83,7 @@ export function App() {
   }, []);
   const [drawer, setDrawer] = useState(false);
   const [boardHidden, setBoardHidden] = useState(false);
-  const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') === '1');
+  const [folded, setFolded] = useState(() => lsGet('kami.sideFolded') !== '0'); // folded by default: the board comes first
   const fold = useCallback(
     () =>
       setFolded((f) => {
@@ -100,8 +102,18 @@ export function App() {
   const controller = useRef<AbortController | null>(null);
 
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
+  // KataGo's reads behind this board's answers (newest first): the board shows the same numbers as the text.
+  const answerReads = useMemo(() => {
+    const out: { key: string; read: NonNullable<Extract<Answer, { type: 'explain' }>['explanation']['root']> }[] = [];
+    for (const m of [...(current?.messages ?? [])].reverse()) {
+      const a = m.answer;
+      if (a?.type === 'explain' && a.explanation.root?.candidates.length) out.push({ key: positionKey(a.explanation.position), read: a.explanation.root });
+    }
+    return out;
+  }, [current?.messages]);
 
-  useEffect(markReady, []);
+  // in the DOM is ready enough for the loading sheet: a layout effect, before the first frame (a passive effect waits for it)
+  useLayoutEffect(markReady, []);
 
   // Fetch the answer pipeline and Settings once the first screen is up, so neither waits later.
   useEffect(() => {
@@ -109,6 +121,10 @@ export function App() {
     idle(() => {
       loadCoach().catch(() => {});
       import('./ui/Settings').catch(() => {});
+      // The study path (keeps the sidebar line current) and the optional account (hidden unless
+      // the sync server answers); neither is in the first paint.
+      loadJourney().catch(() => {});
+      import('./lib/account').then((m) => m.startAccount()).catch(() => {});
     });
   }, []);
 
@@ -145,6 +161,8 @@ export function App() {
     return () => document.removeEventListener('keydown', key);
   }, []);
 
+  // A passed station or a stamped seal on the study path: one short line, switchable off.
+  useEffect(() => onPathNote(setToast), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
@@ -203,9 +221,13 @@ export function App() {
 
   /** Ask in conversation `convId` and fill message `kamiId` with the answer. */
   /** `fresh`: Regenerate, so the writer is asked again instead of answering from a cache. */
-  const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false) => {
+  const run = async (convId: string, kamiId: string, text: string, board: BoardState, fresh = false, lv?: Level) => {
+    const pk = lv?.pick ?? pick;
+    const th = lv?.thinking ?? thinking;
     const ctrl = new AbortController();
     controller.current = ctrl;
+    // KataGo never measures the device while a question is answered (it waits for a quiet moment after).
+    const asked = questionStarted();
     setRunning({ convId, msgId: kamiId, stage: 'thinking', steps: [], t0: Date.now() });
     // Steps that land in the same frame are drawn together: one render per frame at most.
     let queued: ThoughtStep[] = [];
@@ -234,8 +256,8 @@ export function App() {
         answerQuestion(
           text,
           board,
-          pick,
-          thinking,
+          pk,
+          th,
           {
             explain,
             getProber: getAnswerProber,
@@ -262,11 +284,20 @@ export function App() {
       else answer = { type: 'error', text: stopped ? 'Stopped.' : `Something went wrong: ${(e as Error).message}` };
     }
     update(convId, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === kamiId ? { ...m, answer } : m)) }));
+    // The study path: an answer about a position or an idea (errors and "Stopped." don't count; every level earns the same).
+    if (answer.type === 'explain' || (answer.type === 'concept' && answer.ids.length)) {
+      const intent = answer.type === 'explain' ? answer.explanation.question.intent : undefined;
+      const key = positionKey(explainPositionOf(board));
+      loadJourney()
+        .then((m) => m.recordAnswer(key, text, intent === 'kill' || intent === 'live'))
+        .catch(() => {});
+    }
     // "Move 37": show the position the answer is about.
     if (answer.type === 'explain' && Math.abs(answer.upTo - board.cursor) > 1) {
       update(convId, (c) => (c.board.moves.length === board.moves.length ? { ...c, board: goTo(c.board, answer.upTo) } : c), false);
     }
     controller.current = null;
+    asked();
     setRunning(null);
   };
 
@@ -284,8 +315,8 @@ export function App() {
     void run(current.id, kami.id, text, current.board);
   });
 
-  /** Run the last question again (regenerate), or with new words (edit). */
-  const rerun = useEvent((newText?: string) => {
+  /** Run the last question again (regenerate), or with new words (edit), or at another level ("Read longer"). */
+  const rerun = useEvent((newText?: string, lv?: Level) => {
     if (running) return;
     const msgs = current.messages;
     let i = msgs.length - 1;
@@ -293,13 +324,13 @@ export function App() {
     if (i < 0) return;
     const text = (newText ?? msgs[i].text).trim();
     if (!text) return;
-    const kami: ChatMessage = { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
+    const kami: ChatMessage = lv ? { id: newId(), role: 'kami', text: '', at: Date.now(), pick: lv.pick, thinking: lv.thinking, level: lv.id } : { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({
       ...c,
       title: i === 0 && newText ? titleFrom(text) : c.title,
       messages: [...c.messages.slice(0, i), { ...c.messages[i], text }, kami],
     }));
-    void run(current.id, kami.id, text, current.board, true);
+    void run(current.id, kami.id, text, current.board, true, lv);
   });
 
   const stop = useCallback(() => controller.current?.abort(), []);
@@ -346,7 +377,7 @@ export function App() {
     clearPreview();
     setConvs([fresh]);
     setCurrentId(fresh.id);
-    setToast('All chats deleted');
+    setToast('All boards deleted');
   };
 
   const listed = useMemo(() => convs.filter((c) => c.messages.length).sort((a, b) => b.updated - a.updated), [convs]);
@@ -358,6 +389,12 @@ export function App() {
   const pinnedKey = pinned?.key ?? null;
   const link = useMemo(() => ({ onHover: setHover, onPin: setPinned, pinnedKey }), [pinnedKey]);
   const regenerate = useCallback(() => rerun(), [rerun]);
+  // "Read longer" under a quick answer: the same question again at a longer level, this once.
+  const readLonger = useEvent(() => {
+    const last = [...current.messages].reverse().find((m) => m.role === 'kami');
+    const lv = longerLevel(last?.level ?? levelOfMessage(last ?? {})?.id);
+    if (lv) rerun(undefined, lv);
+  });
   const editLast = useCallback((text: string) => rerun(text), [rerun]);
   const showBoard = useCallback(
     (b: BoardState) => {
@@ -401,10 +438,10 @@ export function App() {
       <div className="scrim" onClick={() => setDrawer(false)} />
       <div className="work split">
         <header className="topbar">
-          <button className="icon-btn only-phone" aria-label="Open chats" onClick={() => setDrawer(true)}>
+          <button className="icon-btn only-phone" aria-label="Open boards" onClick={() => setDrawer(true)}>
             <Icon name="sidebar" size={20} />
           </button>
-          <span className="topbar-title">{current.messages.length ? current.title : 'New chat'}</span>
+          <span className="topbar-title">{current.messages.length ? current.title : 'New board'}</span>
           <button
             className="icon-btn"
             aria-label={boardHidden ? 'Show board' : 'Hide board'}
@@ -414,7 +451,7 @@ export function App() {
           >
             <Icon name="board" />
           </button>
-          <button className="icon-btn only-phone" aria-label="New chat" onClick={newChat}>
+          <button className="icon-btn only-phone" aria-label="New board" onClick={newChat}>
             <Icon name="plus" />
           </button>
         </header>
@@ -426,6 +463,7 @@ export function App() {
             link={link}
             onAsk={send}
             onRegenerate={regenerate}
+            onReadLonger={readLonger}
             onEdit={editLast}
             onShowBoard={showBoard}
             busy={!!running}
@@ -453,6 +491,8 @@ export function App() {
             onSgfText={loadSgfText}
             onSgfFile={loadSgfFile}
             onSettings={boardSettings}
+            answered={current.messages.some((m) => m.role === 'kami' && !!m.answer)}
+            answerReads={answerReads}
           />
         )}
       </div>

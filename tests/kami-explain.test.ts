@@ -254,7 +254,8 @@ describe('Kami explain: what to read', () => {
     expect(v.moves.length).toBe(f.moveOrder ? f.moveOrder.ply : tp.ply);
     expect(v.highlight!.every((p) => zoneOf(p, S) === 8)).toBe(true);
     // Ownership as shares (0.7 is 85%), with "leaning" under 0.6; no raw decimals.
-    expect(v.note).toMatch(/^By move \d+ the lower right is White's \(\d{2}%\) instead of leaning Black's \(\d{2}%\)\.$/);
+    // In plain words (critics, round 2): who gets the area without the better move, then both lines.
+    expect(v.note).toMatch(/^Without E5, White gets the lower right: after B5, by move \d+ it is White's \(\d{2}%\); after E5 it is leaning Black's \(\d{2}%\)\.$/);
     expect(v.note).not.toMatch(/0\.\d/);
   });
 
@@ -387,10 +388,21 @@ describe('Kami explain: concepts', () => {
 
   it('sente when the reply is local and playing elsewhere costs; not when it is cheap', () => {
     const ctx = conceptContext(findings());
-    const after = (tenukiLead: number) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60 }, { at: 'G5', lead: tenukiLead, visits: 8 }]);
+    // KataGo's line: White answers at D3, then Black plays elsewhere (J9).
+    const after = (tenukiLead: number, pv = ['D3', 'J9']) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60, pv }, { at: 'G5', lead: tenukiLead, visits: 8 }]);
     expect(senteGote(ctx, P('D4'), after(-3.1))?.id).toBe('sente');
     expect(senteGote(ctx, P('D4'), after(-3.1))?.evidence).toContain('2.1 points');
     expect(senteGote(ctx, P('D4'), after(-1.2))).toBeNull();
+  });
+
+  it('no sente when the line does not show the mover playing elsewhere next', () => {
+    const ctx = conceptContext(findings());
+    const after = (pv: string[]) => read(1, 0.55, [{ at: 'D3', lead: -1.0, visits: 60, pv }, { at: 'G5', lead: -3.1, visits: 8 }]);
+    // The reply starts a fight: Black has to go on locally (C3), so D4 is not sente.
+    expect(senteGote(ctx, P('D4'), after(['D3', 'C3']))).toBeNull();
+    // A line that stops at the reply shows nothing.
+    expect(senteGote(ctx, P('D4'), after(['D3']))).toBeNull();
+    expect(senteGote(ctx, P('D4'), after(['D3', 'J9']))?.id).toBe('sente');
   });
 
   it('gote when a contact move lets the opponent play elsewhere; nothing for a move in open space', () => {

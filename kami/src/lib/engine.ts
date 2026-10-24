@@ -13,7 +13,15 @@ import { engineEvaluator, type LeafEvaluator } from '../../../src/lib/engine/mct
 import { bundledModel, MODELS, type ModelSpec } from '../../../src/lib/engine/models';
 import { getSetting } from './settings';
 
-export type EngineStatus = { state: 'idle' } | { state: 'loading'; text: string; pct?: number } | { state: 'ready'; text: string } | { state: 'failed'; text: string };
+/**
+ * `background`: the device is being measured while nothing waits for KataGo, so the board
+ * says nothing about it (the gear menu's foot still does). It turns false when a read waits.
+ */
+export type EngineStatus =
+  | { state: 'idle' }
+  | { state: 'loading'; text: string; pct?: number; background?: boolean }
+  | { state: 'ready'; text: string }
+  | { state: 'failed'; text: string };
 
 let status: EngineStatus = { state: 'idle' };
 const listeners = new Set<() => void>();
@@ -78,8 +86,42 @@ type Attempt = { spec: ModelSpec; forceCpu: boolean };
 /** Reads running now, and when the last one ended (the background tune waits for a pause). */
 let reading = 0;
 let lastRead = 0;
+/** Questions being answered now, and whether one has been answered since the page opened. */
+let asking = 0;
+let answeredOnce = false;
+/** When the engine first booted: a board-only visitor (no question yet) is measured after this long. */
+let bootedAt = 0;
 /** Quiet time before the background tune starts. */
-const TUNE_IDLE_MS = 4000;
+const TUNE_IDLE_MS = 6000;
+/** With no answered question yet, the tune waits this long after boot (the first answer comes first). */
+const TUNE_FIRST_MS = 60_000;
+/** The background tune is loading now, and reads waiting for it. */
+let tuning = false;
+let waiting = 0;
+let tuneStatus: EngineStatus | null = null;
+
+/**
+ * A question is being answered: the device is never measured meanwhile (measuring stops the
+ * engine for 10-25 s). Call the returned function when the answer is done.
+ */
+export function questionStarted(): () => void {
+  asking++;
+  let ended = false;
+  return () => {
+    if (ended) return;
+    ended = true;
+    asking--;
+    answeredOnce = true;
+    lastRead = Date.now();
+  };
+}
+
+/** Someone is about to ask: text typed in a box (the composer) means a question may come at once. */
+const typing = () => {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  return el instanceof HTMLTextAreaElement && el.value.trim().length > 0;
+};
 /** When measuring last failed here: not tried again for a week (the untuned engine works). */
 const TUNE_FAILED = 'kami.tuneFailed';
 const TUNE_RETRY_MS = 7 * 24 * 3600_000;
@@ -115,13 +157,18 @@ function tuneWhenIdle(plain: BrowserEngine, attempt: Attempt) {
   const tick = () => {
     if (engine === null || plain.dead) return; // the plain engine died: the next question boots again
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-    if (reading > 0 || Date.now() - lastRead < TUNE_IDLE_MS || hidden) {
+    const early = !answeredOnce && Date.now() - bootedAt < TUNE_FIRST_MS;
+    if (reading > 0 || asking > 0 || early || Date.now() - lastRead < TUNE_IDLE_MS || hidden || typing()) {
       setTimeout(tick, 1000);
       return;
     }
     plain.onDeath = undefined;
     plain.kill('replaced');
-    const onProgress = (p: LoadProgress) => set(progressText(p));
+    tuning = true;
+    const onProgress = (p: LoadProgress) => {
+      tuneStatus = progressText(p);
+      set(tuneStatus.state === 'loading' ? { ...tuneStatus, background: waiting === 0 } : tuneStatus);
+    };
     const next: Promise<BrowserEngine> = BrowserEngine.load(attempt, onProgress, { tune: true }).then(adopt, () => {
       // Measuring failed: remember it (no retry for a week, see shouldTune) and start the
       // untuned engine again, so the site keeps working and the status ends ready.
@@ -130,6 +177,10 @@ function tuneWhenIdle(plain: BrowserEngine, attempt: Attempt) {
       return boot();
     });
     engine = next;
+    void next.finally(() => {
+      tuning = false;
+      tuneStatus = null;
+    }).catch(() => {});
     next.catch((e) => {
       if (engine !== next) return;
       engine = null;
@@ -140,6 +191,7 @@ function tuneWhenIdle(plain: BrowserEngine, attempt: Attempt) {
 }
 
 async function boot(): Promise<BrowserEngine> {
+  bootedAt ||= Date.now();
   set({ state: 'loading', text: 'Starting KataGo' });
   const caps = await detectCapabilities();
   const onProgress = (p: LoadProgress) => set(progressText(p));
@@ -208,11 +260,19 @@ export function readStarted(): () => void {
 
 async function current(): Promise<BrowserEngine> {
   engine ??= boot();
+  // A read now waits for the background measuring: the board says so until it ends.
+  const wait = tuning;
+  if (wait) {
+    waiting++;
+    if (tuneStatus?.state === 'loading') set({ ...tuneStatus, background: false });
+  }
   try {
     return await engine;
   } catch (e) {
     engine = null;
     set({ state: 'failed', text: `KataGo could not start: ${(e as Error).message}` });
     throw e;
+  } finally {
+    if (wait) waiting--;
   }
 }

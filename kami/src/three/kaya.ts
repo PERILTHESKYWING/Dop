@@ -133,10 +133,21 @@ function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
   g.fillStyle = ink;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  // as big as the stone allows: a number should read at a glance even on a small board
-  const px = text.length >= 3 ? 76 : text.length === 2 ? 112 : 118;
+  if (text === '○') {
+    // KataGo's choice among loss labels: a ring, not a "0.0" (critics, round 2)
+    g.strokeStyle = ink;
+    g.lineWidth = 11;
+    g.beginPath();
+    g.arc(64, 64, 34, 0, Math.PI * 2);
+    g.stroke();
+    return;
+  }
+  // as big as the stone allows: a number should read at a glance even on a phone, so longer
+  // ones ("-11", "-0.9") keep their height and are set narrower rather than smaller; they stay
+  // inside the stone (104 of its 128) so two neighbours' numbers never run together
+  const px = text.length >= 4 ? 88 : text.length === 3 ? 98 : text.length === 2 ? 112 : 118;
   g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
-  g.fillText(text, 64, 71, 118);
+  g.fillText(text, 64, 71, 104);
 }
 
 export interface CandGlow {
@@ -319,8 +330,10 @@ function tileTexture(): Texture {
 
 /** A rounded square with soft edges (territory marks). */
 let squareTex: Texture | null = null;
-function squareTexture(): Texture {
-  if (squareTex) return squareTex;
+/** The same square with an ink rim (White's area on the landing: a pale square alone is about 1.8:1 on the wood). */
+let squareRimTex: Texture | null = null;
+function squareTexture(rim = false): Texture {
+  if (rim ? squareRimTex : squareTex) return (rim ? squareRimTex : squareTex)!;
   const n = 64;
   const d = new Uint8Array(n * n * 4);
   for (let y = 0; y < n; y++)
@@ -329,14 +342,21 @@ function squareTexture(): Texture {
       const r = Math.pow(Math.pow(u, 6) + Math.pow(v, 6), 1 / 6); // superellipse: a square with round corners
       const a = MathUtils.clamp((1 - r) / 0.12, 0, 1);
       const i = (y * n + x) * 4;
-      d[i] = d[i + 1] = d[i + 2] = 255;
+      // the rim: the outer quarter of the square in a dark ink
+      const ink = rim ? MathUtils.clamp((r - 0.66) / 0.04, 0, 1) : 0;
+      // (the texture is read as linear, so the ink is given in linear values: about #2a2620 on screen)
+      d[i] = Math.round(255 - ink * (255 - 6));
+      d[i + 1] = Math.round(255 - ink * (255 - 5));
+      d[i + 2] = Math.round(255 - ink * (255 - 4));
       d[i + 3] = Math.round(a * 255);
     }
-  squareTex = new DataTexture(d, n, n, RGBAFormat);
-  squareTex.magFilter = LinearFilter;
-  squareTex.minFilter = LinearFilter;
-  squareTex.needsUpdate = true;
-  return squareTex;
+  const t = new DataTexture(d, n, n, RGBAFormat);
+  t.magFilter = LinearFilter;
+  t.minFilter = LinearFilter;
+  t.needsUpdate = true;
+  if (rim) squareRimTex = t;
+  else squareTex = t;
+  return t;
 }
 
 /** A beam's falloff: bright at the foot, gone at the top, soft at the sides. */
@@ -1451,9 +1471,9 @@ export class KayaView {
   /**
    * Territory, as Go programs show it: a square on each point sized by how sure KataGo is,
    * dark for Black and light for White, revealed by a scan of light across the board. `scale`
-   * makes the squares larger (the landing, seen from afar).
+   * makes the squares larger (the landing, seen from afar); `rim` gives White's squares an ink edge (the landing).
    */
-  setOwnership(own: ArrayLike<number> | null, reveal = true, scale = 1) {
+  setOwnership(own: ArrayLike<number> | null, reveal = true, scale = 1, rim = false) {
     // the materials are kept (ownMat): ownership changes with every KataGo update, and a disposed
     // material's shader would be compiled again for the next one
     for (const m of this.ownMesh) {
@@ -1476,7 +1496,7 @@ export class KayaView {
     const meshes = ([1, 2] as StoneColor[]).map((side) => {
       const mat = relief
         ? this.ownMat(`true|${side}`, () => new MeshStandardMaterial({ map: tileTexture(), color: side === 1 ? 0x0f5f98 : 0xdcecff, emissive: side === 1 ? 0x18aaf2 : 0xa8dcff, emissiveMap: tileTexture(), emissiveIntensity: side === 1 ? 1.35 : 1.3, roughness: 0.2, transparent: true, opacity: side === 1 ? 0.92 : 0.88, depthWrite: false }))
-        : this.ownFlatMat(side);
+        : this.ownFlatMat(side, rim);
       const m = new InstancedMesh(geo, mat, n);
       m.count = 0;
       m.frustumCulled = false;
@@ -1668,8 +1688,10 @@ export class KayaView {
   }
 
   /** The flat territory squares' material (the app's 2D-style ownership), one per side. */
-  private ownFlatMat(side: StoneColor): Material {
-    return this.ownMat(`false|${side}`, () => new MeshBasicMaterial({ color: side === 1 ? 0x061423 : 0xffffff, map: squareTexture(), transparent: true, opacity: side === 1 ? 0.58 : 0.78, depthWrite: false }));
+  private ownFlatMat(side: StoneColor, rim = false): Material {
+    // rim (the landing): White's squares get an ink edge and both sides a little more ink, for 3:1 on the wood
+    const r = rim && side === 2;
+    return this.ownMat(`false|${side}${rim ? '|rim' : ''}`, () => new MeshBasicMaterial({ color: side === 1 ? 0x061423 : 0xffffff, map: squareTexture(r), transparent: true, opacity: side === 1 ? (rim ? 0.72 : 0.58) : r ? 0.92 : 0.78, depthWrite: false }));
   }
 
   /**

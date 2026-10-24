@@ -88,12 +88,13 @@ export function Composer({ value, onChange, levels, level, onLevel, running, onS
           className={`think-menu${level === 'ultrago' ? ' ultra' : ''}`}
           label={
             <>
-              Thinking: <LevelName level={levelById(level)} />
+              <span className="menu-word">Reading: </span>
+              <LevelName level={levelById(level)} />
             </>
           }
         >
           {(close) => [
-            <div key="head" className="menu-head">Thinking: how long Kiai reads before it answers</div>,
+            <div key="head" className="menu-head">Reading: how long KataGo reads before Kiai answers</div>,
             ...levels.map((l) => (
               <button
                 key={l.id}

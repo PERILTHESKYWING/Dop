@@ -1,7 +1,6 @@
 /**
  * The landing camera, without three.js: one view per chapter and how the scroll glides between
- * them. The live board (Stage.tsx) and the still sky drawn before three.js arrives (Poster.tsx)
- * both use it, so the sky in the poster is the same sky the live picture opens on.
+ * them (the live board, Stage.tsx, uses it; tests check the framing in plain numbers).
  */
 
 /** Where the board may be drawn: left, top, right, bottom, as fractions of the screen. */
@@ -21,60 +20,32 @@ export interface Cam {
 /**
  * One view per chapter: the angle the camera looks from. The distance is worked out each time so
  * the whole board fills the room the words leave (`fitOrbit`), never under them and never cut
- * off. `low` keeps the board in the lower part of that room, so the sky shows above it. The last
- * view looks up from the table into the sky, past the board.
+ * off. The last view comes back to the first one's angle, so the page ends where it began.
  */
 interface Key {
   elev: number;
   azim: number;
   fov: number;
-  low?: number;
-  free?: { dist: number; shift: number; shiftY: number; target: [number, number, number] };
 }
 export const T = 0.055; // the board's thickness: a thick table board
-export const SKY_TURN = 50;
-// from just left of the pillar, looking out over the cloud sea towards the low sun (30° to the
-// left), so the last screen is the sky the page has been in all along
-const SKY: Key['free'] = { dist: 2.0, shift: 0, shiftY: 0, target: [-2.6, 0.14, -0.59] };
 // wide screens (the words on the left) and tall ones (the words below)
 const WIDE: Key[] = [
-  { elev: 26, azim: -16, fov: 44, low: 0.46 },
+  { elev: 26, azim: -16, fov: 44 },
   { elev: 50, azim: 22, fov: 40 },
   { elev: 64, azim: 36, fov: 40 },
-  { elev: 84, azim: 0, fov: 38 },
-  { elev: 34, azim: 32, fov: 44 },
-  { elev: 9, azim: 60, fov: 50, free: SKY },
+  // nearly top-down with a long lens: little perspective, so the edge stones and squares stay on the board
+  { elev: 84, azim: 0, fov: 16 },
+  { elev: 40, azim: 24, fov: 44 },
+  { elev: 30, azim: -16, fov: 44 },
 ];
 const TALL: Key[] = [
   { elev: 30, azim: -14, fov: 42 },
   { elev: 50, azim: 18, fov: 46 },
   { elev: 64, azim: 30, fov: 46 },
-  { elev: 84, azim: 0, fov: 44 },
+  { elev: 84, azim: 0, fov: 20 },
   { elev: 38, azim: 30, fov: 48 },
-  { elev: 9, azim: 60, fov: 60, free: SKY },
+  { elev: 32, azim: -14, fov: 42 },
 ];
-
-/** The panorama the live picture loads: smaller on touch screens (the poster uses the same). */
-export const skyUrl = () => {
-  try {
-    return window.matchMedia('(pointer: coarse)').matches ? '/kiai/sky-1536.webp' : '/kiai/sky.webp';
-  } catch {
-    return '/kiai/sky.webp';
-  }
-};
-/** The live renderer's pixel ratio (KayaView caps it the same way). */
-export const pixelRatio = () => {
-  let lite = false;
-  try {
-    lite = window.matchMedia('(pointer: coarse)').matches;
-  } catch {
-    /* keep the default */
-  }
-  return Math.min(window.devicePixelRatio || 1, lite ? 1.5 : 2);
-};
-
-/** Whether a canvas this shape uses the tall views (words below the board). */
-export const isTall = (w: number, h: number) => w / Math.max(1, h) < 0.9;
 
 // the 19×19 board's size, as kaya.ts builds it (SX, SY: line spacing; MX, MY: margins)
 const SX = 0.022;
@@ -138,10 +109,8 @@ export function fitOrbit(v: { elev: number; azim: number; target: V3; fov: numbe
 }
 
 function resolve(k: Key, box: Box, aspect: number): Cam {
-  if (k.free) return { elev: k.elev, azim: k.azim, fov: k.fov, ...k.free };
   const target: V3 = [0, T, 0];
-  const b: Box = k.low ? [box[0], Math.max(box[1], k.low), box[2], box[3]] : box;
-  return { elev: k.elev, azim: k.azim, fov: k.fov, target, ...fitOrbit({ elev: k.elev, azim: k.azim, fov: k.fov, target }, b, aspect) };
+  return { elev: k.elev, azim: k.azim, fov: k.fov, target, ...fitOrbit({ elev: k.elev, azim: k.azim, fov: k.fov, target }, box, aspect) };
 }
 
 const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));

@@ -13,9 +13,10 @@ import { loadNodeEngine } from './nodeEngine';
 
 const models = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'models');
 
-export async function nodeProber(size = 19): Promise<Prober> {
+/** `winrateScale`: derive winrates from the score lead, as the site does for the bundled b10 (WINRATE_FROM_SCORE). */
+export async function nodeProber(size = 19, winrateScale?: number): Promise<Prober> {
   const file = readdirSync(models).find((f) => f.startsWith('g170e-b10c128') && f.endsWith('.bin.gz'));
   if (!file) throw new Error(`no bundled network in ${models}`);
-  const eng = await loadNodeEngine(path.join(models, file), 'g170e-b10c128', size, 1);
+  const eng = await loadNodeEngine(path.join(models, file), 'g170e-b10c128', size, 1, winrateScale);
   return searchProber(engineEvaluator(eng, { cache: new NNCache() }));
 }

@@ -35,6 +35,13 @@ function entered(): boolean {
 
 const firstLanding = location.hash === '#welcome' || (!entered() && location.hash !== '#annotate');
 
+/**
+ * A first visit's landing, loaded before the first render instead of through Suspense: React 19
+ * holds back a Suspense boundary's content for about 300 ms after its fallback shows, which kept
+ * the landing (and the 気合 sheet's "ready") back by that much on every visit.
+ */
+let LandingNow: typeof import('./ui/Landing').default | null = null;
+
 /** First visit (or #welcome): the landing page. After "Open Kiai", straight to the app. */
 function Root() {
   const [landing, setLanding] = useState(firstLanding);
@@ -64,7 +71,9 @@ function Root() {
       </Suspense>
     );
   if (landing)
-    return (
+    return LandingNow ? (
+      <LandingNow onEnter={enter} />
+    ) : (
       <Suspense fallback={null}>
         <Landing onEnter={enter} />
       </Suspense>
@@ -72,8 +81,18 @@ function Root() {
   return <App />;
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>,
-);
+const start = () =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <Root />
+    </StrictMode>,
+  );
+if (firstLanding)
+  import('./ui/Landing').then(
+    (m) => {
+      LandingNow = m.default;
+      start();
+    },
+    start,
+  );
+else start();
