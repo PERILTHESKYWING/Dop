@@ -927,3 +927,23 @@ html.kiai-landing {
     transition: none;
   }
 }
+
+/* ===== Trust features (swarm, feature builder): the hero pick's visits ===== */
+/* "Q9 1,515 of 2,048 visits": the claim's proof beside it, a small ink-ruled label in plain figures */
+.l-pick-proof {
+  white-space: nowrap;
+}
+.l-visits {
+  display: inline-block;
+  margin: 0 1px 0 2px;
+  padding: 1px 7px 2px;
+  border: 1px solid var(--l-line);
+  border-radius: 5px;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--l-muted);
+  font-variant-numeric: lining-nums tabular-nums;
+  vertical-align: 0.2em;
+}

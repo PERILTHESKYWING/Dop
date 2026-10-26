@@ -79,7 +79,11 @@ const exampleSrc = (x: ConceptExample, key: string): PointSrc => ({
 /** Which glossary terms a text may underline: those first seen there (a set), or none (null). */
 type Terms = ReadonlySet<GlossaryEntry> | null;
 
-/** A hover (mouse) or tap (touch, pinned) target that shows something on the board. */
+/**
+ * A hover (mouse), keyboard focus or tap (touch, pinned) target that shows something on the
+ * board. Keyboard focus opens it exactly as a hover does (the hover setting is about the
+ * pointer only), Tab away or Escape closes it, Enter pins it.
+ */
 function BoardChip({ preview, link, className, children }: { preview: (pinned: boolean) => Preview; link: BoardLink; className?: string; children: ReactNode }) {
   const hoverOn = useSetting<boolean>('board.hoverPreview');
   const p = preview(false);
@@ -90,8 +94,15 @@ function BoardChip({ preview, link, className, children }: { preview: (pinned: b
       className={`${className ?? 'chip'}${on ? ' on' : ''}`}
       onPointerEnter={(e) => hoverOn && e.pointerType === 'mouse' && link.onHover(p)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && link.onHover(null)}
-      onFocus={(e) => hoverOn && e.currentTarget.matches(':focus-visible') && link.onHover(p)}
+      onFocus={(e) => e.currentTarget.matches(':focus-visible') && link.onHover(p)}
       onBlur={() => link.onHover(null)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return;
+        // closes this line (and only this one), and keeps the Escape from closing a graph too
+        e.preventDefault();
+        link.onHover(null);
+        if (on) link.onPin(null);
+      }}
       onClick={() => link.onPin(on ? null : preview(true))}
       title={p.note || p.title}
     >
