@@ -64,7 +64,7 @@
   margin: 14px 0 6px;
 }
 /* each ring is --line-ui (3:1 or more on the page in both themes); the fill is the stone colour,
-   a flat edge where a tenth is part done */
+   a clock-hand wedge where a tenth is part done (Journey.tsx) */
 .path-stones {
   --fill: var(--stone-b);
 }
@@ -88,10 +88,12 @@
   background: var(--fill);
   box-shadow: none;
 }
-.path-stones i {
+.path-stones svg {
   position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--fill);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: var(--fill);
 }
 
 /* days in a row: one quiet line */
@@ -145,14 +147,16 @@
 .week-line .m-study .week-pt {
   background: var(--stone-b);
 }
+/* dark: a black stone drawn as on a dark ground, a face a step lighter than the panel and a light
+   edge (as --stone-ring), so it reads as a stone and not as a hole in the panel */
 :root[data-theme='dark'] .week-line .m-study .week-pt {
-  background: #050607;
-  box-shadow: 0 0 0 1px var(--line-ui);
+  background: #403b34;
+  box-shadow: inset 0 0 0 1.5px rgba(241, 236, 226, 0.6);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .week-line .m-study .week-pt {
-    background: #050607;
-    box-shadow: 0 0 0 1px var(--line-ui);
+    background: #403b34;
+    box-shadow: inset 0 0 0 1.5px rgba(241, 236, 226, 0.6);
   }
 }
 .week-line .m-rest .week-pt {
@@ -217,8 +221,10 @@
   place-items: center;
   box-sizing: border-box;
   border-radius: 5px;
-  border: 1.5px solid var(--line-strong);
-  color: var(--faint);
+  /* not yet: a thin ink outline and ink characters at 3:1 (--line-ui), no fill */
+  border: 1.25px solid var(--line-ui);
+  background: transparent;
+  color: var(--line-ui);
   font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Songti SC', 'SimSun', 'Noto Serif CJK JP', serif;
   line-height: 1;
 }

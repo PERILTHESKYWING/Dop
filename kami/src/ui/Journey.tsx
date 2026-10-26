@@ -7,9 +7,18 @@ import './journey.css';
 const WEEKDAY = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MARK_LABEL: Record<DayMark, string> = { study: 'studied', rest: 'rest day used', none: 'no study', today: 'today, not yet' };
 
+/** A clock-hand wedge from 12 o'clock over a 14-unit dot: `f` of the turn, at least an eighth. */
+function wedge(f: number): string {
+  const a = 2 * Math.PI * Math.max(0.125, Math.min(0.99, f));
+  const x = (7 + 7 * Math.sin(a)).toFixed(2);
+  const y = (7 - 7 * Math.cos(a)).toFixed(2);
+  return `M7 7V0A7 7 0 ${a > Math.PI ? 1 : 0} 1 ${x} ${y}Z`;
+}
+
 /**
  * Ten stones toward the next station, filled in proportion: each tenth done is a black stone, the
- * tenth under way is black for the part done (left to right), the rest are empty rings.
+ * tenth under way fills like a clock hand from 12 o'clock, never less than an eighth of the dot
+ * (a thin edge-on sliver read as a broken "C"), and the rest are empty rings.
  */
 function PathStones({ s }: { s: JourneySummary }) {
   const tenths = s.next ? Math.max(0, Math.min(10, (10 * s.into) / s.span)) : 10;
@@ -19,7 +28,11 @@ function PathStones({ s }: { s: JourneySummary }) {
         const f = Math.max(0, Math.min(1, tenths - i));
         return (
           <span key={i} className={f >= 1 ? 'b' : ''}>
-            {f > 0 && f < 1 && <i style={{ width: `${(f * 100).toFixed(1)}%` }} />}
+            {f > 0 && f < 1 && (
+              <svg viewBox="0 0 14 14">
+                <path d={wedge(f)} />
+              </svg>
+            )}
           </span>
         );
       })}

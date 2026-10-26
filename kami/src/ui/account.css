@@ -81,3 +81,33 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* On a phone every control here is a full 44 px touch target: the Sign in / Create account
+   switch, the fields, and the buttons under them. */
+@media (max-width: 899px) {
+  .acct-seg {
+    display: flex;
+    max-width: 380px;
+  }
+  .acct-seg button {
+    flex: 1;
+    min-height: 44px;
+    font-size: 15px;
+  }
+  .acct-field .textbox {
+    height: 44px;
+    font-size: 16px;
+  }
+  .acct-actions .btn,
+  .acct-actions .text-btn {
+    min-height: 44px;
+    font-size: 15px;
+  }
+  .acct-actions .btn {
+    height: auto;
+    padding: 0 18px;
+  }
+  .acct-form > .acct-actions .btn.primary {
+    flex: 1 1 100%;
+  }
+}
