@@ -687,7 +687,9 @@ export function mount(el, ctx) {
     const shown = S.all ? list : list.slice(0, SHOW);
     const key = `${S.sig}|${q('q').value}|${q('kind').value}|${q('tag').value}|${shown.length}`;
     q('empty').hidden = !!list.length;
-    q('empty').textContent = S.items.length ? 'No files match. Clear the search or pick another kind or tag.' : 'No files yet. Upload reference pictures, clips or notes above; agents read them with lib_list and lib_get.';
+    q('empty').innerHTML = S.items.length
+      ? '<b>No files match</b>Clear the search, or pick another kind or tag.'
+      : '<b>No files yet</b>Pictures, clips and notes you add here can be read by every agent on the team.';
     q('more').hidden = shown.length >= list.length;
     q('all').textContent = `Show all ${list.length} files`;
     if (key === S.drawn) return;

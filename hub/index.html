@@ -504,6 +504,12 @@ a.opt { color: inherit; text-decoration: none; }
 /* Computers: a message's Copy shows on hover or focus; phones always show it, quietly. */
 /* Time and Copy sit together. On a computer a follow-on message (and your own) shows its time with Copy on hover or focus. */
 @media (hover: hover) { .feed .sw .cp, .feed .sw .who.mini .when, .feed .sw .who.mine .when { opacity: 0; transition: opacity .12s; } .feed .sw:hover .cp, .feed .sw:focus-within .cp, .feed .sw:hover .who .when, .feed .sw:focus-within .who .when { opacity: 1; } }
+/* Touch screens: Copy, and the time of a follow-on or own message, show only on a tap on the message (or keyboard focus inside it), so no message carries a lone time row. Hidden ones stay focusable. */
+@media (hover: none) {
+  .feed .sw .cp { opacity: 0; pointer-events: none; transition: opacity .12s; }
+  .feed .sw.tap .cp, .feed .sw:focus-within .cp { opacity: 1; pointer-events: auto; }
+  .feed .sw:not(.tap):not(:focus-within) .who.mini, .feed .sw:not(.tap):not(:focus-within) .who.mine { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 /* hub notices: small and calm; an alert only gets an amber dot */
 .note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
@@ -673,6 +679,7 @@ button.fchip:hover { border-color: var(--faint); }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
+.alist { display: grid; gap: 6px; min-width: 0; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
 .ag-who { font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
@@ -780,6 +787,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 /* Team footer: four quiet text buttons of one style; Sign out last and muted. */
 .acts.foot { gap: 2px; margin: 0 -10px; }
 .acts.foot .so { margin-left: auto; color: var(--soft); }
+/* They read as links: a quiet underline at rest, a chip on hover; the stone focus ring as everywhere. */
+.acts.foot .btn { text-decoration: underline; text-decoration-color: var(--line-2); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.acts.foot .btn:hover { text-decoration-color: currentColor; background: var(--sel); }
 .acts a.btn { color: inherit; text-decoration: none; }
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tabs { display: none; }
@@ -824,7 +834,13 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   #sendBtn { min-width: 44px; min-height: 44px; }
   summary, .thought summary, .tk, .trow.tn, .trow.t1, .tfind input, .ask-t, .ask-go { min-height: 44px; }
   /* Thread links on a Team card: 44 px rows; the green bar stays text-high. */
-  button.act { min-height: 44px; align-content: center; border-left: 0; padding-left: 11px; background: linear-gradient(var(--green), var(--green)) left center / 3px 22px no-repeat; }
+  .alist { gap: 0; }
+  .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 11px; background: linear-gradient(var(--green), var(--green)) left center / 3px 22px no-repeat; }
+  /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
+  .acard { padding: 6px 10px 8px 12px; gap: 4px; }
+  .acards { gap: 6px; }
+  .atop .btn.more { margin: -6px -8px -6px 0; }
+  .team > .thead:first-child { padding-top: 10px; }
   /* The last heading in a tab never ends flush under the tab bar. */
   .team, .side .list { padding-bottom: 56px; }
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
@@ -1887,11 +1903,15 @@ function activityOf(a) {
   const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   const row = (t) => {
     const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
-    // Leading is the usual case, so only "member" is written; the title gets the room.
-    const meta = [t.account === a.name ? '' : 'member', last ? since(last.at) : ''].filter(Boolean).join(' · ');
-    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span>${meta ? `<small>${esc(meta)}</small>` : ''}</div></button>`;
+    // Every row has the same meta slot: when this account last spoke there (or the
+    // thread last changed); "member" only when it isn't the lead.
+    const at = last?.at || t.updatedAt || t.createdAt || 0;
+    const meta = [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
+    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${esc(meta)}</small></div></button>`;
   };
-  return `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div></div>`).join('')}`;
+  const rows = `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div></div>`).join('')}`;
+  // One list, so every row keeps the same pitch.
+  return rows ? `<div class="alist">${rows}</div>` : '';
 }
 function accountCard(a) {
   const [cls, st] = acctState(a);
@@ -1901,9 +1921,13 @@ function accountCard(a) {
   const sub = a.problem || (a.low ? `${a.lowNote}${a.lowUntil ? ` · back ${back(a.lowUntil)}, then its threads continue` : ''}` : a.pausedUntil > Date.now() ? `${a.pausedNote} · tries again ${back(a.pausedUntil) === 'now' ? 'now' : 'at ' + back(a.pausedUntil)}` : '');
   const act = activityOf(a);
   // Only a missing or old connection is worth a line; a working one says nothing.
-  const conn = a.oldLink || !a.connected ? `<div class="ameta"><button class="btn small primary" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : ''}</div>` : '';
+  // Outline, like "Mark usage reset": solid stone is kept for New task and Send.
+  const noUse = has ? '' : `<span class="nouse" title="${esc(a.usageErr || '')}">${a.usageErr ? 'No usage shared yet' : a.models.length ? 'Usage not read yet' : 'Free plans don\'t share usage'}</span>`;
+  const needsLink = a.oldLink || !a.connected;
+  // A card that needs connecting says why there are no numbers on the same line.
+  const conn = needsLink ? `<div class="ameta"><button class="btn small" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : noUse}</div>` : '';
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
-  const usage = has ? useLine(u) : `<div class="nouse" title="${esc(a.usageErr || '')}">${a.usageErr ? 'No usage shared yet' : a.models.length ? 'Usage not read yet' : 'Free plans don\'t share usage'}</div>`;
+  const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="${esc(a.name)} options" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${conn}
@@ -2097,6 +2121,14 @@ function endDrag() {
 }
 $('feed').addEventListener('pointerup', endDrag);
 $('feed').addEventListener('pointercancel', endDrag);
+// Touch screens: tapping a message shows its time and Copy (hidden otherwise); a tap elsewhere hides them.
+$('feed').addEventListener('click', (e) => {
+  if (!matchMedia('(hover: none)').matches || Date.now() - swiped < 400) return;
+  const sw = e.target.closest('.sw');
+  if (sw && e.target.closest('button, a, input, textarea, select, summary, label')) return;
+  for (const x of $('feed').querySelectorAll('.sw.tap')) if (x !== sw) x.classList.remove('tap');
+  if (sw && !getSelection()?.toString()) sw.classList.toggle('tap');
+});
 $('feed').addEventListener('input', (e) => { const o = e.target.closest?.('[data-ask-other]'); if (o) { const [id, qi] = o.dataset.askOther.split(':').map(Number); askSel[id][qi].other = o.value; } });
 $('text').addEventListener('input', () => { drafts[sel] = $('text').value; saveDrafts(); grow(); if (sendSt[sel]?.s === 'failed') setSendSt(sel, ''); });
 $('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer: fine)').matches) { e.preventDefault(); $('compose').requestSubmit(); } });
