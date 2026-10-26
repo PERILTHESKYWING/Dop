@@ -68,9 +68,33 @@ export function firstTerms(texts: readonly string[], skip?: (e: GlossaryEntry) =
  * The tooltip's title and text. A definition written "Double sente: a large point..." is
  * split at its colon; otherwise the title is the library entry's name, or the term.
  */
-export function termCard(e: GlossaryEntry): { title: string; text: string } {
+export function termCard(e: GlossaryEntry): { title: string; text: string; names?: TermNames } {
+  const names = TERM_NAMES[e.term];
   const m = e.def.match(/^([^:.!?]{2,40}):\s+([\s\S]*)$/);
-  if (m) return { title: m[1], text: m[2][0].toUpperCase() + m[2].slice(1) };
+  if (m) return { title: m[1], text: m[2][0].toUpperCase() + m[2].slice(1), ...(names ? { names } : {}) };
   const c = e.concept ? conceptById(e.concept) : undefined;
-  return { title: c?.name ?? e.term[0].toUpperCase() + e.term.slice(1), text: e.def };
+  return { title: c?.name ?? e.term[0].toUpperCase() + e.term.slice(1), text: e.def, ...(names ? { names } : {}) };
 }
+
+/** A Go term as Chinese (simplified) and Japanese players write it. */
+export interface TermNames {
+  zh: string;
+  ja: string;
+}
+
+/**
+ * The standard Chinese and Japanese names of a few common terms, shown on their cards (critics,
+ * round 3: "bilingual hover on Go terms"). Only names that are certain; keyed by the glossary's term.
+ */
+export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
+  hane: { zh: '扳', ja: 'ハネ' },
+  atari: { zh: '打吃', ja: 'アタリ' },
+  ko: { zh: '劫', ja: 'コウ' },
+  ladder: { zh: '征子', ja: 'シチョウ' },
+  net: { zh: '枷', ja: 'ゲタ' },
+  tenuki: { zh: '脱先', ja: '手抜き' },
+  sente: { zh: '先手', ja: '先手' },
+  gote: { zh: '后手', ja: '後手' },
+  joseki: { zh: '定式', ja: '定石' },
+  aji: { zh: '味', ja: '味' },
+};

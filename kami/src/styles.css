@@ -2942,3 +2942,45 @@ kbd {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+
+/* ===== Trust features (swarm, feature builder): move caption ===== */
+/* The caption over a previewed move: its name in the accent, KataGo's numbers after it in plain
+   muted figures (one line; the numbers give way first, the head's height never changes). */
+.bp-caption > .bp-cap-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-caption > .bp-cap-title:only-child {
+  max-width: none;
+}
+/* a hovered disc (the game, not a preview): its point in ink */
+.board-panel:not(.previewing) .bp-cap-title {
+  color: var(--ink);
+  font-weight: 600;
+}
+.bp-caption > .bp-cap-stats {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.bp-caption > .bp-cap-title + .bp-cap-stats::before {
+  content: '·';
+  margin-right: 8px;
+}
+/* a term card's Chinese and Japanese names, after its English title */
+.term-tip-names {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--muted);
+}
+/* a coordinate reached with Tab looks as it does under the pointer (its line is on the board) */
+.pt:focus-visible {
+  background: var(--accent-soft);
+}

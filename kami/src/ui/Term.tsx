@@ -102,7 +102,29 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
             className={`term-tip${pinned ? ' pinned' : ''}`}
             style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: 'hidden' }}
           >
-            <div className="term-tip-title">{card.title}</div>
+            <div className="term-tip-title">
+              {card.title}
+              {card.names && (
+                // the same term in Chinese and Japanese (once when both write it alike)
+                <span className="term-tip-names">
+                  {card.names.zh === card.names.ja ? (
+                    <span lang="zh-Hans" title="Chinese and Japanese">
+                      {card.names.zh}
+                    </span>
+                  ) : (
+                    <>
+                      <span lang="zh-Hans" title="Chinese">
+                        {card.names.zh}
+                      </span>
+                      {' · '}
+                      <span lang="ja" title="Japanese">
+                        {card.names.ja}
+                      </span>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
             <div className="term-tip-text">{card.text}</div>
             {more && (
               <button

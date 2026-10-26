@@ -59,7 +59,7 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root[data-theme="light"] { color-scheme: light; }
 /* ===== Kaya look (T1 Looks): same wood, stones and type as the hub. The :root prefix lifts these over the page rules below. ===== */
 :root body { font: 16px/1.45 var(--font); font-variant-numeric: lining-nums; -webkit-font-smoothing: antialiased; }
-:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 700; }
+:root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 500; }
 :root .btn.go { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; }
 :root .btn.go:hover { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; }
 :root .btn.go:disabled:hover { background: var(--stone); }
@@ -86,6 +86,8 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root input, :root select, :root textarea { border-radius: var(--r); }
 :root .toast { border-radius: var(--r); }
 @media (max-width: 600px) { :root .top h1 { font-size: 22px; } }
+/* Keyboard focus: the same stone ring as the hub page. */
+:root :focus-visible { outline-color: var(--stone); }
 /* ===== end Kaya look ===== */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -292,7 +294,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
 </div>
 
 <div id="loginBox" class="card login" hidden>
-  <h1 style="font:800 28px/1.1 var(--font);margin:0">Storytime studio</h1>
+  <h1 style="font:700 28px/1.1 var(--font);margin:0">Storytime studio</h1>
   <form id="loginForm"><input type="password" id="pw" placeholder="Hub password" autocomplete="current-password" aria-label="Hub password"><button class="btn go" type="submit" style="width:100%">Open studio</button></form>
   <div class="err" id="loginErr"></div>
 </div>

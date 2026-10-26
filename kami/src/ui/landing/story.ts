@@ -32,6 +32,10 @@ export const FIRST = DEMO.reads[0];
 export const FIRST_PICK = FIRST.cands[0].at;
 export const LAST_PICK = FINAL.cands[0].at;
 
+/** The pick's proof, said next to it on the first screen: its visits in KataGo's longest read, out of that read's total. */
+export const PICK_VISITS = FINAL.cands.find((c) => c.at === PICK)?.visits ?? 0;
+export const READ_VISITS = FINAL.visits;
+
 /** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
 

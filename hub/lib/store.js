@@ -125,6 +125,7 @@ export function memoryStore() {
       return 'OK';
     },
     HGET: (k, f) => (hash(k).has(f) ? hash(k).get(f) : null),
+    HMGET: (k, ...fs) => fs.map((f) => (hash(k).has(f) ? hash(k).get(f) : null)),
     HSET: (k, ...fv) => {
       for (let i = 0; i < fv.length; i += 2) hash(k).set(fv[i], String(fv[i + 1]));
       return fv.length / 2;

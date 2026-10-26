@@ -22,7 +22,7 @@ const THINK_LINE = {
 };
 // seq counts messages and new lessons (so a waiting agent notices both with
 // one small read); rev counts thread, account and lesson changes. The page polls both.
-const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents', gone: 'hub:accounts-gone', lessons: 'hub:lessons', lessonSeq: 'hub:lessonseq', seen: 'hub:seen', wake: 'hub:wake', planned: 'hub:wake-planned' };
+const K = { seq: 'hub:seq', rev: 'hub:rev', swept: 'hub:swept', feed: 'hub:feed', threads: 'hub:threads', accounts: 'hub:accounts', settings: 'hub:settings', fires: 'hub:fires', conn: 'hub:conn', deleted: 'hub:deleted', agents: 'hub:agents', gone: 'hub:accounts-gone', lessons: 'hub:lessons', lessonSeq: 'hub:lessonseq', seen: 'hub:seen', wake: 'hub:wake', planned: 'hub:wake-planned', usageNext: 'hub:usage-next' };
 const KEEP_FEED = 3000;
 const FIVE_H = 5 * 3600_000;
 const AGENTS_KEEP = 60; // sub-agent records shown on the page
@@ -176,6 +176,19 @@ return {v, redis.call('HGETALL', KEYS[3]), redis.call('HGETALL', KEYS[4]), redis
     return [v, call('HGETALL', k[2]), call('HGETALL', k[3]), call('LRANGE', k[4], from, -1), call('GET', k[5]), call('LRANGE', k[6], 0, -1), call('GET', k[7]), call('LRANGE', k[8], -200, -1), call('HGETALL', k[9]), call('HGETALL', k[10]), call('HGETALL', k[11]), call('GET', k[12])];
   },
 );
+// The page's usage read: claims the next read when one is due (KEYS[1] holds
+// when; ARGV[1] now, ARGV[2] how long the claim holds), else answers 0.
+const USAGE_CLAIM = defineScript(
+  `local due = tonumber(redis.call('GET', KEYS[1]) or '0') or 0
+if tonumber(ARGV[1]) < due then return 0 end
+redis.call('SET', KEYS[1], tostring(tonumber(ARGV[1]) + tonumber(ARGV[2])))
+return 1`,
+  (call, [key], [t, hold]) => {
+    if (Number(t) < (Number(call('GET', key)) || 0)) return 0;
+    call('SET', key, String(Number(t) + Number(hold)));
+    return 1;
+  },
+);
 // Kept in this function instance's memory between requests (per store):
 // settings for a few seconds, and when the next stopped-agent check is due.
 const SETTINGS_TTL_MS = 10_000;
@@ -306,7 +319,8 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
         .filter((r) => r.id && r.token);
     }
     // Adding a name again (after Remove) clears its tombstone.
-    await store.cmd('HDEL', K.gone, name);
+    // An added or edited account is read at the next usage tick.
+    await store.multi([['HDEL', K.gone, name], ['DEL', K.usageNext]]);
     return putAccount({ ...old, plan, routines, label: clean(input.label ?? old.label ?? '', 40) });
   }
 
@@ -570,32 +584,60 @@ export function createHub({ store, fetchImpl = fetch, now = () => Date.now(), pr
       return { error: `could not reach Claude (${e.name === 'TimeoutError' ? 'timeout' : e.message})` };
     }
   }
+  // The page asks every 5 minutes from each open tab. K.usageNext holds when
+  // the next account is due (at most USAGE_GATE_MAX_MS ahead, so a change made
+  // some other way is seen within that), so a tab with nothing due costs one
+  // command; a read writes everything back in one pipeline, and bumps the page
+  // version only when something the page shows changed. Returns { changed }.
+  const USAGE_GATE_MAX_MS = 30 * 60_000;
+  const USAGE_CLAIM_MS = 30_000;
+  const usageEvery = (refused) => (refused ? USAGE_REFUSED_EVERY_MS : USAGE_EVERY_MS);
+  // What the page draws from a read (the same numbers read again change nothing).
+  const shown = (a) => json([a.usage && { ...a.usage, at: 0 }, a.usageErr || '', !!a.low, a.lowNote || '', a.lowUntil || 0, a.connectedAt || 0]);
   async function refreshUsage({ force = false } = {}) {
+    // Claim the read first so overlapping page polls don't all ask Claude.
+    if (!force && !Number(await store.cmd(...evalCmd(USAGE_CLAIM, [K.usageNext], [now(), USAGE_CLAIM_MS])))) return { changed: false };
+    const all = Object.values(await accounts());
     // Connectors added before the hub tracked connections show up in the log.
-    const seen = new Map((await connLog()).filter((e) => e.keyOk && e.account && e.http === 'POST').map((e) => [e.account, e.at]));
-    for (const a of Object.values(await accounts())) if (!a.connectedAt && seen.has(a.name)) await putAccount({ ...a, connectedAt: seen.get(a.name) });
-    const all = Object.values(await accounts()).filter((a) => a.plan !== 'free');
-    const due = all.filter((a) => force || now() - (a.usageTriedAt || 0) > (a.usageRefused ? USAGE_REFUSED_EVERY_MS : USAGE_EVERY_MS));
-    // Claim the slot first so overlapping page polls don't all ask Claude.
-    for (const a of due) await putAccount({ ...a, usageTriedAt: now() });
-    await Promise.all(
-      due.map(async (a0) => {
-        const got = await readUsage(a0);
-        const a = await account(a0.name);
-        if (!a || !got) return;
+    const seen = all.some((a) => !a.connectedAt) ? new Map((await connLog()).filter((e) => e.keyOk && e.account && e.http === 'POST').map((e) => [e.account, e.at])) : new Map();
+    const paid = all.filter((a) => a.plan !== 'free');
+    const due = paid.filter((a) => force || now() - (a.usageTriedAt || 0) > usageEvery(a.usageRefused));
+    const names = [...new Set([...due.map((a) => a.name), ...all.filter((a) => !a.connectedAt && seen.has(a.name)).map((a) => a.name)])];
+    const got = new Map(await Promise.all(due.map(async (a) => [a.name, await readUsage(a)])));
+    // Write onto the newest copies (an agent may have touched one meanwhile),
+    // never onto an account removed while Claude was being asked.
+    const [cur, gone] = names.length ? await store.multi([['HMGET', K.accounts, ...names], ['HMGET', K.gone, ...names]]) : [[], []];
+    const s = due.length ? await settings() : null;
+    const puts = [], logs = [];
+    let changed = false;
+    for (let i = 0; i < names.length; i++) {
+      const a = gone[i] ? null : parse(cur[i]);
+      if (!a) continue;
+      const before = shown(a);
+      if (!a.connectedAt && seen.has(a.name)) a.connectedAt = seen.get(a.name);
+      const r = got.get(a.name);
+      if (r) {
         a.usageTriedAt = now();
-        a.usageRefused = !!got.refused;
-        if (got.usage) {
-          a.usage = got.usage;
+        a.usageRefused = !!r.refused;
+        if (r.usage) {
+          a.usage = r.usage;
           a.usageErr = '';
-          await applyUsage(a);
-        } else a.usageErr = got.error;
-        await putAccount(a);
-        try {
-          await logConn({ http: 'USAGE', account: a.name, keyOk: !!got.usage, via: got.usage ? `5h ${got.usage.five_hour_pct}%, week ${got.usage.seven_day_pct}%` : got.error });
-        } catch {}
-      }),
-    );
+          await applyUsage(a, s);
+        } else a.usageErr = r.error;
+        logs.push(json({ at: now(), http: 'USAGE', account: a.name, keyOk: !!r.usage, via: r.usage ? `5h ${r.usage.five_hour_pct}%, week ${r.usage.seven_day_pct}%` : r.error }));
+      }
+      puts.push(a.name, json(a));
+      if (shown(a) !== before) changed = true;
+    }
+    const nextOf = (a) => (got.has(a.name) ? now() + usageEvery(got.get(a.name).refused) : (a.usageTriedAt || 0) + usageEvery(a.usageRefused)) + 1;
+    const next = Math.min(now() + USAGE_GATE_MAX_MS, ...paid.map(nextOf));
+    await store.multi([
+      ...(puts.length ? [['HSET', K.accounts, ...puts]] : []),
+      ...(changed ? [['INCR', K.rev]] : []),
+      ...(logs.length ? [['RPUSH', K.conn, ...logs], ['LTRIM', K.conn, -40, -1]] : []),
+      ['SET', K.usageNext, String(next)],
+    ]);
+    return { changed };
   }
   // Typed in on the page (free plans, or when Claude won't share it).
   async function setUsage(name, { five_hour_pct, seven_day_pct }) {
