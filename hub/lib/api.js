@@ -47,11 +47,11 @@ export async function pageApi({ hub, password, method, query, body, headers }) {
     if (body.same) return { status: 200, body };
     return { status: 200, body: { ...body, project: hub.project, owner: hub.owner, timedWake: hub.timedWake, ms: Date.now() - t0 } };
   }
-  // Reading usage from Claude can take seconds, so the page asks for it on its own.
+  // Reading usage from Claude can take seconds, so the page asks for it on its
+  // own. The answer says only whether anything changed; the next poll brings it.
   if (method === 'GET' && op === 'usage') {
-    await hub.refreshUsage({ force: query.force === '1' });
-    const threads = await hub.threads();
-    return { status: 200, body: { accounts: Object.values(await hub.accounts()).map((a) => hub.publicAccount(a, threads)) } };
+    const { changed } = await hub.refreshUsage({ force: query.force === '1' });
+    return { status: 200, body: { changed } };
   }
   if (method === 'GET' && op === 'image') {
     try {

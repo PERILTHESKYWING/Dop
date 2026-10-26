@@ -225,7 +225,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* avatars: one flat colour per account */
 .av { --c: var(--faint); width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
-.av.s { width: 18px; height: 18px; font-size: 10px; }
+.av.s { width: 18px; height: 18px; font-size: 11px; }
 .av.l { width: 38px; height: 38px; font-size: 17px; }
 .avs { display: inline-flex; }
 .avs .av + .av { margin-left: -3px; box-shadow: 0 0 0 2px var(--panel); }
@@ -822,7 +822,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
-  summary, .tk, .trow.tn { min-height: 44px; }
+  summary, .thought summary, .tk, .trow.tn, .trow.t1, .tfind input, .ask-t, .ask-go { min-height: 44px; }
+  /* Thread links on a Team card: 44 px rows; the green bar stays text-high. */
+  button.act { min-height: 44px; align-content: center; border-left: 0; padding-left: 11px; background: linear-gradient(var(--green), var(--green)) left center / 3px 22px no-repeat; }
   /* The last heading in a tab never ends flush under the tab bar. */
   .team, .side .list { padding-bottom: 56px; }
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
@@ -915,7 +917,7 @@ const THINK = ['low', 'medium', 'high', 'xhigh', 'max'];
 const THINK_NAME = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'xHigh', max: 'Max' };
 const THINK_HINT = { low: 'Fastest, least reasoning', medium: 'Balanced', high: 'Thinks hard and checks its work', xhigh: 'Thinks harder on every step', max: 'Deepest (ultrathink)' };
 const STATUS = { new: 'Starting', working: 'Working', waiting: 'Needs you', queued: 'Waiting', stalled: 'Stopped', done: 'Done' };
-const PALETTE = ['#2f6b4f', '#b4532a', '#9a7412', '#7a4f86', '#2e6f73', '#9b3d4a', '#5f6b2a', '#4f5b66'];
+const PALETTE = ['#2f6b4f', '#b4532a', '#8c6a12', '#7a4f86', '#2e6f73', '#9b3d4a', '#5f6b2a', '#4f5b66'];
 let proj = { project: 'Dop', owner: 'XIAO' };
 const routinePrompt = () => `You are an agent in ${proj.owner}'s ${proj.project} hub. First call hub_start from the ${proj.project} hub connector, with payload set to the full text of the routine-fire payload (or no payload if there is none). Then do exactly what hub_start returns.`;
 const STARTERS = [['Fix a bug', 'Fix this bug: '], ['Review a PR', 'Review the latest PR and list anything that needs fixing.'], ['Research', 'Research this and give me a short answer with sources: '], ['Write docs', 'Write or update the docs for: ']];
@@ -1060,7 +1062,10 @@ async function tick() {
 async function readUsage(force) {
   // Polling doesn't wait for Claude's answer.
   if (!timer && !polling) timer = setTimeout(tick, 3000);
-  try { await api('usage' + (force ? '&force=1' : '')); } catch {} tick(); }
+  // Nothing changed (usually nothing was due): the poll already scheduled is enough.
+  let r = null;
+  try { r = await api('usage' + (force ? '&force=1' : '')); } catch {}
+  if (force || r?.changed !== false) tick(); }
 setInterval(() => { if (!document.hidden && (S.agents || []).some((g) => g.status === 'running')) renderTeam(); }, 15_000);
 setInterval(() => { if (!document.hidden && pw) readUsage(); }, 5 * 60_000);
 document.addEventListener('visibilitychange', tick);
@@ -1882,7 +1887,9 @@ function activityOf(a) {
   const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   const row = (t) => {
     const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
-    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${t.account === a.name ? 'lead' : 'member'}${last ? ' · ' + esc(since(last.at)) : ''}</small></div></button>`;
+    // Leading is the usual case, so only "member" is written; the title gets the room.
+    const meta = [t.account === a.name ? '' : 'member', last ? since(last.at) : ''].filter(Boolean).join(' · ');
+    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span>${meta ? `<small>${esc(meta)}</small>` : ''}</div></button>`;
   };
   return `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span><small>${g.pct != null ? g.pct + '%' : esc(ago(Date.now() - g.started))}</small></div></div>`).join('')}`;
 }
