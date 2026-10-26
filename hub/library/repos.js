@@ -108,7 +108,7 @@ export function mount(el, ctx) {
       </div>`,
           )
           .join('')
-      : '<p class="empty">No repos linked yet. Agents already work on this project\'s own repo; link others they should read.</p>';
+      : '<p class="empty"><b>No repos linked yet</b>Agents already work on this project\'s own repo; link others they should read.</p>';
   }
 
   async function load() {
