@@ -4,7 +4,7 @@ import { glKind } from '../three/support';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
 import type { Box } from './landing/camera';
 import type { Show } from './landing/Stage';
-import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, PICK_VISITS, READ_VISITS, READS, WHAT } from './landing/story';
+import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, PROOF, READS, WHAT } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
@@ -264,21 +264,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
               <Logo size={38} className="l-a-mark" />
               <span>
                 {ASK.a.slice(0, ASK.a.indexOf(`${PICK}:`))}
-                {/* the claim's proof beside it (how much of KataGo's reading went to the pick),
-                    kept on one line with the pick and its colon */}
-                <span className="l-pick-proof">
-                  <b className="l-at">{PICK}</b>
-                  {PICK_VISITS > 0 && (
-                    <>
-                      {' '}
-                      <span className="l-visits" title={`${PICK_VISITS.toLocaleString('en-US')} of KataGo’s ${READ_VISITS.toLocaleString('en-US')} visits went to ${PICK}`}>
-                        {PICK_VISITS.toLocaleString('en-US')} of {READ_VISITS.toLocaleString('en-US')} visits
-                      </span>
-                    </>
-                  )}
-                  {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length, ASK.a.indexOf(`${PICK}:`) + PICK.length + 1)}
-                </span>
-                {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length + 1)}
+                <b className="l-at">{PICK}</b>
+                {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length)}
+                {/* the claim's proof under it, and what shorter reads preferred (story.ts PROOF) */}
+                {PROOF && <span className="l-proof">{PROOF}</span>}
               </span>
             </p>
           </div>

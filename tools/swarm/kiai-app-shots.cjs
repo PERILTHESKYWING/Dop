@@ -89,7 +89,61 @@ const rects = async (p) =>
       R.hoverStyle = await page.evaluate(() => ({ eval: document.querySelector('.bp-eval')?.className + ' ' + getComputedStyle(document.querySelector('.bp-eval')).opacity, foot: getComputedStyle(document.querySelector('.bp-foot')).opacity }));
       await shot('4-hover');
     } else console.log('no tag to hover');
-    // a candidate stone on the board: its line
+    // 5: a pale candidate disc and KataGo's numbers for it under the board. A desktop hovers the
+    // disc itself (found by moving over the board's points until the readout names a choice);
+    // a phone has no hover, so it taps a coordinate in the answer that is one of KataGo's choices.
+    const readout = () => page.evaluate(() => document.querySelector('.bp-readout')?.textContent || '');
+    let found = '';
+    if (vp.name === 'phone') {
+      const back = await page.$('[aria-label="Back to the board"]');
+      if (back) await back.tap();
+      await page.waitForTimeout(500);
+      let el = null, last = null;
+      for (const pt of await page.$$('.msg.kami .rich .pt')) {
+        await pt.tap();
+        last = pt;
+        await page.waitForTimeout(400);
+        const t = await readout();
+        if (/choice/.test(t) && (!found || /worse/.test(t))) (found = t), (el = pt);
+        if (/worse/.test(t)) break;
+      }
+      if (el && el !== last) await el.tap();
+    } else {
+      await page.mouse.move(5, 450);
+      await page.waitForTimeout(600);
+      const sq = await page.evaluate(() => {
+        const b = document.querySelector('.bp-square').getBoundingClientRect();
+        return { x: b.x, y: b.y, w: b.width };
+      });
+      const m = 1.24;
+      const u = sq.w / (18 + 2 * m);
+      const pts = [];
+      for (let y = 0; y < 19; y++) for (let x = 0; x < 19; x++) pts.push([x, y]);
+      // the demo's choices are on the right side: look there first
+      pts.sort((a, b) => Math.hypot(a[0] - 15, a[1] - 9) - Math.hypot(b[0] - 15, b[1] - 9));
+      let first = null;
+      for (const [x, y] of pts) {
+        const px = sq.x + (m + x) * u, py = sq.y + (m + y) * u;
+        await page.mouse.move(px, py);
+        await page.waitForTimeout(40);
+        const t = await readout();
+        if (/choice/.test(t)) {
+          if (!first) first = [px, py, t];
+          if (/worse/.test(t)) {
+            found = t;
+            break;
+          }
+        }
+      }
+      if (!found && first) {
+        await page.mouse.move(first[0], first[1]);
+        found = first[2];
+      }
+    }
+    await page.waitForTimeout(800);
+    R.candidate = { ...(await rects(page)), readout: found || (await readout()) };
+    if (found) await shot('5-hover-candidate');
+    else console.log('no candidate disc found');
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();
   }

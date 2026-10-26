@@ -177,9 +177,10 @@ describe('candidate labels in a lopsided game', () => {
     expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19.0');
     expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
   });
-  it('whole points on a phone, so the labels stay big and never touch', () => {
-    const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.3, 3)];
-    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['○', '−1', '−1', '≈']);
+  it('the same one-decimal numbers on a phone, without the minus sign, so they fit the disc', () => {
+    const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.3, 3), c(0, -30, 4)];
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['○', '0.9', '1.3', '0.3', '19']);
+    expect(cands.map(candidateLabeler(cands, true)!).slice(1, 3)).toEqual(cands.map(candidateLabeler(cands)!).slice(1, 3).map((l) => l.replace('−', '')));
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();

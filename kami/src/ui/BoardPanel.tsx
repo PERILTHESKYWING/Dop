@@ -23,7 +23,7 @@ import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
 import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
 import { Term } from './Term';
-import { moveStats } from '../lib/moveCaption';
+import { moveStats, stoneNote } from '../lib/moveCaption';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
@@ -261,33 +261,35 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
-  // Whole points on a phone's board, so the labels stay readable (11+ px) and never touch.
+  // The same one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both read
+  // "−1" on a phone); a phone's small discs drop the minus sign so they fit at 11+ px.
   const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
-  // The caption over a previewed move or line, or a hovered disc: KataGo's own numbers for its
-  // first move (lib/moveCaption.ts), from the read the board already shows. No language model.
+  // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
+  // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
+  // and the game the board already shows. No language model.
   const previewRead = useMemo(() => {
     if (!preview || !answerReads?.length) return null;
     const k = positionKey(preview.base);
     return answerReads.find((a) => a.key === k)?.read ?? null;
   }, [preview, answerReads]);
-  const caption = useMemo(() => {
+  const readout = useMemo(() => {
+    const lineBit = (len: number) => (!phone && len > 1 ? `${len}-move line` : '');
     if (preview) {
       const first = preview.line[0];
-      const st = first && first.color === preview.base.toPlay ? moveStats(previewRead, first.loc, preview.base.toPlay, preview.base.size, phone) : null;
-      // "R10 · in Q9 · what follows": the numbers are Q9's, so they say so
-      const named = st && new RegExp(`^${st.at}(?![0-9])`).test(preview.title);
-      const len = preview.line.length;
-      const lineBit = !phone && len > 1 && !/\bmoves?\b/.test(preview.title) ? `${len}-move line` : '';
-      return { title: preview.title, stats: [st ? `${named ? '' : `${st.at}: `}${st.text}` : '', lineBit].filter(Boolean).join(' · ') };
+      if (!first) {
+        const at = preview.highlight.length === 1 ? preview.highlight[0] : undefined;
+        const st = at === undefined ? null : stoneNote(preview.base, at);
+        return st ? `${st.at}: ${st.text}` : '';
+      }
+      const st = first.color === preview.base.toPlay ? moveStats(previewRead, first.loc, preview.base.toPlay, preview.base.size, phone) : null;
+      return [st ? `${st.at}: ${st.text}` : '', lineBit(preview.line.length)].filter(Boolean).join(' · ');
     }
     if (hoverCand) {
       const st = moveStats(read, hoverCand.loc, toPlay, board.size, phone);
-      if (!st) return null;
-      const len = hoverCand.pv.length;
-      return { title: st.at, stats: `${st.text}${!phone && len > 1 ? ` · ${len}-move line` : ''}` };
+      return st ? [`${st.at}: ${st.text}`, lineBit(hoverCand.pv.length)].filter(Boolean).join(' · ') : '';
     }
-    return null;
+    return '';
   }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
 
   const play = (loc: Loc, fromCandidate = false) => {
@@ -463,10 +465,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   return (
     <section className={`board-panel${preview ? ' previewing' : ''}${panel ? ' with-graph' : ''}`} aria-label="Board">
       <div className="bp-head">
-        {caption ? (
-          <div className="bp-caption" title={[caption.title, caption.stats].filter(Boolean).join(' · ')}>
-            <span className="bp-cap-title">{caption.title}</span>
-            {caption.stats && <span className="bp-cap-stats">{caption.stats}</span>}
+        {preview ? (
+          <div className="bp-caption">
+            <span>{preview.title}</span>
           </div>
         ) : (
           <div className="bp-players" title={[title, moveLine].filter(Boolean).join(' · ')}>
@@ -673,7 +674,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             )}
           </div>
           <div className="bp-under">
-          {keyOn && (
+          {keyOn && readout && (
+            // a hovered disc: its numbers take the key's row (the board does not move)
+            <p className="bp-note">
+              <span className="bp-readout">{readout}</span>
+            </p>
+          )}
+          {keyOn && !readout && (
             <p className="bp-key">
               {book ? (
                 <>
@@ -688,7 +695,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           )}
           {preview && (
             <p className="bp-note">
-              {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
+              {/* KataGo's numbers for the move first, in the muted caption style, then the line's note */}
+              {readout && <span className="bp-readout">{readout}</span>}
+              {preview.note ? (
+                <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} />
+              ) : readout ? null : preview.pinned ? (
+                'Tap the board or the × to go back.'
+              ) : (
+                ' '
+              )}
             </p>
           )}
           </div>
