@@ -107,7 +107,7 @@ jobs:
             # Both of the rank's archives; file names start with the game's Unix time, so a
             # reverse sort lists the newest first.
             git checkout -q HEAD -- "$d/"
-            for ARCH in $(ls "$d"/ | grep -E '\.7z(\.001)?$'); do
+            for ARCH in $(find "$d" -maxdepth 1 -type f \( -name '*.7z' -o -name '*.7z.001' \) -printf '%f\n' | sort); do
               7z l -ba -slt "$d/$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | awk -F/ '{print $NF "\t" $0}' \
                 | sort -r \
                 | awk -F'\t' -v S=../seen-rank.txt 'BEGIN {while ((getline l < S) > 0) seen[l] = 1} !($1 in seen) {print $2}' | head -n 900 > "../$d-$ARCH.list" || true

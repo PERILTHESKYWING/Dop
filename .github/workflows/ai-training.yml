@@ -189,7 +189,8 @@ jobs:
       - name: Train
         run: |
           ID=${{ matrix.mind.id }}
-          python scripts/student/train.py --data 'labels/*.dpd' $( [ -f val.dpd ] && echo --val-data val.dpd ) --init champion.pt \
+          VAL=(); [ -f val.dpd ] && VAL=(--val-data val.dpd)
+          python scripts/student/train.py --data 'labels/*.dpd' "${VAL[@]}" --init champion.pt \
             --minutes $((MINUTES - 20)) --lr ${{ matrix.mind.lr }} --search-weight ${{ matrix.mind.searchWeight }} --seed ${{ matrix.mind.seed }} \
             --curriculum ${{ matrix.mind.curriculum }} --kata-share ${{ matrix.mind.kataShare }} \
             --mutate "${{ matrix.mind.mutate }}" --changed "${{ matrix.mind.changed }}" \
@@ -300,7 +301,7 @@ jobs:
           if [ "$SMOKE" = true ]; then N=12; V=16; M=2; else N=70; V=800; M=150; fi
           if [ "$P" -lt 2 ]; then
             npx tsx scripts/student/label.ts --katago "$KATAGO" --model "$TEACHER" --lines pro.txt --source pro --per-game 2 \
-              --visits $([ "$SMOKE" = true ] && echo 1 || echo 64) --threads "$(nproc)" --minutes "$M" --seed "9$P" --out "out/val-$P.dpd"
+              --visits "$([ "$SMOKE" = true ] && echo 1 || echo 64)" --threads "$(nproc)" --minutes "$M" --seed "9$P" --out "out/val-$P.dpd"
             gzip out/val-$P.dpd
           else
             npx tsx scripts/ai-eval.ts ref --katago "$KATAGO" --model "$TEACHER" --network "$TEACHER_ID" --lines pro.txt \
