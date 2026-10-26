@@ -53,16 +53,21 @@ env:
   RUN: ${{ github.run_number }}
   GH_TOKEN: ${{ github.token }}
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     outputs:
       labels: ${{ steps.p.outputs.labels }}
       minds: ${{ steps.p.outputs.minds }}
       has_data: ${{ steps.p.outputs.has_data }}
       need_ref: ${{ steps.p.outputs.need_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: p
         run: |
           gh release view ai-training --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
@@ -82,20 +87,22 @@ jobs:
 
   label:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
+    # A machine lost on GitHub's side only means a little less data; the arena uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         job: ${{ fromJSON(needs.plan.outputs.labels) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: |
             kg
@@ -121,7 +128,7 @@ jobs:
           timeout $((MINUTES * 60 + 300)) npx tsx scripts/student/label.ts --katago "$KATAGO" --model "$TEACHER" $SRC \
             --per-game 8 --visits "$V" --threads "$(nproc)" --minutes "$MINUTES" --seed "$RUN$J" --out "out/labels-$RUN-$J-v$V-$TEACHER_ID.dpd" || true
           ls -la out && gzip out/*.dpd
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: labels-${{ matrix.job }}
           path: out/
@@ -129,11 +136,13 @@ jobs:
 
   kata:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
+    # A machine lost on GitHub's side only means a little less data; the arena uses the rest.
+    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -q numpy
@@ -149,7 +158,7 @@ jobs:
           scripts/student/ci/kata.sh "out/labels-$RUN-kata-v0-kata1-selfplay.dpd" "$([ "$SMOKE" = true ] && echo 3000 || echo 200000)" "$RUN"
           ls -la out
           for f in out/*.dpd; do [ -e "$f" ] && gzip "$f"; done
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: labels-kata
           path: out/
@@ -159,15 +168,17 @@ jobs:
   mind:
     needs: plan
     if: needs.plan.outputs.has_data == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
+    # A machine lost on GitHub's side only means a little less data; the arena uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         mind: ${{ fromJSON(needs.plan.outputs.minds) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
@@ -178,12 +189,13 @@ jobs:
       - name: Train
         run: |
           ID=${{ matrix.mind.id }}
-          python scripts/student/train.py --data 'labels/*.dpd' $( [ -f val.dpd ] && echo --val-data val.dpd ) --init champion.pt \
+          VAL=(); [ -f val.dpd ] && VAL=(--val-data val.dpd)
+          python scripts/student/train.py --data 'labels/*.dpd' "${VAL[@]}" --init champion.pt \
             --minutes $((MINUTES - 20)) --lr ${{ matrix.mind.lr }} --search-weight ${{ matrix.mind.searchWeight }} --seed ${{ matrix.mind.seed }} \
             --curriculum ${{ matrix.mind.curriculum }} --kata-share ${{ matrix.mind.kataShare }} \
             --mutate "${{ matrix.mind.mutate }}" --changed "${{ matrix.mind.changed }}" \
             --threads "$(nproc)" --name "mind-$RUN-$ID" --out "minds/mind-$RUN-$ID.pt"
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: mind-${{ matrix.mind.id }}
           path: minds/
@@ -193,14 +205,15 @@ jobs:
   smoke-mind:
     needs: [plan, label, kata]
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: labels-*
           path: labels
@@ -212,7 +225,7 @@ jobs:
           # Evolution's size changes: one block deeper and a quarter fewer channels.
           python scripts/student/train.py --data 'labels/*.dpd' --init minds/mind-smoke.pt --minutes 1 --threads "$(nproc)" \
             --curriculum 1 --kata-share 0.5 --mutate deepen,prune:0.75 --changed deepen,prune:0.75 --name smoke-evolved --out minds/mind-smoke-evolved.pt
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: mind-smoke
           path: minds/
@@ -221,20 +234,22 @@ jobs:
   book:
     needs: plan
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
+    # A machine lost on GitHub's side only means a little less data; the arena uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         komi: ['7', '7.5']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: |
             kg
@@ -249,7 +264,7 @@ jobs:
           mkdir -p out
           timeout $((MINUTES * 60 + 300)) npx tsx scripts/opening-book.ts search --katago "$KATAGO" --model "$TEACHER" --network "$TEACHER_ID" \
             --lines pro.txt --komi "$K" --visits 400 --minutes "$MINUTES" --threads "$(nproc)" --book "$F" --out "out/book-$K-$RUN.json" || true
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: book-${{ matrix.komi }}
           path: out/
@@ -258,20 +273,20 @@ jobs:
   reference:
     needs: plan
     if: needs.plan.outputs.need_ref == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
         part: [0, 1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: |
             kg
@@ -286,13 +301,13 @@ jobs:
           if [ "$SMOKE" = true ]; then N=12; V=16; M=2; else N=70; V=800; M=150; fi
           if [ "$P" -lt 2 ]; then
             npx tsx scripts/student/label.ts --katago "$KATAGO" --model "$TEACHER" --lines pro.txt --source pro --per-game 2 \
-              --visits $([ "$SMOKE" = true ] && echo 1 || echo 64) --threads "$(nproc)" --minutes "$M" --seed "9$P" --out "out/val-$P.dpd"
+              --visits "$([ "$SMOKE" = true ] && echo 1 || echo 64)" --threads "$(nproc)" --minutes "$M" --seed "9$P" --out "out/val-$P.dpd"
             gzip out/val-$P.dpd
           else
             npx tsx scripts/ai-eval.ts ref --katago "$KATAGO" --model "$TEACHER" --network "$TEACHER_ID" --lines pro.txt \
               --count "$N" --visits "$V" --threads "$(nproc)" --seed "$P$RUN" --out "out/ref-$P.json"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: reference-${{ matrix.part }}
           path: out/
@@ -301,22 +316,22 @@ jobs:
   arena:
     needs: [plan, label, kata, mind, smoke-mind, book, reference]
     if: always() && !cancelled() && needs.plan.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -q numpy torch --index-url https://download.pytorch.org/whl/cpu
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: parts
           merge-multiple: true
@@ -377,7 +392,7 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/student public/book
           git commit -m "AI training: run $RUN" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh
       - name: Restart the training chain (ai-chain.yml)
         if: env.SMOKE != 'true' && vars.AI_CHAIN != 'off'
         run: gh workflow run ai-chain.yml --ref "${{ github.ref_name }}" || true

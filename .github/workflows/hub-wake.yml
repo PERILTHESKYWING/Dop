@@ -12,11 +12,19 @@ on:
     - cron: '7-59/10 * * * *'
   workflow_dispatch:
 permissions: {}
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   wake:
     if: ${{ vars.HUB_URL != '' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
+    # No checkout here (one curl), so the plain shell instead of scripts/ci/step.sh.
+    defaults:
+      run:
+        shell: bash -e {0}
     steps:
       - name: Wake the hub
         env:

@@ -1,0 +1,72 @@
+# Checks every workflow on pull requests that change one, so a new workflow follows the
+# rules that keep runs from failing (docs/handoff/training.md, "Workflow rules"):
+# actionlint (syntax, expressions, shell mistakes) and scripts/ci/check-workflows.py
+# (pinned runner image, timeouts, current action versions, the step wrapper, retried uploads).
+# By hand (Actions -> "Workflow check" -> "Run workflow") it can also run the stress test:
+# a step that uses more memory than the machine has must fail on its own, with a readable
+# error, while the runner keeps going.
+name: Workflow check
+
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+      - 'scripts/ci/**'
+  workflow_dispatch:
+    inputs:
+      stress:
+        description: Also run the out-of-memory stress test
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
+jobs:
+  rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: House rules
+        run: python3 scripts/ci/check-workflows.py --github
+      - name: actionlint (shellcheck warnings and errors; style hints are left to taste)
+        env:
+          SHELLCHECK_OPTS: --severity=warning
+        run: |
+          bash <(curl -sfL --retry 3 https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -oneline
+      - name: Step wrapper behaves like bash -e
+        run: bash scripts/ci/test-step.sh
+
+  stress:
+    if: github.event_name == 'workflow_dispatch' && inputs.stress
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use more memory than the machine has, a little at a time (meant to fail)
+        id: hog
+        continue-on-error: true
+        run: |
+          free -m
+          python3 -c "
+          import time
+          hog = []
+          while True:
+              hog.append(bytearray(128 * 1024 * 1024))
+              print(len(hog) * 128, 'MB', flush=True)
+              time.sleep(0.1)
+          "
+      - name: The runner survived, and what stopped the step
+        if: always()
+        run: |
+          info="memory step: ${{ steps.hog.outcome }}; $(free -m | awk '/Mem/ {print "now " $3 " of " $2 " MB used"}')"
+          info="$info; kernel: $(sudo dmesg | grep -i -E 'out of memory|killed process' | tail -n 2 | cut -c 1-160 | tr '\n' ' ')"
+          info="$info; systemd-oomd: $(systemctl is-active systemd-oomd 2>&1 | head -n 1)"
+          echo "::notice title=Stress test::$info"
+          test "${{ steps.hog.outcome }}" = failure

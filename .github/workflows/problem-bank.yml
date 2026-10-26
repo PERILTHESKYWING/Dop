@@ -27,10 +27,16 @@ env:
   KATAGO_ZIP: https://github.com/lightvector/KataGo/releases/download/v1.18.1/katago-v1.18.1-eigenavx2-linux-x64.zip
   MODEL: public/models/g170e-b10c128-s1141046784-d204142634.bin.gz
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   find:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 290
+    # One machine lost on GitHub's side only means fewer new problems today; publish uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -38,8 +44,8 @@ jobs:
     env:
       SEED: ${{ github.run_number }}${{ matrix.job }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -60,6 +66,7 @@ jobs:
           for d in $DIRS; do
             ARCH=$(git ls-tree --name-only HEAD "$d/" | grep -E '\.7z(\.001)?$' | awk -v r=${{ github.run_number }} '{a[NR]=$0} END {print a[(r % NR) + 1]}')
             BASE=${ARCH%.001}
+            # shellcheck disable=SC2046 # several archive parts, one word each
             git checkout -q HEAD -- $(git ls-tree --name-only HEAD "$d/" | grep -F "$(basename "$BASE")")
             7z l -ba -slt "$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | shuf -n 150 --random-source=<(yes "$SEED$d") > "../$d.list" || true
             7z x -y -o"../sgf/$d" "$ARCH" @"../$d.list" > /dev/null || true
@@ -78,28 +85,29 @@ jobs:
       - name: Find and prove problems with KataGo
         run: |
           mkdir -p out
-          npx tsx scripts/problem-bank.ts --katago kg/katago --model "$MODEL" --threads $(nproc) --concurrency 8 \
+          npx tsx scripts/problem-bank.ts --katago kg/katago --model "$MODEL" --threads "$(nproc)" --concurrency 8 \
             --fox-dir sgf --pro pro.txt --minutes $((MINUTES)) --seed "$SEED" \
             --seen public/problems/bank.json --out out/problems-${{ matrix.job }}.jsonl 2>&1 | tail -n 40
           wc -l out/*.jsonl || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: problems-${{ matrix.job }}
           path: out/
 
   publish:
     needs: find
-    if: always()
-    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: problems-*
           path: parts
@@ -114,4 +122,4 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/problems/bank.json
           git commit -m "Forge: new KataGo-verified problems (run ${{ github.run_number }})" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh

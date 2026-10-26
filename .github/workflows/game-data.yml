@@ -37,14 +37,18 @@ env:
   FROM_MONTH: '2022-01'
   PER_CELL: '40'
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   ogs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 340
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Find the newest archive and the bot list (github.com/za3k/ogs)
         run: |

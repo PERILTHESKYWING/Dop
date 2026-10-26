@@ -8,6 +8,10 @@
 # them; Vercel then redeploys the site with the improved coach. The measured data itself is
 # kept in the "coach-data" release (coach-corpus.tar.gz), not in git.
 # It can also be started by hand: Actions → "Coach training" → "Run workflow".
+# "Replay" refits from runs that already measured (their run ids, from the run's address),
+# without measuring again: it adds measurements a failed refit left unused, and tests a
+# change to the refit in two minutes. Runs from other branches than main never publish or
+# commit anything.
 name: Coach training
 
 on:
@@ -18,6 +22,9 @@ on:
       minutes:
         description: Minutes each machine spends measuring
         default: '240'
+      replay:
+        description: Refit only, from these earlier runs' measurements (run ids, comma-separated)
+        default: ''
 
 permissions:
   contents: write
@@ -29,10 +36,17 @@ concurrency:
 env:
   MINUTES: ${{ inputs.minutes || '240' }}
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   measure:
-    runs-on: ubuntu-latest
+    if: inputs.replay == ''
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
+    # One machine lost (GitHub's side) only means a little less data today; learn uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -46,8 +60,8 @@ jobs:
       SEED: ${{ github.run_number }}${{ matrix.job }}
       ELITE: ${{ matrix.job == 12 }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -55,12 +69,7 @@ jobs:
 
       - name: Games measured before (so they are not measured twice)
         run: |
-          mkdir -p corpus
-          if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
-            gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
-          # Professional, top professional and AI games measured when the 10d-12d scale was added.
-          FIRST=$(gunzip -c data/coach/seed/elite.jsonl.gz | grep -m 1 -o '"file":"[^"]*"' || true)
-          grep -qF "$FIRST" corpus/rank.jsonl || gunzip -c data/coach/seed/elite.jsonl.gz >> corpus/rank.jsonl
+          bash scripts/ci/coach-corpus.sh
           # Level games and move-difficulty games are tracked apart: a game measured for one
           # can still be measured for the other.
           grep -o '"file":"[^"]*"' corpus/rank.jsonl | cut -d'"' -f4 | sort -u > seen-rank.txt
@@ -98,7 +107,7 @@ jobs:
             # Both of the rank's archives; file names start with the game's Unix time, so a
             # reverse sort lists the newest first.
             git checkout -q HEAD -- "$d/"
-            for ARCH in $(ls "$d"/ | grep -E '\.7z(\.001)?$'); do
+            for ARCH in $(find "$d" -maxdepth 1 -type f \( -name '*.7z' -o -name '*.7z.001' \) -printf '%f\n' | sort); do
               7z l -ba -slt "$d/$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | awk -F/ '{print $NF "\t" $0}' \
                 | sort -r \
                 | awk -F'\t' -v S=../seen-rank.txt 'BEGIN {while ((getline l < S) > 0) seen[l] = 1} !($1 in seen) {print $2}' | head -n 900 > "../$d-$ARCH.list" || true
@@ -186,41 +195,61 @@ jobs:
           tail -n 2 *.log || true
           wc -l out/*.jsonl || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: measured-${{ matrix.job }}
           path: out/
 
   learn:
     needs: measure
-    if: always()
-    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      PUBLISH: ${{ github.ref == 'refs/heads/main' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
+        if: inputs.replay == ''
         with:
           pattern: measured-*
           path: parts
           merge-multiple: true
-
-      - name: Add today's measurements to everything measured before
+      - name: Measurements of the runs to replay
+        if: inputs.replay != ''
+        env:
+          REPLAY: ${{ inputs.replay }}
         run: |
-          mkdir -p corpus
-          if gh release download coach-data -p coach-corpus.tar.gz -D . 2>/dev/null; then tar xzf coach-corpus.tar.gz; else
-            gunzip -c data/coach/seed/rank.jsonl.gz > corpus/rank.jsonl; gunzip -c data/coach/seed/moves.jsonl.gz > corpus/moves.jsonl; fi
-          # Professional, top professional and AI games measured when the 10d-12d scale was added.
-          FIRST=$(gunzip -c data/coach/seed/elite.jsonl.gz | grep -m 1 -o '"file":"[^"]*"' || true)
-          grep -qF "$FIRST" corpus/rank.jsonl || gunzip -c data/coach/seed/elite.jsonl.gz >> corpus/rank.jsonl
-          cat parts/rank-*.jsonl >> corpus/rank.jsonl 2>/dev/null || true
-          cat parts/moves-*.jsonl >> corpus/moves.jsonl 2>/dev/null || true
+          mkdir -p parts
+          for id in $(echo "$REPLAY" | tr ',' ' '); do
+            gh run download "$id" -p 'measured-*' -D "replay/$id"
+            find "replay/$id" -name '*.jsonl' | while read -r f; do mv "$f" "parts/$(basename "$f" .jsonl)-r$id.jsonl"; done
+          done
+          find parts -name '*.jsonl' | wc -l
+
+      - name: Add the new measurements to everything measured before
+        run: |
+          bash scripts/ci/coach-corpus.sh
+          npx tsx scripts/coach-parts.ts --parts parts --corpus corpus
           wc -l corpus/*.jsonl
+
+      # Kept before the refit, so a refit that fails never throws a day of measuring away.
+      - name: Keep the measured data
+        if: env.PUBLISH == 'true'
+        run: |
+          tar czf coach-corpus.tar.gz corpus
+          if [ "$CORPUS_FROM" != release ] && gh release view coach-data --json assets -q '.assets[].name' | grep -qx coach-corpus.tar.gz; then
+            echo "::error::The stored corpus could not be read, so it is not replaced."; exit 1
+          fi
+          gh release view coach-data > /dev/null 2>&1 || gh release create coach-data --title "Coach training data" \
+            --notes "Everything the daily coach training has measured (statistics per game side and per position; no game records). Updated by .github/workflows/coach-training.yml."
+          for try in 1 2 3; do gh release upload coach-data coach-corpus.tar.gz --clobber && break; [ "$try" = 3 ] && exit 1; sleep 30; done
 
       - name: Refit the level estimate and move difficulty
         run: |
@@ -233,17 +262,11 @@ jobs:
           [ "$(jq .positions public/coach/difficulty.json)" -ge "$OLD_POS" ] || git checkout public/coach/difficulty.json
           npx tsx scripts/coach-progress.ts --run ${{ github.run_number }}
 
-      - name: Keep the measured data
-        run: |
-          tar czf coach-corpus.tar.gz corpus
-          gh release view coach-data > /dev/null 2>&1 || gh release create coach-data --title "Coach training data" \
-            --notes "Everything the daily coach training has measured (statistics per game side and per position; no game records). Updated by .github/workflows/coach-training.yml."
-          gh release upload coach-data coach-corpus.tar.gz --clobber
-
       - name: Commit the improved coach
+        if: env.PUBLISH == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/level/calibration.json public/coach/difficulty.json public/coach/progress.json
           git commit -m "Coach training: run ${{ github.run_number }}" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh

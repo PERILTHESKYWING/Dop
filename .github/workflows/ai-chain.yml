@@ -31,13 +31,17 @@ env:
   RUN: ${{ github.run_number }}
   GH_TOKEN: ${{ github.token }}
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   link:
     if: vars.AI_CHAIN != 'off'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
       - name: Is the big run working?
@@ -47,14 +51,14 @@ jobs:
             -q '[.[] | select(.event != "pull_request" and (.status == "in_progress" or .status == "queued" or .status == "waiting"))] | length')
           echo "AI training runs working: $N"
           [ "$N" = 0 ] || echo "busy=true" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.busy.outputs.busy != 'true'
         with:
           node-version: 22
           cache: npm
       - if: steps.busy.outputs.busy != 'true'
         run: npm ci
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.busy.outputs.busy != 'true'
         with:
           python-version: '3.12'
@@ -97,7 +101,7 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/student
           git commit -m "AI training chain: link $RUN" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh
       - name: Start the next link
         if: steps.busy.outputs.busy != 'true'
         run: |

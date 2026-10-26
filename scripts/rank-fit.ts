@@ -56,6 +56,7 @@ for (const f of process.argv.slice(2))
     } catch {
       continue; // a line cut off when a measuring run was stopped
     }
+    if (!r || typeof r !== 'object' || typeof r.file !== 'string') continue; // not a row (scripts/coach-parts.ts checks rows)
     const id = `${String(r.file).split('/').pop()}:${r.color}`;
     if (r.skipped || r.all === undefined || seen.has(id) || r.rank < MIN_RANK || r.rank > MAX_RANK) continue;
     seen.add(id);
@@ -180,8 +181,15 @@ function fit(train: Row[], pick: Pick, phase: Phase | null): Omit<RidgeModel, 'm
   for (let i = 0; i < p; i++) for (let j = 0; j < i; j++) A[i][j] = A[j][i];
   for (let i = 1; i < p; i++) A[i][i] += LAMBDA;
   const beta = solve(A, b);
-  const lo = Math.min(...data.map((r) => Math.round(r.y)));
-  const top = Math.max(...data.map((r) => Math.round(r.y)));
+  // A loop, not Math.min(...array): spreading 140k+ rows overflows the call stack (the coach
+  // training refit failed every day from 2026-10-14, when the corpus passed that size).
+  let lo = Infinity;
+  let top = -Infinity;
+  for (const r of data) {
+    const y = Math.round(r.y);
+    if (y < lo) lo = y;
+    if (y > top) top = y;
+  }
   const m: Omit<RidgeModel, 'maeGame'> = { ...shape, mean, sd, beta, centre: [], lo, spread: [], top };
   // Where the score sits for each true rank (smoothed over neighbouring ranks and kept
   // non-decreasing: a stronger rank never has a lower typical score), then its spread
