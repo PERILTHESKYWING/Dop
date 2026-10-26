@@ -34,10 +34,12 @@ jobs:
       - uses: actions/checkout@v6
       - name: House rules
         run: python3 scripts/ci/check-workflows.py --github
-      - name: actionlint
+      - name: actionlint (shellcheck warnings and errors; style hints are left to taste)
+        env:
+          SHELLCHECK_OPTS: --severity=warning
         run: |
           bash <(curl -sfL --retry 3 https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
-          ./actionlint -color
+          ./actionlint -oneline
       - name: Step wrapper behaves like bash -e
         run: bash scripts/ci/test-step.sh
 
@@ -47,7 +49,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
-      - name: Use more memory than the machine has (this step is meant to fail)
+      - name: Use more memory than the machine has, a little at a time (meant to fail)
         id: hog
         continue-on-error: true
         run: |
@@ -56,11 +58,15 @@ jobs:
           import time
           hog = []
           while True:
-              hog.append(bytearray(256 * 1024 * 1024))
-              print(len(hog) * 256, 'MB', flush=True)
+              hog.append(bytearray(128 * 1024 * 1024))
+              print(len(hog) * 128, 'MB', flush=True)
+              time.sleep(0.1)
           "
-      - name: The runner survived
+      - name: The runner survived, and what stopped the step
+        if: always()
         run: |
-          echo "memory step: ${{ steps.hog.outcome }}"
+          info="memory step: ${{ steps.hog.outcome }}; $(free -m | awk '/Mem/ {print "now " $3 " of " $2 " MB used"}')"
+          info="$info; kernel: $(sudo dmesg | grep -i -E 'out of memory|killed process' | tail -n 2 | cut -c 1-160 | tr '\n' ' ')"
+          info="$info; systemd-oomd: $(systemctl is-active systemd-oomd 2>&1 | head -n 1)"
+          echo "::notice title=Stress test::$info"
           test "${{ steps.hog.outcome }}" = failure
-          free -m

@@ -229,9 +229,9 @@ jobs:
           mkdir -p parts
           for id in $(echo "$REPLAY" | tr ',' ' '); do
             gh run download "$id" -p 'measured-*' -D "replay/$id"
-            for f in replay/$id/*/*.jsonl; do b=$(basename "$f" .jsonl); mv "$f" "parts/$b-r$id.jsonl"; done
+            find "replay/$id" -name '*.jsonl' | while read -r f; do mv "$f" "parts/$(basename "$f" .jsonl)-r$id.jsonl"; done
           done
-          ls parts | wc -l
+          find parts -name '*.jsonl' | wc -l
 
       - name: Add the new measurements to everything measured before
         run: |
@@ -249,7 +249,7 @@ jobs:
           fi
           gh release view coach-data > /dev/null 2>&1 || gh release create coach-data --title "Coach training data" \
             --notes "Everything the daily coach training has measured (statistics per game side and per position; no game records). Updated by .github/workflows/coach-training.yml."
-          for i in 1 2 3; do gh release upload coach-data coach-corpus.tar.gz --clobber && break; [ "$i" = 3 ] && exit 1; sleep 30; done
+          for try in 1 2 3; do gh release upload coach-data coach-corpus.tar.gz --clobber && break; [ "$try" = 3 ] && exit 1; sleep 30; done
 
       - name: Refit the level estimate and move difficulty
         run: |
@@ -269,4 +269,4 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/level/calibration.json public/coach/difficulty.json public/coach/progress.json
           git commit -m "Coach training: run ${{ github.run_number }}" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh

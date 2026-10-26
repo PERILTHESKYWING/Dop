@@ -66,6 +66,7 @@ jobs:
           for d in $DIRS; do
             ARCH=$(git ls-tree --name-only HEAD "$d/" | grep -E '\.7z(\.001)?$' | awk -v r=${{ github.run_number }} '{a[NR]=$0} END {print a[(r % NR) + 1]}')
             BASE=${ARCH%.001}
+            # shellcheck disable=SC2046 # several archive parts, one word each
             git checkout -q HEAD -- $(git ls-tree --name-only HEAD "$d/" | grep -F "$(basename "$BASE")")
             7z l -ba -slt "$ARCH" | sed -n 's/^Path = //p' | grep -i '\.sgf$' | shuf -n 150 --random-source=<(yes "$SEED$d") > "../$d.list" || true
             7z x -y -o"../sgf/$d" "$ARCH" @"../$d.list" > /dev/null || true
@@ -84,7 +85,7 @@ jobs:
       - name: Find and prove problems with KataGo
         run: |
           mkdir -p out
-          npx tsx scripts/problem-bank.ts --katago kg/katago --model "$MODEL" --threads $(nproc) --concurrency 8 \
+          npx tsx scripts/problem-bank.ts --katago kg/katago --model "$MODEL" --threads "$(nproc)" --concurrency 8 \
             --fox-dir sgf --pro pro.txt --minutes $((MINUTES)) --seed "$SEED" \
             --seen public/problems/bank.json --out out/problems-${{ matrix.job }}.jsonl 2>&1 | tail -n 40
           wc -l out/*.jsonl || true
@@ -121,4 +122,4 @@ jobs:
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           git add public/problems/bank.json
           git commit -m "Forge: new KataGo-verified problems (run ${{ github.run_number }})" || exit 0
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          bash scripts/ci/push.sh
