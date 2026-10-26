@@ -32,14 +32,18 @@ env:
   EVAL_N: '300'
   EVAL_MIN: '50'
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       eval: ${{ steps.check.outputs.eval }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Release, and is the test set current?
         id: check
         run: |
@@ -56,11 +60,11 @@ jobs:
   eval:
     needs: prepare
     if: needs.prepare.outputs.eval == 'yes'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -87,11 +91,11 @@ jobs:
 
   tasks:
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm

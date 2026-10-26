@@ -14,6 +14,7 @@ Stack: React 19 + TypeScript + Vite, zustand, IndexedDB (idb), Web Workers, Kata
 - Bump `ENGINE_FILES` whenever `public/engine` changes (Vercel caches /engine for a week).
 - Measure speed/strength claims (scripts/ai-eval.ts, Settings › Benchmark) and report honest numbers.
 - PRs: mark ready (not draft) once built and tested.
+- GitHub workflows follow `docs/handoff/training.md` "Workflow rules" (checked on every PR by `workflow-check.yml`).
 
 ## Checks
 `npm run typecheck`, `npm test`, `npm run build`.

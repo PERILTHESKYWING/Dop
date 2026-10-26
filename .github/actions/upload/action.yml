@@ -1,0 +1,54 @@
+# actions/upload-artifact that tries again once, a minute later, when the upload fails.
+# A blip in GitHub's artifact service ("Failed to CreateArtifact: Unable to make request:
+# ENOTFOUND") otherwise throws away a machine's whole day of work.
+# Use it instead of actions/upload-artifact (scripts/ci/check-workflows.py checks this):
+#
+#   - uses: ./.github/actions/upload
+#     with:
+#       name: labels-${{ matrix.job }}
+#       path: out/
+#       retention-days: 3
+name: Upload artifact (with one retry)
+description: actions/upload-artifact, retried once a minute later on failure.
+inputs:
+  name:
+    description: Artifact name
+    required: true
+  path:
+    description: Files or folders to upload
+    required: true
+  retention-days:
+    description: Days to keep the artifact (empty = the repository default)
+    default: ''
+  if-no-files-found:
+    description: warn, error or ignore
+    default: warn
+  include-hidden-files:
+    description: Upload files and folders whose names start with a dot
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - id: first
+      uses: actions/upload-artifact@v7
+      continue-on-error: true
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+    - if: steps.first.outcome == 'failure'
+      shell: bash
+      run: |
+        echo "::warning::Uploading ${{ inputs.name }} failed; trying again in a minute."
+        sleep 60
+    - if: steps.first.outcome == 'failure'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+        overwrite: true

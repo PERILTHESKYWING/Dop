@@ -32,7 +32,7 @@ for (const f of process.argv.slice(2)) {
     } catch {
       continue; // a line cut off when a measuring run was stopped
     }
-    if (j.skipped || !j.c) continue;
+    if (!j || typeof j !== 'object' || j.skipped || !Array.isArray(j.c) || !j.c.length) continue;
     const id = `${String(j.file).split('/').pop()}:${j.move}`;
     if (seen.has(id)) continue;
     seen.add(id);

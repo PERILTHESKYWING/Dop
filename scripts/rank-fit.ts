@@ -56,6 +56,7 @@ for (const f of process.argv.slice(2))
     } catch {
       continue; // a line cut off when a measuring run was stopped
     }
+    if (!r || typeof r !== 'object' || typeof r.file !== 'string') continue; // not a row (scripts/coach-parts.ts checks rows)
     const id = `${String(r.file).split('/').pop()}:${r.color}`;
     if (r.skipped || r.all === undefined || seen.has(id) || r.rank < MIN_RANK || r.rank > MAX_RANK) continue;
     seen.add(id);

@@ -1,0 +1,66 @@
+# Checks every workflow on pull requests that change one, so a new workflow follows the
+# rules that keep runs from failing (docs/handoff/training.md, "Workflow rules"):
+# actionlint (syntax, expressions, shell mistakes) and scripts/ci/check-workflows.py
+# (pinned runner image, timeouts, current action versions, the step wrapper, retried uploads).
+# By hand (Actions -> "Workflow check" -> "Run workflow") it can also run the stress test:
+# a step that uses more memory than the machine has must fail on its own, with a readable
+# error, while the runner keeps going.
+name: Workflow check
+
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+      - 'scripts/ci/**'
+  workflow_dispatch:
+    inputs:
+      stress:
+        description: Also run the out-of-memory stress test
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
+jobs:
+  rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: House rules
+        run: python3 scripts/ci/check-workflows.py --github
+      - name: actionlint
+        run: |
+          bash <(curl -sfL --retry 3 https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+      - name: Step wrapper behaves like bash -e
+        run: bash scripts/ci/test-step.sh
+
+  stress:
+    if: github.event_name == 'workflow_dispatch' && inputs.stress
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use more memory than the machine has (this step is meant to fail)
+        id: hog
+        continue-on-error: true
+        run: |
+          free -m
+          python3 -c "
+          import time
+          hog = []
+          while True:
+              hog.append(bytearray(256 * 1024 * 1024))
+              print(len(hog) * 256, 'MB', flush=True)
+          "
+      - name: The runner survived
+        run: |
+          echo "memory step: ${{ steps.hog.outcome }}"
+          test "${{ steps.hog.outcome }}" = failure
+          free -m

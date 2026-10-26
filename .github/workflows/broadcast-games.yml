@@ -20,16 +20,20 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   play:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 300
     strategy:
       matrix:
         job: [0, 1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -44,7 +48,7 @@ jobs:
               --part $((${{ matrix.job }} * CORES + c)) --parts $PARTS &
           done
           wait
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: games-${{ matrix.job }}
           path: .broadcast-parts/
@@ -52,15 +56,16 @@ jobs:
 
   publish:
     needs: play
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: games-*
           path: .broadcast-parts

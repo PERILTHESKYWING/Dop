@@ -78,6 +78,10 @@ truncated = False
 tf = tarfile.open(fileobj=sys.stdin.buffer, mode='r|*')
 try:
     for m in tf:
+        # A streamed tarfile keeps every header it has read (about 0.5 KB each); the archive
+        # has tens of millions of files, so without this the runner ran out of memory and
+        # died half an hour in (Game data, 2026-10-16).
+        tf.members = []
         members += 1
         if members % 1_000_000 == 0:
             print(f'{members:,} files, {time.time() - t0:.0f} s, at {m.name}', file=sys.stderr, flush=True)

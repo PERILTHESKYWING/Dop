@@ -27,10 +27,16 @@ env:
   KATAGO_ZIP: https://github.com/lightvector/KataGo/releases/download/v1.18.1/katago-v1.18.1-eigenavx2-linux-x64.zip
   MODEL: public/models/g170e-b10c128-s1141046784-d204142634.bin.gz
 
+defaults:
+  run:
+    shell: bash scripts/ci/step.sh {0}
+
 jobs:
   find:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 290
+    # One machine lost on GitHub's side only means fewer new problems today; publish uses the rest.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -38,8 +44,8 @@ jobs:
     env:
       SEED: ${{ github.run_number }}${{ matrix.job }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -83,23 +89,24 @@ jobs:
             --seen public/problems/bank.json --out out/problems-${{ matrix.job }}.jsonl 2>&1 | tail -n 40
           wc -l out/*.jsonl || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload
         with:
           name: problems-${{ matrix.job }}
           path: out/
 
   publish:
     needs: find
-    if: always()
-    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: problems-*
           path: parts
