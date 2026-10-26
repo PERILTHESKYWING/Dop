@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { moveStats } from '../kami/src/lib/moveCaption';
+import { moveStats, stoneNote } from '../kami/src/lib/moveCaption';
+import { DEMO } from '../kami/src/ui/landing/data';
 import { FINAL, loc } from '../kami/src/ui/landing/data';
-import { PICK, PICK_VISITS, READ_VISITS } from '../kami/src/ui/landing/story';
+import { EARLIER_PICKS, PICK, PICK_VISITS, PROOF, READ_VISITS } from '../kami/src/ui/landing/story';
 import { TERM_NAMES, termCard } from '../kami/src/lib/terms';
 import { GLOSSARY } from '../src/lib/coach/glossary';
 
@@ -30,6 +31,24 @@ describe('the landing hero’s proof beside its pick', () => {
     expect(PICK_VISITS).toBeGreaterThan(0);
     expect(READ_VISITS).toBe(FINAL.visits);
     expect(PICK_VISITS).toBeLessThanOrEqual(READ_VISITS);
+  });
+  it('says honestly what shorter reads preferred, from the recorded reads', () => {
+    expect(EARLIER_PICKS).toEqual([...new Set(DEMO.reads.slice(0, -1).map((r) => r.cands[0].at))].filter((m) => m !== PICK));
+    expect(EARLIER_PICKS[0]).toBe(DEMO.reads[0].cands[0].at);
+    expect(PROOF).toBe(`KataGo read ${READ_VISITS.toLocaleString('en-US')} positions, ${PICK_VISITS.toLocaleString('en-US')} of them after ${PICK}. Shorter reads preferred ${EARLIER_PICKS.join(', then ')}.`);
+    // the app's quick (Low) answer on this board is one of them
+    const low = DEMO.answers.find((a) => a.question === 'What should Black play here?' && a.depth === 'Low')!;
+    expect(EARLIER_PICKS).toContain(low.variations[0].moves[0]);
+  });
+});
+
+describe('what a played stone is', () => {
+  const pos = { size: 9, komi: 7, setup: [{ color: 2 as const, loc: 0 }], moves: [{ color: 1 as const, loc: 40 }, { color: 2 as const, loc: 20 }], toPlay: 1 as const };
+  it('names its move from the game itself', () => {
+    expect(stoneNote(pos, 20)).toEqual({ at: 'C7', text: 'White’s move 2, the last one played' });
+    expect(stoneNote(pos, 40)?.text).toBe('Black’s move 1');
+    expect(stoneNote(pos, 0)?.text).toBe('a White stone from the setup');
+    expect(stoneNote(pos, 1)).toBeNull();
   });
 });
 

@@ -774,7 +774,22 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
       const all = box.querySelectorAll<HTMLElement>('.msg.kami');
       const el = all[all.length - 1];
       if (el && el.offsetHeight > box.clientHeight) {
-        if (first) box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+        if (first) {
+          box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+          // ...and end the pane on a whole line: a line of text cut in half at the composer read
+          // as hidden behind it (critics, round 4). The answer moves down by less than a line.
+          const bottom = box.getBoundingClientRect().bottom;
+          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          const range = document.createRange();
+          let cut = Infinity;
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            if (!n.textContent?.trim()) continue;
+            range.selectNodeContents(n);
+            for (const r of range.getClientRects()) if (r.top < bottom && r.bottom > bottom + 1) cut = Math.min(cut, r.top);
+          }
+          const by = bottom - cut;
+          if (by > 0 && by < 48) box.scrollTop -= by;
+        }
         return;
       }
     }

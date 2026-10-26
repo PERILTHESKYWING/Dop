@@ -1,12 +1,13 @@
 /**
- * The caption over the board while a move or line is previewed (critics, round 3: "a hover
+ * The readout under the board while a move or line is previewed (critics, round 3: "a hover
  * caption that explains the previewed move"). One plain line, made only of KataGo's numbers
  * already on screen: where the move ranks in KataGo's read, the win chance after it, what it
  * loses against KataGo's choice (in the board labels' rounding, lib/candLabels.ts) and how many
  * visits it got. No language model, and nothing about the board that KataGo did not measure.
  */
 import { fmt1 } from '../../../src/lib/coach/explain/geometry';
-import type { EngineRead } from '../../../src/lib/coach/explain/types';
+import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
+import { replay } from '../../../src/lib/go/board';
 import { locToGtp } from '../../../src/lib/go/coords';
 import { PASS, type Color, type Loc } from '../../../src/lib/go/types';
 
@@ -52,4 +53,21 @@ export function moveStats(read: Pick<EngineRead, 'candidates'> | null | undefine
   const visits = `${c.visits.toLocaleString('en-US')} visits`;
   const text = compact ? [rank, loss || win, visits].join(' · ') : [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
   return { at, text };
+}
+
+/**
+ * What a stone already on the board is, from the game itself: "White’s move 34, the last one
+ * played", "Black’s move 12", or "a White stone from the setup". Null on an empty point.
+ */
+export function stoneNote(base: ExplainPosition, loc: Loc): MoveStats | null {
+  if (loc === PASS || loc < 0 || loc >= base.size * base.size) return null;
+  const color = replay(base.size, base.setup, base.moves).stones[loc];
+  if (color !== 1 && color !== 2) return null;
+  const side = color === 1 ? 'Black' : 'White';
+  const at = locToGtp(loc, base.size);
+  // the latest move there by that colour is the stone standing now (an earlier one was captured)
+  let i = base.moves.length - 1;
+  while (i >= 0 && !(base.moves[i].loc === loc && base.moves[i].color === color)) i--;
+  if (i < 0) return { at, text: `a ${side} stone from the setup` };
+  return { at, text: `${side}’s move ${i + 1}${i === base.moves.length - 1 ? ', the last one played' : ''}` };
 }
