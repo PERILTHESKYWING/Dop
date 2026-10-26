@@ -8,9 +8,10 @@
 # GitHub passes the step's script as $1. It runs like GitHub's own `bash -e {0}`, with three
 # differences that keep runs from failing for reasons that have nothing to do with the work:
 # - The step runs at lower CPU priority (nice 10), so the runner agent always gets CPU time.
-# - The step is the kernel's first choice when memory runs out (oom_score_adj 800), so a step
-#   that uses too much memory dies on its own and the agent keeps talking to GitHub instead of
-#   the whole machine going silent ("The hosted runner lost communication with the server").
+# - The step runs in its own memory cgroup (machine memory minus 1.5 GB) and is the kernel's
+#   first choice when memory runs out (oom_score_adj 800), so a step that uses too much memory
+#   dies on its own and the runner keeps talking to GitHub instead of the whole machine going
+#   silent ("The hosted runner lost communication with the server").
 # - When a step fails, its last lines become an error annotation, readable on the run's page
 #   and through the API (gh api .../check-runs/<job id>/annotations) without the log.
 # Output goes to a file that is followed live, not through a pipe, so a process the step
@@ -21,7 +22,25 @@ log=$(mktemp)
 pre=()
 command -v choom > /dev/null 2>&1 && pre=(choom -n 800 --)
 
-"${pre[@]}" nice -n 10 bash -e "$script" > "$log" 2>&1 < /dev/null &
+# On a GitHub runner, the step also gets its own memory cgroup capped at the machine's memory
+# minus 1.5 GB, so running out of memory kills only the step: without it the whole job was
+# terminated (workflow-check.yml stress test, 2026-10-26). Anywhere this can't be set up
+# (no sudo, no cgroup v2), the step simply runs without it.
+cg=""
+if [ "${GITHUB_ACTIONS:-}" = true ] && [ -f /sys/fs/cgroup/cgroup.controllers ] && sudo -n true 2> /dev/null; then
+  total=$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo)
+  cap=$((total - 1536 * 1024 * 1024))
+  cg=/sys/fs/cgroup/ci-step-$$
+  if ! { sudo mkdir -p "$cg" && echo "$cap" | sudo tee "$cg/memory.max" > /dev/null; } 2> /dev/null; then
+    sudo rmdir "$cg" 2> /dev/null
+    cg=""
+  fi
+fi
+
+(
+  [ -n "$cg" ] && echo "$BASHPID" | sudo tee "$cg/cgroup.procs" > /dev/null 2>&1
+  exec "${pre[@]}" nice -n 10 bash -e "$script"
+) > "$log" 2>&1 < /dev/null &
 pid=$!
 tail -n +1 -f --pid="$pid" "$log" &
 tailer=$!
@@ -41,4 +60,5 @@ if [ "$code" -ne 0 ]; then
   echo "::error title=Step failed: $why::${body}"
 fi
 rm -f "$log" "$log.tail"
+[ -n "$cg" ] && sudo rmdir "$cg" 2> /dev/null
 exit "$code"

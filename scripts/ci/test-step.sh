@@ -29,7 +29,11 @@ exit 7'
 check 'killed step is named' 137 'killed (most likely out of memory)' 'kill -9 $$'
 check 'background process does not hold the step' 0 'started' 'sleep 60 &
 echo started'
-check 'lower CPU priority' 0 '10' 'nice'
+base=$(nice); want=$((base + 10 > 19 ? 19 : base + 10))
+check 'lower CPU priority' 0 "$want" 'nice'
+if [ "${GITHUB_ACTIONS:-}" = true ] && sudo -n true 2> /dev/null; then
+  check 'own memory cgroup on GitHub runners' 0 'ci-step-' 'cat /proc/self/cgroup'
+fi
 command -v choom > /dev/null && check 'first to be killed on out-of-memory' 0 '800' 'cat /proc/self/oom_score_adj'
 check 'environment passes through' 0 'value-42' 'echo "$STEP_TEST"'
 rm -rf "$tmp"
