@@ -37,6 +37,12 @@ export default function FlatStage({ show, boxRef, onReady }: { show: Show; boxRe
   let marks: { loc: number; kind: 'num'; label: string }[] | undefined;
   // the point the words name, flagged as on the 3D board (a seal-red label on a short line)
   let flag: string | null = null;
+  let flagLabel: string | undefined;
+  // a line every `cell` px: on a phone the numbers drawn on the points (half a line tall, the move
+  // number 0.4) would be 5 to 7 px, so the circles go without them and the move is flagged instead,
+  // as on the 3D board (every label on a phone is 11 px or more)
+  const cell = side / 19.2;
+  const smallNums = cell * 0.5 < 11;
   if (show.kind === 'ask') flag = PICK;
   else if (show.kind === 'reading') candidates = READS[Math.min(show.step, READS.length - 1)].cands.map((c, i) => cand(c.at, i, c.win));
   else if (show.kind === 'next') {
@@ -46,24 +52,27 @@ export default function FlatStage({ show, boxRef, onReady }: { show: Show; boxRe
     stones = s;
   } else if (show.kind === 'review') {
     stones = GAME.boards[TURN.n];
-    marks = [{ loc: loc(TURN.at), kind: 'num', label: String(TURN.n) }];
+    if (cell * 0.4 < 11) {
+      flag = TURN.at;
+      flagLabel = `Move ${TURN.n}`;
+    } else marks = [{ loc: loc(TURN.at), kind: 'num', label: String(TURN.n) }];
   }
   return (
-    <div className="l-flat" style={{ left, top, width: side, height: side }} aria-hidden="true">
+    <div className={`l-flat${smallNums ? ' no-nums' : ''}`} style={{ left, top, width: side, height: side }} aria-hidden="true">
       <Board size={19} stones={stones} candidates={candidates} candStyle="plain" marks={marks} ownership={show.kind === 'ahead' ? FINAL.own : null} skin={KIAI_SKIN} coords={false} animate={false} />
-      {flag && <Flag at={flag} side={side} />}
+      {flag && <Flag at={flag} label={flagLabel} side={side} />}
     </div>
   );
 }
 
 /** A label over one point of the flat board (Board without coordinates: 0.6 of a line's margin). */
-function Flag({ at, side }: { at: string; side: number }) {
+function Flag({ at, label = at, side }: { at: string; label?: string; side: number }) {
   const [x, y] = xy(loc(at), 19);
   const px = ((x + 0.6) / 19.2) * side, py = ((y + 0.6) / 19.2) * side;
   return (
     <div className="l-callout" style={{ transform: `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`, visibility: 'visible' }}>
       <span>
-        <b>{at}</b>
+        <b>{label}</b>
         <i />
       </span>
     </div>

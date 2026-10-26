@@ -7,14 +7,22 @@ import './journey.css';
 const WEEKDAY = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MARK_LABEL: Record<DayMark, string> = { study: 'studied', rest: 'rest day used', none: 'no study', today: 'today, not yet' };
 
-/** Ten stones toward the next station: black for each tenth done, an empty point for the rest. */
+/**
+ * Ten stones toward the next station, filled in proportion: each tenth done is a black stone, the
+ * tenth under way is black for the part done (left to right), the rest are empty rings.
+ */
 function PathStones({ s }: { s: JourneySummary }) {
-  const done = s.next ? Math.floor((10 * s.into) / s.span) : 10;
+  const tenths = s.next ? Math.max(0, Math.min(10, (10 * s.into) / s.span)) : 10;
   return (
     <div className="path-stones" aria-hidden="true">
-      {Array.from({ length: 10 }, (_, i) => (
-        <span key={i} className={i < done ? 'b' : ''} />
-      ))}
+      {Array.from({ length: 10 }, (_, i) => {
+        const f = Math.max(0, Math.min(1, tenths - i));
+        return (
+          <span key={i} className={f >= 1 ? 'b' : ''}>
+            {f > 0 && f < 1 && <i style={{ width: `${(f * 100).toFixed(1)}%` }} />}
+          </span>
+        );
+      })}
     </div>
   );
 }

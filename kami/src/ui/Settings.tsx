@@ -26,6 +26,17 @@ const PAGES: { id: SettingsPage; label: string; icon: string }[] = [
   { id: 'about', label: 'About', icon: 'info' },
 ];
 
+/** Phone width: the same breakpoint as styles.css. */
+const PHONE = '(max-width: 899px)';
+const onPhoneChange = (cb: () => void) => {
+  const m = window.matchMedia(PHONE);
+  m.addEventListener('change', cb);
+  return () => m.removeEventListener('change', cb);
+};
+function usePhone(): boolean {
+  return useSyncExternalStore(onPhoneChange, () => window.matchMedia(PHONE).matches);
+}
+
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} className={`switch${on ? ' on' : ''}`} onClick={() => onChange(!on)}>
@@ -397,53 +408,124 @@ export function Settings({
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
-    document.addEventListener('keydown', esc);
+    // Escape closes; Tab and Shift+Tab go round the dialog's own controls, never behind it
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return closeRef.current();
+      const box = card.current;
+      if (e.key !== 'Tab' || !box) return;
+      const els = [...box.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([tabindex="-1"]), select:not(:disabled), textarea, a[href], summary, [tabindex="0"]')].filter((el) => el.getClientRects().length > 0);
+      if (!els.length) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      const at = document.activeElement;
+      if (!box.contains(at) || (e.shiftKey && (at === first || at === box)) || (!e.shiftKey && at === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener('keydown', key);
     card.current?.focus();
-    return () => document.removeEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', key);
   }, []);
   const acct = useAccountView();
   const pages = PAGES.filter((p) => p.id !== 'account' || acct.available || acct.signedIn);
   const current = pages.find((p) => p.id === page) ?? pages[0];
+  // On a phone the pages are a list first, as in a phone's own settings: a row opens its page and
+  // a back chevron returns to the list. Opening Settings at a named page (Journey, Board) goes
+  // straight to that page. On a wider screen the list and the page sit side by side, as before.
+  const phone = usePhone();
+  const [listed, setListed] = useState(page === 'general');
+  const showList = phone && listed;
+  const back = useRef<HTMLButtonElement>(null);
+  const opened = useRef<SettingsPage | null>(null);
+  // keyboard focus follows the move: into a page, onto its back button; back, onto the row it came from
+  useEffect(() => {
+    if (!phone || !opened.current) return;
+    if (showList) card.current?.querySelector<HTMLButtonElement>(`[data-page="${opened.current}"]`)?.focus();
+    else back.current?.focus();
+  }, [phone, showList]);
+  const open = (id: SettingsPage) => {
+    opened.current = id;
+    onPage(id);
+    setListed(false);
+  };
   return (
     <div className="modal-wrap" role="presentation" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal settings" role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} ref={card}>
+      <div className={`modal settings${phone ? (showList ? ' phone-list' : ' phone-page') : ''}`} role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} ref={card}>
         <header className="modal-head">
-          <h2>Settings</h2>
+          {phone && !showList ? (
+            <>
+              <button
+                type="button"
+                className="set-back"
+                ref={back}
+                onClick={() => {
+                  opened.current = current.id;
+                  setListed(true);
+                }}
+              >
+                <Icon name="prev" size={20} />
+                Settings
+              </button>
+              <h2 className="set-title">{current.label}</h2>
+            </>
+          ) : (
+            <h2>Settings</h2>
+          )}
           <button type="button" className="icon-btn" aria-label="Close settings" onClick={onClose}>
             <Icon name="x" />
           </button>
         </header>
         <div className="settings-body">
-          <nav className="set-nav" aria-label="Settings pages">
-            {pages.map((p) => (
-              <button key={p.id} type="button" className={p.id === current.id ? 'on' : ''} aria-current={p.id === current.id ? 'page' : undefined} onClick={() => onPage(p.id)}>
-                <Icon name={p.icon} size={17} />
-                {p.label}
-              </button>
-            ))}
-          </nav>
-          <section className="set-page" aria-label={current.label}>
-            <h3>{current.label}</h3>
-            {current.id === 'usage' ? (
-              <UsagePage convs={convs} llmOn={llmOn} />
-            ) : current.id === 'data' ? (
-              <DataPage convs={convs} onDeleteAll={onDeleteAll} />
-            ) : current.id === 'about' ? (
-              <AboutPage />
-            ) : current.id === 'profile' ? (
-              <ProfilePage />
-            ) : current.id === 'journey' ? (
-              <>
-                <JourneyPanel />
-                <GroupPage group="journey" blurb={false} />
-              </>
-            ) : current.id === 'account' ? (
-              <AccountPage />
-            ) : (
-              <GroupPage group={current.id} />
-            )}
-          </section>
+          {showList ? (
+            <nav className="set-index" aria-label="Settings pages">
+              <ul>
+                {pages.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" data-page={p.id} onClick={() => open(p.id)}>
+                      <Icon name={p.icon} size={20} />
+                      <span className="grow">{p.label}</span>
+                      <Icon name="next" size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ) : (
+            !phone && (
+              <nav className="set-nav" aria-label="Settings pages">
+                {pages.map((p) => (
+                  <button key={p.id} type="button" className={p.id === current.id ? 'on' : ''} aria-current={p.id === current.id ? 'page' : undefined} onClick={() => onPage(p.id)}>
+                    <Icon name={p.icon} size={17} />
+                    {p.label}
+                  </button>
+                ))}
+              </nav>
+            )
+          )}
+          {!showList && (
+            <section className="set-page" aria-label={current.label}>
+              {!phone && <h3>{current.label}</h3>}
+              {current.id === 'usage' ? (
+                <UsagePage convs={convs} llmOn={llmOn} />
+              ) : current.id === 'data' ? (
+                <DataPage convs={convs} onDeleteAll={onDeleteAll} />
+              ) : current.id === 'about' ? (
+                <AboutPage />
+              ) : current.id === 'profile' ? (
+                <ProfilePage />
+              ) : current.id === 'journey' ? (
+                <>
+                  <JourneyPanel />
+                  <GroupPage group="journey" blurb={false} />
+                </>
+              ) : current.id === 'account' ? (
+                <AccountPage />
+              ) : (
+                <GroupPage group={current.id} />
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>
