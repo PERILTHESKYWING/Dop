@@ -23,8 +23,9 @@ pre=()
 command -v choom > /dev/null 2>&1 && pre=(choom -n 800 --)
 
 # On a GitHub runner, the step also gets its own memory cgroup capped at the machine's memory
-# minus 1.5 GB, so running out of memory kills only the step: without it the whole job was
-# terminated (workflow-check.yml stress test, 2026-10-26). Anywhere this can't be set up
+# minus 1.5 GB, so running out of memory kills only the step. Without it the step sits in the
+# runner's own systemd service (hosted-compute-agent.service), and systemd stops that whole
+# service when anything in it is killed for memory: the job dies (stress test, 2026-10-26). Anywhere this can't be set up
 # (no sudo, no cgroup v2), the step simply runs without it.
 cg=""
 if [ "${GITHUB_ACTIONS:-}" = true ] && [ -f /sys/fs/cgroup/cgroup.controllers ] && sudo -n true 2> /dev/null; then
@@ -38,7 +39,9 @@ if [ "${GITHUB_ACTIONS:-}" = true ] && [ -f /sys/fs/cgroup/cgroup.controllers ] 
 fi
 
 (
-  [ -n "$cg" ] && echo "$BASHPID" | sudo tee "$cg/cgroup.procs" > /dev/null 2>&1
+  # $BASHPID read here, not inside the pipe (each side of a pipe is its own subshell).
+  me=$BASHPID
+  [ -n "$cg" ] && echo "$me" | sudo tee "$cg/cgroup.procs" > /dev/null 2>&1
   exec "${pre[@]}" nice -n 10 bash -e "$script"
 ) > "$log" 2>&1 < /dev/null &
 pid=$!
