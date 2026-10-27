@@ -70,6 +70,7 @@ const SPECS: Spec[] = [
   { term: 'tesuji', concept: 'tesuji' },
   { term: 'dragon', concept: 'weak-group', def: 'Dragon: a long group of stones stretching across the board, often still without two eyes.' },
   // Shape and moves
+  { term: 'stretch', aliases: ['nobi'], def: "Stretch (nobi): a stone played straight on from your own, in contact, usually alongside the opponent's stones, making the chain longer." },
   { term: 'hane', def: "Hane: a move that bends around the end of the opponent's stones, diagonally from your own stone." },
   { term: 'tsuke', aliases: ['attachment', 'contact play'], def: "Tsuke (attachment): a stone placed directly against an opponent's stone, often to settle or to see how they answer." },
   { term: 'kosumi', aliases: ['diagonal move', 'diagonal play'], def: 'Kosumi (diagonal move): a stone placed diagonally next to your own; slow, but solid and hard to cut.' },
@@ -84,7 +85,7 @@ const SPECS: Spec[] = [
   // Opening and strategy
   { term: 'joseki', concept: 'joseki' },
   { term: 'star point', aliases: ['hoshi'], def: 'Star point (hoshi): a marked point on the board; in a corner, the 4-4 point, quick to claim but open underneath.' },
-  { term: 'kakari', aliases: ['approach', 'approach move', 'corner approach'], def: "Kakari (approach): a move next to the opponent's lone corner stone, so they cannot easily enclose the corner." },
+  { term: 'kakari', aliases: ['approach', 'approach move', 'corner approach'], def: "Kakari (approach): a move near, not touching, the opponent's lone corner stone, so they cannot easily enclose the corner." },
   { term: 'shimari', aliases: ['enclosure', 'corner enclosure'], def: 'Shimari (enclosure): a second stone in your own corner that makes it hard for the opponent to approach or invade.' },
   { term: 'hasami', aliases: ['pincer'], def: 'Hasami (pincer): a move that attacks an approaching stone from the far side, so it cannot extend comfortably.' },
   { term: '3-3 invasion', aliases: ['three-three invasion', '3-3 point', 'three-three point', 'san-san', 'sansan'], concept: 'three-three-invasion' },
@@ -133,7 +134,7 @@ const MATCHERS: { entry: GlossaryEntry; re: RegExp }[] = GLOSSARY.flatMap((entry
 );
 
 /** Everyday phrases that use a Go word in its ordinary sense. */
-const IDIOMS = /(?<![\p{L}\p{N}])(?:net\s+(?:gain|loss|losses|result|effect|change|value|score)s?|keep(?:s|ing)?\s+an\s+eye\s+on|eye\s+to\s+eye)(?![\p{L}\p{N}])/giu;
+const IDIOMS = /(?<![\p{L}\p{N}])(?:net\s+(?:gain|loss|losses|result|effect|change|value|score)s?|keep(?:s|ing)?\s+an\s+eye\s+on|eye\s+to\s+eye|(?:a|long|short|home|final)\s+stretch|stretch(?:es)?\s+of|stretch(?:es)?\s+(?:out|across|along|from|to|toward|towards|into|over|between|thin))(?![\p{L}\p{N}])/giu;
 /** [[v1]] / [[d1]] chips and board points like Q16 or q4. */
 const REFS = /\[\[[^\]]*\]\]|(?<![\p{L}\p{N}])[A-HJ-Ta-hj-t](?:1[0-9]|[1-9])(?![\p{L}\p{N}])/gu;
 

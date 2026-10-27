@@ -26,6 +26,8 @@
   --bubble: #ece5d6;
   --accent: #a8322b;
   --accent-hover: #8f2a24;
+  /* a text box's or list's edge: 3:1 or more on cards, paper and panels (4.1, 3.7, 3.3) */
+  --field-line: #857c6e;
   --accent-soft: rgba(168, 50, 43, 0.08);
   --accent-line: rgba(168, 50, 43, 0.32);
   --on-accent: #fffdf8;
@@ -78,6 +80,7 @@
     --bubble: #26221b;
     --accent: #e0675c;
     --accent-hover: #ea7f75;
+    --field-line: #7a7264;
     --accent-soft: rgba(224, 103, 92, 0.14);
     --accent-line: rgba(224, 103, 92, 0.4);
     --on-accent: #15130f;
@@ -110,6 +113,7 @@
   --bubble: #26221b;
   --accent: #e0675c;
   --accent-hover: #ea7f75;
+  --field-line: #7a7264;
   --accent-soft: rgba(224, 103, 92, 0.14);
   --accent-line: rgba(224, 103, 92, 0.4);
   --on-accent: #15130f;
@@ -855,7 +859,7 @@ kbd {
   font: inherit;
   font-size: 15px;
   color: var(--ink);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--field-line);
   border-radius: 12px;
   padding: 10px 12px;
   background: var(--card);
@@ -1737,6 +1741,11 @@ kbd {
 .bp-square {
   flex: none;
 }
+/* numbers on the board in lining figures, as tall as capitals (Alegreya's default figures are
+   old-style, x-height tall, and read two sizes smaller) */
+.bp-square svg.board text {
+  font-variant-numeric: lining-nums tabular-nums;
+}
 .bp-square > * {
   width: 100%;
   height: 100%;
@@ -2528,7 +2537,7 @@ kbd {
   font-size: 14px;
   color: var(--ink);
   background: var(--card);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--field-line);
   border-radius: 8px;
   height: 34px;
   padding: 0 10px;

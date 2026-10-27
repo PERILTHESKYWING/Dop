@@ -66,7 +66,7 @@ export const COPY: Record<string, string> = {
   blurb: 'A quiet record of your study: games reviewed and questions answered. Nothing is locked behind it, and nothing reminds you.',
   off: 'Off. Nothing is counted or shown.',
   notStarted: 'Your path starts with your first reviewed game or answered question.',
-  head: 'Study path · stage {n} of {of} · {label}',
+  head: 'Stage {n} of {of}',
   toNext: '{into} of {span} points to {next}',
   last: "The last station. The path stops here; study doesn't.",
   honesty: "The path counts study, not strength. It is not a rank. Kiai's estimate of how you play is the Strength graph of a reviewed game.",
@@ -93,7 +93,7 @@ export const COPY: Record<string, string> = {
   classical: 'Dan stations carry the nine classical grades of Go, from 守拙 to 入神.',
   noteStation: 'On the path: {label}',
   noteSeal: 'Seal: {kanji} {title}',
-  sidebarLine: 'Study path · {label}',
+  sidebarLine: 'Study path · stage {n} of {of}',
   resetConfirm: 'Reset your path? Points, days and seals go back to the start on every device you sync.',
 };
 
@@ -559,7 +559,7 @@ export function stationName(s: Station): string {
   return s.classical ? `${s.label}, ${s.classical.kanji} ${s.classical.gloss}` : s.label;
 }
 
-/** The sidebar line: "Study path · 14 kyu" (a place on the path, never a rank; no days in a row). */
+/** The sidebar line: "Study path · stage 17 of 39" (a place on the path, never a rank or a kyu; no days in a row). */
 export function pathLine(s: JourneySummary): string {
-  return fill('sidebarLine', { label: s.station.label });
+  return fill('sidebarLine', { n: s.station.i + 1, of: PATH.length });
 }

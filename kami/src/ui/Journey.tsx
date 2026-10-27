@@ -99,7 +99,8 @@ export function JourneyPanel() {
     <div className="journey">
       <p className="set-blurb">{COPY.blurb}</p>
       <section className="journey-station" aria-label="Station">
-        <h4 className="journey-head">{fill('head', { n: s.station.i + 1, of: PATH.length, label: s.station.label })}</h4>
+        <h4 className="journey-head">{fill('head', { n: s.station.i + 1, of: PATH.length })}</h4>
+        <div className="journey-stage">{fill('noteStation', { label: s.station.label })}</div>
         {c && (
           <div className="journey-classical" title={`Japanese ${c.ja} · Chinese ${c.zh}`}>
             <span lang="ja">{c.kanji}</span> · {c.gloss}

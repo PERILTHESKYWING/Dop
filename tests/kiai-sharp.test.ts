@@ -57,6 +57,12 @@ describe('shape words follow the geometry', () => {
     expect(shapeOf(b, P('Q12'), 1)?.id).toBe('hane');
     expect(shapeOf(b, P('R12'), 1)?.id).toBe('extend');
   });
+  it('Q9 after Q10 R10, straight on from Black Q10 and in contact with it, is a stretch (nobi), not an extension', () => {
+    const after = b.clone();
+    after.play(P('Q10'), 1);
+    after.play(P('R10'), 2);
+    expect(shapeOf(after, P('Q9'), 1)).toMatchObject({ id: 'extend', name: 'the stretch', term: 'nobi' });
+  });
   it('after Black Q10, White R10 is the cut', () => {
     const after = b.clone();
     after.play(P('Q10'), 1);
@@ -125,6 +131,13 @@ describe('the move-34 answer (engine text, no LLM)', () => {
     expect(problems).toContain('exclamation mark in a sharp position');
     expect(problems).toContain('closing question in a sharp position');
     expect(problems.some((p) => p.startsWith('"extension" at R10'))).toBe(true);
+  });
+
+  it('calls Q9 in KataGo’s line a stretch, and flags "the extension at Q9"', async () => {
+    const ex = await move34();
+    expect(ex.summary).not.toMatch(/extension at Q9/);
+    expect(wordingProblems(ex, 'White cuts at R10 and Black continues with the extension at Q9.')).toContain('"extension" at Q9 is a stretch (nobi), not an extension');
+    expect(wordingProblems(ex, 'White cuts at R10 and Black continues with the stretch at Q9.').filter((p) => p.includes('Q9'))).toEqual([]);
   });
 });
 

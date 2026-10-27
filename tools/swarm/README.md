@@ -26,12 +26,16 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 3 | 8 (all 10) | polish only |
 | 2026-10-26 r1 | 8 (all 10) | 8 (three at 7) |
 | 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
+| 2026-10-24 (paused, finished 10-27) | 8 (all 10, two passes) | 8 (all 10, two passes) |
+| 2026-10-26 (second run, Kiai only, 3 rounds) | 8 (all 10, every round) | not shot |
 | 2026-10-27 r1 | 8 (all 10; phone 7 from seven) | 8 (nine), 7 (artist) |
 | 2026-10-27 r2 | 8 (all 10; phone 8 from all) | 8 (all 10) |
+
+Two runs of this routine overlapped on 2026-10-26 and built the same wishes twice; the second run ported only what main lacked (PR for 2026-10-27). Before starting, check open PRs **and** `git log origin/main` for a swarm merge from today, and never reuse a branch name that already exists on origin.
 
 Daily runs: shots for a run live in the run's scratchpad (before = main, after = the merged branch). The journey script walks the phone Settings list (`goPage`); the app script has a sixth state, `5-hover-candidate` (desktop hovers a candidate disc, phone taps a coordinate that is one of KataGo's choices). Stop servers by pid or with a script file: `pkill -f "port 4291"` in a one-line shell also kills that shell.
 
 The critics' open wishes after 2026-10-27 round 2, which are the start of the next run (none reached 9 yet; trust reached 9 from three Kiai critics and two hub critics):
 - Kiai: board keyboard focus ring, and a focus shot in the set; secondary grey text at 14 px; landing "Who is ahead?" ownership drawn as stepped squares (soft per-point fills instead); landing board coordinates and a caption for its mark numbers; the readout's position count vs the answer's (say "53 of 229"); phone line preview shows 8 of 9 moves; a size budget for the entry chunk (index 105 kB gzip after this run) and a median-of-5 /app paint bench; seal 棋譜並べ mixes kana with kanji seals.
 - Hub: after several "Show earlier" in a 500-message thread, the worst frame is 133-167 ms (main 83-133) while warming; full-screen backdrop blur on sheets (flat dim on phones); phone Threads tab tiles and Filter on one grid, selected tile without the black underline; Calm working line still shows the ✱; Look wallpapers (Dawn, Sea, Forest, Night sky) clash with paper-and-ink; Studio "No stories yet" beside the playing demo; Mark usage reset button is big on phone; desktop rail meta at 12 px could be 13; sidebar tan is loud in light mode.
-- Runs: if a swarm PR paused at usage limits is older than a merged newer run, port its unique parts instead of merging (2026-10-27 closed #118 this way). `kill $!` after `npx vite preview` leaves the server running; stop it by port (see shoot scripts) or with `node node_modules/.bin/vite`.
+- Runs: if a swarm PR paused at usage limits is older than a merged newer run, port its unique parts instead of merging (on 2026-10-27 three runs overlapped: #118 was merged with a port in #120 while #121 ported the same parts again; #121 kept its later, critic-scored versions). `kill $!` after `npx vite preview` leaves the server running; stop it by port (see shoot scripts) or with `node node_modules/.bin/vite`.
