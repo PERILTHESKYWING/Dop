@@ -85,6 +85,10 @@ html.kiai-landing {
   width: 100%;
   height: 100%;
 }
+/* a small flat board keeps KataGo's circles but not the numbers in them (FlatStage.tsx) */
+.l-flat.no-nums svg.board .cand-wr {
+  display: none;
+}
 .l-stage {
   position: fixed;
   inset: 0;
@@ -188,12 +192,9 @@ html.kiai-landing {
 .l-btn:active {
   transform: translateY(1px);
 }
-.l-btn:focus-visible,
-.l-rail a:focus-visible,
-.l-steps button:focus-visible,
-.l-brand:focus-visible {
-  outline: 3px solid var(--l-seal);
-  outline-offset: 3px;
+/* the app's one focus ring (styles.css :focus-visible), at its light value: the landing is always paper */
+.landing {
+  --focus: #a8322b;
 }
 .l-nav .l-btn {
   transition: opacity 0.3s, background 0.2s;
@@ -890,13 +891,14 @@ html.kiai-landing {
   .l-callout i {
     height: 26px;
   }
-  /* the last words sit low, so the board has the screen above them */
+  /* the last words sit low, so the board has the screen above them; all on one left edge, as
+     in every other chapter and on a wide screen (the colophon was left under centred lines) */
   .l-start {
     top: 0;
     justify-content: flex-end;
     padding-bottom: calc(40px + env(safe-area-inset-bottom));
-    align-items: center;
-    text-align: center;
+    align-items: flex-start;
+    text-align: left;
     background: none;
     border-top: 0;
   }
@@ -926,4 +928,19 @@ html.kiai-landing {
   .l-game.on .l-game-note {
     transition: none;
   }
+}
+
+/* ===== Trust features (swarm, feature builder): the hero pick's visits ===== */
+/* "KataGo read 2,048 positions, 1,515 of them after Q9. ...": the claim's proof, a small muted
+   line under the answer (the sentence itself runs on uninterrupted) */
+.l-proof {
+  display: block;
+  margin-top: 12px;
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--l-muted);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-wrap: pretty;
 }

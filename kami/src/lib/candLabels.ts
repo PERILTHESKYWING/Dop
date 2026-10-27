@@ -7,7 +7,7 @@
  * and 2): KataGo's choice (the most visited move, the answer's "best move") carries a ring and
  * no number, the others "−0.9", "−1.3" in the same rounding as the answer's text ("Q12 is 1.1
  * points worse" is Q12's "−1.1"), a move as good as the choice "≈". On a phone's board the
- * numbers are whole points, so they stay big enough to read and never touch. "The game is
+ * same numbers drop the minus sign ("0.9"), so they stay big enough to read and fit the disc. "The game is
  * decided" is said only when gameDecided() agrees: late in the game, from the point lead.
  */
 import { fmt1 } from '../../../src/lib/coach/explain/geometry';
@@ -37,15 +37,17 @@ export function lopsidedRead(cands: readonly Cand[] | null | undefined): boolean
 }
 
 /**
- * A candidate's label against KataGo's choice: "−0.9" (one decimal, the answer's rounding), or
- * whole points when `compact` ("−1"); "≈" when it rounds to no difference; "+0.4" for a thinner
- * read that came out ahead (honest, rare).
+ * A candidate's label against KataGo's choice: "−0.9" (one decimal, the answer's rounding); "≈"
+ * when it rounds to no difference; "+0.4" for a thinner read that came out ahead (honest, rare).
+ * `compact` (a phone's small discs) gives the same number without its minus sign ("0.9", the
+ * phone's key says these are points lost), and whole points from 10 up, so it fits in the disc
+ * at 11 px (critics, round 4: whole points made −0.9 and −1.3 both "−1").
  */
 export function lossLabel(c: Cand, best: Cand, compact = false): string {
   const loss = best.scoreLead - c.scoreLead;
-  const shown = compact ? String(Math.round(Math.abs(loss))) : fmt1(Math.abs(loss));
+  const shown = compact && Math.abs(loss) >= 9.95 ? String(Math.round(Math.abs(loss))) : fmt1(Math.abs(loss));
   if (Number(shown) === 0) return SAME;
-  return `${loss > 0 ? '−' : '+'}${shown}`;
+  return `${loss > 0 ? (compact ? '' : '−') : '+'}${shown}`;
 }
 
 /** The label function for the candidate stones (undefined: the default win chance). */

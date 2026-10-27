@@ -79,7 +79,11 @@ const exampleSrc = (x: ConceptExample, key: string): PointSrc => ({
 /** Which glossary terms a text may underline: those first seen there (a set), or none (null). */
 type Terms = ReadonlySet<GlossaryEntry> | null;
 
-/** A hover (mouse) or tap (touch, pinned) target that shows something on the board. */
+/**
+ * A hover (mouse), keyboard focus or tap (touch, pinned) target that shows something on the
+ * board. Keyboard focus opens it exactly as a hover does (the hover setting is about the
+ * pointer only), Tab away or Escape closes it, Enter pins it.
+ */
 function BoardChip({ preview, link, className, children }: { preview: (pinned: boolean) => Preview; link: BoardLink; className?: string; children: ReactNode }) {
   const hoverOn = useSetting<boolean>('board.hoverPreview');
   const p = preview(false);
@@ -90,8 +94,15 @@ function BoardChip({ preview, link, className, children }: { preview: (pinned: b
       className={`${className ?? 'chip'}${on ? ' on' : ''}`}
       onPointerEnter={(e) => hoverOn && e.pointerType === 'mouse' && link.onHover(p)}
       onPointerLeave={(e) => e.pointerType === 'mouse' && link.onHover(null)}
-      onFocus={(e) => hoverOn && e.currentTarget.matches(':focus-visible') && link.onHover(p)}
+      onFocus={(e) => e.currentTarget.matches(':focus-visible') && link.onHover(p)}
       onBlur={() => link.onHover(null)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return;
+        // closes this line (and only this one), and keeps the Escape from closing a graph too
+        e.preventDefault();
+        link.onHover(null);
+        if (on) link.onPin(null);
+      }}
       onClick={() => link.onPin(on ? null : preview(true))}
       title={p.note || p.title}
     >
@@ -763,7 +774,22 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
       const all = box.querySelectorAll<HTMLElement>('.msg.kami');
       const el = all[all.length - 1];
       if (el && el.offsetHeight > box.clientHeight) {
-        if (first) box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+        if (first) {
+          box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+          // ...and end the pane on a whole line: a line of text cut in half at the composer read
+          // as hidden behind it (critics, round 4). The answer moves down by less than a line.
+          const bottom = box.getBoundingClientRect().bottom;
+          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          const range = document.createRange();
+          let cut = Infinity;
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            if (!n.textContent?.trim()) continue;
+            range.selectNodeContents(n);
+            for (const r of range.getClientRects()) if (r.top < bottom && r.bottom > bottom + 1) cut = Math.min(cut, r.top);
+          }
+          const by = bottom - cut;
+          if (by > 0 && by < 48) box.scrollTop -= by;
+        }
         return;
       }
     }

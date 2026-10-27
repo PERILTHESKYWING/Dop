@@ -32,6 +32,17 @@ export const FIRST = DEMO.reads[0];
 export const FIRST_PICK = FIRST.cands[0].at;
 export const LAST_PICK = FINAL.cands[0].at;
 
+/** The pick's proof, said under the first screen's answer: its visits in KataGo's longest read, out of that read's total. */
+export const PICK_VISITS = FINAL.cands.find((c) => c.at === PICK)?.visits ?? 0;
+export const READ_VISITS = FINAL.visits;
+/** The moves shorter reads of the same position preferred before the pick, in order (the app's quick read may show one). */
+export const EARLIER_PICKS: string[] = [...new Set(DEMO.reads.slice(0, -1).map((r) => r.cands[0].at))].filter((m) => m !== PICK);
+const n = (x: number) => x.toLocaleString('en-US');
+/** "KataGo read 2,048 positions, 1,515 of them after Q9. Shorter reads preferred Q10, then R12." */
+export const PROOF = PICK_VISITS
+  ? `KataGo read ${n(READ_VISITS)} positions, ${n(PICK_VISITS)} of them after ${PICK}.${EARLIER_PICKS.length ? ` Shorter reads preferred ${EARLIER_PICKS.join(', then ')}.` : ''}`
+  : '';
+
 /** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
 

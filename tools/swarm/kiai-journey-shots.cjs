@@ -31,6 +31,13 @@ async function openMenu(page, phone) {
 async function menuItems(page) {
   return page.$$eval('[role="menuitem"]', (els) => els.map((e) => e.textContent.trim()));
 }
+// Desktop has a tab column; a phone shows a list of pages with a back button on each page.
+async function goPage(page, label) {
+  if (await page.$('.set-nav')) return page.click(`.set-nav button:has-text("${label}")`);
+  if (await page.$('.set-back')) { await page.click('.set-back'); await page.waitForTimeout(250); }
+  await page.click(`.set-index button:has-text("${label}")`);
+  await page.waitForTimeout(250);
+}
 async function openSettingsPage(page, phone, item) {
   await openMenu(page, phone);
   await page.click(`[role="menuitem"]:has-text("${item}")`);
@@ -101,7 +108,7 @@ async function run(name, viewport, phone) {
   step(results, ['journey text', (await page.textContent('.journey-station')).slice(0, 160)]);
 
   // Account, signed out.
-  await page.click('.set-nav button:has-text("Account")');
+  await goPage(page, 'Account');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/${name}-account-signed-out.png` });
   // Create account.
@@ -121,24 +128,24 @@ async function run(name, viewport, phone) {
   await page.screenshot({ path: `${OUT}/${name}-account-signed-in.png` });
   step(results, ['signed in blurb', await page.textContent('.set-page .set-blurb')]);
   // Data page copy.
-  await page.click('.set-nav button:has-text("Data")');
+  await goPage(page, 'Data');
   await page.waitForTimeout(200);
   step(results, ['data blurb', await page.textContent('.set-page .set-blurb')]);
   // Sign out, removing the path here; sign in again: the path comes back.
-  await page.click('.set-nav button:has-text("Account")');
+  await goPage(page, 'Account');
   await page.check('.acct-check input');
   await page.click('.set-row button:has-text("Sign out")');
   await page.waitForTimeout(500);
-  await page.click('.set-nav button:has-text("Journey")');
+  await goPage(page, 'Journey');
   await page.waitForTimeout(200);
   step(results, ['after sign-out (path removed here)', await page.textContent('.journey-head').catch(() => 'n/a')]);
-  await page.click('.set-nav button:has-text("Account")');
+  await goPage(page, 'Account');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', 'long enough password');
   await page.click('.acct-form button[type="submit"]');
   await page.waitForSelector('.acct-state', { timeout: 15000 });
   await page.waitForTimeout(1200);
-  await page.click('.set-nav button:has-text("Journey")');
+  await goPage(page, 'Journey');
   await page.waitForTimeout(200);
   step(results, ['after sign-in (path back)', await page.textContent('.journey-head')]);
   await page.keyboard.press('Escape');

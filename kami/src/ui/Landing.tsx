@@ -4,7 +4,7 @@ import { glKind } from '../three/support';
 import { ChanceBar, GameChart, LineDiagram, ReadingChart } from './landing/Charts';
 import type { Box } from './landing/camera';
 import type { Show } from './landing/Stage';
-import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, READS, WHAT } from './landing/story';
+import { ASK, CHAPTERS, COLOPHON, HOW, LINE, PICK, PROOF, READS, WHAT } from './landing/story';
 import { Calligraphy, Logo } from './Logo';
 import './landing.css';
 
@@ -266,6 +266,8 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
                 {ASK.a.slice(0, ASK.a.indexOf(`${PICK}:`))}
                 <b className="l-at">{PICK}</b>
                 {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length)}
+                {/* the claim's proof under it, and what shorter reads preferred (story.ts PROOF) */}
+                {PROOF && <span className="l-proof">{PROOF}</span>}
               </span>
             </p>
           </div>

@@ -86,3 +86,10 @@ Optional email + password account, free, that syncs the **study path** (journey)
 - 2026-10-16 layout checked in headless Chromium (1280×720 light/dark, 390×844 phone) with screenshots; not yet on a real phone or Windows. Node timings on the sandbox (one thread, bundled b10): a 120-visit board read about 6–11 s, a 60-visit trend read about 3.2 s.
 - Kami's board has no Data or Skill tab (both need Dop's study data).
 - Account and path (2026-10-23): checked end to end only in headless Chromium against `kami:dev`'s memory store (create, recovery code, sign out removing the path, sign in brings it back; account hidden when `/api/account` is unreachable). Never called the live Dop `/api/account` cross-origin (the sandbox can't reach vercel.app), scrypt p:5 time on Vercel unmeasured, Upstash free quota shared with Dop's accounts (estimate about 1,000 daily Kiai users). The ask hook was not exercised in the browser (needs a KataGo answer in headless); the review hook likewise. No CJK serif font in the sandbox, so seal shots use a fallback face.
+
+## Swarm 2026-10-26 (looks + trust)
+- Board readout: the row under the board shows KataGo's numbers for a previewed move, a hovered candidate disc or a played stone (`kami/src/lib/moveCaption.ts`: `moveStats`, `stoneNote`). Rank words say "most-read" because the order is by visits, not points lost. No LLM.
+- Landing hero: the sentence reads straight through; a muted proof line under it comes from `landing/demo.json` ("KataGo read 2,048 positions, 1,515 of them after Q9. Shorter reads preferred Q10, then R12.").
+- Phone Settings is a list of pages with a "‹ Settings" back; one `--focus` ring token (keyboard only); smallest phone text 11.3 px (board coordinates and candidate labels at 0.76 of a grid line); phone candidate labels one decimal, unsigned.
+- Keyboard focus on a coordinate opens its line whatever the hover setting; Escape closes it. Go term cards show 中文 · 日本語 names for ten terms (`lib/terms.ts`).
+- Journey: seals one height on one baseline, unearned seals outlined, in-progress dot is a clock wedge, dark studied days are black stones with a light rim; phone Account controls 44 px.

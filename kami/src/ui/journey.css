@@ -30,9 +30,8 @@
 }
 .journey .journey-head {
   margin: 0;
-  font-family: var(--read);
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -64,25 +63,37 @@
   gap: 6px;
   margin: 14px 0 6px;
 }
-.path-stones span {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong);
+/* each ring is --line-ui (3:1 or more on the page in both themes); the fill is the stone colour,
+   a clock-hand wedge where a tenth is part done (Journey.tsx) */
+.path-stones {
+  --fill: var(--stone-b);
 }
-.path-stones span.b {
-  background: var(--stone-b);
-  border-color: var(--stone-b);
-}
-:root[data-theme='dark'] .path-stones span.b {
-  background: var(--ink);
-  border-color: var(--ink);
+:root[data-theme='dark'] .path-stones {
+  --fill: var(--ink);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .path-stones span.b {
-    background: var(--ink);
-    border-color: var(--ink);
+  :root:not([data-theme='light']) .path-stones {
+    --fill: var(--ink);
   }
+}
+.path-stones span {
+  position: relative;
+  overflow: hidden;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line-ui);
+}
+.path-stones span.b {
+  background: var(--fill);
+  box-shadow: none;
+}
+.path-stones svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: var(--fill);
 }
 
 /* days in a row: one quiet line */
@@ -136,19 +147,21 @@
 .week-line .m-study .week-pt {
   background: var(--stone-b);
 }
+/* dark: a black stone drawn as on a dark ground, a black face darker than the panel and a light
+   edge (as --stone-ring), so it reads as a stone and not as a hole in the panel */
 :root[data-theme='dark'] .week-line .m-study .week-pt {
-  background: #050607;
-  box-shadow: 0 0 0 1px var(--line-strong);
+  background: #12110f;
+  box-shadow: inset 0 0 0 1.5px rgba(241, 236, 226, 0.7);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .week-line .m-study .week-pt {
-    background: #050607;
-    box-shadow: 0 0 0 1px var(--line-strong);
+    background: #12110f;
+    box-shadow: inset 0 0 0 1.5px rgba(241, 236, 226, 0.7);
   }
 }
 .week-line .m-rest .week-pt {
   background: var(--stone-w);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 0 0 1px var(--line-ui);
 }
 /* a used rest day carries a dash, so it is told from today (a small ring) by more than size */
 .week-line .m-rest .week-pt::before {
@@ -208,8 +221,10 @@
   place-items: center;
   box-sizing: border-box;
   border-radius: 5px;
-  border: 1.5px solid var(--line-strong);
-  color: var(--faint);
+  /* not yet: a thin ink outline and ink characters at 3:1 (--line-ui), no fill */
+  border: 1.25px solid var(--line-ui);
+  background: transparent;
+  color: var(--line-ui);
   font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Songti SC', 'SimSun', 'Noto Serif CJK JP', serif;
   line-height: 1;
 }

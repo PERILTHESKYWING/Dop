@@ -250,9 +250,9 @@
   color: var(--ink);
   font: 400 16px/1.5 var(--read);
 }
-.notes-reason:focus {
-  outline: 2px solid var(--accent-line);
-  border-color: var(--accent);
+.notes-reason:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 .notes-tags {
   display: flex;

@@ -23,7 +23,11 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 1 | 6 | 7 |
 | 2 | 7 | 8 (all 10) |
 | 3 | 8 (all 10) | polish only |
+| 2026-10-26 r1 | 8 (all 10) | 8 (three at 7) |
+| 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
 
-The critics' open wishes after round 3, which are the start of the next round:
-- Kiai: fewer Settings tabs on a phone (a list or "More"); seals all the same height on one baseline; path dots that fill in proportion and have 3:1 rings; a hover caption that explains the previewed move; a visible `:focus-visible` ring everywhere, with a coordinate's line opening on focus; phone labels at 11 CSS px or more (a critic measured about 7); one heading face in Settings; one alignment on the last landing slide on a phone; the visit count next to Q9 in the landing hero; bilingual hover on Go terms (扳 / ハネ).
-- Hub: see `docs/handoff/hub-cloud.md`.
+Daily runs: shots for a run live in the run's scratchpad (before = main, after = the merged branch). The journey script walks the phone Settings list (`goPage`); the app script has a sixth state, `5-hover-candidate` (desktop hovers a candidate disc, phone taps a coordinate that is one of KataGo's choices). Stop servers by pid or with a script file: `pkill -f "port 4291"` in a one-line shell also kills that shell.
+
+The critics' open wishes after 2026-10-26 round 2, which are the start of the next run (none reached 9 yet):
+- Kiai: candidate discs read as white stones when Black is to play (pale stones of the colour to play); one sign convention for point labels on phone and desktop (phone shows 0.9, desktop -0.9; three critics split on which); phone candidate labels still small at 390 px; the in-progress path dot shows a quarter for 2% (a smaller minimum wedge); unearned seals all one tall shape; preview header score (a fresh read) differs from the answer's read with no label; readout row a touch bigger and left-aligned to the board; `aria-live` on the readout; hero sentence could name the shape like the app does; landing 3D board: static first paint, then upgrade (measure LCP).
+- Hub: phone Threads tab, Studio and Library as tiles like Project chat / Team lessons; Library content capped near 880 px wide; one progress indicator per running job (card shows the label only); Team cards a little airy; 12-hour times without a leading zero; Team ⋯ buttons need an aria-label naming the account.

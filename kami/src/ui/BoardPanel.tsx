@@ -23,6 +23,7 @@ import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
 import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
 import { Term } from './Term';
+import { moveStats, stoneNote } from '../lib/moveCaption';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
@@ -171,7 +172,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const status = useSyncExternalStore(onEngineStatus, engineStatus);
   const [paste, setPaste] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId | null>(null);
-  const [hoverPv, setHoverPv] = useState<Loc[] | null>(null);
+  // A candidate disc under the pointer: its point and KataGo's line from it.
+  const [hoverCand, setHoverCand] = useState<{ loc: Loc; pv: Loc[] } | null>(null);
+  const hoverPv = hoverCand?.pv ?? null;
   // A point named in the preview's note, marked while hovered.
   const [notePoint, setNotePoint] = useState<Loc | null>(null);
   // The whole board instead of the zoomed problem (kept until the zoom button is pressed again).
@@ -258,15 +261,43 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
-  // Whole points on a phone's board, so the labels stay readable (11+ px) and never touch.
+  // The same one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both read
+  // "−1" on a phone); a phone's small discs drop the minus sign so they fit at 11+ px.
   const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
+  // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
+  // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
+  // and the game the board already shows. No language model.
+  const previewRead = useMemo(() => {
+    if (!preview || !answerReads?.length) return null;
+    const k = positionKey(preview.base);
+    return answerReads.find((a) => a.key === k)?.read ?? null;
+  }, [preview, answerReads]);
+  const readout = useMemo(() => {
+    const lineBit = (len: number) => (!phone && len > 1 ? `${len}-move line` : '');
+    if (preview) {
+      const first = preview.line[0];
+      if (!first) {
+        const at = preview.highlight.length === 1 ? preview.highlight[0] : undefined;
+        const st = at === undefined ? null : stoneNote(preview.base, at);
+        return st ? `${st.at}: ${st.text}` : '';
+      }
+      const st = first.color === preview.base.toPlay ? moveStats(previewRead, first.loc, preview.base.toPlay, preview.base.size, phone) : null;
+      return [st ? `${st.at}: ${st.text}` : '', lineBit(preview.line.length)].filter(Boolean).join(' · ');
+    }
+    if (hoverCand) {
+      const st = moveStats(read, hoverCand.loc, toPlay, board.size, phone);
+      return st ? [`${st.at}: ${st.text}`, lineBit(hoverCand.pv.length)].filter(Boolean).join(' · ') : '';
+    }
+    return '';
+  }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
+
   const play = (loc: Loc, fromCandidate = false) => {
-    setHoverPv(null);
+    setHoverCand(null);
     onPlay(loc, fromCandidate);
   };
   const go = (pos: number) => {
-    setHoverPv(null);
+    setHoverCand(null);
     onBoard(goTo(board, Math.max(0, Math.min(n, pos))));
   };
 
@@ -358,7 +389,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   }, []);
 
   // Stable handlers keep the memoised Board from redrawing on unrelated panel renders (engine status, tabs).
-  const onCandidateHover = useEvent((l: Loc | null) => setHoverPv(l === null ? null : (read?.candidates.find((c) => c.loc === l)?.pv ?? null)));
+  const onCandidateHover = useEvent((l: Loc | null) => {
+    const pv = l === null ? null : read?.candidates.find((c) => c.loc === l)?.pv;
+    setHoverCand(l === null || !pv ? null : { loc: l, pv });
+  });
   const onBoardPlay = useEvent((l: Loc) => play(l));
   const onCandidateClick = useEvent((l: Loc) => play(l, true));
   const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
@@ -640,7 +674,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             )}
           </div>
           <div className="bp-under">
-          {keyOn && (
+          {keyOn && readout && (
+            // a hovered disc: its numbers take the key's row (the board does not move)
+            <p className="bp-note">
+              <span className="bp-readout">{readout}</span>
+            </p>
+          )}
+          {keyOn && !readout && (
             <p className="bp-key">
               {book ? (
                 <>
@@ -655,7 +695,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           )}
           {preview && (
             <p className="bp-note">
-              {preview.note ? <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} /> : preview.pinned ? 'Tap the board or the × to go back.' : ' '}
+              {/* KataGo's numbers for the move first, in the muted caption style, then the line's note */}
+              {readout && <span className="bp-readout">{readout}</span>}
+              {preview.note ? (
+                <PreviewNote text={preview.note} size={preview.base.size} onPoint={setNotePoint} />
+              ) : readout ? null : preview.pinned ? (
+                'Tap the board or the × to go back.'
+              ) : (
+                ' '
+              )}
             </p>
           )}
           </div>
