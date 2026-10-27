@@ -19,7 +19,7 @@ import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
-import { candidateLabeler, keyNumberText, lossLabel } from '../kami/src/lib/candLabels';
+import { candidateLabeler, keyText, lossLabel, phoneNumbered } from '../kami/src/lib/candLabels';
 import { LlmUnavailable, type CallLlm } from '../kami/src/lib/llm';
 import { NOTES, writeAnswer } from '../kami/src/lib/writer';
 
@@ -187,14 +187,26 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();
-    expect(keyNumberText([c(0.45, -1)], 'Black', 35, -1, 19)).toBe('how often Black wins after it, out of 100.');
+    expect(keyText([c(0.45, -1)], 'Black')).toBe('Rings: KataGo’s best moves, with Black’s win chance. Thick ring: KataGo’s choice.');
   });
-  it('the key says "decided" only late in the game', () => {
+  it('the key names every figure a mark can show, in one name for the number', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against KataGo’s choice, the thick ring, which shows Black’s win chance. White leads by about 11.');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the thick ring (Black’s win %).');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true, true)).toBe('points Black loses against the thick ring (Black’s win %); ≈ as good.');
-    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against KataGo’s choice, the thick ring, which shows Black’s win chance. White leads by about 11; the game is decided.');
+    expect(keyText(cands, 'Black')).toBe('Thick ring: KataGo’s choice, with Black’s win chance. Other rings: points lost against it (≈ about the same).');
+    expect(keyText(cands, 'White', true)).toBe('Thick ring: KataGo’s choice, with White’s win chance. Other rings: points lost against it (≈ about the same, + ahead on a shorter read).');
+    expect(keyText(cands, 'Black', false, true)).toMatch(/^Underlined: KataGo’s choice/);
+    for (const t of [keyText(cands, 'Black'), keyText([c(0.45, -1)], 'Black')]) expect(t).not.toMatch(/winrate|win %/);
+  });
+  it('a phone numbers at most three marks, spaced so the larger ones never overlap', () => {
+    const at = (x: number, y: number) => y * 19 + x;
+    const m = (rank: number, x: number, y: number) => ({ ...c(0.01, -11 - rank / 10, rank), loc: at(x, y) });
+    // KataGo's choice, its neighbour (skipped), two further away, and a fifth past the three
+    const cands = [m(0, 16, 9), m(1, 17, 9), m(2, 16, 11), m(3, 13, 11), m(4, 3, 3)];
+    expect([...phoneNumbered(cands, 19)].map((x) => x.rank)).toEqual([0, 2, 3]);
+    const label = candidateLabeler(cands, true, false, 19)!;
+    expect(cands.map(label)).toEqual(['1%', '', '−0.2', '−0.3', '']);
+    // a close game on a phone: the same three carry the win chance, the rest are bare
+    const close = cands.map((x) => ({ ...x, winrate: 0.45 }));
+    expect(close.map(candidateLabeler(close, true, false, 19)!)).toEqual(['45', '', '45', '45', '']);
   });
 });
 

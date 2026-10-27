@@ -65,7 +65,7 @@ describe('Kiai landing copy', () => {
   });
 
   it('gives the score from the recorded score answer', () => {
-    const m = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections[0].text);
+    const m = /White leads by ([\d.]+) points \(Black.s win chance (\d+)%\)/.exec(SCORE.sections[0].text);
     expect(m).not.toBeNull();
     expect(LEAD).toBe(Math.round(Number(m![1])));
     expect(BLACK_WINS).toBe(Number(m![2]));

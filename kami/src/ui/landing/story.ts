@@ -23,7 +23,7 @@ export const GROUP = /black group at ([A-HJ-T]\d{1,2}) safer/.exec(PLAY.summary)
 export const PLAY_LEAD = Number(/^White leads by about (\d+) points/.exec(PLAY.summary)?.[1] ?? NaN);
 
 /** The score answer's own numbers: White's lead and Black's win chance (out of 100). */
-const scoreNums = /White leads by ([\d.]+) points \(Black.s winrate (\d+)%\)/.exec(SCORE.sections.find((x) => x.title === "KataGo's numbers")?.text ?? '');
+const scoreNums = /White leads by ([\d.]+) points \(Black.s win chance (\d+)%\)/.exec(SCORE.sections.find((x) => x.title === "KataGo's numbers")?.text ?? '');
 export const LEAD = scoreNums ? Math.round(Number(scoreNums[1])) : Math.round(-FINAL.bLead);
 export const BLACK_WINS = scoreNums ? Number(scoreNums[2]) : Math.round(FINAL.bWin * 100);
 
