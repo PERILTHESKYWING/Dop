@@ -757,9 +757,13 @@ function HelloMark() {
   );
 }
 
+/** The most of a question the pane tucks out of view while it follows the end (px): one line and its copy row. */
+const TUCK_MAX = 90;
+
 export function Messages({ messages, running, board, link, onAsk, onRegenerate, onEdit, onShowBoard, busy, onReadLonger }: Props) {
   const end = useRef<HTMLDivElement>(null);
   const pane = useRef<HTMLDivElement>(null);
+  const spacer = useRef<HTMLDivElement>(null);
   const steps = running?.steps.length ?? 0;
   const last = messages[messages.length - 1];
   const answeredId = last?.role === 'kami' && last.answer ? last.id : null;
@@ -771,6 +775,8 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     const first = answeredId !== null && placed.current !== answeredId;
     placed.current = answeredId;
     const box = pane.current;
+    // an answer is placed from its first line: the room tucked under the end while it was read goes
+    if (first && spacer.current) spacer.current.style.height = '';
     if (answeredId && box) {
       const all = box.querySelectorAll<HTMLElement>('.msg.kami');
       const el = all[all.length - 1];
@@ -808,13 +814,31 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     let frame = 0;
     const trim = () => {
       frame = 0;
+      const edge = box.getBoundingClientRect();
+      const asks = () => [...box.querySelectorAll('.msg.user')].map((b) => b.getBoundingClientRect());
+      // Following the end (KataGo reading), a short question the top edge cuts is tucked out of
+      // view whole: a spacer under the last line, as tall as what is left of the question, lets
+      // the pane scroll on by that much, so it starts at the next message with the usual gap
+      // above it rather than an empty band (round 2).
+      const sp = spacer.current;
+      const tail = end.current;
+      if (sp && tail && tail.getBoundingClientRect().bottom <= edge.bottom + 2) {
+        const cur = sp.offsetHeight;
+        const y = edge.top - cur;
+        let need = 0;
+        for (const r of asks()) if (r.top < y - 0.5 && r.bottom > y && r.bottom - y <= TUCK_MAX && box.scrollHeight - cur > box.clientHeight) need = Math.ceil(r.bottom - y);
+        if (Math.abs(need - cur) > 1) {
+          sp.style.height = need ? `${need}px` : '';
+          tail.scrollIntoView({ block: 'end' });
+          later();
+          return;
+        }
+      }
       const range = document.createRange();
       range.selectNodeContents(box);
       const lines = [...range.getClientRects()];
-      const edge = box.getBoundingClientRect();
-      const bubbles = [...box.querySelectorAll('.bubble')].map((b) => b.getBoundingClientRect());
       const cut = cutBelow(lines, edge.bottom);
-      const top = cutAbove(lines, edge.top, bubbles);
+      const top = cutAbove(lines, edge.top, asks());
       const next = cut > 0 || top > 0 ? `inset(${top}px 0 ${cut}px 0)` : '';
       if (box.style.clipPath !== next) box.style.clipPath = next;
     };
@@ -879,6 +903,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
             <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} onReadLonger={onReadLonger} />
           ),
         )}
+        <div ref={spacer} aria-hidden="true" />
         <div ref={end} />
       </div>
     </AskContext.Provider>

@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, keyText } from '../lib/candLabels';
+import { candidateLabeler, holdPick, keyText, phonePick, phonePlaces, type PickHold } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
 
@@ -102,7 +102,7 @@ interface Props {
   /** The conversation has an answer: the engine's loading chip then folds to a dot. */
   answered?: boolean;
   /** KataGo's reads behind the conversation's answers, by position key, newest first (one read on screen). */
-  answerReads?: readonly { key: string; read: EngineRead }[];
+  answerReads?: readonly { key: string; read: EngineRead; named?: readonly number[] }[];
 }
 
 const PHONE = '(max-width: 899px)';
@@ -199,11 +199,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // One read on screen (critics, round 2): once an answer about this very position exists, the
   // candidates, their labels and the eval bar show the answer's own read, so the text's "Q12 is
   // 1.1 points worse" is Q12's label. Territory still comes from the board's read.
-  const answerRead = useMemo(() => {
+  const answerOf = useMemo(() => {
     if (!position || !answerReads?.length) return null;
     const k = positionKey(position);
-    return answerReads.find((a) => a.key === k)?.read ?? null;
+    return answerReads.find((a) => a.key === k) ?? null;
   }, [position, answerReads]);
+  const answerRead = answerOf?.read ?? null;
   const read = answerRead ?? boardRead.read;
   const last = answerRead ?? boardRead.last;
   const pending = answerRead ? false : boardRead.pending;
@@ -264,9 +265,33 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
   // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
   // On a phone only a few marks carry a number, drawn larger than their point so it reads at
-  // 11 px or more; the others are small bare rings (lib/candLabels.ts phoneNumbered).
+  // 11 px or more, the moves the answer names among them; the others are small bare rings
+  // (lib/candLabels.ts phonePick). While KataGo reads, the numbered points hold for a second
+  // before they move (holdPick), so the numbers do not jump between marks as ranks swap.
   const bigMarks = phone && !book;
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, bigMarks ? board.size : 0), [candidates, phone, answerRead, bigMarks, board.size]);
+  const held = useRef<{ key: string; hold: PickHold } | null>(null);
+  const [holdTick, setHoldTick] = useState(0);
+  const named = useMemo(() => (answerOf?.named ? new Set(answerOf.named) : null), [answerOf]);
+  const posKey = position ? positionKey(position) : '';
+  const numbered = useMemo(() => {
+    if (!bigMarks || !candidates?.length) return null;
+    const want = phonePick(candidates, board.size, named);
+    const prev = held.current?.key === posKey ? held.current.hold : null;
+    const hold = holdPick(prev, want, new Set(candidates.map((c) => c.loc)), Date.now());
+    held.current = { key: posKey, hold };
+    return hold.shown;
+    // holdTick: looked at again once a held pick's second is up
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bigMarks, candidates, board.size, named, posKey, holdTick]);
+  const waiting = !!numbered && !!held.current && held.current.hold.next !== numbered.join(',');
+  useEffect(() => {
+    if (!waiting) return;
+    const t = window.setTimeout(() => setHoldTick((n) => n + 1), 1050);
+    return () => window.clearTimeout(t);
+  }, [waiting, numbered]);
+  const places = useMemo(() => (numbered ? phonePlaces(numbered, board.size) : null), [numbered, board.size]);
+  const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, numbered ? new Set(numbered) : null), [candidates, phone, answerRead, numbered]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
@@ -418,6 +443,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       candStyle="plain"
       candLabel={candLabel}
       candBig={bigMarks}
+      candPlace={candPlace}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}
@@ -675,6 +701,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   candidates={candidates}
                   candLabel={candLabel}
                   candBig={bigMarks}
+                  candPlace={candPlace}
                   onCandidateHover={onCandidateHover}
                   onCandidateClick={onCandidateClick}
                   variation={variation}
@@ -726,6 +753,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           <p className="sr-only" aria-live="polite">
             {spoken}
           </p>
+          {/* every candidate with KataGo's numbers for it, for a screen reader: a phone's bare rings carry none on the board */}
+          {keyOn && read && (
+            <ul className="sr-only" aria-label="KataGo’s best moves">
+              {candidates!.map((c) => {
+                const st = moveStats(read, c.loc, toPlay, board.size);
+                return st ? <li key={c.loc}>{`${st.at}: ${st.text}`}</li> : null;
+              })}
+            </ul>
+          )}
           </div>
         </div>
 

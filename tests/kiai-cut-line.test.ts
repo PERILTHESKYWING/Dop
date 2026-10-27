@@ -19,10 +19,12 @@ describe('no half line at the answer pane top (lib/cutLine.ts)', () => {
     expect(cutAbove([{ top: 520, bottom: 546 }, { top: 560, bottom: 586 }], 537)).toBe(9);
     expect(cutAbove([{ top: 540, bottom: 566 }], 537)).toBe(0);
   });
-  it('hides the rest of a bubble when only its padding would show', () => {
-    // the question's text line is cut; its bubble ends 10 px under the line
-    expect(cutAbove([{ top: 520, bottom: 546 }], 537, [{ top: 508, bottom: 556 }])).toBe(19);
-    // a tall bubble with more lines under the cut stays
-    expect(cutAbove([{ top: 520, bottom: 546 }], 537, [{ top: 508, bottom: 640 }])).toBe(9);
+  it('hides the rest of the question, its copy button too, once no line of its text is left', () => {
+    // the question's one line is cut; its box (bubble and copy row) ends 44 px under the line
+    expect(cutAbove([{ top: 520, bottom: 546 }], 537, [{ top: 508, bottom: 590 }])).toBe(53);
+    // only the copy row is left under the edge: it goes too
+    expect(cutAbove([{ top: 500, bottom: 526 }], 537, [{ top: 488, bottom: 570 }])).toBe(33);
+    // a question with more lines under the cut keeps them
+    expect(cutAbove([{ top: 520, bottom: 546 }, { top: 550, bottom: 576 }], 537, [{ top: 508, bottom: 620 }])).toBe(9);
   });
 });

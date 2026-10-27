@@ -1860,12 +1860,24 @@ kbd {
 .board-panel svg.board .cand.plain text {
   fill: #1b1714;
 }
-/* a phone's marks without a number: a small ring, so the numbered ones stand out */
+/* a phone's marks without a number: a ring about 11 px across with a clear edge, smaller than a
+   stone so it never reaches one, and the numbered ones stand out */
 .board-panel svg.board .cand.plain.bare .cand-disc {
-  stroke-width: 0.07;
+  stroke-width: 0.1;
 }
 .board-panel svg.board .cand.plain.bare .cand-edge {
-  stroke-width: 0.13;
+  stroke-width: 0.16;
+}
+/* a phone's numbered marks are larger: KataGo's choice keeps a ring plainly heavier than the
+   others' (round 2: on the dark board the two read alike) */
+.board-panel svg.board .cand.plain.big .cand-disc {
+  stroke-width: 0.07;
+}
+.board-panel svg.board .cand-best.plain.big .cand-disc {
+  stroke-width: 0.2;
+}
+.board-panel svg.board .cand-best.plain.big.to-w .cand-edge {
+  stroke-width: 0.26;
 }
 .board-panel svg.board .cand.plain .cand-wr {
   font-size: 0.52px;
