@@ -25,7 +25,10 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 3 | 8 (all 10) | polish only |
 | 2026-10-26 r1 | 8 (all 10) | 8 (three at 7) |
 | 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
+| 2026-10-24 (paused, finished 10-27) | 8 (all 10, two passes) | 8 (all 10, two passes) |
 | 2026-10-26 (second run, Kiai only, 3 rounds) | 8 (all 10, every round) | not shot |
+
+The 10-24 run overlapped the 10-26 run; only its unique parts were ported onto main (hub idle feed warm-up, note/select/task/sheet looks; Kiai CJK term names, "positions", stage-led path heading, kaya dispose fix).
 
 Two runs of this routine overlapped on 2026-10-26 and built the same wishes twice; the second run ported only what main lacked (PR for 2026-10-27). Before starting, check open PRs **and** `git log origin/main` for a swarm merge from today, and never reuse a branch name that already exists on origin.
 

@@ -86,6 +86,10 @@ try {
 :root :focus-visible { outline-color: var(--stone); }
 :root input:focus-visible, :root select:focus-visible, :root textarea:focus-visible { border-color: var(--stone); box-shadow: 0 0 0 1px var(--stone); }
 :root input, :root select, :root textarea { border-radius: var(--r); border-color: var(--line-2); }
+/* Selects match the text inputs (same fill, border, radius, height) with a drawn chevron instead of the OS control. */
+:root select { -webkit-appearance: none; appearance: none; background-color: var(--bg); padding-right: 34px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%), linear-gradient(135deg, var(--soft) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 /* Alegreya has a small x-height, so small print moves up to 14-15 px. */
 :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
 :root .use .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
@@ -481,6 +485,8 @@ a.opt { color: inherit; text-decoration: none; }
 /* Long feeds: skip layout and paint for messages far off screen (T3 render speed). */
 #feed > .sw { content-visibility: auto; contain-intrinsic-size: auto 96px; }
 #feed > .sw:nth-last-child(-n+8) { content-visibility: visible; }
+/* After a thread opens, idle time renders the rest (warmFeed), so a fling never draws messages mid-scroll. */
+#feed > .sw.warm { content-visibility: visible; }
 .sw-in { position: relative; z-index: 1; transition: transform .18s ease; touch-action: pan-y; }
 .sw.drag .sw-in { transition: none; }
 /* Without bubbles the text would slide over the red Delete; a page-coloured backing hides it. */
@@ -710,7 +716,7 @@ button.act:hover .ttl { text-decoration: underline; }
 .tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
 .tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
-.tk .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
+.tk .ttl { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; font-size: 14px; font-weight: 500; }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
 .tk small { color: var(--soft); font-size: 12px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
@@ -733,6 +739,9 @@ button.act:hover .ttl { text-decoration: underline; }
 .sheet .sbox.framed { padding: 0; gap: 0; }
 .shead { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 16px 14px 10px 22px; background: var(--panel); }
 .shead h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* The head's close is the 44 px icon button; the negative margin keeps the head as tall as before. */
+.shead .ib { display: inline-grid; color: var(--soft); margin: -6px -4px -6px 0; }
+.shead .ib:hover { color: var(--ink); }
 .sbody { display: grid; gap: 16px; padding: 4px 22px 22px; min-width: 0; }
 .sfoot { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 22px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
 .sfoot .btn { min-height: 42px; padding: 9px 18px; }
@@ -925,6 +934,8 @@ const MODELS = ['opus', 'sonnet', 'haiku', 'fable'];
 const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' };
 // The hub's own notes name models in lower case ("Started Main on opus."); the page shows the product names.
 const capModels = (s) => String(s).replace(/\b(opus|sonnet|haiku|fable)\b/g, (w) => MODEL_NAME[w]);
+// A hub note is drawn as "text · time": one trailing full stop goes, so it never reads ". ·" (an ellipsis stays).
+const noteText = (s) => String(s).replace(/([^.])\.\s*$/, '$1');
 // A thread the coordinator made: Project chat's routed reply names it (#id).
 const routedThread = (id) => S.messages.some((x) => x.thread === 0 && x.kind === 'routed' && new RegExp(`#${id}\\b`).test(x.text));
 const MODEL_HINT = { '': 'The coordinator picks per thread', opus: 'Hardest work and design', sonnet: 'Everyday coding', haiku: 'Quick, small jobs', fable: 'If your account has it' };
@@ -1341,7 +1352,7 @@ function helloHtml() {
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(capModels(m.text))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(noteText(capModels(m.text)))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
   if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from === 'hub' ? '' : routedThread(m.thread) ? ` · from coordinator (${esc(m.from)})` : ` · from ${esc(m.from)}`} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
@@ -1550,6 +1561,25 @@ function feedToBottom(f) {
   const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
   go();
 }
+// Long feeds open fast with content-visibility: auto, then render their off-screen messages while
+// the page is idle: about 15 per slice, newest first, so a fling-scroll finds them drawn. Scroll
+// anchoring keeps the view still as their real heights replace the 96 px guess. A view switch cancels it.
+const idleCall = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 600 }) : (f) => setTimeout(f, 60);
+const idleCancel = window.cancelIdleCallback || clearTimeout;
+let warmT = 0, warmSel = null;
+function warmFeed() {
+  if (warmT && warmSel === sel) return;
+  if (warmT) idleCancel(warmT);
+  warmSel = sel;
+  const step = () => {
+    warmT = 0;
+    if (warmSel !== sel) return;
+    const cold = $('feed').querySelectorAll(':scope > .sw:not(.warm)');
+    for (let i = cold.length - 1, n = 0; i >= 0 && n < 15; i--, n++) cold[i].classList.add('warm');
+    if (cold.length > 15) warmT = idleCall(step);
+  };
+  warmT = idleCall(step);
+}
 // Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
 function oneStartPerAccount(list) {
   let last = '';
@@ -1599,6 +1629,7 @@ function renderFeed() {
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
   if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed);
   feed.dataset.sel = String(sel);
+  if (added) warmFeed();
   renderTools(t);
 }
 
@@ -1959,14 +1990,15 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
   if (!live.length) return '';
   return `<div class="tasks"><div class="thead"><h3>Tasks</h3><span class="cap">${live.filter((t) => t.status === 'done').length} of ${live.length} task${live.length === 1 ? '' : 's'} finished</span></div>${TASK_GROUPS.map(([name, k, f]) => {
+    // An empty group is not drawn.
     const rows = live.filter(f);
-    return `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.length ? rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('') : '<p class="cap">Nothing here.</p>'}</details>`;
+    return rows.length ? `<details class="tgroup ${k}" ${k === 'fin' ? '' : 'open'}><summary><span>${name}</span><b>${rows.length}</b></summary>${rows.slice(k === 'fin' ? -15 : 0).map(taskRow).join('')}</details>` : '';
   }).join('')}</div>`;
 }
 const AGENT_STALE = 30 * 60_000;
@@ -2229,7 +2261,7 @@ function lookHtml() {
 
 // ---------- sheets ----------
 // Framed sheets: a header with Close, the body, and a footer whose main button sits on the right.
-const sHead = (title) => `<div class="shead"><h3>${title}</h3><button type="button" class="btn small quiet" data-close>Close</button></div>`;
+const sHead = (title) => `<div class="shead"><h3>${title}</h3><button type="button" class="ib" data-close aria-label="Close" title="Close (Esc)">${icon('x', 18)}</button></div>`;
 const sFoot = (btns) => `<div class="sfoot">${btns}</div>`;
 // A form field: label above, short help under the box, and an error line that shows only when set.
 const fld = (label, input, hint = '') => `<label class="field"><span>${label}</span>${input}${hint ? `<small class="hint">${hint}</small>` : ''}<small class="ferr" aria-live="polite"></small></label>`;
@@ -2250,7 +2282,8 @@ function showSheet(html) {
   box.classList.add('framed'); box.innerHTML = html; box.scrollTop = 0;
   $('sheet').classList.remove('hidden');
   // Desktop: straight into the first field. Phone: no keyboard until a tap.
-  if (matchMedia('(pointer: fine)').matches) box.querySelector('.sbody input:not([readonly]):not([type="checkbox"]), .sbody select, .sbody textarea')?.focus();
+  // Only a text field takes that focus: a sheet that opens on a select (Settings) shows no ring until a key moves focus.
+  if (matchMedia('(pointer: fine)').matches) { const f = box.querySelector('.sbody input:not([readonly]):not([type="checkbox"]), .sbody select, .sbody textarea'); if (f && f.tagName !== 'SELECT') f.focus(); }
 }
 function closeSheet() { $('sheet').classList.add('hidden'); }
 async function openSheet(kind, name) {

@@ -330,12 +330,12 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
             {live && i === steps.length - 1 ? (
               // The step still reading: its time ticks (a fixed "0.0 s" read as frozen).
               <span className="meta">
-                {s.visits ? `${s.visits} visits · ` : ''}
+                {s.visits ? `${s.visits.toLocaleString()} positions · ` : ''}
                 <Elapsed t0={t0} bare />
               </span>
             ) : (
               <span className="meta">
-                {s.visits ? `${s.visits} visits` : ''}
+                {s.visits ? `${s.visits.toLocaleString()} positions` : ''}
                 {s.ms >= 50 ? `${s.visits ? ' · ' : ''}${(s.ms / 1000).toFixed(1)} s` : ''}
               </span>
             )}
@@ -354,7 +354,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
       </ol>
       {ex && !live && (
         <p className="meta">
-          {ex.reads} {ex.reads === 1 ? 'read' : 'reads'} · {ex.totalVisits.toLocaleString()} visits · {(ex.ms / 1000).toFixed(1)} s
+          {ex.reads} {ex.reads === 1 ? 'read' : 'reads'} · {ex.totalVisits.toLocaleString()} positions · {(ex.ms / 1000).toFixed(1)} s
         </p>
       )}
     </details>

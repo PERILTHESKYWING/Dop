@@ -327,13 +327,15 @@ describe('presented with restraint', () => {
   it('names a place on the path, never a rank: the sidebar line has no days in a row', () => {
     const s = summarise(studied(17), addDays(D0, 16), NO);
     expect(s.streak.current).toBe(17);
-    expect(pathLine(s)).toBe(`Study path · ${s.station.label}`);
+    expect(pathLine(s)).toBe(`Study path · stage ${s.station.i + 1} of ${PATH.length}`);
+    expect(pathLine(s)).not.toMatch(/\bkyu\b|\bdan\b/);
     expect(pathLine(s)).not.toMatch(/day/);
   });
-  it('heads the Journey page with the stage on the path, the kyu last', () => {
+  it('heads the Journey page with the stage on the path, never a kyu', () => {
     const s = summarise(studied(17), addDays(D0, 16), NO);
-    const head = fill('head', { n: s.station.i + 1, of: PATH.length, label: s.station.label });
-    expect(head).toMatch(new RegExp(`^Study path · stage \\d+ of ${PATH.length} · \\d+ kyu$`));
+    const head = fill('head', { n: s.station.i + 1, of: PATH.length });
+    expect(head).toMatch(new RegExp(`^Stage \\d+ of ${PATH.length}$`));
+    expect(head).not.toMatch(/\bkyu\b/);
   });
   it('uses real Go words for its seals', () => {
     // each checked by hand: the sanrensei opening, ladder, replaying game records, life and death,

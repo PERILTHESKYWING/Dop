@@ -106,8 +106,8 @@ describe('Kami term rendering helpers', () => {
 
   it('cards have a title and the definition', () => {
     const card = (t: string) => termCard(findTerms(t)[0].entry);
-    expect(card('ryou-sente')).toEqual({ title: 'Double sente', text: 'A large point that either player can take first to gain sente.' });
-    expect(card('miai')).toEqual({ title: 'Miai', text: 'Two points that achieve the same goal. If your opponent takes one, you can use the other.' });
+    expect(card('ryou-sente')).toMatchObject({ title: 'Double sente', text: 'A large point that either player can take first to gain sente.' });
+    expect(card('miai')).toMatchObject({ title: 'Miai', text: 'Two points that achieve the same goal. If your opponent takes one, you can use the other.' });
     expect(card('pincer').title).toBe('Hasami (pincer)');
   });
   it('says what a stretch is, and leaves the everyday word alone', () => {
