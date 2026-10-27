@@ -50,7 +50,9 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
   hane: { name: 'the hane', term: 'hane', style: 'fighting' },
   block: { name: 'the block', term: 'osae', style: 'solid' },
   descent: { name: 'the descent', term: 'sagari', style: 'solid' },
-  extend: { name: 'the extension', style: 'solid' },
+  // Straight on from the player's own stone, in contact: a stretch (nobi). "Extension" in Go
+  // English is a hiraki, a move along the side away from your stones (critic 3, a pro teacher).
+  extend: { name: 'the stretch', term: 'nobi', style: 'solid' },
   attach: { name: 'the attachment', term: 'tsuke', style: 'fighting' },
   kosumi: { name: 'the diagonal move', term: 'kosumi', style: 'solid' },
   'one-space-jump': { name: 'the one-space jump', style: 'solid' },

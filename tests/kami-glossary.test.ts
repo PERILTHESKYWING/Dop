@@ -110,4 +110,12 @@ describe('Kami term rendering helpers', () => {
     expect(card('miai')).toMatchObject({ title: 'Miai', text: 'Two points that achieve the same goal. If your opponent takes one, you can use the other.' });
     expect(card('pincer').title).toBe('Hasami (pincer)');
   });
+  it('says what a stretch is, and leaves the everyday word alone', () => {
+    expect(termOf('Black plays the stretch at Q9.')).toEqual(['stretch']);
+    expect(termOf('a nobi')).toEqual(['stretch']);
+    expect(termOf('a long stretch of the side; the wall stretches across the board; it is a stretch to call it thick')).toEqual([]);
+  });
+  it('defines kakari as near the corner stone, not touching it', () => {
+    expect(findTerms('a kakari')[0].entry.def).toMatch(/near, not touching/);
+  });
 });

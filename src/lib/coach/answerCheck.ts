@@ -355,7 +355,7 @@ const CALM_PHRASES: [RegExp, string][] = [
 /** Shape words a writer may use, and the shapes (explain/shapes.ts) each one names. */
 const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
   [/^hane$/i, ['hane']],
-  [/^(?:extension|extends?|nobi)$/i, ['extend']],
+  [/^(?:stretch(?:es)?|extends?|nobi)$/i, ['extend']],
   [/^(?:block|blocks|osae)$/i, ['block']],
   [/^(?:descent|descends|sagari)$/i, ['descent']],
   [/^(?:attachment|attach(?:es)?|tsuke|contact play)$/i, ['attach']],
@@ -373,8 +373,10 @@ const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
   [/^(?:corner )?enclosure$|^shimari$/i, ['enclosure']],
   [/^3-3 invasion$/i, ['three-three']],
 ];
-const SHAPE_ALT = "hane|extension|extends?|nobi|block|blocks|osae|descent|descends|sagari|attachment|attach(?:es)?|tsuke|contact play|cut|cuts|atari|connection|connects?|capture|captures|diagonal move|kosumi|large knight'?s move|knight'?s move|keima|ogeima|one-space jump|two-space (?:jump|extension)|pincer|hasami|approach|kakari|(?:corner )?enclosure|shimari|3-3 invasion";
+const SHAPE_ALT = "hane|stretch(?:es)?|extension|extends?|nobi|block|blocks|osae|descent|descends|sagari|attachment|attach(?:es)?|tsuke|contact play|cut|cuts|atari|connection|connects?|capture|captures|diagonal move|kosumi|large knight'?s move|knight'?s move|keima|ogeima|one-space jump|two-space (?:jump|extension)|pincer|hasami|approach|kakari|(?:corner )?enclosure|shimari|3-3 invasion";
 const COORD = '[A-HJ-Za-hj-z](?:2[0-5]|1\\d|[1-9])';
+/** Shapes in contact with other stones: never an extension (a hiraki). */
+const CONTACT: ShapeId[] = ['capture', 'atari', 'connect', 'cut', 'hane', 'block', 'descent', 'extend', 'attach'];
 
 /**
  * Where a point is played in the explanation and what shape each play makes there: as the
@@ -465,8 +467,19 @@ export function wordingProblems(ex: Explanation, text: string): string[] {
     } catch {
       continue; // not on this board: the truth check already counts it
     }
+    if (loc < 0) continue;
+    // An extension is a hiraki: a move along the side away from your stones, which no shape
+    // here names exactly, so the word is wrong only for a contact play. In contact with the
+    // mover's own stone ("the extension at Q9" after Q10) it is a stretch (nobi).
+    if (word === 'extension') {
+      const there = shapesAt(ex, loc);
+      const away = there.has('two-space-jump') || there.has('open-point');
+      if (!away && there.has('extend')) out.push(`"extension" at ${at} is a stretch (nobi), not an extension`);
+      else if (!away && CONTACT.some((id) => there.has(id))) out.push(`"extension" at ${at} does not match the board (${[...there].join(', ')})`);
+      continue;
+    }
     const ids = SHAPE_WORDS.find(([re]) => re.test(word))?.[1] ?? [];
-    if (loc < 0 || !ids.length) continue;
+    if (!ids.length) continue;
     const there = shapesAt(ex, loc);
     if (!ids.some((id) => there.has(id))) out.push(`"${word}" at ${at} does not match the board${there.size ? ` (${[...there].join(', ')})` : ''}`);
   }

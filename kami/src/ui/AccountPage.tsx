@@ -176,15 +176,18 @@ function PasswordAction({
   open,
   onOpen,
   button,
+  opener,
   danger,
   second,
   run,
 }: {
+  /** The row's name, a noun ("Password"); the button that opens it is a verb (`opener`). */
   label: string;
   help?: string;
   open: boolean;
   onOpen: (v: boolean) => void;
   button: string;
+  opener: string;
   danger?: boolean;
   /** A second field (new password). */
   second?: string;
@@ -246,8 +249,8 @@ function PasswordAction({
             </div>
           </form>
         ) : (
-          <button type="button" className={`btn${danger ? ' danger-outline' : ''}`} onClick={() => onOpen(true)}>
-            {label}
+          <button type="button" className={`btn${danger ? ' danger-outline' : ''}`} onClick={() => onOpen(true)} aria-label={button}>
+            {opener}
           </button>
         )}
       </div>
@@ -284,7 +287,7 @@ function SignedIn({ onCode }: { onCode: (code: string, email: string) => void })
       <div className="set-list">
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Sync now</div>
+            <div className="set-label">Sync</div>
             <div className="set-help">Your path, days in a row and synced settings. Boards stay on this device.</div>
           </div>
           <div className="set-control">
@@ -293,18 +296,19 @@ function SignedIn({ onCode }: { onCode: (code: string, email: string) => void })
             </button>
           </div>
         </div>
-        <PasswordAction label="Change password" second="New password" open={open === 'password'} onOpen={toggle('password')} button="Change password" run={(pw, next) => account.changePassword(pw, next)} />
+        <PasswordAction label="Password" second="New password" open={open === 'password'} onOpen={toggle('password')} button="Change password" opener="Change" run={(pw, next) => account.changePassword(pw, next)} />
         <PasswordAction
-          label="New recovery code"
-          help="The old code stops working."
+          label="Recovery code"
+          help="A new code replaces the old one, which stops working."
           open={open === 'code'}
           onOpen={toggle('code')}
           button="Show new code"
+          opener="New code"
           run={async (pw) => onCode((await account.newRecoveryCode(pw)).recovery, v.email ?? '')}
         />
         <div className="set-row">
           <div className="set-text">
-            <div className="set-label">Sign out</div>
+            <div className="set-label">This device</div>
             <label className="acct-check">
               <input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} />
               Also remove my path from this device
@@ -316,7 +320,7 @@ function SignedIn({ onCode }: { onCode: (code: string, email: string) => void })
             </button>
           </div>
         </div>
-        <PasswordAction label="Delete account" help={COPY.deleteHelp} open={open === 'delete'} onOpen={toggle('delete')} button="Delete account" danger run={(pw) => account.remove(pw)} />
+        <PasswordAction label="Delete account" help={COPY.deleteHelp} open={open === 'delete'} onOpen={toggle('delete')} button="Delete account" opener="Delete" danger run={(pw) => account.remove(pw)} />
       </div>
     </>
   );

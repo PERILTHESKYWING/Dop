@@ -199,11 +199,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // One read on screen (critics, round 2): once an answer about this very position exists, the
   // candidates, their labels and the eval bar show the answer's own read, so the text's "Q12 is
   // 1.1 points worse" is Q12's label. Territory still comes from the board's read.
+  // While a line of that answer is previewed, the eval bar keeps the answer's read of the
+  // position the line starts from, so the bar, the caption and the text give one lead (swarm
+  // critics: the bar said White +11.0 from the board's own read, the caption and text 10.4).
   const answerRead = useMemo(() => {
-    if (!position || !answerReads?.length) return null;
-    const k = positionKey(position);
+    const p = preview ? preview.base : position;
+    if (!p || !answerReads?.length) return null;
+    const k = positionKey(p);
     return answerReads.find((a) => a.key === k)?.read ?? null;
-  }, [position, answerReads]);
+  }, [preview, position, answerReads]);
   const read = answerRead ?? boardRead.read;
   const last = answerRead ?? boardRead.last;
   const pending = answerRead ? false : boardRead.pending;
