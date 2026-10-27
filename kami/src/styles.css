@@ -1335,9 +1335,13 @@ kbd {
   box-shadow: var(--shadow);
   transition: border-color 0.15s;
 }
-/* the message box shows focus by its edge (3:1, --line-ui): a caret alone is easy to lose */
+/* the message box shows focus by its edge (3:1, --line-ui): a caret alone is easy to lose. The
+   1px border plus a 1px ring make it 2px, as thick as the focus ring elsewhere. */
 .composer:focus-within {
   border-color: var(--line-ui);
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px var(--line-ui);
 }
 .composer textarea {
   display: block;

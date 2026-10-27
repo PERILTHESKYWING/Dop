@@ -8,6 +8,7 @@ import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/c
 import { boardFromPosition, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import type { Answer, ChatMessage } from '../lib/store';
 import { pointView } from '../lib/points';
+import { cutBelow } from '../lib/cutLine';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage, longerLevel } from '../lib/levels';
@@ -330,12 +331,12 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
             {live && i === steps.length - 1 ? (
               // The step still reading: its time ticks (a fixed "0.0 s" read as frozen).
               <span className="meta">
-                {s.visits ? `${s.visits} visits · ` : ''}
+                {s.visits ? `${s.visits.toLocaleString()} positions · ` : ''}
                 <Elapsed t0={t0} bare />
               </span>
             ) : (
               <span className="meta">
-                {s.visits ? `${s.visits} visits` : ''}
+                {s.visits ? `${s.visits.toLocaleString()} positions` : ''}
                 {s.ms >= 50 ? `${s.visits ? ' · ' : ''}${(s.ms / 1000).toFixed(1)} s` : ''}
               </span>
             )}
@@ -354,7 +355,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
       </ol>
       {ex && !live && (
         <p className="meta">
-          {ex.reads} {ex.reads === 1 ? 'read' : 'reads'} · {ex.totalVisits.toLocaleString()} visits · {(ex.ms / 1000).toFixed(1)} s
+          {ex.reads} {ex.reads === 1 ? 'read' : 'reads'} · {ex.totalVisits.toLocaleString()} positions · {(ex.ms / 1000).toFixed(1)} s
         </p>
       )}
     </details>
@@ -795,6 +796,40 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     }
     end.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, steps, last?.answer, answeredId]);
+
+  // A line of text cut in half at the pane's bottom edge stays hidden until it scrolls fully into
+  // view (lib/cutLine.ts), so the pane ends on a whole line above the composer while the reader
+  // scrolls too, not only when an answer first opens.
+  const hasMessages = messages.length > 0;
+  useEffect(() => {
+    const box = pane.current;
+    if (!box) return;
+    let frame = 0;
+    const trim = () => {
+      frame = 0;
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      const cut = cutBelow(range.getClientRects(), box.getBoundingClientRect().bottom);
+      const next = cut > 0 ? `inset(0 0 ${cut}px 0)` : '';
+      if (box.style.clipPath !== next) box.style.clipPath = next;
+    };
+    const later = () => {
+      if (!frame) frame = requestAnimationFrame(trim);
+    };
+    later();
+    box.addEventListener('scroll', later, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(later);
+    ro?.observe(box);
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(later);
+    mo?.observe(box, { childList: true, subtree: true, characterData: true });
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      box.removeEventListener('scroll', later);
+      ro?.disconnect();
+      mo?.disconnect();
+      box.style.clipPath = '';
+    };
+  }, [hasMessages]);
 
   if (!messages.length && board) {
     const side = colorName(toPlayAt(board));

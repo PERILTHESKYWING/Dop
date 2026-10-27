@@ -603,6 +603,8 @@ export class KayaView {
   private shadowsDirty = true;
   /** Shaders still compiling: no frame until they are done (see precompile). */
   private compiling = true;
+  /** Settles when precompile's shaders are done (or failed): dispose frees the GPU objects only then. */
+  private compiled: Promise<unknown> = Promise.resolve();
   private warmFace: MeshBasicMaterial | null = null;
   private resolveDrawn: () => void = () => undefined;
   /** Settles once the first frame is on the canvas. */
@@ -1708,7 +1710,7 @@ export class KayaView {
     warm.add(new Mesh(g, this.warmFace));
     if (!this.pillarH) for (const side of [1, 2] as const) warm.add(new InstancedMesh(g, this.ownFlatMat(side), 1));
     const r = this.renderer;
-    Promise.all([r.compileAsync(this.scene, this.camera), r.compileAsync(warm, this.camera, this.scene)])
+    this.compiled = Promise.all([r.compileAsync(this.scene, this.camera), r.compileAsync(warm, this.camera, this.scene)])
       .catch(() => undefined)
       .then(() => {
         this.compiling = false;
@@ -2063,9 +2065,17 @@ export class KayaView {
   }
 
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
     liveViews.delete(this);
     if (this.raf) cancelAnimationFrame(this.raf);
+    // three's compileAsync keeps polling each program's isReady() on a timer; freeing the
+    // materials under it threw "reading 'isReady'" (a board unmounted within the compile window:
+    // StrictMode's double mount, 3D toggled off, the landing left fast). Free once it settles.
+    void this.compiled.then(() => this.free());
+  }
+
+  private free() {
     // geometries, materials, this view's sky light and shadow map; the textures shared by all views
     // (wood, shell, glow, printed numbers) stay for the next board
     const mats = new Set<Material>([...this.paleMats.values(), ...this.faceMats.values(), ...this.ownMats.values()]);
