@@ -22,7 +22,7 @@ const ordinal = (n: number) => {
 export interface MoveStats {
   /** The move's point, e.g. "Q9". */
   at: string;
-  /** "KataGo’s 2nd choice · Black 54%, 1.2 points worse · 1,200 visits" (`compact`: shorter, for a phone). */
+  /** "KataGo’s 2nd most-read move · Black 54%, 1.2 points worse · 1,200 visits" (`compact`: shorter rank words, for a phone). */
   text: string;
 }
 
@@ -41,17 +41,18 @@ export function moveStats(read: Pick<EngineRead, 'candidates'> | null | undefine
   const c = byVisits[i];
   const best = byVisits[0];
   const side = toPlay === 1 ? 'Black' : 'White';
-  const rank = i === 0 ? 'KataGo’s choice' : compact ? `${ordinal(i + 1)} choice` : `KataGo’s ${ordinal(i + 1)} choice`;
+  // The rank is by visits (the read's own order), which is not always the order of points lost, so say so.
+  const rank = i === 0 ? 'KataGo’s choice' : compact ? `${ordinal(i + 1)} most read` : `KataGo’s ${ordinal(i + 1)} most-read move`;
   const win = `${side} ${Math.round(c.winrate * 100)}%`;
   let loss = '';
   if (i > 0) {
     const d = best.scoreLead - c.scoreLead;
     const shown = fmt1(Math.abs(d));
     const pts = shown === '1.0' ? 'point' : 'points';
-    loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${compact ? 'pts' : pts} worse` : `${shown} ${compact ? 'pts' : pts} ahead on fewer visits`;
+    loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${pts} worse` : `${shown} ${pts} ahead on fewer visits`;
   }
   const visits = `${c.visits.toLocaleString('en-US')} visits`;
-  const text = compact ? [rank, loss || win, visits].join(' · ') : [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
+  const text = [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
   return { at, text };
 }
 
