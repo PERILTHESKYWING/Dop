@@ -229,7 +229,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* avatars: one flat colour per account */
 .av { --c: var(--faint); width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
-.av.s { width: 18px; height: 18px; font-size: 11px; }
+.av.s { width: 20px; height: 20px; font-size: 12px; }
 .av.l { width: 38px; height: 38px; font-size: 17px; }
 .avs { display: inline-flex; }
 .avs .av + .av { margin-left: -3px; box-shadow: 0 0 0 2px var(--panel); }
@@ -517,7 +517,8 @@ a.opt { color: inherit; text-decoration: none; }
   .feed .sw:not(.tap):not(:focus-within) .who.mini, .feed .sw:not(.tap):not(:focus-within) .who.mine { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* hub notices: small and calm; an alert only gets an amber dot */
-.note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
+.note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); text-wrap: pretty; display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
+.note .nt { white-space: nowrap; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
@@ -680,7 +681,7 @@ button.fchip:hover { border-color: var(--faint); }
 .fill.warn { background: var(--amber); } .fill.bad { background: var(--red); }
 .act { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 14px; border-left: 3px solid var(--green); padding-left: 8px; }
 .act-top { display: flex; gap: 8px; justify-content: space-between; }
-.act .ttl { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act .ttl { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; }
 .act small { color: var(--soft); font-size: 12px; flex: none; white-space: nowrap; }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
@@ -711,10 +712,12 @@ button.act:hover .ttl { text-decoration: underline; }
 .tgroup summary b { font-weight: 500; font-size: 13px; padding: 0 7px; border-radius: 9px; background: var(--chip); font-variant-numeric: tabular-nums; }
 .tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
 .tk:hover { background: var(--sel); }
-.tk .tk-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); }
-.tk.st-working .tk-dot { border-color: var(--green); }
+.tk .tk-dot { flex: none; width: 10px; height: 10px; margin: 0 2px; border-radius: 50%; border: 2px solid var(--faint); }
+/* Dots as in the sidebar: working green, needs-you amber, stopped red, waiting a ring, done grey. */
+.tk.st-working .tk-dot, .tk.st-new .tk-dot { border-color: var(--green); background: var(--green); }
 .tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
-.tk.st-done .tk-dot { border-color: var(--green); background: var(--green); }
+.tk.st-stalled .tk-dot { border-color: var(--red); background: var(--red); }
+.tk.st-done .tk-dot { border-color: var(--faint); background: var(--faint); }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
 .tk .ttl { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; font-size: 14px; font-weight: 500; }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
@@ -723,7 +726,7 @@ button.act:hover .ttl { text-decoration: underline; }
 /* The Hub row lines up with the cards' content (12 + 1 + 12 px in, 12 + 1 + 10 px from the right) and uses their .u1 grid. */
 .hubuse { display: grid; gap: 2px; margin-left: 9px; min-width: 0; font-size: 14px; }
 .hubuse .u1 { margin-right: 7px; }
-.hubuse .rs { color: var(--soft); font-size: 13px; line-height: 20px; }
+.hubuse .rs { color: var(--soft); font-size: 13px; line-height: 20px; text-wrap: pretty; }
 /* team lessons */
 .lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
 .lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
@@ -747,6 +750,9 @@ button.act:hover .ttl { text-decoration: underline; }
 .shead .ib { display: inline-grid; color: var(--soft); margin: -6px -4px -6px 0; }
 .shead .ib:hover { color: var(--ink); }
 .sbody { display: grid; gap: 16px; padding: 4px 22px 22px; min-width: 0; }
+.sbody.look { gap: 12px; }
+/* Focus came back to the button that opened a sheet with the mouse: no ring until focus moves on (Tab shows the next one). */
+:root .noring:focus-visible { outline: none; box-shadow: none; }
 .sfoot { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 22px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
 .sfoot .btn { min-height: 42px; padding: 9px 18px; }
 .btn.danger { color: var(--red); margin-right: auto; }
@@ -848,7 +854,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   summary, .thought summary, .tk, .trow.tn, .trow.t1, .tfind input, .ask-t, .ask-go { min-height: 44px; }
   /* Thread links on a Team card: 44 px rows; the green bar stays text-high. */
   .alist { gap: 0; }
-  .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 11px; background: linear-gradient(var(--green), var(--green)) left center / 3px 22px no-repeat; }
+  /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
+  .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
+  .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
@@ -902,7 +910,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
     </div>
     <div class="navrows">
-      <a class="trow tn" href="/studio.html" title="Storytime studio: hand-drawn story animations directed by your Claude team"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
+      <a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
       <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
@@ -929,7 +937,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   </nav>
 </div>
 <div id="pop" class="pop hidden"></div>
-<div id="sheet" class="sheet hidden"><div class="sbox" id="sheetBox"></div></div>
+<div id="sheet" class="sheet hidden"><div class="sbox" id="sheetBox" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 
 <script src="/ui/md.js"></script>
 <script src="ui/icons.js"></script>
@@ -941,6 +949,9 @@ const MODEL_NAME = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fab
 const capModels = (s) => String(s).replace(/\b(opus|sonnet|haiku|fable)\b/g, (w) => MODEL_NAME[w]);
 // A hub note is drawn as "text · time": one trailing full stop goes, so it never reads ". ·" (an ellipsis stays).
 const noteText = (s) => String(s).replace(/([^.])\.\s*$/, '$1');
+// A number keeps its short unit on the same line ("1 s", "412 KB"); agents' "x5" reads as "×5".
+const nb = (s) => String(s).replace(/(\d) (ms|s|px|KB|MB|GB|min|h|fps)\b/g, '$1\u00a0$2');
+const times = (s) => String(s).replace(/(^|\s)x(\d+)\b/g, '$1×$2');
 // A thread the coordinator made: Project chat's routed reply names it (#id).
 const routedThread = (id) => S.messages.some((x) => x.thread === 0 && x.kind === 'routed' && new RegExp(`#${id}\\b`).test(x.text));
 const MODEL_HINT = { '': 'The coordinator picks per thread', opus: 'Hardest work and design', sonnet: 'Everyday coding', haiku: 'Quick, small jobs', fable: 'If your account has it' };
@@ -959,7 +970,10 @@ const linkify = (s) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${
 // Agents' text as safe mini markdown (ui/md.js); plain linked text if that file did not load.
 const MD = window.hubMd || null;
 const mdHtml = (s) => (MD ? MD.md(s) : `<p style="white-space:pre-wrap">${linkify(s)}</p>`);
-const clock = (t) => { const d = new Date(t); const today = new Date().toDateString() === d.toDateString(); return d.toLocaleString([], today ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); };
+// Two shared formatters: toLocaleString builds a new one per call, which a 100-message feed felt on a slow phone.
+const CLOCK_DAY = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
+const CLOCK_DATE = new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const clock = (t) => { const d = new Date(t); return (new Date().toDateString() === d.toDateString() ? CLOCK_DAY : CLOCK_DATE).format(d); };
 const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h` : `${Math.round(ms / 86400e3)} d`;
 const until = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const ms = d - Date.now(); if (ms <= 0) return 'resets now'; const sameDay = d.toDateString() === new Date().toDateString(); return 'resets ' + (sameDay ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })); };
 const ls = {
@@ -1240,7 +1254,7 @@ let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
   const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1357,7 +1371,7 @@ function helloHtml() {
 function msgHtml(m) {
   const when = `<span class="when">${clock(m.at)}</span>`;
   if (m.from === 'XIAO') return `<div class="row me">${m.pending ? '' : `<div class="who mine">${when}${copyBtn(m)}</div>`}<div class="bubble ${m.pending ? 'pending' : ''}">${m.text ? `<div class="text">${linkify(m.text)}</div>` : ''}${filesOf(m.meta)}${picksOf(m.meta)}${m.pending ? '<div class="sending">Sending…</div>' : ''}</div></div>`;
-  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(noteText(capModels(m.text)))} <span class="nt">· ${clock(m.at)}</span></span></div>`;
+  if (m.from === 'hub' && m.kind !== 'routed') return `<div class="note hubn ${m.kind === 'alert' ? 'alert' : ''}"><span>${esc(nb(noteText(capModels(m.text))))}&nbsp;<span class="nt">·&nbsp;${clock(m.at)}</span></span></div>`;
   if (m.kind === 'thinking') return thoughtHtml(m);
   const a = acctOf(m.from);
   if (m.kind === 'brief') return `<div class="task"><div class="who">Task${m.from === 'hub' ? '' : routedThread(m.thread) ? ` · from coordinator (${esc(m.from)})` : ` · from ${esc(m.from)}`} ${when} ${copyBtn(m)}</div>${m.text ? bodyHtml(m, m.text) : ''}${filesOf(m.meta)}</div>`;
@@ -1568,22 +1582,27 @@ function feedToBottom(f) {
   go();
 }
 // Long feeds open fast with content-visibility: auto, then render their off-screen messages while
-// the page is idle: about 15 per slice, newest first, so a fling-scroll finds them drawn. Scroll
-// anchoring keeps the view still as their real heights replace the 96 px guess. The first slice
-// waits 200 ms so it never lands in the frames that open the thread; a view switch stops the run.
+// the page is idle: 5 per slice (a bigger slice is one long frame on a slow phone), newest first,
+// so a fling-scroll finds them drawn. Scroll anchoring keeps the view still as their real heights
+// replace the 96 px guess. The first slice waits until the thread has painted, plus 100 ms, so it
+// never lands in the frames that open it; while the user scrolls, slices wait; a view switch stops the run.
 const idleCall = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 600 }) : (f) => setTimeout(f, 60);
-let warmRun = 0, warmSel = null, warming = false;
+let warmRun = 0, warmSel = null, warming = false, feedScrollAt = 0;
+// The user's own scrolling (not the scroll events that anchoring fires as slices grow).
+for (const ev of ['wheel', 'touchmove']) $('feed').addEventListener(ev, () => { feedScrollAt = performance.now(); }, { passive: true });
 function warmFeed() {
   if (warming && warmSel === sel) return;
   const run = ++warmRun;
   warmSel = sel; warming = true;
+  const later = (ms) => setTimeout(() => idleCall(step), ms);
   const step = () => {
     if (run !== warmRun || warmSel !== sel) return;
+    if (performance.now() - feedScrollAt < 600) return later(300);
     const cold = $('feed').querySelectorAll(':scope > .sw:not(.warm)');
-    for (let i = cold.length - 1, n = 0; i >= 0 && n < 15; i--, n++) cold[i].classList.add('warm');
-    if (cold.length > 15) idleCall(step); else warming = false;
+    for (let i = cold.length - 1, n = 0; i >= 0 && n < 5; i--, n++) cold[i].classList.add('warm');
+    if (cold.length > 5) idleCall(step); else warming = false;
   };
-  setTimeout(() => idleCall(step), 200);
+  requestAnimationFrame(() => requestAnimationFrame(() => later(100)));
 }
 // Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
 function oneStartPerAccount(list) {
@@ -1857,7 +1876,9 @@ function openPop(kind, anchor) {
   pop.style.left = Math.max(12, Math.min(kind === 'tmenu' || kind.startsWith('amenu:') ? r.right - w : r.left, innerWidth - w - 12)) + 'px';
   pop.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + 'px';
 }
-function closePop() { $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false'); }
+// The button that opened the last menu: a sheet opened from that menu gives focus back to it.
+let popBtn = null;
+function closePop() { popBtn = document.querySelector('[data-pop][aria-expanded="true"]') || popBtn; $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false'); }
 async function setPick(patch) {
   const t = S.threads.find((x) => x.id === sel);
   if (!t) { Object.assign(opts, patch); saveOpts(); return renderTools(null); }
@@ -1913,6 +1934,8 @@ $('pop').addEventListener('click', async (e) => {
   if (b.dataset.pick === 'model') { closePop(); return setPick({ model: b.dataset.v }); }
   if (b.dataset.pick === 'thinking') { closePop(); return setPick({ thinking: b.dataset.v }); }
   if (b.dataset.pick === 'team') { closePop(); return setPick({ team: Number(b.dataset.v) }); }
+  // Only the account picks are left; any other button (an account menu's Edit, Usage...) is handled elsewhere.
+  if (b.dataset.pick !== 'any' && b.dataset.pick !== 'account') return;
   const anchor = document.querySelector('[data-pop="accounts"]');
   if (b.dataset.pick === 'any') await setPick({ accounts: [] });
   if (b.dataset.pick === 'account') { const v = b.dataset.v; await setPick({ accounts: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] }); }
@@ -1936,16 +1959,16 @@ function useLine(u) {
 function activityOf(a) {
   const mine = (t) => t.account === a.name || crewOf(t).includes(a.name);
   const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
-  const ags = (S.agents || []).filter((g) => g.account === a.name && g.status === 'running');
   const row = (t) => {
     const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
     // Every row has the same meta slot: when this account last spoke there (or the
     // thread last changed); "member" only when it isn't the lead.
     const at = last?.at || t.updatedAt || t.createdAt || 0;
     const meta = [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
-    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(t.title)}</span><small>${esc(meta)}</small></div></button>`;
+    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${esc(meta)}</small></div></button>`;
   };
-  const rows = `${ts.map(row).join('')}${ags.map((g) => `<div class="act ag-line" title="${esc(g.step || '')}"><div class="act-top"><span class="ttl">${esc(g.title)}</span></div></div>`).join('')}`;
+  // Running sub-agents are not repeated here: the Agents panel lists them, each with its one bar.
+  const rows = ts.map(row).join('');
   // One list, so every row keeps the same pitch.
   return rows ? `<div class="alist">${rows}</div>` : '';
 }
@@ -1988,14 +2011,16 @@ function acctMenu(name) {
 // Menu items open a sheet or change the account, so the menu closes first.
 document.addEventListener('click', (e) => { if (e.target.closest('#pop [data-open], #pop [data-low]')) closePop(); }, true);
 // ---------- task list (like Projects in Claude) ----------
+// The same groups (and counts) as the threads sidebar: Needs you, Working, Waiting, Done.
 const TASK_GROUPS = [
-  ['Working on', 'work', (t) => ['working', 'waiting'].includes(t.status)],
-  ['Not started', 'todo', (t) => ['new', 'queued', 'stalled'].includes(t.status)],
+  ['Needs you', 'need', (t) => t.status === 'waiting'],
+  ['Working on', 'work', (t) => ['working', 'new'].includes(t.status)],
+  ['Not started', 'todo', (t) => ['queued', 'stalled'].includes(t.status)],
   ['Finished', 'fin', (t) => t.status === 'done'],
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(t.title)}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
@@ -2013,7 +2038,7 @@ function agentRow(g) {
   const cls = stale ? 'stale' : g.status;
   const dur = ago((g.finished || t) - g.started);
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
-  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(g.title)}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
 function agentPanel() {
   const list = S.agents || [];
@@ -2252,7 +2277,7 @@ function applyLook() {
 applyLook();
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyLook);
 function lookHtml() {
-  return `<h3>Look</h3><p>Saved on this device only.</p>
+  return sHead('Look') + `<div class="sbody look"><p>Saved on this device only.</p>
     <div class="sect">Theme</div>
     <div class="seg">${THEMES.map(([v, n]) => `<button type="button" data-look="theme" data-v="${v}" aria-pressed="${look.theme === v}">${n}</button>`).join('')}</div>
     <p>Auto follows your phone or computer. Night sky is always dark.</p>
@@ -2260,8 +2285,8 @@ function lookHtml() {
     <div class="walls">${WALLS.map(([v, n]) => `<button type="button" data-look="bg" data-v="${v}" aria-pressed="${look.bg === v}"><i data-bg-demo="${v}"></i>${n}</button>`).join('')}</div>
     <div class="sect">Working line</div>
     <div class="seg">${[['', 'Calm'], ['lively', 'Lively']].map(([v, n]) => `<button type="button" data-look="motion" data-v="${v}" aria-pressed="${(look.motion || '') === v}">${n}</button>`).join('')}</div>
-    <p>Calm shows who is working, for how long, and the step. Lively adds Claude Code's turning spinner, its verbs and Clawd.</p>
-    <div class="acts"><button class="btn primary" data-close>Done</button></div>`;
+    <p>Calm shows who is working, for how long, and the step. Lively adds Claude Code's turning spinner, its verbs and Clawd.</p></div>`
+    + sFoot('<button class="btn primary" data-close>Done</button>');
 }
 
 // ---------- sheets ----------
@@ -2282,19 +2307,48 @@ async function busyBtn(btn, label, fn) {
   const was = btn.textContent; btn.disabled = true; btn.textContent = label;
   try { return await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = was; } }
 }
+// Who opened the sheet, and whether by keyboard: focus goes back there on close (a ring only after keys).
+let sheetOpener = null, sheetByKey = false, keyNav = false;
+document.addEventListener('keydown', () => { keyNav = true; }, true);
+document.addEventListener('pointerdown', () => { keyNav = false; }, true);
 function showSheet(html) {
   const box = $('sheetBox');
+  if ($('sheet').classList.contains('hidden')) {
+    let a = document.activeElement;
+    if (a?.closest('#pop')) a = popBtn;
+    sheetOpener = a && a !== document.body ? a : null; sheetByKey = keyNav;
+  }
   box.classList.add('framed'); box.innerHTML = html; box.scrollTop = 0;
+  box.setAttribute('aria-label', box.querySelector('h3')?.textContent || 'Dialog');
   $('sheet').classList.remove('hidden');
-  // Desktop: straight into the first field. Phone: no keyboard until a tap.
-  // Only a text field takes that focus: a sheet that opens on a select (Settings) shows no ring until a key moves focus.
-  if (matchMedia('(pointer: fine)').matches) { const f = box.querySelector('.sbody input:not([readonly]):not([type="checkbox"]), .sbody select, .sbody textarea'); if (f && f.tagName !== 'SELECT') f.focus(); }
+  // Focus moves into the sheet. Desktop: straight into the first text field. Phone (no keyboard
+  // until a tap) and sheets without a text field: the head's Close.
+  const f = matchMedia('(pointer: fine)').matches && box.querySelector('.sbody input:not([readonly]):not([type="checkbox"]), .sbody textarea');
+  (f || box.querySelector('.shead [data-close]') || box).focus();
 }
-function closeSheet() { $('sheet').classList.add('hidden'); }
+function closeSheet() {
+  if ($('sheet').classList.contains('hidden')) return;
+  $('sheet').classList.add('hidden');
+  const o = sheetOpener; sheetOpener = null;
+  if (!o || !o.isConnected) return;
+  if (!sheetByKey) { o.classList.add('noring'); o.addEventListener('blur', () => o.classList.remove('noring'), { once: true }); }
+  o.focus();
+}
+// Tab and Shift+Tab stay inside an open sheet.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || $('sheet').classList.contains('hidden')) return;
+  const box = $('sheetBox');
+  const els = [...box.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')].filter((el) => el.getClientRects().length);
+  if (!els.length) return;
+  const first = els[0], last = els[els.length - 1], at = document.activeElement;
+  if (!box.contains(at) || at === box) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (e.shiftKey && at === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+});
 async function openSheet(kind, name) {
   closePop();
   const box = $('sheetBox'); let html = '';
-  if (kind === 'look') { loadWalls(); box.classList.remove('framed'); box.innerHTML = lookHtml(); $('sheet').classList.remove('hidden'); return; }
+  if (kind === 'look') { loadWalls(); return showSheet(lookHtml()); }
   if (kind === 'logout') { if (cacheT) (window.cancelIdleCallback || clearTimeout)(cacheT); cacheT = 0; ls.del('hubpw'); ls.del('hub-cache'); ls.del('studio-last'); ls.del('library-files-list'); pw = ''; return showLogin(); }
   const P = esc(proj.project);
   if (kind === 'connect') {
@@ -2389,7 +2443,16 @@ $('sheetBox').addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-close]')) return closeSheet();
   const fd = t.closest('[data-fdl]'); if (fd) return downloadFile(fd.dataset.fdl, fd);
-  const lk = t.closest('[data-look]'); if (lk) { look[lk.dataset.look] = lk.dataset.v; applyLook(); if (lk.dataset.look === 'motion' && pw) render(); $('sheetBox').innerHTML = lookHtml(); return; }
+  const lk = t.closest('[data-look]');
+  if (lk) {
+    const { look: k, v } = lk.dataset;
+    look[k] = v; applyLook(); if (k === 'motion' && pw) render();
+    // Redrawn in place: same scroll, and focus stays on the pressed choice.
+    const box = $('sheetBox'), top = box.scrollTop;
+    box.innerHTML = lookHtml(); box.scrollTop = top;
+    box.querySelector(`[data-look="${k}"][data-v="${v}"]`)?.focus();
+    return;
+  }
   if (t.closest('[data-copy]')) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select and copy it'; } return; }
   if (t.closest('[data-test]')) {
     const out = $('testOut'); out.classList.remove('hidden'); out.style.color = 'var(--soft)'; out.textContent = 'Testing…';

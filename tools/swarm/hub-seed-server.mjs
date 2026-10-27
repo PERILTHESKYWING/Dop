@@ -1,5 +1,5 @@
 // Starts the hub dev server (memory store, fake Claude) and seeds realistic data.
-// Usage: node hub-seed-server.mjs   (port 7791, password dev)
+// Usage: node hub-seed-server.mjs   (port 7791 or PORT, password dev; BIG=1 adds 55 threads and a long one, LONG=n sets its length)
 process.env.HUB_DEV_MEMORY = '1';
 process.env.HUB_FAKE_CLAUDE = '1';
 process.env.HUB_PASSWORD = 'dev';
@@ -49,7 +49,7 @@ await hub.route(await coord(), { prompt_id: p2.id, summary: 'One thread, it will
 const t3 = (await hub.threads()).find((t) => t.title.startsWith('Forge'));
 await hub.agentPost(await owner(t3, 'Alt'), {
   thread: t3.id, kind: 'question', text: 'Three sources could work. Licences are not checked yet for the first two. Which one should set 25 use?',
-  meta: { questions: [{ header: 'Joseki source', question: 'Which source should the Forge draw from?', options: [{ label: 'KataGo self-play lines', description: 'Modern lines; licence of the published data still to check' }, { label: 'Go Seigen-era game records (before 1950)', description: 'Joseki would be extracted from classic pro games; copyright of each collection still to check' }, { label: 'Your own studied lines', description: 'Yours, so no licence question; smallest set' }] }] },
+  meta: { questions: [{ header: 'Joseki source', question: 'Which source should the Forge draw from?', options: [{ label: 'KataGo self-play lines', description: 'Modern lines; licence of the published data still to check' }, { label: 'Classic pro game records (1930s-1950s)', description: 'Joseki would be extracted from classic pro games; copyright of each collection still to check' }, { label: 'Your own studied lines', description: 'Yours, so no licence question; smallest set' }] }] },
 });
 
 // More threads in other states
@@ -79,9 +79,10 @@ if (process.env.BIG === '1') {
     const who = await owner(t, acc);
     for (let j = 0; j < 9; j++) await hub.agentPost(who, { thread: t.id, kind: j === 8 && i % 2 ? 'done' : 'progress', text: `${j + 1}. ${lorem}` });
   }
-  // One long thread for scroll tests: 200 messages.
-  const lt = await hub.createThread({ title: 'Long thread: 200 messages', brief: lorem, model: 'sonnet', account: 'Main' });
+  // One long thread for scroll tests: 200 messages (LONG=500 for more).
+  const n = Number(process.env.LONG) || 200;
+  const lt = await hub.createThread({ title: `Long thread: ${n} messages`, brief: lorem, model: 'sonnet', account: 'Main' });
   const lw = await owner(lt, 'Main');
-  for (let j = 0; j < 200; j++) await hub.agentPost(lw, { thread: lt.id, kind: j % 10 === 9 ? 'thinking' : 'progress', text: `${j + 1}. ${lorem}` });
+  for (let j = 0; j < n; j++) await hub.agentPost(lw, { thread: lt.id, kind: j % 10 === 9 ? 'thinking' : 'progress', text: `${j + 1}. ${lorem}` });
   console.log('BIG seeded', (await hub.threads()).length);
 }

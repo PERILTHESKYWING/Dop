@@ -69,7 +69,11 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root .top .back { color: var(--kaya-ink); font-weight: 500; }
 :root .top .back:hover { background: color-mix(in srgb, var(--panel) 35%, var(--kaya)); }
 :root .top .sub { color: var(--kaya-ink); font-size: 15px; }
-:root .top select { border-color: var(--kaya-line); background: color-mix(in srgb, var(--panel) 80%, var(--kaya)); }
+:root .top select { border-color: var(--kaya-line); background-color: color-mix(in srgb, var(--panel) 80%, var(--kaya)); }
+/* The story picker matches the hub's selects: no OS control, a drawn chevron. */
+:root select:not([multiple]) { -webkit-appearance: none; appearance: none; padding: 8px 34px 8px 11px; line-height: 1.2; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%), linear-gradient(135deg, var(--soft) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 :root .tabs button { font-size: 16px; }
 :root .tabs button[aria-selected="true"] { border-bottom: 3px solid var(--stone); color: var(--ink); font-weight: 700; }
 :root .tabs .n { font-size: 14px; }
@@ -267,7 +271,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
             <button class="btn go" id="styleSend" type="button">Send look to team</button>
             <button class="btn" id="styleReset" type="button">Undo changes</button>
           </div>
-          <p class="hint">Changes preview here at once. Higher hold = choppier, more hand-made. Boil = lines that shimmer between drawings.</p>
+          <p class="hint">Changes preview here at once. Higher hold = choppier, closer to hand animation. Boil = lines that shimmer between drawings.</p>
         </div>
         <div class="pane" data-pane="refs">
           <div class="row" role="group" aria-label="Kind" style="margin-top:0">
@@ -633,7 +637,7 @@ function setStatus() {
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one; this demo shows the drawing style.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one. Your Claude team writes the story and draws every frame in code; this demo shows the style.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
