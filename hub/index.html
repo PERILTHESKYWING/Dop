@@ -2064,7 +2064,7 @@ function renderTeam() {
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5-hour window</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
