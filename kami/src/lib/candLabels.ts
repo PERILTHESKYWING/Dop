@@ -54,49 +54,114 @@ export function lossLabel(c: Cand, best: Cand, compact = false): string {
 /** KataGo's choice among loss labels: its win chance for the side to play, "1%" (the % tells it from a loss in points). */
 export const bestLabel = (best: Cand): string => `${Math.round(best.winrate * 100)}%`;
 
-/** How many marks carry a number on a phone, and how far apart (in points) two numbered marks stay. */
+/** How many marks carry a number on a phone, and how far apart (in points) two of them sit at full size. */
 export const PHONE_NUMBERED = 3;
 const PHONE_GAP = 1.6;
+/** A phone's numbered mark: its radius in points at full size, and the most it moves off its point. */
+export const BIG_R = 0.76;
+const MAX_SHIFT = 0.2;
+/** A candidate this close to KataGo's choice in points is "about as good" and numbered first when no answer names the moves. */
+const NEAR = 0.3;
+
+const dist = (a: number, b: number, size: number) => Math.hypot((a % size) - (b % size), Math.floor(a / size) - Math.floor(b / size));
 
 /**
  * Which candidates carry a number on a phone (critics, 2026-10-27 round 1: every label was
- * unreadable at 390 px, about 15 px a point). A numbered mark is drawn larger than its point, so
- * only KataGo's choice and the next ones in its order that sit 1.6 points or more from every
- * numbered one get a number, at most three; the others are small bare rings (their numbers are
- * in the readout when the move is tapped in the answer).
+ * unreadable at 390 px, about 15 px a point), as points. A numbered mark is drawn larger than its
+ * point, so at most three: KataGo's choice; then the moves the answer names (`named`: the
+ * answer's points, round 2: "R12 is about as good as Q10" must show R12's number, even next to
+ * Q10), those within 0.3 points of the choice first, or with no answer the ones within 0.3 points; then the next in KataGo's
+ * order that sit 1.6 points or more from every numbered one. The others are small bare rings.
  */
-export function phoneNumbered<C extends Cand>(cands: readonly C[], size: number): Set<C> {
-  const out = new Set<C>();
-  const ranked = [...cands].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
-  for (const c of ranked) {
-    if (out.size >= PHONE_NUMBERED) break;
-    const far = [...out].every((o) => o.loc === undefined || c.loc === undefined || Math.hypot((o.loc % size) - (c.loc % size), Math.floor(o.loc / size) - Math.floor(c.loc / size)) >= PHONE_GAP);
-    if (far) out.add(c);
+export function phonePick(cands: readonly Cand[], size: number, named?: ReadonlySet<number> | null): number[] {
+  const ranked = [...cands].filter((c) => c.loc !== undefined).sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+  if (!ranked.length) return [];
+  const best = ranked[0];
+  const out: number[] = [best.loc!];
+  // named moves about as good as the choice first (an answer naming five moves still shows the
+  // "about as good" one), then other named moves; with no answer, the near ones
+  const near = (c: Cand) => Math.abs(best.scoreLead - c.scoreLead) <= NEAR;
+  const tiers: ((c: Cand) => boolean)[] = named ? [(c) => named.has(c.loc!) && near(c), (c) => named.has(c.loc!)] : [near];
+  for (const t of tiers) for (const c of ranked.slice(1)) if (out.length < PHONE_NUMBERED && !out.includes(c.loc!) && t(c)) out.push(c.loc!);
+  for (const c of ranked.slice(1)) {
+    if (out.length >= PHONE_NUMBERED) break;
+    if (!out.includes(c.loc!) && out.every((o) => dist(o, c.loc!, size) >= PHONE_GAP)) out.push(c.loc!);
   }
   return out;
 }
 
+/** Where a numbered mark sits: moved off its point by (dx, dy) and its radius, in points. */
+export interface MarkPlace {
+  dx: number;
+  dy: number;
+  r: number;
+}
+
 /**
- * The label function for the candidate marks (undefined: the default win chance). `size` (a
- * phone, with `compact`) leaves all but the phoneNumbered() marks without a number ('').
+ * The numbered marks' places: full size where they have room; two closer than 1.6 points (two
+ * named moves side by side) each move up to 0.2 of a point apart and shrink to fit, so both keep
+ * their numbers instead of one being dropped.
  */
-export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | undefined, compact = false, explained = false, size = 0): ((c: C) => string) | undefined {
+export function phonePlaces(locs: readonly number[], size: number): Map<number, MarkPlace> {
+  const out = new Map<number, MarkPlace>(locs.map((l) => [l, { dx: 0, dy: 0, r: BIG_R }]));
+  for (let i = 0; i < locs.length; i++)
+    for (let j = i + 1; j < locs.length; j++) {
+      const a = locs[i], b = locs[j];
+      const d = dist(a, b, size);
+      if (!d || d >= PHONE_GAP) continue;
+      const o = Math.min(MAX_SHIFT, (PHONE_GAP - d) / 2);
+      const ux = ((b % size) - (a % size)) / d, uy = (Math.floor(b / size) - Math.floor(a / size)) / d;
+      const r = Math.min(BIG_R, (d + 2 * o) / 2 - 0.03);
+      const pa = out.get(a)!, pb = out.get(b)!;
+      pa.dx -= ux * o;
+      pa.dy -= uy * o;
+      pb.dx += ux * o;
+      pb.dy += uy * o;
+      pa.r = Math.min(pa.r, r);
+      pb.r = Math.min(pb.r, r);
+    }
+  return out;
+}
+
+/**
+ * The label function for the candidate marks (undefined: the default win chance). `numbered`
+ * (a phone: phonePick's points) leaves every other mark without a number ('').
+ */
+export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | undefined, compact = false, explained = false, numbered: ReadonlySet<number> | null = null): ((c: C) => string) | undefined {
   if (!cands?.length) return undefined;
-  const numbered = compact && size ? phoneNumbered(cands, size) : null;
   const lopsided = lopsidedRead(cands);
   if (!lopsided && !numbered) return undefined;
+  const on = (c: C) => !numbered || (c.loc !== undefined && numbered.has(c.loc));
   const winChance = (c: C) => String(Math.round(c.winrate * 100));
-  if (!lopsided) return (c) => (numbered!.has(c) ? winChance(c) : '');
+  if (!lopsided) return (c) => (on(c) ? winChance(c) : '');
   // KataGo's choice is the most visited move (the answer's "best move" too), not a thin read's higher lead.
   const best = cands.find((c) => c.rank === 0) ?? cands[0];
   // A thin read that came out ahead of the ring shows "+0.5" only when an answer says why
   // ("KataGo read it less, and it came out 0.5 points ahead"); before that it is "≈".
   return (c) => {
-    if (numbered && !numbered.has(c)) return '';
+    if (!on(c)) return '';
     if (c === best) return bestLabel(best);
     const l = lossLabel(c, best, compact);
     return !explained && l.startsWith('+') ? SAME : l;
   };
+}
+
+/**
+ * A phone's numbered points held steady while KataGo reads (round 2: the three numbers moved
+ * between marks as ranks swapped): a new pick replaces the shown one only once it has stood for
+ * `holdMs` (1 s) through every update in between, at once when KataGo's choice itself changes or
+ * a shown point is no longer a candidate. `now` and the state are passed in, so it can be tested.
+ */
+export interface PickHold {
+  shown: number[];
+  next: string;
+  since: number;
+}
+export function holdPick(prev: PickHold | null, want: number[], present: ReadonlySet<number>, now: number, holdMs = 1000): PickHold {
+  const key = want.join(',');
+  if (!prev || prev.shown[0] !== want[0] || prev.shown.some((l) => !present.has(l)) || prev.shown.join(',') === key) return { shown: want, next: key, since: now };
+  if (prev.next !== key) return { ...prev, next: key, since: now };
+  return now - prev.since >= holdMs ? { shown: want, next: key, since: now } : prev;
 }
 
 /**

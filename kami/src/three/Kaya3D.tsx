@@ -26,6 +26,8 @@ export interface Kaya3DProps {
   candLabel?: (c: CandidateMark) => string;
   /** A phone: numbered marks larger than their point, the ones labelled '' small bare rings (as Board's candBig). */
   candBig?: boolean;
+  /** With candBig: a numbered mark's place, moved off its point by (dx, dy) and its radius (points), as Board's. */
+  candPlace?: (c: CandidateMark) => { dx: number; dy: number; r: number } | undefined;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   variation?: Move[] | null;
@@ -137,10 +139,13 @@ export default function Kaya3D(p: Kaya3DProps) {
       .filter((c) => c.loc !== PASS && !p.stones[c.loc])
       .map((c): PaleMark => {
         const text = p.candLabel ? p.candLabel(c) : winText(c.winrate);
-        return { loc: c.loc, color: side, text, alpha: 1, token: { best: c.rank === 0, scale: !text ? 0.5 : p.candBig ? 1.56 : 1 } };
+        const place = text && p.candBig ? p.candPlace?.(c) : undefined;
+        // the printed disc is 0.48 of the plane: scale = radius in points / 0.48
+        const scale = !text ? 0.8 : p.candBig ? (place?.r ?? 0.76) / 0.477 : 1;
+        return { loc: c.loc, color: side, text, alpha: 1, token: { best: c.rank === 0, scale, dx: place?.dx, dy: place?.dy } };
       });
     v.setPale(marks.length ? marks : null);
-  }, [ready, p.candidates, p.candLabel, p.candBig, p.variation, p.toPlay, p.stones]);
+  }, [ready, p.candidates, p.candLabel, p.candBig, p.candPlace, p.variation, p.toPlay, p.stones]);
 
   const hadOwn = useRef(false);
   useEffect(() => {

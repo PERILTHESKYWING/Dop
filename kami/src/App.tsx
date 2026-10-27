@@ -23,6 +23,21 @@ import { Splitter } from './ui/Splitter';
 import { markReady } from './lib/ready';
 import { getSetting, useSetting } from './lib/settings';
 import { observeMove, studentProfile } from './lib/style';
+import { gtpToLoc } from '../../src/lib/go/coords';
+
+/** The points an answer's text names ("R12 is about as good as Q10"), so a phone's board numbers those marks. */
+function namedPoints(text: string, size: number): number[] {
+  const out: number[] = [];
+  for (const m of text.matchAll(/\b([A-HJ-T])(1[0-9]|[1-9])\b/g)) {
+    try {
+      const l = gtpToLoc(m[0], size);
+      if (l >= 0 && !out.includes(l)) out.push(l);
+    } catch {
+      // a letter and number that is not a point of this board ("T19" on a 9x9)
+    }
+  }
+  return out;
+}
 
 const Settings = lazy(() => import('./ui/Settings').then((m) => ({ default: m.Settings })));
 
@@ -104,10 +119,11 @@ export function App() {
   const current = convs.find((c) => c.id === currentId) ?? convs[0];
   // KataGo's reads behind this board's answers (newest first): the board shows the same numbers as the text.
   const answerReads = useMemo(() => {
-    const out: { key: string; read: NonNullable<Extract<Answer, { type: 'explain' }>['explanation']['root']> }[] = [];
+    const out: { key: string; read: NonNullable<Extract<Answer, { type: 'explain' }>['explanation']['root']>; named: number[] }[] = [];
     for (const m of [...(current?.messages ?? [])].reverse()) {
       const a = m.answer;
-      if (a?.type === 'explain' && a.explanation.root?.candidates.length) out.push({ key: positionKey(a.explanation.position), read: a.explanation.root });
+      if (a?.type === 'explain' && a.explanation.root?.candidates.length)
+        out.push({ key: positionKey(a.explanation.position), read: a.explanation.root, named: namedPoints(a.writing.text ?? a.explanation.summary, a.explanation.position.size) });
     }
     return out;
   }, [current?.messages]);

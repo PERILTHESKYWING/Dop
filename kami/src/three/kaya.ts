@@ -111,7 +111,7 @@ export interface PaleMark {
    * a cleared tan disc, its number in ink (critics, 2026-10-26: cream stones read as White's
    * stones with Black to play). `best` (KataGo's choice) has the thick ring. `alpha` is unused.
    */
-  token?: { best: boolean; scale?: number };
+  token?: { best: boolean; scale?: number; dx?: number; dy?: number };
 }
 
 /** Printed numbers and marks, one canvas each, kept for the page's life (a few dozen at most). */
@@ -162,8 +162,9 @@ function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: b
     g.arc(64, 64, r, 0, Math.PI * 2);
     g.fill();
   };
-  // a mark without a number is drawn small (scaled down in setPale), so its ring is thicker here
-  const ring = best ? 12 : text ? 6 : 16;
+  // a mark without a number is drawn small (scaled down in setPale), so its ring is thicker here;
+  // KataGo's choice has a ring three times the others', plain at a phone's size on dark wood too
+  const ring = best ? 18 : text ? 6 : 14;
   let r = 61;
   disc(r, TOKEN_INK);
   if (side === 2) {
@@ -1707,6 +1708,9 @@ export class KayaView {
         if (!faceMat) this.faceMats.set(map, (faceMat = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false })));
         const face = new Mesh((this.tokenGeo ??= new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2)), faceMat);
         face.position.copy(this.pointAt(m.loc, 0.0012));
+        // a numbered mark moved a little off its point, so two side by side both fit (a phone)
+        face.position.x += (m.token.dx ?? 0) * SX;
+        face.position.z += (m.token.dy ?? 0) * SY;
         if (m.token.scale) face.scale.setScalar(m.token.scale);
         // a numbered mark (larger than its point on a phone) over a bare one
         face.renderOrder = m.text ? 6 : 5;

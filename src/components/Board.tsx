@@ -68,6 +68,8 @@ export interface BoardProps {
    * number can be read, and one whose candLabel is '' is a small bare ring.
    */
   candBig?: boolean;
+  /** With candBig: a numbered mark's place, moved off its point by (dx, dy) and its radius (board units). */
+  candPlace?: (c: CandidateMark) => { dx: number; dy: number; r: number } | undefined;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -87,7 +89,7 @@ const CAND_BEST = '#2fc4e4';
 /** A plain candidate: a circle a little smaller than a stone, and the widest its label is set. */
 const PLAIN_R = 0.45;
 const PLAIN_BIG_R = 0.76;
-const PLAIN_BARE_R = 0.22;
+const PLAIN_BARE_R = 0.38;
 /** Room kept between a plain label's corners and the inside of its ring (board units). */
 const PLAIN_PAD = 0.04;
 const CAND_STOPS: [number, [number, number, number]][] = [
@@ -718,12 +720,13 @@ function BoardImpl(p: BoardProps) {
     .map((c) => ({ c, label: labelOf(c) }))
     .sort((a, b) => Number(!!a.label) - Number(!!b.label) || b.c.rank - a.c.rank)
     .map(({ c, label }) => {
-      const x = c.loc % size, y = Math.floor(c.loc / size);
+      const bare = plain && !label;
+      const place = plain && p.candBig && !bare ? p.candPlace?.(c) : undefined;
+      const x = (c.loc % size) + (place?.dx ?? 0), y = Math.floor(c.loc / size) + (place?.dy ?? 0);
       const wr = c.winrate * 100;
       const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
       if (compact) labels.push(label);
-      const bare = plain && !label;
-      const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? PLAIN_BIG_R : PLAIN_R;
+      const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? (place?.r ?? PLAIN_BIG_R) : PLAIN_R;
       return (
         <g
           key={`c${c.loc}`}
@@ -762,7 +765,7 @@ function BoardImpl(p: BoardProps) {
 
   // A plain label wider than the inside of its ring is set narrower to fit, keeping its height (as
   // the 3D board's printed numbers are), so no corner of it touches the ring.
-  const fitKey = plain && labels.length ? `${px}|${p.candBig ? 'big' : ''}|${labels.join(' ')}` : '';
+  const fitKey = plain && labels.length ? `${px}|${p.candBig ? 'big' : ''}|${labels.join(' ')}|${p.candPlace ? (p.candidates ?? []).map((c) => p.candPlace!(c)?.r.toFixed(2) ?? '').join(',') : ''}` : '';
   useEffect(() => {
     const el = svgRef.current;
     if (!fitKey || !el) return;

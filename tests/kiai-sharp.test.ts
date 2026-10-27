@@ -19,7 +19,7 @@ import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
-import { candidateLabeler, keyText, lossLabel, phoneNumbered } from '../kami/src/lib/candLabels';
+import { BIG_R, candidateLabeler, holdPick, keyText, lossLabel, phonePick, phonePlaces } from '../kami/src/lib/candLabels';
 import { LlmUnavailable, type CallLlm } from '../kami/src/lib/llm';
 import { NOTES, writeAnswer } from '../kami/src/lib/writer';
 
@@ -196,17 +196,52 @@ describe('candidate labels in a lopsided game', () => {
     expect(keyText(cands, 'Black', false, true)).toMatch(/^Underlined: KataGo’s choice/);
     for (const t of [keyText(cands, 'Black'), keyText([c(0.45, -1)], 'Black')]) expect(t).not.toMatch(/winrate|win %/);
   });
+  const at = (x: number, y: number) => y * 19 + x;
+  const m = (rank: number, x: number, y: number, lead: number) => ({ ...c(0.01, lead, rank), loc: at(x, y) });
   it('a phone numbers at most three marks, spaced so the larger ones never overlap', () => {
-    const at = (x: number, y: number) => y * 19 + x;
-    const m = (rank: number, x: number, y: number) => ({ ...c(0.01, -11 - rank / 10, rank), loc: at(x, y) });
-    // KataGo's choice, its neighbour (skipped), two further away, and a fifth past the three
-    const cands = [m(0, 16, 9), m(1, 17, 9), m(2, 16, 11), m(3, 13, 11), m(4, 3, 3)];
-    expect([...phoneNumbered(cands, 19)].map((x) => x.rank)).toEqual([0, 2, 3]);
-    const label = candidateLabeler(cands, true, false, 19)!;
-    expect(cands.map(label)).toEqual(['1%', '', '−0.2', '−0.3', '']);
+    // KataGo's choice, its neighbour a point worse (skipped), two further away, a fifth past the three
+    const cands = [m(0, 16, 9, -11), m(1, 17, 9, -12), m(2, 16, 11, -12.2), m(3, 13, 11, -12.5), m(4, 3, 3, -13)];
+    const pick = phonePick(cands, 19);
+    expect(pick).toEqual([at(16, 9), at(16, 11), at(13, 11)]);
+    const label = candidateLabeler(cands, true, false, new Set(pick))!;
+    expect(cands.map(label)).toEqual(['1%', '', '−1.2', '−1.5', '']);
     // a close game on a phone: the same three carry the win chance, the rest are bare
     const close = cands.map((x) => ({ ...x, winrate: 0.45 }));
-    expect(close.map(candidateLabeler(close, true, false, 19)!)).toEqual(['45', '', '45', '45', '']);
+    expect(close.map(candidateLabeler(close, true, false, new Set(pick))!)).toEqual(['45', '', '45', '45', '']);
+    // spaced marks keep their full size on their own points
+    expect([...phonePlaces(pick, 19).values()].every((p) => p.r === BIG_R && p.dx === 0 && p.dy === 0)).toBe(true);
+  });
+  it('a move the answer names is numbered even next to KataGo’s choice, and both marks fit', () => {
+    // "R12 is about as good as Q10": R12 sits next to the choice
+    const cands = [m(0, 15, 9, -11), m(1, 16, 9, -11.2), m(2, 12, 12, -12), m(3, 3, 3, -13)];
+    const pick = phonePick(cands, 19, new Set([at(16, 9), at(15, 9)]));
+    expect(pick).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
+    const places = phonePlaces(pick, 19);
+    const a = places.get(at(15, 9))!, b = places.get(at(16, 9))!;
+    // each moves 0.2 of a point apart and shrinks so the two never overlap
+    expect(a.dx).toBeCloseTo(-0.2);
+    expect(b.dx).toBeCloseTo(0.2);
+    expect(a.r + b.r).toBeLessThanOrEqual(1 + 0.4);
+    expect(a.r).toBeGreaterThan(0.6);
+    // an answer naming more moves than fit still numbers the one about as good as the choice
+    const more = [m(0, 15, 9, -11), m(1, 15, 7, -11.9), m(2, 14, 10, -12.3), m(3, 16, 9, -11.2)];
+    expect(phonePick(more, 19, new Set([at(15, 7), at(14, 10), at(16, 9), at(15, 9)]))).toEqual([at(15, 9), at(16, 9), at(15, 7)]);
+    // with no answer, a move within 0.3 points of the choice is numbered first the same way
+    expect(phonePick(cands, 19)).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
+    expect(phonePick(cands.map((x, i) => (i === 1 ? { ...x, scoreLead: -12 } : x)), 19)).toEqual([at(15, 9), at(12, 12), at(3, 3)]);
+  });
+  it('the numbered points hold for a second while ranks swap', () => {
+    const present = new Set([1, 2, 3, 4]);
+    let h = holdPick(null, [1, 2, 3], present, 0);
+    h = holdPick(h, [1, 2, 4], present, 100);
+    expect(h.shown).toEqual([1, 2, 3]);
+    h = holdPick(h, [1, 2, 3], present, 400);
+    h = holdPick(h, [1, 2, 4], present, 500);
+    expect(holdPick(h, [1, 2, 4], present, 1400).shown).toEqual([1, 2, 3]);
+    expect(holdPick(h, [1, 2, 4], present, 1500).shown).toEqual([1, 2, 4]);
+    // a new choice of KataGo's, or a shown point gone from the read, moves at once
+    expect(holdPick(h, [4, 2, 3], present, 600).shown).toEqual([4, 2, 3]);
+    expect(holdPick(h, [1, 2, 4], new Set([1, 2, 4]), 600).shown).toEqual([1, 2, 4]);
   });
 });
 
