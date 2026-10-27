@@ -291,7 +291,7 @@ export const SETTINGS: SettingDef[] = [
     key: 'positions.minWinrate',
     group: 'positions',
     type: 'percent',
-    label: 'Lowest win rate in a built position',
+    label: 'Lowest win chance in a built position',
     help: 'A position Kiai sets up to explain an idea is only shown when KataGo gives each side at least this chance.',
     default: 0.3,
     min: 0.05,

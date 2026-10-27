@@ -8,7 +8,7 @@ import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/c
 import { boardFromPosition, hasPosition, toPlayAt, type BoardState } from '../lib/position';
 import type { Answer, ChatMessage } from '../lib/store';
 import { pointView } from '../lib/points';
-import { cutBelow } from '../lib/cutLine';
+import { cutAbove, cutBelow } from '../lib/cutLine';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage, longerLevel } from '../lib/levels';
@@ -797,9 +797,10 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
     end.current?.scrollIntoView({ block: 'end' });
   }, [messages.length, steps, last?.answer, answeredId]);
 
-  // A line of text cut in half at the pane's bottom edge stays hidden until it scrolls fully into
-  // view (lib/cutLine.ts), so the pane ends on a whole line above the composer while the reader
-  // scrolls too, not only when an answer first opens.
+  // A line of text cut in half at the pane's bottom or top edge stays hidden until it scrolls fully
+  // into view (lib/cutLine.ts), so the pane ends on a whole line above the composer and starts on
+  // one under the board, in every state (critics, 2026-10-27 round 1: while KataGo read, the
+  // question's bubble showed sliced in half at the top), not only when an answer first opens.
   const hasMessages = messages.length > 0;
   useEffect(() => {
     const box = pane.current;
@@ -809,8 +810,12 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
       frame = 0;
       const range = document.createRange();
       range.selectNodeContents(box);
-      const cut = cutBelow(range.getClientRects(), box.getBoundingClientRect().bottom);
-      const next = cut > 0 ? `inset(0 0 ${cut}px 0)` : '';
+      const lines = [...range.getClientRects()];
+      const edge = box.getBoundingClientRect();
+      const bubbles = [...box.querySelectorAll('.bubble')].map((b) => b.getBoundingClientRect());
+      const cut = cutBelow(lines, edge.bottom);
+      const top = cutAbove(lines, edge.top, bubbles);
+      const next = cut > 0 || top > 0 ? `inset(${top}px 0 ${cut}px 0)` : '';
       if (box.style.clipPath !== next) box.style.clipPath = next;
     };
     const later = () => {

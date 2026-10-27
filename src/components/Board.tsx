@@ -63,6 +63,11 @@ export interface BoardProps {
   candStyle?: 'heat' | 'plain';
   /** The figure on a compact disc in place of the rounded win chance (e.g. the lead once a game is decided). */
   candLabel?: (c: CandidateMark) => string;
+  /**
+   * Plain marks for a small board (a phone): a numbered one is drawn larger than its point so its
+   * number can be read, and one whose candLabel is '' is a small bare ring.
+   */
+  candBig?: boolean;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -81,7 +86,10 @@ const SKIN_SHADOW = SKIN_STONE * 2;
 const CAND_BEST = '#2fc4e4';
 /** A plain candidate: a circle a little smaller than a stone, and the widest its label is set. */
 const PLAIN_R = 0.45;
-const PLAIN_FIT = 0.82;
+const PLAIN_BIG_R = 0.76;
+const PLAIN_BARE_R = 0.22;
+/** Room kept between a plain label's corners and the inside of its ring (board units). */
+const PLAIN_PAD = 0.04;
 const CAND_STOPS: [number, [number, number, number]][] = [
   [0, [120, 214, 104]],
   [0.5, [244, 197, 66]],
@@ -703,25 +711,29 @@ function BoardImpl(p: BoardProps) {
   const compact = plain || unitPx < 27;
   const side = plain && p.toPlay ? (p.toPlay === 1 ? ' to-b' : ' to-w') : '';
   const labels: string[] = [];
+  const labelOf = (c: CandidateMark) => (p.candLabel ? p.candLabel(c) : String(Math.round(c.winrate * 100)));
   const candEls = (p.candidates ?? [])
     .filter((c) => c.loc !== PASS && !board[c.loc] && inWin(c.loc % size, Math.floor(c.loc / size)))
-    .sort((a, b) => b.rank - a.rank)
-    .map((c) => {
+    // the numbered marks over the bare ones (a big mark overhangs its point), KataGo's choice on top
+    .map((c) => ({ c, label: labelOf(c) }))
+    .sort((a, b) => Number(!!a.label) - Number(!!b.label) || b.c.rank - a.c.rank)
+    .map(({ c, label }) => {
       const x = c.loc % size, y = Math.floor(c.loc / size);
       const wr = c.winrate * 100;
       const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
-      const label = p.candLabel ? p.candLabel(c) : String(Math.round(wr));
       if (compact) labels.push(label);
+      const bare = plain && !label;
+      const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? PLAIN_BIG_R : PLAIN_R;
       return (
         <g
           key={`c${c.loc}`}
-          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${side}`}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${side}${bare ? ' bare' : plain && p.candBig ? ' big' : ''}`}
           style={plain ? undefined : { opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
         >
           {/* under a light ring, an ink edge a little wider shows on both sides of it (a pale ring alone vanishes on pale wood) */}
-          {side === ' to-w' && <circle className="cand-edge" cx={x} cy={y} r={PLAIN_R} />}
-          <circle className="cand-disc" cx={x} cy={y} r={plain ? PLAIN_R : 0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
-          {compact ? (
+          {side === ' to-w' && <circle className="cand-edge" cx={x} cy={y} r={r} />}
+          <circle className="cand-disc" cx={x} cy={y} r={r} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          {bare ? null : compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
               {label}
             </text>
@@ -748,9 +760,9 @@ function BoardImpl(p: BoardProps) {
       );
     });
 
-  // A plain label wider than its circle ("−0.9" in a phone's larger type) is set narrower to fit
-  // inside it, keeping its height, as the 3D board's printed numbers are.
-  const fitKey = plain && labels.length ? `${px}|${labels.join(' ')}` : '';
+  // A plain label wider than the inside of its ring is set narrower to fit, keeping its height (as
+  // the 3D board's printed numbers are), so no corner of it touches the ring.
+  const fitKey = plain && labels.length ? `${px}|${p.candBig ? 'big' : ''}|${labels.join(' ')}` : '';
   useEffect(() => {
     const el = svgRef.current;
     if (!fitKey || !el) return;
@@ -758,11 +770,19 @@ function BoardImpl(p: BoardProps) {
     const fit = () => {
       if (!alive) return;
       el.querySelectorAll<SVGTextElement>('.cand.plain .cand-wr').forEach((t) => {
-        if (typeof t.getComputedTextLength !== 'function') return;
+        const disc = t.parentElement?.querySelector<SVGCircleElement>('.cand-disc');
+        if (typeof t.getComputedTextLength !== 'function' || !disc) return;
         t.removeAttribute('textLength');
         t.removeAttribute('lengthAdjust');
-        if (t.getComputedTextLength() <= PLAIN_FIT) return;
-        t.setAttribute('textLength', String(PLAIN_FIT));
+        // the widest a line of digits half a font-size tall can be inside the ring's inner edge
+        // (a mark without a ring, the book's cleared point, only keeps the label inside its width)
+        const sw = parseFloat(getComputedStyle(disc).strokeWidth) || 0;
+        const r = disc.r.baseVal.value;
+        const inner = r - sw / 2 - PLAIN_PAD;
+        const half = 0.36 * (parseFloat(getComputedStyle(t).fontSize) || 0);
+        const room = getComputedStyle(disc).stroke === 'none' || !sw ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - half * half));
+        if (!room || t.getComputedTextLength() <= room) return;
+        t.setAttribute('textLength', room.toFixed(3));
         t.setAttribute('lengthAdjust', 'spacingAndGlyphs');
       });
     };
@@ -830,6 +850,8 @@ function BoardImpl(p: BoardProps) {
       {ownership}
       {lines}
       {heat}
+      {/* marks larger than their point (candBig) go under the stones, so they never cover one */}
+      {p.candBig && varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
       {stoneLayer}
       {last !== null && (
         <g key={`last${last}`} className={`bd-last ${board[last] === 1 ? 'on-b' : 'on-w'}`}>
@@ -837,7 +859,7 @@ function BoardImpl(p: BoardProps) {
           <circle className="bd-last-ring" cx={last % size} cy={Math.floor(last / size)} r={0.19} />
         </g>
       )}
-      {varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
+      {!p.candBig && varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
       {varEls.length > 0 && <g className="bd-vars">{varEls}</g>}
       {markEls}
       {p.badge && p.badge.loc !== PASS && inWin(p.badge.loc % size, Math.floor(p.badge.loc / size)) && (

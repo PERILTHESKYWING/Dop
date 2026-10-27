@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
+import { candidateLabeler, keyText } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
 
@@ -263,7 +263,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
   // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
   // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
+  // On a phone only a few marks carry a number, drawn larger than their point so it reads at
+  // 11 px or more; the others are small bare rings (lib/candLabels.ts phoneNumbered).
+  const bigMarks = phone && !book;
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, bigMarks ? board.size : 0), [candidates, phone, answerRead, bigMarks, board.size]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
@@ -414,6 +417,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       candidates={candidates}
       candStyle="plain"
       candLabel={candLabel}
+      candBig={bigMarks}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}
@@ -427,7 +431,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone, !!candLabel && !!candidates?.some((c) => candLabel(c) === SAME));
+  const key = keyText(candidates, sideName, !!candLabel && !!candidates?.some((c) => candLabel(c).startsWith('+')), book);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board
@@ -452,7 +456,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // While a line is previewed the bar stays in place, dimmed, and says whose read it shows
   // (critics, 2026-10-26: a fresh read there differed from the answer's numbers with no word):
   // the answer's own read of the previewed position when there is one, else the board's.
-  const evSource = preview ? (previewRead ? 'answer’s read' : withStones ? 'board’s read' : '') : '';
+  const evSource = preview ? (previewRead ? 'Answer’s read' : withStones ? 'Board’s read' : '') : '';
   const shown = preview && previewRead ? previewRead : withStones ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
@@ -634,14 +638,16 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       </div>
 
       <div
-          className={`bp-eval${shown ? '' : ' empty'}${pending && shown && !evSource ? ' stale' : ''}${preview ? ' dim' : ''}`}
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown && !evSource ? ' stale' : ''}${preview ? ' dim' : ''}${evSource && shown ? ' sourced' : ''}`}
           inert={!!preview}
           title={
             shown
-              ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource})` : pending ? ' (reading)' : ''}`
+              ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource.toLowerCase()})` : pending ? ' (reading)' : ''}`
               : 'Play a move to see who is ahead'
           }
         >
+          {/* whose read this is comes first, where it has room (critics, round 1: crammed at the right edge on a phone) */}
+          {evSource && shown && <span className="ev-source">{evSource}:</span>}
           <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
             <span className="ev-fill" style={{ transform: `scaleX(${bWin.toFixed(3)})` }} />
@@ -649,7 +655,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
-          {evSource && shown ? <span className="ev-state">{evSource}</span> : pending && shown && <span className="ev-state">reading</span>}
+          {!evSource && pending && shown && <span className="ev-state">reading</span>}
         </div>
 
       <div className="bp-body">
@@ -668,6 +674,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   marks={view.marks}
                   candidates={candidates}
                   candLabel={candLabel}
+                  candBig={bigMarks}
                   onCandidateHover={onCandidateHover}
                   onCandidateClick={onCandidateClick}
                   variation={variation}
@@ -694,12 +701,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           {keyOn && !readout && (
             <p className="bp-key">
               {book ? (
-                <>
-                  Numbers on the board: KataGo’s best moves (best underlined). Each: {keyNumber}
-                </>
+                key
               ) : (
                 <>
-                  <i className={`ring${toPlay === 2 ? ' w' : ''}`} aria-hidden="true" /> Rings: KataGo’s best moves. The number: {keyNumber}
+                  <i className={`ring${toPlay === 2 ? ' w' : ''}`} aria-hidden="true" /> {key}
                 </>
               )}
             </p>

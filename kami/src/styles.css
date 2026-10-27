@@ -1705,6 +1705,15 @@ kbd {
   color: var(--muted);
   white-space: nowrap;
 }
+/* a previewed line's bar says whose read it shows, before the numbers: 13.5 px in secondary
+   ink (13:1 on the panel, light and dark) */
+.ev-source {
+  flex: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
 .bp-body {
   flex: 1 1 0;
   min-height: 0;
@@ -1850,6 +1859,13 @@ kbd {
 }
 .board-panel svg.board .cand.plain text {
   fill: #1b1714;
+}
+/* a phone's marks without a number: a small ring, so the numbered ones stand out */
+.board-panel svg.board .cand.plain.bare .cand-disc {
+  stroke-width: 0.07;
+}
+.board-panel svg.board .cand.plain.bare .cand-edge {
+  stroke-width: 0.13;
 }
 .board-panel svg.board .cand.plain .cand-wr {
   font-size: 0.52px;
@@ -2726,19 +2742,31 @@ kbd {
   }
   /* On a phone the board is about 300 px wide (a line every ~15 px), so text sized in board units
      came out at 5 to 7 px. Coordinates are 0.76 of a line here (11 px or more on a 390 px
-     screen) and the numbers in KataGo's marks 0.9 (13.4 px; a long one such as "−0.9" is set
-     narrower to fit its ring, Board's PLAIN_FIT). The board itself does not move or change size. */
+     screen). KataGo's numbered marks are larger than a point (Board candBig, at most three of
+     them, lib/candLabels.ts) and their numbers 0.84 of a line, 12.5 px; one too wide for the
+     inside of its ring is set narrower, never smaller. The book's printed numbers stay 0.9. The
+     board itself does not move or change size. */
   .board-panel svg.board .bd-coords text,
   .board-panel svg.board.book .bd-coords text {
     font-size: 0.76px;
   }
-  .board-panel svg.board .cand.plain .cand-wr,
+  .board-panel svg.board .cand.plain .cand-wr {
+    font-size: 0.84px;
+    letter-spacing: -0.02px;
+  }
   .board-panel svg.board.book .cand.plain .cand-wr {
     font-size: 0.9px;
     letter-spacing: -0.04px;
   }
   .bp-head {
     height: 30px;
+  }
+  /* a phone's previewed bar: the words need the width, the dimmed track gives way */
+  .bp-eval.sourced .ev-track {
+    display: none;
+  }
+  .bp-eval.sourced {
+    gap: 6px;
   }
   /* the players always read "Black" and "White" in full; the engine chip gives way */
   .bp-players .pl {

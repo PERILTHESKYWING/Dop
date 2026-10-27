@@ -21,3 +21,21 @@ export function cutBelow(lines: Iterable<LineBox>, edge: number): number {
   }
   return Math.max(0, Math.ceil(edge - top));
 }
+
+/**
+ * The same at the pane's top edge (a phone's pane follows the end while KataGo reads, and the
+ * question's bubble showed sliced under the drag handle): the height of the strip below `edge`
+ * that holds only lines cut by it. A bubble (`boxes`: a message's own box, any height) whose
+ * part left under that strip is no more than its padding is hidden to its bottom as well, so no
+ * empty sliver of it stays either.
+ */
+export function cutAbove(lines: Iterable<LineBox>, edge: number, boxes: Iterable<LineBox> = [], pad = 24): number {
+  let bottom = edge;
+  for (const r of lines) {
+    const h = r.bottom - r.top;
+    if (h <= 0 || h > MAX_LINE) continue;
+    if (r.top < edge - 0.5 && r.bottom > edge) bottom = Math.max(bottom, r.bottom);
+  }
+  for (const b of boxes) if (b.top < edge - 0.5 && b.bottom > edge && b.bottom - bottom <= pad) bottom = Math.max(bottom, b.bottom);
+  return Math.max(0, Math.ceil(bottom - edge));
+}

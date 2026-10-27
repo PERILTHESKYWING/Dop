@@ -111,7 +111,7 @@ export interface PaleMark {
    * a cleared tan disc, its number in ink (critics, 2026-10-26: cream stones read as White's
    * stones with Black to play). `best` (KataGo's choice) has the thick ring. `alpha` is unused.
    */
-  token?: { best: boolean };
+  token?: { best: boolean; scale?: number };
 }
 
 /** Printed numbers and marks, one canvas each, kept for the page's life (a few dozen at most). */
@@ -162,7 +162,8 @@ function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: b
     g.arc(64, 64, r, 0, Math.PI * 2);
     g.fill();
   };
-  const ring = best ? 12 : 6;
+  // a mark without a number is drawn small (scaled down in setPale), so its ring is thicker here
+  const ring = best ? 12 : text ? 6 : 16;
   let r = 61;
   disc(r, TOKEN_INK);
   if (side === 2) {
@@ -171,17 +172,29 @@ function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: b
     r -= 3;
   } else r -= ring;
   disc(r, TOKEN_FILL);
+  if (!text) return;
   g.fillStyle = TOKEN_INK;
   g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  const px = text.length >= 4 ? 92 : text.length === 3 ? 100 : text.length === 2 ? 106 : 110;
-  g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
-  // a thin outline in the same ink: the number keeps its weight when the board shrinks it to a phone's point
-  g.strokeStyle = TOKEN_INK;
-  g.lineWidth = 4;
-  g.lineJoin = 'round';
-  g.strokeText(text, 64, 69, 2 * r - 6);
-  g.fillText(text, 64, 69, 2 * r - 6);
+  g.textBaseline = 'alphabetic';
+  // as tall as the disc allows, set narrower (never smaller) down to 62% so no corner of the
+  // number touches the ring (critics, 2026-10-27 round 1); only a longer one comes down in size
+  const inner = r - 5;
+  for (let px = 84; ; px -= 4) {
+    g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
+    const m = g.measureText(text);
+    const up = m.actualBoundingBoxAscent || px * 0.66, down = m.actualBoundingBoxDescent || 0;
+    const half = (up + down) / 2 + 2;
+    const room = 2 * Math.sqrt(Math.max(0, inner * inner - half * half));
+    if (m.width * 0.62 > room && px > 56) continue;
+    const y = 64 + (up - down) / 2;
+    // a thin outline in the same ink: the number keeps its weight when the board shrinks it to a phone's point
+    g.strokeStyle = TOKEN_INK;
+    g.lineWidth = 4;
+    g.lineJoin = 'round';
+    g.strokeText(text, 64, y, room - 4);
+    g.fillText(text, 64, y, room - 4);
+    return;
+  }
 }
 
 export interface CandGlow {
@@ -1688,11 +1701,15 @@ export class KayaView {
         // printed flat on the wood: no body, no shadow, nothing a stone has
         const map = tokenTexture(m.text ?? '', m.color, m.token.best);
         let faceMat = this.faceMats.get(map);
-        // pulled toward the camera further than the grid lines are (their polygonOffset -2), or the lines show through it
-        if (!faceMat) this.faceMats.set(map, (faceMat = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 })));
+        // a little over a millimetre above the wood, clear of the grid lines (lifted by their
+        // polygonOffset) yet under any stone, so a mark larger than its point (a phone) passes
+        // under its neighbours' stones and never covers one
+        if (!faceMat) this.faceMats.set(map, (faceMat = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false })));
         const face = new Mesh((this.tokenGeo ??= new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2)), faceMat);
-        face.position.copy(this.pointAt(m.loc, 0.0004));
-        face.renderOrder = 5;
+        face.position.copy(this.pointAt(m.loc, 0.0012));
+        if (m.token.scale) face.scale.setScalar(m.token.scale);
+        // a numbered mark (larger than its point on a phone) over a bare one
+        face.renderOrder = m.text ? 6 : 5;
         this.paleGroup.add(face);
         continue;
       }

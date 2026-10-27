@@ -24,6 +24,8 @@ export interface Kaya3DProps {
   candidates?: CandidateMark[] | null;
   /** The figure on a pale stone in place of the win chance (e.g. the lead once a game is decided). */
   candLabel?: (c: CandidateMark) => string;
+  /** A phone: numbered marks larger than their point, the ones labelled '' small bare rings (as Board's candBig). */
+  candBig?: boolean;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   variation?: Move[] | null;
@@ -133,9 +135,12 @@ export default function Kaya3D(p: Kaya3DProps) {
     const side = (p.toPlay ?? 1) as StoneColor;
     const marks = (p.candidates ?? [])
       .filter((c) => c.loc !== PASS && !p.stones[c.loc])
-      .map((c): PaleMark => ({ loc: c.loc, color: side, text: p.candLabel ? p.candLabel(c) : winText(c.winrate), alpha: 1, token: { best: c.rank === 0 } }));
+      .map((c): PaleMark => {
+        const text = p.candLabel ? p.candLabel(c) : winText(c.winrate);
+        return { loc: c.loc, color: side, text, alpha: 1, token: { best: c.rank === 0, scale: !text ? 0.5 : p.candBig ? 1.56 : 1 } };
+      });
     v.setPale(marks.length ? marks : null);
-  }, [ready, p.candidates, p.candLabel, p.variation, p.toPlay, p.stones]);
+  }, [ready, p.candidates, p.candLabel, p.candBig, p.variation, p.toPlay, p.stones]);
 
   const hadOwn = useRef(false);
   useEffect(() => {

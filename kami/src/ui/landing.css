@@ -89,6 +89,19 @@ html.kiai-landing {
 .l-flat.no-nums svg.board .cand-wr {
   display: none;
 }
+/* KataGo's choices as the app draws them (styles.css .cand.plain): a tan disc printed on the
+   wood with an ink ring, Black to play, the choice's ring thicker, never a pale stone */
+.l-flat svg.board .cand.plain .cand-disc {
+  fill: #e4c493;
+  stroke: #1b1714;
+  stroke-width: 0.06;
+}
+.l-flat svg.board .cand-best.plain .cand-disc {
+  stroke-width: 0.12;
+}
+.l-flat svg.board .cand.plain text {
+  fill: #1b1714;
+}
 .l-stage {
   position: fixed;
   inset: 0;
