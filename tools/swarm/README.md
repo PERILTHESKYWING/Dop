@@ -25,9 +25,12 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 3 | 8 (all 10) | polish only |
 | 2026-10-26 r1 | 8 (all 10) | 8 (three at 7) |
 | 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
+| 2026-10-26 (second run, Kiai only, 3 rounds) | 8 (all 10, every round) | not shot |
+
+Two runs of this routine overlapped on 2026-10-26 and built the same wishes twice; the second run ported only what main lacked (PR for 2026-10-27). Before starting, check open PRs **and** `git log origin/main` for a swarm merge from today, and never reuse a branch name that already exists on origin.
 
 Daily runs: shots for a run live in the run's scratchpad (before = main, after = the merged branch). The journey script walks the phone Settings list (`goPage`); the app script has a sixth state, `5-hover-candidate` (desktop hovers a candidate disc, phone taps a coordinate that is one of KataGo's choices). Stop servers by pid or with a script file: `pkill -f "port 4291"` in a one-line shell also kills that shell.
 
 The critics' open wishes after 2026-10-26 round 2, which are the start of the next run (none reached 9 yet):
-- Kiai: candidate discs read as white stones when Black is to play (pale stones of the colour to play); one sign convention for point labels on phone and desktop (phone shows 0.9, desktop -0.9; three critics split on which); phone candidate labels still small at 390 px; the in-progress path dot shows a quarter for 2% (a smaller minimum wedge); unearned seals all one tall shape; preview header score (a fresh read) differs from the answer's read with no label; readout row a touch bigger and left-aligned to the board; `aria-live` on the readout; hero sentence could name the shape like the app does; landing 3D board: static first paint, then upgrade (measure LCP).
+- Kiai: candidate discs read as white stones when Black is to play (pale stones of the colour to play); one sign convention for point labels on phone and desktop (phone shows 0.9, desktop -0.9; three critics split on which); phone candidate labels still small at 390 px; the in-progress path dot shows a quarter for 2% (a smaller minimum wedge); unearned seals all one tall shape; readout row a touch bigger and left-aligned to the board; `aria-live` on the readout; hero sentence could name the shape like the app does; landing 3D board: static first paint, then upgrade (measure LCP).
 - Hub: phone Threads tab, Studio and Library as tiles like Project chat / Team lessons; Library content capped near 880 px wide; one progress indicator per running job (card shows the label only); Team cards a little airy; 12-hour times without a leading zero; Team ⋯ buttons need an aria-label naming the account.

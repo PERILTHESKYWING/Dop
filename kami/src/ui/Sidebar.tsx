@@ -27,15 +27,18 @@ interface Props {
 /** The account button at the foot of the sidebar and the menu that opens above it. */
 function Account({ compact, onSettings }: { compact: boolean; onSettings: (page?: SettingsPage) => void }) {
   const name = useSetting<string>('profile.name').trim();
-  const shown = name || 'Guest';
+  const acct = useAccountView();
+  // Signed in with no name set: who Settings › Account says is signed in (the address before
+  // the @), never "Guest"
+  const who = acct.signedIn ? acct.email?.split('@')[0]?.trim() || 'Signed in' : 'Guest';
+  const shown = name || who;
   const initial = (shown.match(/\p{L}|\p{N}/u)?.[0] ?? 'K').toUpperCase();
   // The study path under the name (Settings › Journey), else "Synced" when signed in.
   const line = usePathLine();
   const pathOn = useSetting<boolean>('journey.on');
   const pathShown = useSetting<boolean>('journey.sidebar');
-  const acct = useAccountView();
   const plan = pathOn && pathShown && line ? line : acct.signedIn ? 'Synced' : 'Free · on this device';
-  const head = acct.signedIn && acct.email ? `${acct.email}${acct.lastSync ? ` · synced ${ago(acct.lastSync, Date.now(), true)}` : ''}` : name ? `${shown} · this browser` : 'Guest · saved in this browser';
+  const head = acct.signedIn ? `${acct.email ?? 'Signed in'}${acct.lastSync ? ` · synced ${ago(acct.lastSync, Date.now(), true)}` : ''}` : name ? `${shown} · this browser` : 'Guest · saved in this browser';
   return (
     <Popover
       className="account"

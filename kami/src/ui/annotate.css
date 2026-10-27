@@ -245,7 +245,7 @@
   resize: vertical;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--field-line);
   background: var(--card);
   color: var(--ink);
   font: 400 16px/1.5 var(--read);
