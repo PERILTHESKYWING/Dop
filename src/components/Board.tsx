@@ -57,11 +57,19 @@ export interface BoardProps {
   candidates?: CandidateMark[] | null;
   /**
    * How candidates look: 'heat' (default) coloured discs with win rate, visits and lead;
-   * 'plain' a printed circle with just the win chance, the way a Go book marks choices.
+   * 'plain' a printed circle with just the win chance, the way a Go book marks choices. With
+   * `toPlay`, a plain circle is classed `to-b` / `to-w` so a skin can ring it in the colour to play.
    */
   candStyle?: 'heat' | 'plain';
   /** The figure on a compact disc in place of the rounded win chance (e.g. the lead once a game is decided). */
   candLabel?: (c: CandidateMark) => string;
+  /**
+   * Plain marks for a small board (a phone): a numbered one is drawn larger than its point so its
+   * number can be read, and one whose candLabel is '' is a small bare ring.
+   */
+  candBig?: boolean;
+  /** With candBig: a numbered mark's place, moved off its point by (dx, dy) and its radius (board units). */
+  candPlace?: (c: CandidateMark) => { dx: number; dy: number; r: number } | undefined;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -78,6 +86,12 @@ const SKIN_STONE = 2 * 0.483 * 1.25;
 const SKIN_SHADOW = SKIN_STONE * 2;
 
 const CAND_BEST = '#2fc4e4';
+/** A plain candidate: a circle a little smaller than a stone, and the widest its label is set. */
+const PLAIN_R = 0.45;
+const PLAIN_BIG_R = 0.76;
+const PLAIN_BARE_R = 0.38;
+/** Room kept between a plain label's corners and the inside of its ring (board units). */
+const PLAIN_PAD = 0.04;
 const CAND_STOPS: [number, [number, number, number]][] = [
   [0, [120, 214, 104]],
   [0.5, [244, 197, 66]],
@@ -697,23 +711,34 @@ function BoardImpl(p: BoardProps) {
   const unitPx = px ? px / (cropped ? crop.x1 - crop.x0 + 2 * g.m : g.W) : 40;
   const plain = p.candStyle === 'plain';
   const compact = plain || unitPx < 27;
+  const side = plain && p.toPlay ? (p.toPlay === 1 ? ' to-b' : ' to-w') : '';
+  const labels: string[] = [];
+  const labelOf = (c: CandidateMark) => (p.candLabel ? p.candLabel(c) : String(Math.round(c.winrate * 100)));
   const candEls = (p.candidates ?? [])
     .filter((c) => c.loc !== PASS && !board[c.loc] && inWin(c.loc % size, Math.floor(c.loc / size)))
-    .sort((a, b) => b.rank - a.rank)
-    .map((c) => {
-      const x = c.loc % size, y = Math.floor(c.loc / size);
+    // the numbered marks over the bare ones (a big mark overhangs its point), KataGo's choice on top
+    .map((c) => ({ c, label: labelOf(c) }))
+    .sort((a, b) => Number(!!a.label) - Number(!!b.label) || b.c.rank - a.c.rank)
+    .map(({ c, label }) => {
+      const bare = plain && !label;
+      const place = plain && p.candBig && !bare ? p.candPlace?.(c) : undefined;
+      const x = (c.loc % size) + (place?.dx ?? 0), y = Math.floor(c.loc / size) + (place?.dy ?? 0);
       const wr = c.winrate * 100;
       const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
+      if (compact) labels.push(label);
+      const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? (place?.r ?? PLAIN_BIG_R) : PLAIN_R;
       return (
         <g
           key={`c${c.loc}`}
-          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}`}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${side}${bare ? ' bare' : plain && p.candBig ? ' big' : ''}`}
           style={plain ? undefined : { opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
         >
-          <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
-          {compact ? (
+          {/* under a light ring, an ink edge a little wider shows on both sides of it (a pale ring alone vanishes on pale wood) */}
+          {side === ' to-w' && <circle className="cand-edge" cx={x} cy={y} r={r} />}
+          <circle className="cand-disc" cx={x} cy={y} r={r} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          {bare ? null : compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
-              {p.candLabel ? p.candLabel(c) : Math.round(wr)}
+              {label}
             </text>
           ) : (
             <>
@@ -737,6 +762,40 @@ function BoardImpl(p: BoardProps) {
         </g>
       );
     });
+
+  // A plain label wider than the inside of its ring is set narrower to fit, keeping its height (as
+  // the 3D board's printed numbers are), so no corner of it touches the ring.
+  const fitKey = plain && labels.length ? `${px}|${p.candBig ? 'big' : ''}|${labels.join(' ')}|${p.candPlace ? (p.candidates ?? []).map((c) => p.candPlace!(c)?.r.toFixed(2) ?? '').join(',') : ''}` : '';
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!fitKey || !el) return;
+    let alive = true;
+    const fit = () => {
+      if (!alive) return;
+      el.querySelectorAll<SVGTextElement>('.cand.plain .cand-wr').forEach((t) => {
+        const disc = t.parentElement?.querySelector<SVGCircleElement>('.cand-disc');
+        if (typeof t.getComputedTextLength !== 'function' || !disc) return;
+        t.removeAttribute('textLength');
+        t.removeAttribute('lengthAdjust');
+        // the widest a line of digits half a font-size tall can be inside the ring's inner edge
+        // (a mark without a ring, the book's cleared point, only keeps the label inside its width)
+        const sw = parseFloat(getComputedStyle(disc).strokeWidth) || 0;
+        const r = disc.r.baseVal.value;
+        const inner = r - sw / 2 - PLAIN_PAD;
+        const half = 0.36 * (parseFloat(getComputedStyle(t).fontSize) || 0);
+        const room = getComputedStyle(disc).stroke === 'none' || !sw ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - half * half));
+        if (!room || t.getComputedTextLength() <= room) return;
+        t.setAttribute('textLength', room.toFixed(3));
+        t.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+      });
+    };
+    fit();
+    // measured again once the site's font is in (a fallback face has other widths)
+    void document.fonts?.ready.then(fit);
+    return () => {
+      alive = false;
+    };
+  }, [fitKey]);
 
   // A variation: numbered see-through stones (the first move of the line at a point wins).
   const varEls: JSX.Element[] = [];
@@ -794,6 +853,8 @@ function BoardImpl(p: BoardProps) {
       {ownership}
       {lines}
       {heat}
+      {/* marks larger than their point (candBig) go under the stones, so they never cover one */}
+      {p.candBig && varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
       {stoneLayer}
       {last !== null && (
         <g key={`last${last}`} className={`bd-last ${board[last] === 1 ? 'on-b' : 'on-w'}`}>
@@ -801,7 +862,7 @@ function BoardImpl(p: BoardProps) {
           <circle className="bd-last-ring" cx={last % size} cy={Math.floor(last / size)} r={0.19} />
         </g>
       )}
-      {varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
+      {!p.candBig && varEls.length === 0 && candEls.length > 0 && <g className="bd-cands">{candEls}</g>}
       {varEls.length > 0 && <g className="bd-vars">{varEls}</g>}
       {markEls}
       {p.badge && p.badge.loc !== PASS && inWin(p.badge.loc % size, Math.floor(p.badge.loc / size)) && (

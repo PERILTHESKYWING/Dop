@@ -3,7 +3,7 @@
  * caption that explains the previewed move"). One plain line, made only of KataGo's numbers
  * already on screen: where the move ranks in KataGo's read, the win chance after it, what it
  * loses against KataGo's choice (in the board labels' rounding, lib/candLabels.ts) and how many
- * visits it got. No language model, and nothing about the board that KataGo did not measure.
+ * positions KataGo read under it (its visits). No language model, and nothing about the board that KataGo did not measure.
  */
 import { fmt1 } from '../../../src/lib/coach/explain/geometry';
 import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
@@ -22,7 +22,7 @@ const ordinal = (n: number) => {
 export interface MoveStats {
   /** The move's point, e.g. "Q9". */
   at: string;
-  /** "KataGo’s 2nd most-read move · Black 54%, 1.2 points worse · 1,200 visits" (`compact`: shorter rank words, for a phone). */
+  /** "KataGo’s 2nd most-read move · Black 54%, 1.2 points worse · 1,200 positions" (`compact`: shorter rank words, for a phone). */
   text: string;
 }
 
@@ -49,9 +49,9 @@ export function moveStats(read: Pick<EngineRead, 'candidates'> | null | undefine
     const d = best.scoreLead - c.scoreLead;
     const shown = fmt1(Math.abs(d));
     const pts = shown === '1.0' ? 'point' : 'points';
-    loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${pts} worse` : `${shown} ${pts} ahead on fewer visits`;
+    loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${pts} worse` : `${shown} ${pts} ahead on a shorter read`;
   }
-  const visits = `${c.visits.toLocaleString('en-US')} visits`;
+  const visits = `${c.visits.toLocaleString('en-US')} positions`;
   const text = [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
   return { at, text };
 }

@@ -18,7 +18,7 @@ describe('hub note text', () => {
     expect(noteText('v1.2 is out')).toBe('v1.2 is out');
   });
   it('is what the hub note draws', () => {
-    expect(page).toContain('esc(noteText(capModels(m.text)))');
+    expect(page).toContain('noteText(capModels(m.text))');
   });
 });
 

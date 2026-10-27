@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, keyNumberText, SAME } from '../lib/candLabels';
+import { candidateLabeler, holdPick, keyText, phonePick, phonePlaces, type PickHold } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
 
@@ -102,7 +102,7 @@ interface Props {
   /** The conversation has an answer: the engine's loading chip then folds to a dot. */
   answered?: boolean;
   /** KataGo's reads behind the conversation's answers, by position key, newest first (one read on screen). */
-  answerReads?: readonly { key: string; read: EngineRead }[];
+  answerReads?: readonly { key: string; read: EngineRead; named?: readonly number[] }[];
 }
 
 const PHONE = '(max-width: 899px)';
@@ -199,15 +199,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // One read on screen (critics, round 2): once an answer about this very position exists, the
   // candidates, their labels and the eval bar show the answer's own read, so the text's "Q12 is
   // 1.1 points worse" is Q12's label. Territory still comes from the board's read.
-  // While a line of that answer is previewed, the eval bar keeps the answer's read of the
-  // position the line starts from, so the bar, the caption and the text give one lead (swarm
-  // critics: the bar said White +11.0 from the board's own read, the caption and text 10.4).
-  const answerRead = useMemo(() => {
-    const p = preview ? preview.base : position;
-    if (!p || !answerReads?.length) return null;
-    const k = positionKey(p);
-    return answerReads.find((a) => a.key === k)?.read ?? null;
-  }, [preview, position, answerReads]);
+  const answerOf = useMemo(() => {
+    if (!position || !answerReads?.length) return null;
+    const k = positionKey(position);
+    return answerReads.find((a) => a.key === k) ?? null;
+  }, [position, answerReads]);
+  const answerRead = answerOf?.read ?? null;
   const read = answerRead ?? boardRead.read;
   const last = answerRead ?? boardRead.last;
   const pending = answerRead ? false : boardRead.pending;
@@ -265,9 +262,36 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
-  // The same one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both read
-  // "−1" on a phone); a phone's small discs drop the minus sign so they fit at 11+ px.
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
+  // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
+  // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
+  // On a phone only a few marks carry a number, drawn larger than their point so it reads at
+  // 11 px or more, the moves the answer names among them; the others are small bare rings
+  // (lib/candLabels.ts phonePick). While KataGo reads, the numbered points hold for a second
+  // before they move (holdPick), so the numbers do not jump between marks as ranks swap.
+  const bigMarks = phone && !book;
+  const held = useRef<{ key: string; hold: PickHold } | null>(null);
+  const [holdTick, setHoldTick] = useState(0);
+  const named = useMemo(() => (answerOf?.named ? new Set(answerOf.named) : null), [answerOf]);
+  const posKey = position ? positionKey(position) : '';
+  const numbered = useMemo(() => {
+    if (!bigMarks || !candidates?.length) return null;
+    const want = phonePick(candidates, board.size, named);
+    const prev = held.current?.key === posKey ? held.current.hold : null;
+    const hold = holdPick(prev, want, new Set(candidates.map((c) => c.loc)), Date.now());
+    held.current = { key: posKey, hold };
+    return hold.shown;
+    // holdTick: looked at again once a held pick's second is up
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bigMarks, candidates, board.size, named, posKey, holdTick]);
+  const waiting = !!numbered && !!held.current && held.current.hold.next !== numbered.join(',');
+  useEffect(() => {
+    if (!waiting) return;
+    const t = window.setTimeout(() => setHoldTick((n) => n + 1), 1050);
+    return () => window.clearTimeout(t);
+  }, [waiting, numbered]);
+  const places = useMemo(() => (numbered ? phonePlaces(numbered, board.size) : null), [numbered, board.size]);
+  const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, numbered ? new Set(numbered) : null), [candidates, phone, answerRead, numbered]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
@@ -295,6 +319,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     }
     return '';
   }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
+
+  const [spoken, setSpoken] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setSpoken(readout), 400);
+    return () => window.clearTimeout(t);
+  }, [readout]);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverCand(null);
@@ -412,6 +442,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       candidates={candidates}
       candStyle="plain"
       candLabel={candLabel}
+      candBig={bigMarks}
+      candPlace={candPlace}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}
@@ -425,7 +457,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const keyNumber = keyNumberText(candidates, sideName, board.cursor + 1, read ? read.bLead : null, board.size, phone, !!candLabel && !!candidates?.some((c) => candLabel(c) === SAME));
+  const key = keyText(candidates, sideName, !!candLabel && !!candidates?.some((c) => candLabel(c).startsWith('+')), book);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board
@@ -447,8 +479,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const chipFolded = chipOn && answered && status.state === 'loading';
 
   // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
-  // While a line is previewed the bar stays in place, dimmed, with the board's own read.
-  const shown = withStones ? (read ?? last) : null;
+  // While a line is previewed the bar stays in place, dimmed, and says whose read it shows
+  // (critics, 2026-10-26: a fresh read there differed from the answer's numbers with no word):
+  // the answer's own read of the previewed position when there is one, else the board's.
+  const evSource = preview ? (previewRead ? 'Answer’s read' : withStones ? 'Board’s read' : '') : '';
+  const shown = preview && previewRead ? previewRead : withStones ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
   const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'Black' : 'White'} +${Math.abs(lead).toFixed(1)}`;
@@ -629,12 +664,16 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       </div>
 
       <div
-          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}${preview ? ' dim' : ''}`}
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown && !evSource ? ' stale' : ''}${preview ? ' dim' : ''}${evSource && shown ? ' sourced' : ''}`}
           inert={!!preview}
           title={
-            shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
+            shown
+              ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource.toLowerCase()})` : pending ? ' (reading)' : ''}`
+              : 'Play a move to see who is ahead'
           }
         >
+          {/* whose read this is comes first, where it has room (critics, round 1: crammed at the right edge on a phone) */}
+          {evSource && shown && <span className="ev-source">{evSource}:</span>}
           <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
             <span className="ev-fill" style={{ transform: `scaleX(${bWin.toFixed(3)})` }} />
@@ -642,7 +681,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
-          {pending && shown && <span className="ev-state">reading</span>}
+          {!evSource && pending && shown && <span className="ev-state">reading</span>}
         </div>
 
       <div className="bp-body">
@@ -661,6 +700,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   marks={view.marks}
                   candidates={candidates}
                   candLabel={candLabel}
+                  candBig={bigMarks}
+                  candPlace={candPlace}
                   onCandidateHover={onCandidateHover}
                   onCandidateClick={onCandidateClick}
                   variation={variation}
@@ -677,7 +718,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               flatBoard
             )}
           </div>
-          <div className="bp-under">
+          <div className="bp-under" style={{ '--board-w': `${boxW}px` } as React.CSSProperties}>
           {keyOn && readout && (
             // a hovered disc: its numbers take the key's row (the board does not move)
             <p className="bp-note">
@@ -687,12 +728,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           {keyOn && !readout && (
             <p className="bp-key">
               {book ? (
-                <>
-                  Numbers on the board: KataGo’s best moves (best underlined). Each: {keyNumber}
-                </>
+                key
               ) : (
                 <>
-                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: {keyNumber}
+                  <i className={`ring${toPlay === 2 ? ' w' : ''}`} aria-hidden="true" /> {key}
                 </>
               )}
             </p>
@@ -709,6 +748,19 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 ' '
               )}
             </p>
+          )}
+          {/* a screen reader hears the readout once it settles on a move, not every disc a pointer crosses */}
+          <p className="sr-only" aria-live="polite">
+            {spoken}
+          </p>
+          {/* every candidate with KataGo's numbers for it, for a screen reader: a phone's bare rings carry none on the board */}
+          {keyOn && read && (
+            <ul className="sr-only" aria-label="KataGo’s best moves">
+              {candidates!.map((c) => {
+                const st = moveStats(read, c.loc, toPlay, board.size);
+                return st ? <li key={c.loc}>{`${st.at}: ${st.text}`}</li> : null;
+              })}
+            </ul>
           )}
           </div>
         </div>

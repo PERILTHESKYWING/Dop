@@ -19,7 +19,7 @@ import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
-import { candidateLabeler, keyNumberText, lossLabel } from '../kami/src/lib/candLabels';
+import { BIG_R, candidateLabeler, holdPick, keyText, lossLabel, phonePick, phonePlaces } from '../kami/src/lib/candLabels';
 import { LlmUnavailable, type CallLlm } from '../kami/src/lib/llm';
 import { NOTES, writeAnswer } from '../kami/src/lib/writer';
 
@@ -182,29 +182,79 @@ describe('candidate labels in a lopsided game', () => {
   const c = (winrate: number, scoreLead: number, rank?: number) => ({ winrate, scoreLead, ...(rank !== undefined ? { rank } : {}) });
   it('show the loss against KataGo’s choice, not the same lead everywhere', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.8, 3)];
-    // KataGo's choice is a ring (never "0.0"), the others the answer's own rounding; a thinner
-    // read that came out ahead says so once an answer explains it, and is "≈" before that.
-    expect(cands.map(candidateLabeler(cands, false, true)!)).toEqual(['○', '−0.9', '−1.3', '+0.3']);
-    expect(cands.map(candidateLabeler(cands)!)).toEqual(['○', '−0.9', '−1.3', '≈']);
+    // KataGo's choice shows its win chance with a % (never "0.0"), the others the answer's own
+    // rounding; a thinner read that came out ahead says so once an answer explains it, and is
+    // "≈" before that.
+    expect(cands.map(candidateLabeler(cands, false, true)!)).toEqual(['1%', '−0.9', '−1.3', '+0.3']);
+    expect(cands.map(candidateLabeler(cands)!)).toEqual(['1%', '−0.9', '−1.3', '≈']);
     expect(cands.map(candidateLabeler(cands, true)!).some((l) => l.startsWith('+'))).toBe(false);
     expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19.0');
     expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
   });
-  it('the same one-decimal numbers on a phone, without the minus sign, so they fit the disc', () => {
+  it('the same signed one-decimal numbers on a phone as on a desktop (whole points from 10)', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.3, 3), c(0, -30, 4)];
-    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['○', '0.9', '1.3', '0.3', '19']);
-    expect(cands.map(candidateLabeler(cands, true)!).slice(1, 3)).toEqual(cands.map(candidateLabeler(cands)!).slice(1, 3).map((l) => l.replace('−', '')));
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['1%', '−0.9', '−1.3', '−0.3', '−19']);
+    expect(cands.map(candidateLabeler(cands, true)!).slice(0, 4)).toEqual(cands.map(candidateLabeler(cands)!).slice(0, 4));
+    // a true minus sign (U+2212), never a hyphen
+    expect(candidateLabeler(cands, true)!(cands[1]).codePointAt(0)).toBe(0x2212);
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();
-    expect(keyNumberText([c(0.45, -1)], 'Black', 35, -1, 19)).toBe('how often Black wins after it, out of 100.');
+    expect(keyText([c(0.45, -1)], 'Black')).toBe('Rings: KataGo’s best moves, with Black’s win chance. Thick ring: KataGo’s choice.');
   });
-  it('the key says "decided" only late in the game', () => {
+  it('the key names every figure a mark can show, in one name for the number', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11.');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the ring.');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true, true)).toBe('points Black loses against the ring; ≈ about as good.');
-    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11; the game is decided.');
+    expect(keyText(cands, 'Black')).toBe('Thick ring: KataGo’s choice, with Black’s win chance. Other rings: points lost against it (≈ about the same).');
+    expect(keyText(cands, 'White', true)).toBe('Thick ring: KataGo’s choice, with White’s win chance. Other rings: points lost against it (≈ about the same, + ahead on a shorter read).');
+    expect(keyText(cands, 'Black', false, true)).toMatch(/^Underlined: KataGo’s choice/);
+    for (const t of [keyText(cands, 'Black'), keyText([c(0.45, -1)], 'Black')]) expect(t).not.toMatch(/winrate|win %/);
+  });
+  const at = (x: number, y: number) => y * 19 + x;
+  const m = (rank: number, x: number, y: number, lead: number) => ({ ...c(0.01, lead, rank), loc: at(x, y) });
+  it('a phone numbers at most three marks, spaced so the larger ones never overlap', () => {
+    // KataGo's choice, its neighbour a point worse (skipped), two further away, a fifth past the three
+    const cands = [m(0, 16, 9, -11), m(1, 17, 9, -12), m(2, 16, 11, -12.2), m(3, 13, 11, -12.5), m(4, 3, 3, -13)];
+    const pick = phonePick(cands, 19);
+    expect(pick).toEqual([at(16, 9), at(16, 11), at(13, 11)]);
+    const label = candidateLabeler(cands, true, false, new Set(pick))!;
+    expect(cands.map(label)).toEqual(['1%', '', '−1.2', '−1.5', '']);
+    // a close game on a phone: the same three carry the win chance, the rest are bare
+    const close = cands.map((x) => ({ ...x, winrate: 0.45 }));
+    expect(close.map(candidateLabeler(close, true, false, new Set(pick))!)).toEqual(['45', '', '45', '45', '']);
+    // spaced marks keep their full size on their own points
+    expect([...phonePlaces(pick, 19).values()].every((p) => p.r === BIG_R && p.dx === 0 && p.dy === 0)).toBe(true);
+  });
+  it('a move the answer names is numbered even next to KataGo’s choice, and both marks fit', () => {
+    // "R12 is about as good as Q10": R12 sits next to the choice
+    const cands = [m(0, 15, 9, -11), m(1, 16, 9, -11.2), m(2, 12, 12, -12), m(3, 3, 3, -13)];
+    const pick = phonePick(cands, 19, new Set([at(16, 9), at(15, 9)]));
+    expect(pick).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
+    const places = phonePlaces(pick, 19);
+    const a = places.get(at(15, 9))!, b = places.get(at(16, 9))!;
+    // each moves 0.2 of a point apart and shrinks so the two never overlap
+    expect(a.dx).toBeCloseTo(-0.2);
+    expect(b.dx).toBeCloseTo(0.2);
+    expect(a.r + b.r).toBeLessThanOrEqual(1 + 0.4);
+    expect(a.r).toBeGreaterThan(0.6);
+    // an answer naming more moves than fit still numbers the one about as good as the choice
+    const more = [m(0, 15, 9, -11), m(1, 15, 7, -11.9), m(2, 14, 10, -12.3), m(3, 16, 9, -11.2)];
+    expect(phonePick(more, 19, new Set([at(15, 7), at(14, 10), at(16, 9), at(15, 9)]))).toEqual([at(15, 9), at(16, 9), at(15, 7)]);
+    // with no answer, a move within 0.3 points of the choice is numbered first the same way
+    expect(phonePick(cands, 19)).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
+    expect(phonePick(cands.map((x, i) => (i === 1 ? { ...x, scoreLead: -12 } : x)), 19)).toEqual([at(15, 9), at(12, 12), at(3, 3)]);
+  });
+  it('the numbered points hold for a second while ranks swap', () => {
+    const present = new Set([1, 2, 3, 4]);
+    let h = holdPick(null, [1, 2, 3], present, 0);
+    h = holdPick(h, [1, 2, 4], present, 100);
+    expect(h.shown).toEqual([1, 2, 3]);
+    h = holdPick(h, [1, 2, 3], present, 400);
+    h = holdPick(h, [1, 2, 4], present, 500);
+    expect(holdPick(h, [1, 2, 4], present, 1400).shown).toEqual([1, 2, 3]);
+    expect(holdPick(h, [1, 2, 4], present, 1500).shown).toEqual([1, 2, 4]);
+    // a new choice of KataGo's, or a shown point gone from the read, moves at once
+    expect(holdPick(h, [4, 2, 3], present, 600).shown).toEqual([4, 2, 3]);
+    expect(holdPick(h, [1, 2, 4], new Set([1, 2, 4]), 600).shown).toEqual([1, 2, 4]);
   });
 });
 

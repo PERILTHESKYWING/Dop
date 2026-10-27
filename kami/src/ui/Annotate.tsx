@@ -287,7 +287,7 @@ export default function Annotate() {
     return { stones: b.stones, marks, last: last === PASS ? null : last };
   }, [board, sel, after, moment, note]);
 
-  const readNote = board ? (readUpTo < positions.length ? `KataGo reading move ${readUpTo} of ${positions.length - 1}` : `Read at ${depth} visits`) : '';
+  const readNote = board ? (readUpTo < positions.length ? `KataGo reading move ${readUpTo} of ${positions.length - 1}` : `Read at ${depth.toLocaleString()} positions a move`) : '';
 
   return (
     <div className="notes-page">
@@ -396,7 +396,7 @@ export default function Annotate() {
             </div>
             {moment ? (
               <p className="notes-kata">
-                KataGo: <b>{moment.best ?? '—'}</b> was best. This move lost <b>{pts(moment.scoreLoss)}</b> points and <b>{pct(moment.winLoss)}</b> win chance (from {pct(moment.winBefore)}), {moment.visits} visits.
+                KataGo: <b>{moment.best ?? '—'}</b> was best. This move lost <b>{pts(moment.scoreLoss)}</b> points and <b>{pct(moment.winLoss)}</b> win chance (from {pct(moment.winBefore)}), {moment.visits.toLocaleString()} positions read.
               </p>
             ) : (
               <p className="notes-kata">KataGo has not read this move yet.</p>

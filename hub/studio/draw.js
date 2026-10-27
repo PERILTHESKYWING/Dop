@@ -319,7 +319,7 @@ export class Pen {
   }
 
   text(t, x, y, size, opts = {}) {
-    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}), ...(opts.outline ? { outline: opts.outline, ow: opts.ow || 0.18 } : {}), ...(opts.sans ? { sans: true } : {}) });
+    this.ops.push({ text: t, x, y, size, fill: opts.color || this.style.ink, align: opts.align || 'center', ...(opts.weight ? { weight: opts.weight } : {}), ...(opts.outline ? { outline: opts.outline, ow: opts.ow || 0.18 } : {}), ...(opts.sans ? { sans: true } : {}), ...(opts.ui ? { ui: true } : {}) });
   }
 }
 

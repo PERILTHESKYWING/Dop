@@ -16,6 +16,7 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 - `LEVEL=default kiai-app-shots.cjs OUT light|dark both`: app states 0-4 (empty, game, thinking, answer, hover) on the landing's demo game. The board rect must be identical in all 5 states.
 - `SCHEME=light|dark OUT=dir kiai-journey-shots.cjs`: sidebar foot, Settings › Journey, Account (signed out, create, recovery code, signed in). Needs the account API (`kami:dev` memory store).
 - `node hub-seed-server.mjs` (with `BIG=1` for the long list), then `hub-shots.cjs OUT`: a seeded fake hub (memory store, fake Claude). The seed is for screenshots only and is not product data.
+- `BIG=1 LONG=500 PORT=7791 node hub-seed-server.mjs`, then `[ALL=1] node hub-feed-perf.cjs http://localhost:7791 6 2000`: long-thread speed on a 390 px phone with 4x CPU throttle; prints thread-open ms and dropped frames during a fling (median and p90). `ALL=1` draws every message first. Run main and the branch on two ports and compare.
 
 ## Results
 | Round | Kiai median | Hub median |
@@ -27,13 +28,14 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
 | 2026-10-24 (paused, finished 10-27) | 8 (all 10, two passes) | 8 (all 10, two passes) |
 | 2026-10-26 (second run, Kiai only, 3 rounds) | 8 (all 10, every round) | not shot |
-
-The 10-24 run overlapped the 10-26 run; only its unique parts were ported onto main (hub idle feed warm-up, note/select/task/sheet looks; Kiai CJK term names, "positions", stage-led path heading, kaya dispose fix).
+| 2026-10-27 r1 | 8 (all 10; phone 7 from seven) | 8 (nine), 7 (artist) |
+| 2026-10-27 r2 | 8 (all 10; phone 8 from all) | 8 (all 10) |
 
 Two runs of this routine overlapped on 2026-10-26 and built the same wishes twice; the second run ported only what main lacked (PR for 2026-10-27). Before starting, check open PRs **and** `git log origin/main` for a swarm merge from today, and never reuse a branch name that already exists on origin.
 
 Daily runs: shots for a run live in the run's scratchpad (before = main, after = the merged branch). The journey script walks the phone Settings list (`goPage`); the app script has a sixth state, `5-hover-candidate` (desktop hovers a candidate disc, phone taps a coordinate that is one of KataGo's choices). Stop servers by pid or with a script file: `pkill -f "port 4291"` in a one-line shell also kills that shell.
 
-The critics' open wishes after 2026-10-26 round 2, which are the start of the next run (none reached 9 yet):
-- Kiai: candidate discs read as white stones when Black is to play (pale stones of the colour to play); one sign convention for point labels on phone and desktop (phone shows 0.9, desktop -0.9; three critics split on which); phone candidate labels still small at 390 px; the in-progress path dot shows a quarter for 2% (a smaller minimum wedge); unearned seals all one tall shape; readout row a touch bigger and left-aligned to the board; `aria-live` on the readout; hero sentence could name the shape like the app does; landing 3D board: static first paint, then upgrade (measure LCP).
-- Hub: phone Threads tab, Studio and Library as tiles like Project chat / Team lessons; Library content capped near 880 px wide; one progress indicator per running job (card shows the label only); Team cards a little airy; 12-hour times without a leading zero; Team ⋯ buttons need an aria-label naming the account.
+The critics' open wishes after 2026-10-27 round 2, which are the start of the next run (none reached 9 yet; trust reached 9 from three Kiai critics and two hub critics):
+- Kiai: board keyboard focus ring, and a focus shot in the set; secondary grey text at 14 px; landing "Who is ahead?" ownership drawn as stepped squares (soft per-point fills instead); landing board coordinates and a caption for its mark numbers; the readout's position count vs the answer's (say "53 of 229"); phone line preview shows 8 of 9 moves; a size budget for the entry chunk (index 105 kB gzip after this run) and a median-of-5 /app paint bench; seal 棋譜並べ mixes kana with kanji seals.
+- Hub: after several "Show earlier" in a 500-message thread, the worst frame is 133-167 ms (main 83-133) while warming; full-screen backdrop blur on sheets (flat dim on phones); phone Threads tab tiles and Filter on one grid, selected tile without the black underline; Calm working line still shows the ✱; Look wallpapers (Dawn, Sea, Forest, Night sky) clash with paper-and-ink; Studio "No stories yet" beside the playing demo; Mark usage reset button is big on phone; desktop rail meta at 12 px could be 13; sidebar tan is loud in light mode.
+- Runs: if a swarm PR paused at usage limits is older than a merged newer run, port its unique parts instead of merging (on 2026-10-27 three runs overlapped: #118 was merged with a port in #120 while #121 ported the same parts again; #121 kept its later, critic-scored versions). `kill $!` after `npx vite preview` leaves the server running; stop it by port (see shoot scripts) or with `node node_modules/.bin/vite`.

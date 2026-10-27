@@ -77,7 +77,7 @@ export const COPY: Record<string, string> = {
   restsSaved: '{n} rest day saved',
   restsSavedMany: '{n} rest days saved',
   noRests: 'no rest day saved',
-  restHelp: 'A rest day (a white stone with a dash) is used by itself when you miss a day. You start with one and get another for every 7 days in a row, up to 2.',
+  restHelp: 'A rest day (a stone with a dash) is used by itself when you miss a day. You start with one and get another for every 7 days in a row, up to 2.',
   sealsTitle: 'Seals',
   stamped: 'stamped {date}',
   progress: '{n} of {of}',

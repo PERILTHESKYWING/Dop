@@ -59,7 +59,7 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
   const summary: string[] = [];
 
   // Facts every answer can lean on.
-  const fBest = fact(`KataGo's best move for ${me} is ${C(best.loc)}: ${me}'s winrate ${pct(best.win)}, ${pts(best.lead)}.`);
+  const fBest = fact(`KataGo's best move for ${me} is ${C(best.loc)}: ${me}'s win chance ${pct(best.win)}, ${pts(best.lead)}.`);
   const altFacts = f.vars.alts.map((id, i) => {
     const alt = f.alternatives[i];
     const loss = best.lead - alt.lead;
@@ -69,7 +69,7 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
       loss,
       text: fact(
         loss >= 0.05
-          ? `${C(alt.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)} (${me}'s winrate ${pct(alt.win)}).`
+          ? `${C(alt.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)} (${me}'s win chance ${pct(alt.win)}).`
           : `${C(alt.loc)} is about as good as ${C(best.loc)} (${fmt1(Math.abs(loss))} points apart).`,
       ),
     };
@@ -153,7 +153,7 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
         summary.push(fact(`${C(asked.loc)} cannot be played here (the point is taken or the move is illegal).`));
       }
       if (f.mode === 'overview') {
-        const fPos = fact(`Before ${me}'s move, ${leadPhrase(root.bLead)}${Math.round(root.bLead * 10) === 0 ? '' : ' points'} (Black's winrate ${pct(root.bWin)}).`);
+        const fPos = fact(`Before ${me}'s move, ${leadPhrase(root.bLead)}${Math.round(root.bLead * 10) === 0 ? '' : ' points'} (Black's win chance ${pct(root.bWin)}).`);
         summary.push(`${fPos} ${me} to play; KataGo's best move is ${C(best.loc)}${ref(f.vars.best)}.`);
         const groupLines = concepts.filter((h) => h.id === 'weak-group' || h.id === 'dead-group').map((h) => h.evidence);
         sections.push({ title: 'The position', text: [fPos, ...groupLines].join(' ') });
@@ -215,7 +215,7 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
     case 'consequence': {
       if (!asked) break;
       const loss = asked.loss;
-      const fReply = asked.reply !== undefined ? fact(`After ${C(asked.loc)}, ${them}'s best answer is ${C(asked.reply)}; then ${pts(asked.lead)} (${me}'s winrate ${pct(asked.win)}).`) : '';
+      const fReply = asked.reply !== undefined ? fact(`After ${C(asked.loc)}, ${them}'s best answer is ${C(asked.reply)}; then ${pts(asked.lead)} (${me}'s win chance ${pct(asked.win)}).`) : '';
       if (f.mode === 'equal' && loss <= -EQUAL_PTS) {
         // The asked move read better than KataGo's first look at its own choice.
         const ab = f.afterBest;

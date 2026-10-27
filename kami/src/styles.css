@@ -1339,9 +1339,13 @@ kbd {
   box-shadow: var(--shadow);
   transition: border-color 0.15s;
 }
-/* the message box shows focus by its edge (3:1, --line-ui): a caret alone is easy to lose */
+/* the message box shows focus by its edge (3:1, --line-ui): a caret alone is easy to lose. The
+   1px border plus a 1px ring make it 2px, as thick as the focus ring elsewhere. */
 .composer:focus-within {
   border-color: var(--line-ui);
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px var(--line-ui);
 }
 .composer textarea {
   display: block;
@@ -1705,6 +1709,15 @@ kbd {
   color: var(--muted);
   white-space: nowrap;
 }
+/* a previewed line's bar says whose read it shows, before the numbers: 13.5 px in secondary
+   ink (13:1 on the panel, light and dark) */
+.ev-source {
+  flex: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
 .bp-body {
   flex: 1 1 0;
   min-height: 0;
@@ -1744,25 +1757,30 @@ kbd {
   stroke-width: 0.2px;
   stroke-linejoin: round;
 }
-/* The row under the board: the key to KataGo's stones, or a previewed line's note. Always
-   there and always this tall (BoardPanel UNDER_*), so the board never moves between states. */
+/* The row under the board: the key to KataGo's marks, or a previewed line's note. Always
+   there and always this tall (BoardPanel UNDER_*), so the board never moves between states.
+   It starts at the board's left edge (--board-w, the board's width from BoardPanel), so the
+   words line up with the board rather than float under the middle (critics, 2026-10-26), and
+   runs to the panel's right edge. */
 .bp-under {
   flex: none;
+  box-sizing: border-box;
   width: 100%;
+  padding-left: max(0px, calc((100% - var(--board-w, 100%)) / 2));
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   overflow: hidden;
 }
 .bp-note {
   flex: none;
   max-width: 100%;
-  font-size: 13.5px;
+  font-size: 14.5px;
   line-height: 1.35;
   color: var(--ink-2);
   margin: 0;
-  text-align: center;
+  text-align: left;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1793,9 +1811,16 @@ kbd {
   background: #f2eadc;
   box-shadow: inset 0 0 0 1.5px #b9773d, inset 0 0 0 9px rgba(185, 119, 61, 0.18);
 }
+/* the key's mark is the board's: a tan disc ringed in the colour to play (see .cand.plain) */
 .bp-key i.ring {
-  background: #fbf8f1;
-  box-shadow: inset 0 0 0 1.5px #1b1714;
+  background: #e4c493;
+  box-shadow: inset 0 0 0 2px #1b1714;
+}
+.bp-key i.ring.w {
+  box-shadow:
+    inset 0 0 0 1px #1b1714,
+    inset 0 0 0 3px #fbf8f1,
+    inset 0 0 0 4px #1b1714;
 }
 /* the last move on the flat boards: a small solid dot, no glow (a ring read as a "0") */
 .board-panel svg.board .bd-last-glow {
@@ -1813,19 +1838,58 @@ kbd {
 .board-panel svg.board .bd-last.on-w .bd-last-ring {
   fill: #15130f;
 }
-/* candidates on the flat boards: a printed circle with the win chance in it */
+/* candidates on the flat boards: a mark printed on the wood, never a stone (critics, 2026-10-26:
+   cream circles read as White's stones with Black to play). A tan disc, darker than a white
+   stone and lighter than the wood, ringed in the colour to play: an ink ring for Black, a light
+   ring between two ink hairlines for White (a pale ring alone is 1.5:1 on light wood). KataGo's
+   choice has the thick ring. The number is ink on the tan: 10:1 or more. */
 .board-panel svg.board .cand.plain .cand-disc {
+  fill: #e4c493;
   stroke: #1b1714;
-  stroke-width: 0.045;
+  stroke-width: 0.06;
 }
 .board-panel svg.board .cand-best.plain .cand-disc {
-  stroke-width: 0.1;
+  stroke-width: 0.12;
+}
+.board-panel svg.board .cand.plain.to-w .cand-disc {
+  stroke: #fbf8f1;
+  stroke-width: 0.07;
+}
+.board-panel svg.board .cand.plain .cand-edge {
+  fill: none;
+  stroke: #1b1714;
+  stroke-width: 0.12;
+}
+.board-panel svg.board .cand-best.plain.to-w .cand-disc {
+  stroke-width: 0.12;
+}
+.board-panel svg.board .cand-best.plain .cand-edge {
+  stroke-width: 0.17;
 }
 .board-panel svg.board .cand.plain text {
   fill: #1b1714;
 }
+/* a phone's marks without a number: a ring about 11 px across with a clear edge, smaller than a
+   stone so it never reaches one, and the numbered ones stand out */
+.board-panel svg.board .cand.plain.bare .cand-disc {
+  stroke-width: 0.1;
+}
+.board-panel svg.board .cand.plain.bare .cand-edge {
+  stroke-width: 0.16;
+}
+/* a phone's numbered marks are larger: KataGo's choice keeps a ring plainly heavier than the
+   others' (round 2: on the dark board the two read alike) */
+.board-panel svg.board .cand.plain.big .cand-disc {
+  stroke-width: 0.07;
+}
+.board-panel svg.board .cand-best.plain.big .cand-disc {
+  stroke-width: 0.2;
+}
+.board-panel svg.board .cand-best.plain.big.to-w .cand-edge {
+  stroke-width: 0.26;
+}
 .board-panel svg.board .cand.plain .cand-wr {
-  font-size: 0.5px;
+  font-size: 0.52px;
   font-weight: 800;
   letter-spacing: -0.02px;
 }
@@ -1834,6 +1898,9 @@ kbd {
 .board-panel svg.board.book .cand.plain .cand-disc {
   fill: #f0ebe0;
   stroke: none;
+}
+.board-panel svg.board.book .cand.plain .cand-edge {
+  display: none;
 }
 .board-panel svg.board.book .cand.plain .cand-wr {
   font-size: 0.74px;
@@ -2695,19 +2762,32 @@ kbd {
     cursor: row-resize;
   }
   /* On a phone the board is about 300 px wide (a line every ~15 px), so text sized in board units
-     came out at 5 to 7 px. Coordinates and the numbers in KataGo's circles are 0.76 of a line
-     here: 11 px or more on a 390 px screen. The board itself does not move or change size. */
+     came out at 5 to 7 px. Coordinates are 0.76 of a line here (11 px or more on a 390 px
+     screen). KataGo's numbered marks are larger than a point (Board candBig, at most three of
+     them, lib/candLabels.ts) and their numbers 0.84 of a line, 12.5 px; one too wide for the
+     inside of its ring is set narrower, never smaller. The book's printed numbers stay 0.9. The
+     board itself does not move or change size. */
   .board-panel svg.board .bd-coords text,
   .board-panel svg.board.book .bd-coords text {
     font-size: 0.76px;
   }
-  .board-panel svg.board .cand.plain .cand-wr,
+  .board-panel svg.board .cand.plain .cand-wr {
+    font-size: 0.84px;
+    letter-spacing: -0.02px;
+  }
   .board-panel svg.board.book .cand.plain .cand-wr {
-    font-size: 0.76px;
+    font-size: 0.9px;
     letter-spacing: -0.04px;
   }
   .bp-head {
     height: 30px;
+  }
+  /* a phone's previewed bar: the words need the width, the dimmed track gives way */
+  .bp-eval.sourced .ev-track {
+    display: none;
+  }
+  .bp-eval.sourced {
+    gap: 6px;
   }
   /* the players always read "Black" and "White" in full; the engine chip gives way */
   .bp-players .pl {
