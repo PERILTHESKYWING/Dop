@@ -106,48 +106,82 @@ export interface PaleMark {
   text?: string;
   /** How solid the stone is, 0..1. */
   alpha: number;
-  /** A cream stone with a dark number whatever the colour (KataGo's choices, not a real stone). */
-  cream?: boolean;
+  /**
+   * KataGo's choice, not a stone: printed flat on the wood as a ring in the colour to play round
+   * a cleared tan disc, its number in ink (critics, 2026-10-26: cream stones read as White's
+   * stones with Black to play). `best` (KataGo's choice) has the thick ring. `alpha` is unused.
+   */
+  token?: { best: boolean };
 }
 
-/** Printed numbers, one canvas each, kept for the page's life (a few dozen at most). */
+/** Printed numbers and marks, one canvas each, kept for the page's life (a few dozen at most). */
 const numberTex = new Map<string, Texture>();
 let numberFontReady: Promise<void> | null = null;
-function numberTexture(text: string, ink: string): Texture {
-  const key = `${text}|${ink}`;
+function printedTexture(key: string, draw: (c: HTMLCanvasElement) => void): Texture {
   let t = numberTex.get(key);
   if (t) return t;
   const c = document.createElement('canvas');
   c.width = c.height = 128;
-  drawNumber(c, text, ink);
+  draw(c);
   t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
   t.anisotropy = 4;
-  t.userData = { text, ink };
+  t.userData = { draw };
   numberTex.set(key, t);
   return t;
 }
+const numberTexture = (text: string, ink: string) => printedTexture(`${text}|${ink}`, (c) => drawNumber(c, text, ink));
 function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
   const g = c.getContext('2d')!;
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = ink;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  if (text === '○') {
-    // KataGo's choice among loss labels: a ring, not a "0.0" (critics, round 2)
-    g.strokeStyle = ink;
-    g.lineWidth = 11;
-    g.beginPath();
-    g.arc(64, 64, 34, 0, Math.PI * 2);
-    g.stroke();
-    return;
-  }
   // as big as the stone allows: a number should read at a glance even on a phone, so longer
   // ones ("-11", "-0.9") keep their height and are set narrower rather than smaller; they stay
   // inside the stone (104 of its 128) so two neighbours' numbers never run together
   const px = text.length >= 4 ? 88 : text.length === 3 ? 98 : text.length === 2 ? 112 : 118;
   g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
   g.fillText(text, 64, 71, 104);
+}
+
+/** The flat board's candidate colours (kami/src/styles.css, .cand.plain): ink, a light ring, the cleared disc. */
+const TOKEN_INK = '#1b1714', TOKEN_LIGHT = '#fbf8f1', TOKEN_FILL = '#e4c493';
+const tokenTexture = (text: string, side: StoneColor, best: boolean) => printedTexture(`token|${text}|${side}|${best}`, (c) => drawToken(c, text, side, best));
+/**
+ * A candidate printed on the wood, on a canvas one point wide (128 px): a tan disc a little
+ * smaller than a stone, ringed in the colour to play (a light ring between two ink hairlines, so
+ * it shows on pale wood too), KataGo's choice with a ring twice as thick, the number in ink.
+ */
+function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: boolean) {
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, c.width, c.height);
+  const disc = (r: number, fill: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.arc(64, 64, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  const ring = best ? 12 : 6;
+  let r = 61;
+  disc(r, TOKEN_INK);
+  if (side === 2) {
+    disc((r -= 3), TOKEN_LIGHT);
+    disc((r -= ring), TOKEN_INK);
+    r -= 3;
+  } else r -= ring;
+  disc(r, TOKEN_FILL);
+  g.fillStyle = TOKEN_INK;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const px = text.length >= 4 ? 92 : text.length === 3 ? 100 : text.length === 2 ? 106 : 110;
+  g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
+  // a thin outline in the same ink: the number keeps its weight when the board shrinks it to a phone's point
+  g.strokeStyle = TOKEN_INK;
+  g.lineWidth = 4;
+  g.lineJoin = 'round';
+  g.strokeText(text, 64, 69, 2 * r - 6);
+  g.fillText(text, 64, 69, 2 * r - 6);
 }
 
 export interface CandGlow {
@@ -598,6 +632,8 @@ export class KayaView {
   private ownMats = new Map<string, Material>();
   private faceMats = new Map<Texture, MeshBasicMaterial>();
   private faceGeos: Partial<Record<StoneColor, PlaneGeometry>> = {};
+  /** The plane a candidate is printed on (setPale's tokens), one point wide. */
+  private tokenGeo: PlaneGeometry | null = null;
   private hoverMats: Partial<Record<StoneColor, MeshPhysicalMaterial>> = {};
   /** The shadow map is redrawn only when something that casts a shadow may have moved. */
   private shadowsDirty = true;
@@ -1636,8 +1672,7 @@ export class KayaView {
         () => {
           // redraw the printed numbers in place, now in the real face
           numberTex.forEach((t) => {
-            const u = t.userData as { text: string; ink: string };
-            drawNumber(t.image as HTMLCanvasElement, u.text, u.ink);
+            (t.userData as { draw: (c: HTMLCanvasElement) => void }).draw(t.image as HTMLCanvasElement);
             t.needsUpdate = true;
           });
           liveViews.forEach((v) => v.invalidate(false));
@@ -1649,10 +1684,22 @@ export class KayaView {
     for (const m of marks ?? []) {
       if (m.loc < 0 || seen.has(m.loc)) continue;
       seen.add(m.loc);
+      if (m.token) {
+        // printed flat on the wood: no body, no shadow, nothing a stone has
+        const map = tokenTexture(m.text ?? '', m.color, m.token.best);
+        let faceMat = this.faceMats.get(map);
+        // pulled toward the camera further than the grid lines are (their polygonOffset -2), or the lines show through it
+        if (!faceMat) this.faceMats.set(map, (faceMat = new MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 })));
+        const face = new Mesh((this.tokenGeo ??= new PlaneGeometry(SX, SX).rotateX(-Math.PI / 2)), faceMat);
+        face.position.copy(this.pointAt(m.loc, 0.0004));
+        face.renderOrder = 5;
+        this.paleGroup.add(face);
+        continue;
+      }
       // a mark on a point that already has a stone (a line that recaptures) sits on top of it
       const over = this.stoneAt[m.loc] ? 0.0095 : 0;
-      const black = m.color === 1 && !m.cream;
-      const color = black ? 0x101113 : m.cream ? 0xf7f0e3 : 0xf4eadb;
+      const black = m.color === 1;
+      const color = black ? 0x101113 : 0xf4eadb;
       const stone = new Mesh(this.stoneGeo[m.color], this.paleMat(color, m.alpha));
       stone.applyMatrix4(this.stoneMatrix(m.loc, m.color, over));
       stone.renderOrder = 4;
@@ -2080,6 +2127,7 @@ export class KayaView {
     // (wood, shell, glow, printed numbers) stay for the next board
     const mats = new Set<Material>([...this.paleMats.values(), ...this.faceMats.values(), ...this.ownMats.values()]);
     if (this.warmFace) mats.add(this.warmFace);
+    this.tokenGeo?.dispose();
     for (const c of [1, 2] as const) {
       this.faceGeos[c]?.dispose();
       const h = this.hoverMats[c];

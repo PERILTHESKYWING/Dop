@@ -7,9 +7,14 @@ import './journey.css';
 const WEEKDAY = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MARK_LABEL: Record<DayMark, string> = { study: 'studied', rest: 'rest day used', none: 'no study', today: 'today, not yet' };
 
-/** A clock-hand wedge from 12 o'clock over a 14-unit dot: `f` of the turn, at least an eighth. */
+/**
+ * A clock-hand wedge from 12 o'clock over a 14-unit dot: `f` of the turn, at least a twentieth
+ * (18 degrees, a narrow hand still plain on a 14 px dot). An eighth made a 2% start look like a
+ * good part of the dot (critics, 2026-10-26).
+ */
+const WEDGE_MIN = 0.05;
 function wedge(f: number): string {
-  const a = 2 * Math.PI * Math.max(0.125, Math.min(0.99, f));
+  const a = 2 * Math.PI * Math.max(WEDGE_MIN, Math.min(0.99, f));
   const x = (7 + 7 * Math.sin(a)).toFixed(2);
   const y = (7 - 7 * Math.cos(a)).toFixed(2);
   return `M7 7V0A7 7 0 ${a > Math.PI ? 1 : 0} 1 ${x} ${y}Z`;
@@ -17,8 +22,8 @@ function wedge(f: number): string {
 
 /**
  * Ten stones toward the next station, filled in proportion: each tenth done is a black stone, the
- * tenth under way fills like a clock hand from 12 o'clock, never less than an eighth of the dot
- * (a thin edge-on sliver read as a broken "C"), and the rest are empty rings.
+ * tenth under way fills like a clock hand from 12 o'clock, never less than a twentieth of the dot
+ * (WEDGE_MIN: small progress reads small, but is still there), and the rest are empty rings.
  */
 function PathStones({ s }: { s: JourneySummary }) {
   const tenths = s.next ? Math.max(0, Math.min(10, (10 * s.into) / s.span)) : 10;

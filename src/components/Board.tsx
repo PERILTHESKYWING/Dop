@@ -57,7 +57,8 @@ export interface BoardProps {
   candidates?: CandidateMark[] | null;
   /**
    * How candidates look: 'heat' (default) coloured discs with win rate, visits and lead;
-   * 'plain' a printed circle with just the win chance, the way a Go book marks choices.
+   * 'plain' a printed circle with just the win chance, the way a Go book marks choices. With
+   * `toPlay`, a plain circle is classed `to-b` / `to-w` so a skin can ring it in the colour to play.
    */
   candStyle?: 'heat' | 'plain';
   /** The figure on a compact disc in place of the rounded win chance (e.g. the lead once a game is decided). */
@@ -78,6 +79,9 @@ const SKIN_STONE = 2 * 0.483 * 1.25;
 const SKIN_SHADOW = SKIN_STONE * 2;
 
 const CAND_BEST = '#2fc4e4';
+/** A plain candidate: a circle a little smaller than a stone, and the widest its label is set. */
+const PLAIN_R = 0.45;
+const PLAIN_FIT = 0.82;
 const CAND_STOPS: [number, [number, number, number]][] = [
   [0, [120, 214, 104]],
   [0.5, [244, 197, 66]],
@@ -697,6 +701,8 @@ function BoardImpl(p: BoardProps) {
   const unitPx = px ? px / (cropped ? crop.x1 - crop.x0 + 2 * g.m : g.W) : 40;
   const plain = p.candStyle === 'plain';
   const compact = plain || unitPx < 27;
+  const side = plain && p.toPlay ? (p.toPlay === 1 ? ' to-b' : ' to-w') : '';
+  const labels: string[] = [];
   const candEls = (p.candidates ?? [])
     .filter((c) => c.loc !== PASS && !board[c.loc] && inWin(c.loc % size, Math.floor(c.loc / size)))
     .sort((a, b) => b.rank - a.rank)
@@ -704,16 +710,20 @@ function BoardImpl(p: BoardProps) {
       const x = c.loc % size, y = Math.floor(c.loc / size);
       const wr = c.winrate * 100;
       const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
+      const label = p.candLabel ? p.candLabel(c) : String(Math.round(wr));
+      if (compact) labels.push(label);
       return (
         <g
           key={`c${c.loc}`}
-          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}`}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${side}`}
           style={plain ? undefined : { opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
         >
-          <circle className="cand-disc" cx={x} cy={y} r={0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          {/* under a light ring, an ink edge a little wider shows on both sides of it (a pale ring alone vanishes on pale wood) */}
+          {side === ' to-w' && <circle className="cand-edge" cx={x} cy={y} r={PLAIN_R} />}
+          <circle className="cand-disc" cx={x} cy={y} r={plain ? PLAIN_R : 0.47} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
           {compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
-              {p.candLabel ? p.candLabel(c) : Math.round(wr)}
+              {label}
             </text>
           ) : (
             <>
@@ -737,6 +747,32 @@ function BoardImpl(p: BoardProps) {
         </g>
       );
     });
+
+  // A plain label wider than its circle ("−0.9" in a phone's larger type) is set narrower to fit
+  // inside it, keeping its height, as the 3D board's printed numbers are.
+  const fitKey = plain && labels.length ? `${px}|${labels.join(' ')}` : '';
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!fitKey || !el) return;
+    let alive = true;
+    const fit = () => {
+      if (!alive) return;
+      el.querySelectorAll<SVGTextElement>('.cand.plain .cand-wr').forEach((t) => {
+        if (typeof t.getComputedTextLength !== 'function') return;
+        t.removeAttribute('textLength');
+        t.removeAttribute('lengthAdjust');
+        if (t.getComputedTextLength() <= PLAIN_FIT) return;
+        t.setAttribute('textLength', String(PLAIN_FIT));
+        t.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+      });
+    };
+    fit();
+    // measured again once the site's font is in (a fallback face has other widths)
+    void document.fonts?.ready.then(fit);
+    return () => {
+      alive = false;
+    };
+  }, [fitKey]);
 
   // A variation: numbered see-through stones (the first move of the line at a point wins).
   const varEls: JSX.Element[] = [];

@@ -112,9 +112,10 @@ export default function Kaya3D(p: Kaya3DProps) {
     viewRef.current?.setStones(p.stones);
   }, [ready, p.stones]);
 
-  // KataGo's best moves as pale cream stones, each with its win chance printed on it in dark ink
-  // (see-through, and numbered, so they never pass for real stones); a line of play (hovering a
-  // move) as numbered stones of each colour. Nothing glows or pulses.
+  // KataGo's best moves printed flat on the wood, each a ring in the colour to play with its
+  // number in ink (cream stones read as White's stones with Black to play), as on the flat
+  // board; a line of play (hovering a move) as numbered stones of each colour. Nothing glows
+  // or pulses.
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
@@ -130,13 +131,11 @@ export default function Kaya3D(p: Kaya3DProps) {
       return;
     }
     const side = (p.toPlay ?? 1) as StoneColor;
-    const light = p.wood === 'shinkaya';
     const marks = (p.candidates ?? [])
       .filter((c) => c.loc !== PASS && !p.stones[c.loc])
-      // on the pale shin-kaya a see-through cream stone would vanish, so it is nearly solid there
-      .map((c) => ({ loc: c.loc, color: side, text: p.candLabel ? p.candLabel(c) : winText(c.winrate), alpha: light ? (c.rank === 0 ? 0.97 : 0.9) : c.rank === 0 ? 0.86 : 0.72, cream: true }));
+      .map((c): PaleMark => ({ loc: c.loc, color: side, text: p.candLabel ? p.candLabel(c) : winText(c.winrate), alpha: 1, token: { best: c.rank === 0 } }));
     v.setPale(marks.length ? marks : null);
-  }, [ready, p.candidates, p.candLabel, p.variation, p.toPlay, p.stones, p.wood]);
+  }, [ready, p.candidates, p.candLabel, p.variation, p.toPlay, p.stones]);
 
   const hadOwn = useRef(false);
   useEffect(() => {
