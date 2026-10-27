@@ -169,18 +169,21 @@ describe('candidate labels in a lopsided game', () => {
   const c = (winrate: number, scoreLead: number, rank?: number) => ({ winrate, scoreLead, ...(rank !== undefined ? { rank } : {}) });
   it('show the loss against KataGo’s choice, not the same lead everywhere', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.8, 3)];
-    // KataGo's choice is a ring (never "0.0"), the others the answer's own rounding; a thinner
-    // read that came out ahead says so once an answer explains it, and is "≈" before that.
-    expect(cands.map(candidateLabeler(cands, false, true)!)).toEqual(['○', '−0.9', '−1.3', '+0.3']);
-    expect(cands.map(candidateLabeler(cands)!)).toEqual(['○', '−0.9', '−1.3', '≈']);
+    // KataGo's choice shows its win chance with a % (never "0.0"), the others the answer's own
+    // rounding; a thinner read that came out ahead says so once an answer explains it, and is
+    // "≈" before that.
+    expect(cands.map(candidateLabeler(cands, false, true)!)).toEqual(['1%', '−0.9', '−1.3', '+0.3']);
+    expect(cands.map(candidateLabeler(cands)!)).toEqual(['1%', '−0.9', '−1.3', '≈']);
     expect(cands.map(candidateLabeler(cands, true)!).some((l) => l.startsWith('+'))).toBe(false);
     expect(lossLabel(c(0, -30), c(0, -11))).toBe('−19.0');
     expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
   });
-  it('the same one-decimal numbers on a phone, without the minus sign, so they fit the disc', () => {
+  it('the same signed one-decimal numbers on a phone as on a desktop (whole points from 10)', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.3, 3), c(0, -30, 4)];
-    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['○', '0.9', '1.3', '0.3', '19']);
-    expect(cands.map(candidateLabeler(cands, true)!).slice(1, 3)).toEqual(cands.map(candidateLabeler(cands)!).slice(1, 3).map((l) => l.replace('−', '')));
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['1%', '−0.9', '−1.3', '−0.3', '−19']);
+    expect(cands.map(candidateLabeler(cands, true)!).slice(0, 4)).toEqual(cands.map(candidateLabeler(cands)!).slice(0, 4));
+    // a true minus sign (U+2212), never a hyphen
+    expect(candidateLabeler(cands, true)!(cands[1]).codePointAt(0)).toBe(0x2212);
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();
@@ -188,10 +191,10 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('the key says "decided" only late in the game', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11.');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the ring.');
-    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true, true)).toBe('points Black loses against the ring; ≈ about as good.');
-    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against the ringed stone, KataGo’s choice. White leads by about 11; the game is decided.');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19)).toBe('points Black loses against KataGo’s choice, the thick ring, which shows Black’s win chance. White leads by about 11.');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true)).toBe('points Black loses against the thick ring (Black’s win %).');
+    expect(keyNumberText(cands, 'Black', 35, -11.1, 19, true, true)).toBe('points Black loses against the thick ring (Black’s win %); ≈ as good.');
+    expect(keyNumberText(cands, 'Black', 180, -11.1, 19)).toBe('points Black loses against KataGo’s choice, the thick ring, which shows Black’s win chance. White leads by about 11; the game is decided.');
   });
 });
 

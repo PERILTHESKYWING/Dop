@@ -11,12 +11,12 @@ const read = { candidates: FINAL.cands.map((c) => ({ loc: loc(c.at), winrate: c.
 
 describe('the caption over a previewed move (KataGo numbers only)', () => {
   it('names KataGo’s choice with its win chance and visits', () => {
-    expect(moveStats(read, loc('Q9'), 1, 19)).toEqual({ at: 'Q9', text: 'KataGo’s choice · Black 3% · 1,515 visits' });
+    expect(moveStats(read, loc('Q9'), 1, 19)).toEqual({ at: 'Q9', text: 'KataGo’s choice · Black 3% · 1,515 positions' });
   });
   it('ranks another move and gives its loss in points, in the board labels’ rounding', () => {
     // R12: lead −10.19 against Q9's −8.62 → 1.6 points worse
-    expect(moveStats(read, loc('R12'), 1, 19)?.text).toBe('KataGo’s 2nd most-read move · Black 1%, 1.6 points worse · 214 visits');
-    expect(moveStats(read, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 visits');
+    expect(moveStats(read, loc('R12'), 1, 19)?.text).toBe('KataGo’s 2nd most-read move · Black 1%, 1.6 points worse · 214 positions');
+    expect(moveStats(read, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 positions');
   });
   it('says plainly when KataGo did not list the move, and nothing for a pass or no read', () => {
     expect(moveStats(read, loc('A1'), 1, 19)?.text).toBe('Not in KataGo’s top 8 moves here');

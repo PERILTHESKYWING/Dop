@@ -261,8 +261,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
-  // The same one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both read
-  // "−1" on a phone); a phone's small discs drop the minus sign so they fit at 11+ px.
+  // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
+  // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
   const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
@@ -291,6 +291,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     }
     return '';
   }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
+
+  const [spoken, setSpoken] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setSpoken(readout), 400);
+    return () => window.clearTimeout(t);
+  }, [readout]);
 
   const play = (loc: Loc, fromCandidate = false) => {
     setHoverCand(null);
@@ -443,8 +449,11 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const chipFolded = chipOn && answered && status.state === 'loading';
 
   // The eval bar: the read of this position, else the last one shown, faded while KataGo reads.
-  // While a line is previewed the bar stays in place, dimmed, with the board's own read.
-  const shown = withStones ? (read ?? last) : null;
+  // While a line is previewed the bar stays in place, dimmed, and says whose read it shows
+  // (critics, 2026-10-26: a fresh read there differed from the answer's numbers with no word):
+  // the answer's own read of the previewed position when there is one, else the board's.
+  const evSource = preview ? (previewRead ? 'answer’s read' : withStones ? 'board’s read' : '') : '';
+  const shown = preview && previewRead ? previewRead : withStones ? (read ?? last) : null;
   const bWin = shown ? shown.bWin : 0.5;
   const lead = shown ? shown.bLead : null;
   const leadText = lead === null ? '' : Math.abs(lead) < 0.05 ? 'Even' : `${lead > 0 ? 'Black' : 'White'} +${Math.abs(lead).toFixed(1)}`;
@@ -625,10 +634,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       </div>
 
       <div
-          className={`bp-eval${shown ? '' : ' empty'}${pending && shown ? ' stale' : ''}${preview ? ' dim' : ''}`}
+          className={`bp-eval${shown ? '' : ' empty'}${pending && shown && !evSource ? ' stale' : ''}${preview ? ' dim' : ''}`}
           inert={!!preview}
           title={
-            shown ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${pending ? ' (reading)' : ''}` : 'Play a move to see who is ahead'
+            shown
+              ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource})` : pending ? ' (reading)' : ''}`
+              : 'Play a move to see who is ahead'
           }
         >
           <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
@@ -638,7 +649,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           </span>
           <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
-          {pending && shown && <span className="ev-state">reading</span>}
+          {evSource && shown ? <span className="ev-state">{evSource}</span> : pending && shown && <span className="ev-state">reading</span>}
         </div>
 
       <div className="bp-body">
@@ -673,7 +684,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               flatBoard
             )}
           </div>
-          <div className="bp-under">
+          <div className="bp-under" style={{ '--board-w': `${boxW}px` } as React.CSSProperties}>
           {keyOn && readout && (
             // a hovered disc: its numbers take the key's row (the board does not move)
             <p className="bp-note">
@@ -688,7 +699,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 </>
               ) : (
                 <>
-                  <i className={want3d ? 'stone' : 'ring'} aria-hidden="true" /> {want3d ? 'Pale stones' : 'Light circles'}: KataGo’s best moves. The number: {keyNumber}
+                  <i className={`ring${toPlay === 2 ? ' w' : ''}`} aria-hidden="true" /> Rings: KataGo’s best moves. The number: {keyNumber}
                 </>
               )}
             </p>
@@ -706,6 +717,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               )}
             </p>
           )}
+          {/* a screen reader hears the readout once it settles on a move, not every disc a pointer crosses */}
+          <p className="sr-only" aria-live="polite">
+            {spoken}
+          </p>
           </div>
         </div>
 
