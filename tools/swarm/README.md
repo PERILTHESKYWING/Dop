@@ -25,6 +25,9 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 | 3 | 8 (all 10) | polish only |
 | 2026-10-26 r1 | 8 (all 10) | 8 (three at 7) |
 | 2026-10-26 r2 | 8 (all 10) | 8 (all 10) |
+| 2026-10-24 (paused, finished 10-27) | 8 (all 10, two passes) | 8 (all 10, two passes) |
+
+The 10-24 run overlapped the 10-26 run; only its unique parts were ported onto main (hub idle feed warm-up, note/select/task/sheet looks; Kiai CJK term names, "positions", stage-led path heading, kaya dispose fix).
 
 Daily runs: shots for a run live in the run's scratchpad (before = main, after = the merged branch). The journey script walks the phone Settings list (`goPage`); the app script has a sixth state, `5-hover-candidate` (desktop hovers a candidate disc, phone taps a coordinate that is one of KataGo's choices). Stop servers by pid or with a script file: `pkill -f "port 4291"` in a one-line shell also kills that shell.
 

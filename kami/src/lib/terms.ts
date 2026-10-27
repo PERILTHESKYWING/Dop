@@ -85,6 +85,8 @@ export interface TermNames {
 /**
  * The standard Chinese and Japanese names of a few common terms, shown on their cards (critics,
  * round 3: "bilingual hover on Go terms"). Only names that are certain; keyed by the glossary's term.
+ * Terms with no single standard pair (liberty, kikashi, vital point, dragon, bamboo joint, reverse
+ * sente, influence, overconcentration, probe) are left out on purpose. Add nothing without a source.
  */
 export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   hane: { zh: '扳', ja: 'ハネ' },
@@ -97,4 +99,38 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   gote: { zh: '后手', ja: '後手' },
   joseki: { zh: '定式', ja: '定石' },
   aji: { zh: '味', ja: '味' },
+  'double sente': { zh: '双先', ja: '両先手' },
+  miai: { zh: '见合', ja: '見合い' },
+  honte: { zh: '本手', ja: '本手' },
+  eye: { zh: '眼', ja: '眼' },
+  'false eye': { zh: '假眼', ja: '欠け眼' },
+  'life and death': { zh: '死活', ja: '死活' },
+  tsumego: { zh: '死活题', ja: '詰碁' },
+  seki: { zh: '双活', ja: 'セキ' },
+  'ko threat': { zh: '劫材', ja: 'コウ材' },
+  semeai: { zh: '对杀', ja: '攻め合い' },
+  snapback: { zh: '倒扑', ja: 'ウッテガエシ' },
+  'throw-in': { zh: '扑', ja: 'ホウリコミ' },
+  tesuji: { zh: '手筋', ja: '手筋' },
+  tsuke: { zh: '碰', ja: 'ツケ' },
+  kosumi: { zh: '尖', ja: 'コスミ' },
+  keima: { zh: '小飞', ja: 'ケイマ' },
+  ogeima: { zh: '大飞', ja: '大ゲイマ' },
+  'one-space jump': { zh: '单关', ja: '一間トビ' },
+  'shoulder hit': { zh: '尖冲', ja: 'カタツキ' },
+  'empty triangle': { zh: '空三角', ja: 'アキ三角' },
+  "tiger's mouth": { zh: '虎口', ja: '虎の口' },
+  sabaki: { zh: '腾挪', ja: 'サバキ' },
+  'star point': { zh: '星位', ja: '星' },
+  kakari: { zh: '挂角', ja: 'カカリ' },
+  shimari: { zh: '守角', ja: 'シマリ' },
+  hasami: { zh: '夹击', ja: 'ハサミ' },
+  '3-3 invasion': { zh: '点三三', ja: '三々入り' },
+  invasion: { zh: '打入', ja: '打ち込み' },
+  reduction: { zh: '浅消', ja: '消し' },
+  moyo: { zh: '模样', ja: '模様' },
+  thickness: { zh: '厚势', ja: '厚み' },
+  'big point': { zh: '大场', ja: '大場' },
+  yose: { zh: '官子', ja: 'ヨセ' },
+  dame: { zh: '单官', ja: 'ダメ' },
 };
