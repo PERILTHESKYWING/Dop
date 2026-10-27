@@ -16,6 +16,7 @@ XIAO asked (2026-10-22) for a swarm that keeps improving Kiai (`kami/`) and the 
 - `LEVEL=default kiai-app-shots.cjs OUT light|dark both`: app states 0-4 (empty, game, thinking, answer, hover) on the landing's demo game. The board rect must be identical in all 5 states.
 - `SCHEME=light|dark OUT=dir kiai-journey-shots.cjs`: sidebar foot, Settings › Journey, Account (signed out, create, recovery code, signed in). Needs the account API (`kami:dev` memory store).
 - `node hub-seed-server.mjs` (with `BIG=1` for the long list), then `hub-shots.cjs OUT`: a seeded fake hub (memory store, fake Claude). The seed is for screenshots only and is not product data.
+- `BIG=1 LONG=500 PORT=7791 node hub-seed-server.mjs`, then `[ALL=1] node hub-feed-perf.cjs http://localhost:7791 6 2000`: long-thread speed on a 390 px phone with 4x CPU throttle; prints thread-open ms and dropped frames during a fling (median and p90). `ALL=1` draws every message first. Run main and the branch on two ports and compare.
 
 ## Results
 | Round | Kiai median | Hub median |

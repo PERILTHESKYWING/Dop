@@ -9,9 +9,13 @@ export const W = 1600;
 export const H = 900;
 export const GROUND = 774;
 const HORIZON = 640;
-export const FONT = '"Patrick Hand", "Comic Neue", "Comic Sans MS", "Chalkboard SE", cursive';
+// Without the hand font (offline, blocked), the hub's own face stands in, never a browser default serif.
+export const FONT = '"Patrick Hand", "Comic Neue", "Comic Sans MS", "Chalkboard SE", "Alegreya Sans", sans-serif';
 // The subtitle face: a clean geometric sans, as in the reference vlogs.
 export const SANS = '"Montserrat", "Nunito", "Helvetica Neue", Arial, sans-serif';
+// The boxed caption under the picture: the hub's own face (self-hosted, so it is always there).
+export const UI = '"Alegreya Sans", system-ui, sans-serif';
+const faceOf = (o) => (o.ui ? UI : o.sans ? SANS : FONT);
 
 // ---------- time ----------
 export function timeline(p) {
@@ -305,7 +309,7 @@ function caption(ops, text, st, scene = {}) {
   const pts = roundRect(x0, y0, w, h, 18);
   pen.fill('cap', pts, mix(st.paper, '#ffffff', 0.5), { slip: 0, alpha: 0.92 });
   pen.stroke('cap', pts, { closed: true, width: st.line * 0.6, color: mix(st.ink, st.paper, 0.4) });
-  lines.forEach((l, i) => pen.text(l, W / 2, y0 + 11 + size * 0.9 + i * size * 1.15, size));
+  lines.forEach((l, i) => pen.text(l, W / 2, y0 + 11 + size * 0.9 + i * size * 1.15, size, { ui: true }));
 }
 
 function roundRect(x0, y0, w, h, r) {
@@ -398,7 +402,7 @@ export function paintOps(ctx, ops) {
   for (const o of ops) {
     if (o.text != null) {
       ctx.fillStyle = o.fill;
-      ctx.font = `${o.weight || 400} ${o.size}px ${o.sans ? SANS : FONT}`;
+      ctx.font = `${o.weight || 400} ${o.size}px ${faceOf(o)}`;
       ctx.textAlign = o.align || 'center';
       ctx.textBaseline = 'alphabetic';
       // Hand-lettered words (sfx) lean a little and sit wider apart.
@@ -493,7 +497,7 @@ function svgOps(ops) {
   return ops
     .map((o) => {
       if (o.text != null)
-        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * (o.ow || 0.18)}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${o.sans ? SANS : FONT}'${o.rotate ? ` transform="rotate(${o.rotate} ${o.x} ${o.y})"` : ''}${o.spacing ? ` letter-spacing="${o.spacing}"` : ''}>${esc(o.text)}</text>`;
+        return `<text x="${o.x}" y="${o.y}" font-size="${o.size}" fill="${o.fill}"${o.outline ? ` stroke="${o.outline}" stroke-width="${o.size * (o.ow || 0.18)}" stroke-linejoin="round" paint-order="stroke"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''} text-anchor="${o.align === 'left' ? 'start' : 'middle'}" font-family='${faceOf(o)}'${o.rotate ? ` transform="rotate(${o.rotate} ${o.x} ${o.y})"` : ''}${o.spacing ? ` letter-spacing="${o.spacing}"` : ''}>${esc(o.text)}</text>`;
       const path = `<path d="${o.d}" fill="${o.fill}"${o.alpha != null ? ` fill-opacity="${o.alpha}"` : ''}/>`;
       if (!o.clip) return path;
       const id = `cl${clipN++}`;
