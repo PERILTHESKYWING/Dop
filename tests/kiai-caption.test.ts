@@ -17,6 +17,9 @@ describe('the caption over a previewed move (KataGo numbers only)', () => {
     // R12: lead −10.19 against Q9's −8.62 → 1.6 points worse
     expect(moveStats(read, loc('R12'), 1, 19)?.text).toBe('KataGo’s 2nd most-read move · Black 1%, 1.6 points worse · 214 positions');
     expect(moveStats(read, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 positions');
+    // with the read's total, the count says its share of it (as the answer's total)
+    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 of 2,000 positions');
+    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19)?.text).toBe('KataGo’s 3rd most-read move · Black 1%, 2.7 points worse · 92 of 2,000 positions in the last read');
   });
   it('says plainly when KataGo did not list the move, and nothing for a pass or no read', () => {
     expect(moveStats(read, loc('A1'), 1, 19)?.text).toBe('Not in KataGo’s top 8 moves here');

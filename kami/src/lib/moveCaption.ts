@@ -31,7 +31,7 @@ export interface MoveStats {
  * play). Null when there is no read, the move is a pass, or `loc` is off the board. A move KataGo
  * did not list says so, with the size of the list ("not in KataGo’s top 8").
  */
-export function moveStats(read: Pick<EngineRead, 'candidates'> | null | undefined, loc: Loc | undefined, toPlay: Color, size: number, compact = false): MoveStats | null {
+export function moveStats(read: (Pick<EngineRead, 'candidates'> & { visits?: number }) | null | undefined, loc: Loc | undefined, toPlay: Color, size: number, compact = false): MoveStats | null {
   if (!read?.candidates.some((c) => c.loc !== PASS) || loc === undefined || loc === PASS || loc < 0 || loc >= size * size) return null;
   const at = locToGtp(loc, size);
   // Ranked in the read's own order, as the board's discs are (candidateMarks): KataGo's choice first.
@@ -51,7 +51,10 @@ export function moveStats(read: Pick<EngineRead, 'candidates'> | null | undefine
     const pts = shown === '1.0' ? 'point' : 'points';
     loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${pts} worse` : `${shown} ${pts} ahead on a shorter read`;
   }
-  const visits = `${c.visits.toLocaleString('en-US')} positions`;
+  // "53 of 160 positions in the last read": the move's share of the read the board shows. The
+  // answer's total adds up every read it made, so the caption names which total it is (critics, 2026-10-28).
+  const all = read.visits && read.visits > c.visits ? ` of ${read.visits.toLocaleString('en-US')}` : '';
+  const visits = `${c.visits.toLocaleString('en-US')}${all} positions${all ? (compact ? '' : ' in the last read') : ''}`;
   const text = [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
   return { at, text };
 }

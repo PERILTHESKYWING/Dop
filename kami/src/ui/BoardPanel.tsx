@@ -24,6 +24,7 @@ import { Boundary, LoadFailed } from './Boundary';
 import { candidateLabeler, holdPick, keyText, phonePick, phonePlaces, type PickHold } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
+import { locToGtp } from '../../../src/lib/go/coords';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
@@ -174,6 +175,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const [tab, setTab] = useState<TabId | null>(null);
   // A candidate disc under the pointer: its point and KataGo's line from it.
   const [hoverCand, setHoverCand] = useState<{ loc: Loc; pv: Loc[] } | null>(null);
+  // The keyboard's point on the board: Tab onto the board, arrows move it, Enter plays (null = no keyboard focus).
+  const [kbAt, setKbAt] = useState<Loc | null>(null);
   const hoverPv = hoverCand?.pv ?? null;
   // A point named in the preview's note, marked while hovered.
   const [notePoint, setNotePoint] = useState<Loc | null>(null);
@@ -246,10 +249,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       stones: b.stones,
       captures: b.captures as readonly number[] | undefined,
       last: lastLoc,
-      marks: [] as Mark[],
+      marks: (kbAt !== null ? [{ loc: kbAt, kind: 'focus' }] : []) as Mark[],
       variation: null as Move[] | null,
     };
-  }, [board, preview, notePoint]);
+  }, [board, preview, notePoint, kbAt]);
   useEffect(() => setNotePoint(null), [preview?.key]);
 
   // A local problem's answer shows only the part of the board that matters.
@@ -313,12 +316,20 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       const st = first.color === preview.base.toPlay ? moveStats(previewRead, first.loc, preview.base.toPlay, preview.base.size, phone) : null;
       return [st ? `${st.at}: ${st.text}` : '', lineBit(preview.line.length)].filter(Boolean).join(' · ');
     }
+    if (kbAt !== null && !hoverCand) {
+      const st = stoneNote(explainPositionOf(board, board.cursor), kbAt) ?? moveStats(read, kbAt, toPlay, board.size, phone);
+      const at = locToGtp(kbAt, board.size);
+      // a point KataGo did not mark: count the moves drawn on the board, the ones the eye can check
+      if (!st || (candidates?.length && !candidates.some((c) => c.loc === kbAt) && /^not in/i.test(st.text)))
+        return candidates?.length ? `${at}: not one of the ${candidates.length} moves KataGo marked · Enter plays here` : `${at}: empty · Enter plays here`;
+      return `${st.at}: ${st.text}`;
+    }
     if (hoverCand) {
       const st = moveStats(read, hoverCand.loc, toPlay, board.size, phone);
       return st ? [`${st.at}: ${st.text}`, lineBit(hoverCand.pv.length)].filter(Boolean).join(' · ') : '';
     }
     return '';
-  }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
+  }, [preview, previewRead, hoverCand, kbAt, board, read, toPlay, phone, candidates]);
 
   const [spoken, setSpoken] = useState('');
   useEffect(() => {
@@ -428,6 +439,32 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     setHoverCand(l === null || !pv ? null : { loc: l, pv });
   });
   const onBoardPlay = useEvent((l: Loc) => play(l));
+  // Keyboard play: the board's point starts on the last move (or the centre) when Tab lands on it.
+  const onSquareFocus = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || preview || !e.currentTarget.matches(':focus-visible')) return;
+    const last = board.cursor ? board.moves[board.cursor - 1].loc : PASS;
+    setKbAt(last !== PASS ? last : Math.floor((board.size * board.size) / 2));
+  };
+  const onSquareKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (preview || e.altKey || e.ctrlKey || e.metaKey) return;
+    const n = board.size;
+    const at = kbAt ?? Math.floor((n * n) / 2);
+    const x = at % n, y = Math.floor(at / n);
+    const step: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (step[e.key]) {
+      const [dx, dy] = step[e.key];
+      setKbAt(Math.min(n - 1, Math.max(0, y + dy)) * n + Math.min(n - 1, Math.max(0, x + dx)));
+    } else if ((e.key === 'Enter' || e.key === ' ') && kbAt !== null) {
+      if (view.stones[kbAt]) return;
+      play(kbAt);
+    } else if (e.key === 'Escape' && kbAt !== null) {
+      setKbAt(null);
+      e.currentTarget.blur();
+    } else return;
+    // the board's own keys: the document's arrow keys (step through the game) don't also run
+    e.preventDefault();
+    e.stopPropagation();
+  };
   const onCandidateClick = useEvent((l: Loc) => play(l, true));
   const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
   const flatBoard = (
@@ -686,7 +723,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
-          <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
+          <div
+            className={`bp-square${crop ? ' zoomed' : ''}`}
+            style={{ width: boxW, height: boxH }}
+            tabIndex={preview ? undefined : 0}
+            aria-label={preview ? undefined : 'Board. Arrow keys pick a point, Enter plays it, Escape leaves.'}
+            onFocus={onSquareFocus}
+            onBlur={() => setKbAt(null)}
+            onKeyDown={onSquareKey}
+          >
             {want3d ? (
               <Boundary fallback={flatBoard}>
               <Suspense fallback={flatBoard}>

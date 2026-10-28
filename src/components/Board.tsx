@@ -5,7 +5,7 @@ import { PASS, type Color, type Loc, type Move } from '../lib/go/types';
 import './board.css';
 import type { BoardSkin } from './boardSkin';
 
-export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var' | 'next';
+export type MarkKind = 'best' | 'played' | 'you' | 'doppel' | 'cand' | 'pv' | 'evidence' | 'num' | 'var' | 'next' | 'focus';
 
 export interface Mark {
   loc: Loc;
@@ -697,6 +697,7 @@ function BoardImpl(p: BoardProps) {
     }
     if (m.kind === 'num') return <g key={`m${k}`} className={cls}>{label}</g>;
     if (m.kind === 'next') return <circle key={`m${k}`} className="mark mark-next" cx={x} cy={y} r={0.36} />;
+    if (m.kind === 'focus') return <circle key={`m${k}`} className="mark mark-focus" cx={x} cy={y} r={0.5} />;
     const r = m.kind === 'best' ? 0.34 : m.kind === 'played' || m.kind === 'you' ? 0.3 : m.kind === 'pv' ? 0.31 : 0.34;
     return (
       <g key={`m${k}`} className={cls}>

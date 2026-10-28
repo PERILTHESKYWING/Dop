@@ -237,7 +237,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* login */
 #login { min-height: 100%; display: grid; place-items: center; padding: 16px; }
-#login form { background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 32px; width: min(380px, 100%); display: grid; gap: 14px; }
+#login form { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 32px; width: min(380px, 100%); display: grid; gap: 14px; }
 #login h1 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
 /* Flat card, like the rest of the Kaya look; the error line takes no room until there is one. */
 :root #login form { box-shadow: none; border-radius: 12px; }
@@ -359,6 +359,9 @@ a.opt { color: inherit; text-decoration: none; }
 .spin { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: 1.1em; color: var(--green); flex: none; vertical-align: -0.15em; }
 .spin svg { width: 100%; height: 100%; fill: currentColor; display: block; }
 .thinking.lively, .thinking.lively .spin { color: var(--clay); }
+/* a live run, still but not a status dot: a green ring round a dot, and its state word in green */
+.wdot { box-sizing: border-box; width: 12px; height: 12px; margin: 0 1px; padding: 2px; border: 1.5px solid var(--green); border-radius: 50%; background: var(--green); background-clip: content-box; flex: none; }
+.thinking .tstate { color: var(--green); font-weight: 500; }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
@@ -648,7 +651,8 @@ button.fchip:hover { border-color: var(--faint); }
 .ameta .conn { white-space: nowrap; }
 .asub { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .asub .sub { flex: 1; min-width: 0; margin-top: 0; }
-.asub .btn { padding: 3px 10px; white-space: nowrap; }
+/* Mark usage reset: a quiet text button on the card, desktop and phone alike */
+:root .asub .btn { min-height: 28px; background: none; border-color: transparent; padding: 0 6px; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
 /* One usage line: 5-hour and weekly side by side. */
 .use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
@@ -740,7 +744,8 @@ button.act:hover .ttl { text-decoration: underline; }
 .lby span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* sheets */
-.sheet { position: fixed; inset: 0; background: rgba(0,0,0,.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; z-index: 7; }
+/* a flat dim, no blur: a full-screen blur repaints every frame behind the sheet (critics, 2026-10-28) */
+.sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, .62); display: grid; place-items: center; padding: 16px; z-index: 7; }
 .sheet .sbox { background: var(--panel); border: 1px solid var(--line); box-shadow: 0 20px 60px -12px rgba(0, 0, 0, .35); border-radius: 18px; padding: 26px; animation: rise .18s ease-out; width: min(560px, 100%); max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 12px; }
 /* Framed sheets: sticky header with Close, body, sticky footer with the main button on the right. */
 .sheet .sbox.framed { padding: 0; gap: 0; }
@@ -759,7 +764,11 @@ button.act:hover .ttl { text-decoration: underline; }
 .sgrp { display: grid; gap: 12px; min-width: 0; border-top: 1px solid var(--line); padding-top: 16px; }
 .sgrp:first-child { border-top: 0; padding-top: 0; }
 .sgrp > h4 { margin: 0; font-size: 16px; }
-.sheet .hint, .field .hint { font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--soft); }
+/* sheet controls in ink, not the browser's: an ink checkbox, no number spinner */
+.sheet input[type="checkbox"], .sheet input[type="radio"] { accent-color: var(--ink); }
+.sheet input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.sheet input[type="number"]::-webkit-inner-spin-button, .sheet input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sheet .hint, .field .hint { font-size: 15px; font-weight: 400; line-height: 1.4; color: var(--soft); }
 .sbody .err:empty { display: none; }
 .err.ok { color: var(--green); }
 .sheet h3 { margin: 0; font-size: 20px; }
@@ -807,7 +816,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .acts.foot { gap: 2px; margin: 0 -10px; }
 .acts.foot .so { margin-left: auto; color: var(--soft); }
 /* They read as links: a quiet underline at rest, a chip on hover; the stone focus ring as everywhere. */
-.acts.foot .btn { text-decoration: underline; text-decoration-color: var(--line-2); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.acts.foot .btn { min-height: 28px; font-size: 15px; text-decoration: underline; text-decoration-color: var(--line-2); text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .acts.foot .btn:hover { text-decoration-color: currentColor; background: var(--sel); }
 .acts a.btn { color: inherit; text-decoration: none; }
 .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -867,11 +876,15 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
   .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
   .navrows { padding-bottom: 2px; }
-  /* Project chat and Team lessons: two cells on one surface; the open one is marked by weight and an underline, the count is a badge after its label. */
+  /* Filter sits on the same 8 px grid as the tiles above and below it. */
+  .tfind { padding: 2px 8px 4px; }
+  /* Mark usage reset: its 44 px tap area overhangs the row. */
+  .asub .btn { margin: -10px -6px -10px 0; }
+  /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
-  :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); box-shadow: inset 0 -3px 0 var(--kaya-ink); }
-  :root .app > .side .navpair .trow.tn.on .ttl { font-weight: 700; }
+  /* The Threads list is its own screen, so no tile shows as open there; the left rule means "needs you" only. */
+  :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); color: inherit; box-shadow: none; }
   .navpair .trow.tn .ttl { flex: 0 1 auto; }
   :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
   .brand { padding-top: 10px; padding-bottom: 6px; }
@@ -1161,7 +1174,7 @@ const lowAt = () => 100 - (S.settings?.minLeftPct ?? 15);
 
 // ---------- thinking and Clawd ----------
 // The ✻ is Claude Code's own glyph, drawn as SVG (phones turn ✳ and friends into grey emoji).
-// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot]. Calm (default) shows ✻ still;
+// Frames copy · ✢ ✳ ✶ ✻ ✽ as [petals, length, width, centre dot]. Calm (default) shows a still green dot;
 // Look › Working line › Lively turns it, adds Claude Code's verbs and Clawd, as XIAO first asked.
 const petals = (n, len, w, dot) => `<svg viewBox="0 0 24 24" aria-hidden="true">${Array.from({ length: n }, (_, i) => `<ellipse cx="12" cy="${12 - len / 2}" rx="${w}" ry="${len / 2}" transform="rotate(${(i * 360) / n} 12 12)"/>`).join('')}${dot ? `<circle cx="12" cy="12" r="${dot}"/>` : ''}</svg>`;
 const SPIN = [petals(0, 0, 0, 2.2), petals(4, 9, 2.2, 1.6), petals(8, 10, 1, 1.4), petals(6, 10, 2.4, 2), petals(8, 10, 1.9, 0), petals(8, 11, 2.6, 1.8)];
@@ -1183,7 +1196,7 @@ const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.no
 // ("Main working · 1m 16s · Run 3 of 5"). The clock ticks in place, so the feed only redraws on news.
 function thinkingLine(who, since, key, state = 'working', step = '') {
   if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''})</span></div>`;
-  return `<div class="thinking"><span class="spin" aria-hidden="true">${SPIN[4]}</span><b>${esc(who)}</b><span class="tmeta">${state} · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}</span></div>`;
+  return `<div class="thinking"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
 const stepOf = (t, name) => { const g = (S.agents || []).find((x) => x.thread === t.id && x.account === name && x.status === 'running'); return g ? g.step || g.title || '' : ''; };
@@ -2097,7 +2110,9 @@ function fillLessons() { const el = $('lList'); if (el) setHtml(el, lessonRows()
 function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); fillLessons(); }
 function setTab(tab) {
   const was = $('app').dataset.tab;
-  $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab));
+  // A thread opened from Threads keeps Threads marked (Chat is the project chat), as a back stack.
+  const shown = tab === 'chat' && sel ? 'threads' : tab;
+  $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === shown));
   if (tab === 'chat' && was !== 'chat') toBottom();
 }
 const toBottom = () => feedToBottom($('feed'));
@@ -2133,7 +2148,7 @@ document.addEventListener('click', async (e) => {
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
-  const tab = e.target.closest('#tabs button'); if (tab) return setTab(tab.dataset.tab);
+  const tab = e.target.closest('#tabs button'); if (tab) return tab.dataset.tab === 'chat' && sel ? openThread(0) : setTab(tab.dataset.tab);
   if (e.target.closest('#back')) return setTab('threads');
   const pn = e.target.closest('[data-panel]'); if (pn) return togglePanel(pn.dataset.panel);
   if (e.target.closest('#newTask')) { openThread(0); $('text').focus(); return; }

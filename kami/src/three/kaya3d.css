@@ -267,6 +267,14 @@
     0 0 0 1px #f7f3ea,
     inset 0 0 0 1px #f7f3ea;
 }
+.k3-focus::before,
+.k3-focus.on-stone::before {
+  width: calc(var(--cell) * 1);
+  height: calc(var(--cell) * 1);
+  border: 3px solid #15130f;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #f7f3ea, inset 0 0 0 1px #f7f3ea;
+}
 .k3-evidence::before {
   border-color: #15130f;
 }
