@@ -469,7 +469,7 @@ kbd {
 }
 .pop-foot {
   padding: 6px 10px 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -724,7 +724,7 @@ kbd {
 .conv-empty {
   padding: 6px 10px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .conv-rename {
   flex: 1;
@@ -794,7 +794,7 @@ kbd {
   text-overflow: ellipsis;
 }
 .account-plan {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 .account .pop {
@@ -1741,6 +1741,12 @@ kbd {
 .bp-square {
   flex: none;
 }
+/* keyboard focus on the board: the ring sits inside the square, so the eval bar above never hides its top edge */
+.bp-square:focus-visible {
+  outline-color: var(--ink-2);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
 /* numbers on the board in lining figures, as tall as capitals (Alegreya's default figures are
    old-style, x-height tall, and read two sizes smaller) */
 .bp-square svg.board text {
@@ -2329,7 +2335,7 @@ kbd {
 }
 .perf-foot {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 .bp-sheet {
@@ -2491,7 +2497,7 @@ kbd {
 }
 .set-blurb {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14px;
   margin: 0 0 14px;
 }
 .set-list {
@@ -2518,7 +2524,7 @@ kbd {
   font-weight: 500;
 }
 .set-help {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   margin-top: 2px;
 }
@@ -2548,7 +2554,13 @@ kbd {
 .textbox:focus,
 .numbox input:focus,
 .set-control select:focus {
-  border-color: var(--focus);
+  border-color: var(--ink-2);
+}
+/* a text field in focus is ink, not the red ring, so a right entry never reads as an error */
+.textbox:focus-visible,
+.numbox input:focus-visible,
+.set-control select:focus-visible {
+  outline-color: var(--ink-2);
 }
 .numbox {
   display: inline-flex;

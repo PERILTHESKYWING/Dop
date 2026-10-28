@@ -112,6 +112,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.quiet:hover { background: var(--sel); }
 .btn:disabled, .btn[aria-busy="true"] { opacity: .5; cursor: not-allowed; transform: none; }
 .btn:disabled:hover { background: var(--panel); }
+/* a main button that cannot act yet is an outline, not a grey slab (the demo has no story to send to) */
+.btn.go:disabled { background: none; color: var(--soft); border: 1px solid var(--line-2); border-bottom-width: 1px; box-shadow: none; opacity: .6; }
+.btn.go:disabled:hover { background: none; }
 .btn.go:disabled:hover { background: var(--green); }
 .btn.seg[aria-pressed="true"] { background: var(--sel); border-color: var(--ink); }
 .btn.seg[aria-pressed="true"]::before { content: "✓"; }
@@ -637,7 +640,7 @@ function setStatus() {
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'No stories yet. Press “New story” to start one. Your Claude team writes the story and draws every frame in code; this demo shows the style.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo. Press “New story” and your Claude team writes your own and draws every frame in code, in this style.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
