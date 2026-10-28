@@ -636,7 +636,8 @@ async function refresh(full = false) {
 function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
-  $('badge').textContent = S.demo ? (S.id ? 'Demo until the first drawing' : 'Demo story') : '';
+  // every frame says how it was made: drawn in code by the Claude team, never a picture model
+  $('badge').textContent = S.demo ? (S.id ? 'Demo until the first drawing · drawn in code' : 'Demo story · drawn in code') : 'Drawn in code by your Claude team';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
