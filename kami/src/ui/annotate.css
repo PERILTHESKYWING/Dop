@@ -109,7 +109,7 @@
 }
 .notes-meta {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .notes-game .notes-meta {
   display: block;
@@ -206,7 +206,7 @@
   display: flex;
   gap: 16px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .notes-legend span::before {
   content: '';

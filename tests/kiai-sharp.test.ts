@@ -19,7 +19,7 @@ import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
-import { BIG_R, candidateLabeler, holdPick, keyText, lossLabel, phonePick, phonePlaces } from '../kami/src/lib/candLabels';
+import { BIG_R, MIN_R, candidateLabeler, keyText, lossLabel, phonePlaces } from '../kami/src/lib/candLabels';
 import { LlmUnavailable, type CallLlm } from '../kami/src/lib/llm';
 import { NOTES, writeAnswer } from '../kami/src/lib/writer';
 
@@ -211,50 +211,40 @@ describe('candidate labels in a lopsided game', () => {
   });
   const at = (x: number, y: number) => y * 19 + x;
   const m = (rank: number, x: number, y: number, lead: number) => ({ ...c(0.01, lead, rank), loc: at(x, y) });
-  it('a phone numbers at most three marks, spaced so the larger ones never overlap', () => {
-    // KataGo's choice, its neighbour a point worse (skipped), two further away, a fifth past the three
-    const cands = [m(0, 16, 9, -11), m(1, 17, 9, -12), m(2, 16, 11, -12.2), m(3, 13, 11, -12.5), m(4, 3, 3, -13)];
-    const pick = phonePick(cands, 19);
-    expect(pick).toEqual([at(16, 9), at(16, 11), at(13, 11)]);
-    const label = candidateLabeler(cands, true, false, new Set(pick))!;
-    expect(cands.map(label)).toEqual(['1%', '', '−1.2', '−1.5', '']);
-    // a close game on a phone: the same three carry the win chance, the rest are bare
-    const close = cands.map((x) => ({ ...x, winrate: 0.45 }));
-    expect(close.map(candidateLabeler(close, true, false, new Set(pick))!)).toEqual(['45', '', '45', '45', '']);
-    // spaced marks keep their full size on their own points
-    expect([...phonePlaces(pick, 19).values()].every((p) => p.r === BIG_R && p.dx === 0 && p.dy === 0)).toBe(true);
+  // the landing's demo read: Q10 (KataGo's choice), R10, Q12, R12, N8 and R8
+  const demo = [m(0, 15, 9, -11), m(1, 16, 9, -12), m(2, 15, 7, -12.3), m(3, 16, 7, -11.2), m(4, 12, 11, -12), m(5, 16, 11, -12)];
+  const overlaps = (cands: { loc: number }[]) => {
+    const places = phonePlaces(cands.map((x) => x.loc), 19);
+    const pos = cands.map((x) => ({ x: (x.loc % 19) + places.get(x.loc)!.dx, y: Math.floor(x.loc / 19) + places.get(x.loc)!.dy, r: places.get(x.loc)!.r }));
+    let worst = Infinity;
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) worst = Math.min(worst, Math.hypot(pos[i].x - pos[j].x, pos[i].y - pos[j].y) - pos[i].r - pos[j].r);
+    return { places, worst };
+  };
+  it('a phone numbers every mark, as a desktop does', () => {
+    const label = candidateLabeler(demo, true)!;
+    expect(demo.map(label)).toEqual(['1%', '−1.0', '−1.3', '−0.2', '−1.0', '−1.0']);
+    expect(demo.map(label).every((t) => t !== '')).toBe(true);
+    // a close game: every mark carries the win chance (the default label)
+    expect(candidateLabeler(demo.map((x) => ({ ...x, winrate: 0.45 })), true)).toBeUndefined();
   });
-  it('a move the answer names is numbered even next to KataGo’s choice, and both marks fit', () => {
-    // "R12 is about as good as Q10": R12 sits next to the choice
-    const cands = [m(0, 15, 9, -11), m(1, 16, 9, -11.2), m(2, 12, 12, -12), m(3, 3, 3, -13)];
-    const pick = phonePick(cands, 19, new Set([at(16, 9), at(15, 9)]));
-    expect(pick).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
-    const places = phonePlaces(pick, 19);
-    const a = places.get(at(15, 9))!, b = places.get(at(16, 9))!;
-    // each moves 0.2 of a point apart and shrinks so the two never overlap
-    expect(a.dx).toBeCloseTo(-0.2);
-    expect(b.dx).toBeCloseTo(0.2);
-    expect(a.r + b.r).toBeLessThanOrEqual(1 + 0.4);
-    expect(a.r).toBeGreaterThan(0.6);
-    // an answer naming more moves than fit still numbers the one about as good as the choice
-    const more = [m(0, 15, 9, -11), m(1, 15, 7, -11.9), m(2, 14, 10, -12.3), m(3, 16, 9, -11.2)];
-    expect(phonePick(more, 19, new Set([at(15, 7), at(14, 10), at(16, 9), at(15, 9)]))).toEqual([at(15, 9), at(16, 9), at(15, 7)]);
-    // with no answer, a move within 0.3 points of the choice is numbered first the same way
-    expect(phonePick(cands, 19)).toEqual([at(15, 9), at(16, 9), at(12, 12)]);
-    expect(phonePick(cands.map((x, i) => (i === 1 ? { ...x, scoreLead: -12 } : x)), 19)).toEqual([at(15, 9), at(12, 12), at(3, 3)]);
-  });
-  it('the numbered points hold for a second while ranks swap', () => {
-    const present = new Set([1, 2, 3, 4]);
-    let h = holdPick(null, [1, 2, 3], present, 0);
-    h = holdPick(h, [1, 2, 4], present, 100);
-    expect(h.shown).toEqual([1, 2, 3]);
-    h = holdPick(h, [1, 2, 3], present, 400);
-    h = holdPick(h, [1, 2, 4], present, 500);
-    expect(holdPick(h, [1, 2, 4], present, 1400).shown).toEqual([1, 2, 3]);
-    expect(holdPick(h, [1, 2, 4], present, 1500).shown).toEqual([1, 2, 4]);
-    // a new choice of KataGo's, or a shown point gone from the read, moves at once
-    expect(holdPick(h, [4, 2, 3], present, 600).shown).toEqual([4, 2, 3]);
-    expect(holdPick(h, [1, 2, 4], new Set([1, 2, 4]), 600).shown).toEqual([1, 2, 4]);
+  it('crowded phone marks move apart and shrink, never overlap, never below a desktop mark', () => {
+    const { places, worst } = overlaps(demo);
+    expect(worst).toBeGreaterThanOrEqual(0);
+    for (const p of places.values()) expect(p.r).toBeGreaterThanOrEqual(MIN_R);
+    // "R12 is about as good as Q10" side by side: each moves up to 0.2 of a point, both fit
+    const a = places.get(at(15, 7))!, b = places.get(at(16, 7))!;
+    expect(a.dx).toBeLessThan(0);
+    expect(b.dx).toBeGreaterThan(0);
+    expect(a.r).toBeGreaterThan(0.55);
+    // a mark with room keeps its full size on its own point
+    expect(places.get(at(12, 11))).toEqual({ dx: 0, dy: 0, r: BIG_R });
+    // a pair alone: 0.2 of a point apart each
+    const pair = phonePlaces([at(15, 9), at(16, 9)], 19);
+    expect(pair.get(at(15, 9))!.dx).toBeCloseTo(-0.2);
+    expect(pair.get(at(16, 9))!.dx).toBeCloseTo(0.2);
+    // a square block of four still fits
+    expect(overlaps([m(0, 3, 3, 0), m(1, 4, 3, 0), m(2, 3, 4, 0), m(3, 4, 4, 0)]).worst).toBeGreaterThanOrEqual(0);
+    for (const s of phonePlaces([at(3, 3), at(4, 3), at(3, 4), at(4, 4)], 19).values()) expect(Math.hypot(s.dx, s.dy)).toBeLessThanOrEqual(0.2 + 1e-9);
   });
 });
 

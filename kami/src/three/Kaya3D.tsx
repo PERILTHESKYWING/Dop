@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CandidateMark, Mark } from '../../../src/components/Board';
 import { PASS, type Color, type Loc, type Move } from '../../../src/lib/go/types';
-import { KayaView, type BoardWood, type PaleMark, type StoneColor } from './kaya';
+import { KayaView, WOOD_DX, WOOD_DY, type BoardWood, type PaleMark, type StoneColor } from './kaya';
 import './kaya3d.css';
 
 export interface Kaya3DProps {
@@ -65,6 +65,7 @@ export default function Kaya3D(p: Kaya3DProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const layer = useRef<HTMLDivElement>(null);
+  const edge = useRef<SVGPolygonElement>(null);
   const viewRef = useRef<KayaView | null>(null);
   // bumped each time a view is made (board size or wood changed), so everything is set on the new one
   const [ready, setReady] = useState(0);
@@ -203,6 +204,18 @@ export default function Kaya3D(p: Kaya3DProps) {
       // text scales with the board: one grid cell in CSS px
       const a = v.project(0, 0), b = v.project(1, 0);
       el.style.setProperty('--cell', `${Math.hypot(b.x - a.x, b.y - a.y).toFixed(2)}px`);
+      // the keyboard focus ring's outline: just outside the wood's edge, and down its front face
+      // when the board leans back (shown only while the board has keyboard focus, kaya3d.css)
+      const e = edge.current;
+      if (e) {
+        const n = size - 1, mx = WOOD_DX + 0.1, my = WOOD_DY + 0.1;
+        const tl = 0, tr = n, br = n * size + n, bl = n * size;
+        const low = tilt > 0 ? -BOARD_T : 0;
+        const pts = [v.project(tl, 0, -mx, -my), v.project(tr, 0, mx, -my), v.project(br, 0, mx, my)];
+        if (low) pts.push(v.project(br, low, mx, my), v.project(bl, low, -mx, my));
+        pts.push(v.project(bl, 0, -mx, my));
+        e.setAttribute('points', pts.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' '));
+      }
     };
     v.onFrame = place;
     // the labels moved, not anything that casts a shadow
@@ -210,7 +223,7 @@ export default function Kaya3D(p: Kaya3DProps) {
     return () => {
       if (v.onFrame === place) v.onFrame = null;
     };
-  }, [labels, ready]);
+  }, [labels, ready, size, tilt]);
 
   // ------------------------------------------------------------- pointer
 
@@ -277,6 +290,11 @@ export default function Kaya3D(p: Kaya3DProps) {
           </span>
         ))}
       </div>
+      {!p.crop && (
+        <svg className="k3-edge" aria-hidden="true">
+          <polygon ref={edge} />
+        </svg>
+      )}
     </div>
   );
 }
