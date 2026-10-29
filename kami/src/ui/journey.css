@@ -198,7 +198,7 @@
   border: 1.5px solid var(--muted);
 }
 .week-line .week-wd {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -227,7 +227,7 @@
 }
 .seal-when {
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
