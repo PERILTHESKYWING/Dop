@@ -207,6 +207,15 @@
    "rankError10": 1.15,
    "positions": 464116,
    "calibrationGap": 0.22
+  },
+  {
+   "at": "2026-10-30T12:00:31.453Z",
+   "run": 38,
+   "rankGames": 109355,
+   "rankError1": 3.141,
+   "rankError10": 1.098,
+   "positions": 474009,
+   "calibrationGap": 0.23
   }
  ]
 }
