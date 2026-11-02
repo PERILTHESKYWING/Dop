@@ -289,6 +289,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
 .navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
+.navrows .lesn { display: none; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -798,6 +799,8 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .sheet [aria-invalid="true"] { border-color: var(--red); }
 .sdet { border-top: 1px solid var(--line); padding-top: 14px; }
 .sdet summary { cursor: pointer; font-weight: 500; font-size: 16px; }
+/* Setup steps folded under one quiet link, so Settings shows state first (critics, 2026-11-02). */
+.how summary { cursor: pointer; font-size: 15px; color: var(--soft); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; min-height: 28px; display: inline-flex; align-items: center; }
 .sdet > div { display: grid; gap: 8px; margin-top: 10px; }
 #connLog { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .lacts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
@@ -881,22 +884,21 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .team > .thead:first-child { padding-top: 10px; }
   /* The last heading in a tab never ends flush under the tab bar. */
   .team, .side .list { padding-bottom: 56px; }
-  /* Threads tab: one four-column grid (8 px gutters, 2 px gaps), so the first thread sits near the top (y 183, was 280).
-     Row 1: the name and Live, then New chat and New task. Row 2: Studio, Library, then Filter.
-     Project chat and Team lessons (in the list) take two columns each, so every edge lines up. */
-  .side { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto minmax(0, 1fr); align-content: start; gap: 0 2px; padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left)); }
-  .side > .brand { grid-column: 1 / 3; min-width: 0; padding: 6px 4px 6px 6px; gap: 8px; }
-  .side > .newrow { grid-column: 3 / 5; grid-row: 1; min-width: 0; margin: 6px 0; gap: 2px; grid-template-columns: 1fr 1fr; }
-  .side > .newrow .newtask { justify-content: center; padding: 0 6px; }
-  .side > .newrow .newtask svg { display: none; }
-  .side > .navrows { display: contents; }
-  .navrows > .trow.tn { grid-column: span 2; grid-row: 2; justify-content: center; padding: 6px 8px; gap: 8px; }
-  .navrows:has(~ .tfind:not(.hidden)) > .trow.tn { grid-column: span 1; }
-  .side > .tfind { grid-column: 3 / 5; grid-row: 2; padding: 0; }
-  .side > .list { grid-column: 1 / -1; grid-row: 3; margin: 0 calc(-1 * max(8px, env(safe-area-inset-right))) 0 calc(-1 * max(8px, env(safe-area-inset-left))); }
-  .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+  /* Threads tab (critics 2026-11-02; the 10-29 four-column header read cramped to 6): logo and Live, then New task
+     and New chat, then Studio, Library and Lessons on one row, then Filter on its own row. Project chat is the
+     Chat tab, so its tile goes and the first thread sits about 220 CSS px down. */
+  .navrows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding-bottom: 2px; }
+  .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
+  :root .app > .side .navrows .trow.tn.lesn { display: flex; }
+  :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
+  :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
+  .navrows .trow.tn .when:empty { display: none; }
+  .tfind { padding: 2px 8px 4px; }
+  .navpair { display: none; }
+  .brand { padding-top: 10px; padding-bottom: 6px; }
   /* Mark usage reset: its 44 px tap area overhangs the row. */
-  .asub .btn { margin: -10px -6px -10px 0; }
+  /* :root to beat the desktop rule's 28 px, so the phone really gets 44 px. */
+  :root .asub .btn { min-height: 44px; margin: -10px -6px -10px 0; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -941,6 +943,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
     <div class="navrows">
       <a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
       <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
+      <button class="trow tn lesn" type="button" data-open="lessons" title="Team lessons: what one agent learns, every agent knows"><i data-ico="lightbulb" data-size="16"></i><span class="ttl">Lessons</span><span class="when" id="lesN"></span></button>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -1317,8 +1320,8 @@ function renderSide() {
     html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else html = `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
+  } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
@@ -1602,6 +1605,11 @@ function patchFeed(feed, items) {
   for (let i = 0; i < suf; i++) items[items.length - 1 - i].nodes = old[old.length - 1 - i].nodes;
   feedItems = items;
   return add;
+}
+// The phone's Lessons tile (top row, next to Studio and Library) carries the same count.
+function lesN() {
+  const n = $('lesN'); if (!n) return;
+  n.textContent = S.lessons.length || ''; n.closest('.lesn').hidden = !S.accounts.length;
 }
 // Off-screen messages use a guessed height (content-visibility), so the bottom moves once they
 // are measured: scroll again each frame until scrollHeight stops changing (at most 6 frames).
@@ -2454,7 +2462,7 @@ async function openSheet(kind, name) {
         <label class="pcheck"><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}><span><b>Continue stopped threads</b><small>On another account</small></span></label>
       </div>
       <div class="sgrp"><h4>After a limit resets</h4>
-        <p class="hint">${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours. For always within a minute: in Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.'}</p>
+        <p class="hint">${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours.'}</p>${S.timedWake ? '' : '<details class="how"><summary>How to make it always within a minute</summary><p class="hint">In Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.</p></details>'}
       </div>
       <details class="sdet" id="connDet"><summary>Connection log</summary><div>
         <p class="hint">Last refresh ${speed.rtt} ms, ${speed.ms} ms of it in the hub. Below: each call from claude.ai or an agent, and each routine start, newest first.</p>
