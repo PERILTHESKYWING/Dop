@@ -129,7 +129,7 @@ try {
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
 :root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .group { letter-spacing: .07em; }
-.tfind input::placeholder { color: var(--faint); opacity: 1; }
+::placeholder, .tfind input::placeholder { color: var(--faint); opacity: 1; }
 :root .trow { border-radius: var(--r); padding: 10px 12px; }
 :root .trow .ttl { font-size: 16px; font-weight: 500; text-wrap: pretty; }
 :root .trow .tsub { font-size: 15px; }
@@ -288,6 +288,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
 .navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
+.navrows .lesn { display: none; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -672,7 +673,7 @@ button.fchip:hover { border-color: var(--faint); }
 .btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; }
 .aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan { font-weight: 400; color: var(--soft); }
-.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
+.state.busy { color: var(--green); } .state.low { color: var(--ink); font-weight: 600; } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
 .acard .sub { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 .acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
@@ -792,6 +793,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .sheet [aria-invalid="true"] { border-color: var(--red); }
 .sdet { border-top: 1px solid var(--line); padding-top: 14px; }
 .sdet summary { cursor: pointer; font-weight: 500; font-size: 16px; }
+.how summary { cursor: pointer; font-size: 15px; color: var(--soft); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; min-height: 28px; display: inline-flex; align-items: center; }
 .sdet > div { display: grid; gap: 8px; margin-top: 10px; }
 #connLog { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .lacts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
@@ -838,11 +840,17 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .ponly { display: inline-flex; }
   /* One header row: back, the title (up to two lines), the status dot, ⋯. */
   :root .head { flex-wrap: nowrap; min-height: 56px; gap: 4px; padding: 6px max(8px, env(safe-area-inset-right)) 6px max(4px, env(safe-area-inset-left)); }
-  :root .head h2 { font-size: 18px; flex: 1 1 auto; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; overflow: hidden; text-wrap: balance; }
+  /* One line: a two-line title pushed the task card under the header (critics, 2026-11-02); the full title is in the composer. */
+  :root .head h2 { font-size: 18px; flex: 1 1 auto; white-space: nowrap; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
   /* Status: the dot and its word ("Working", "Needs you", "Done"), so it reads without colour. */
   :root .head .pill { background: none; padding: 0 4px; min-height: 44px; gap: 5px; font-size: 14px; white-space: nowrap; flex: none; }
   :root .head .btn.more { min-width: 44px; padding: 0; display: inline-grid; place-items: center; border-color: transparent; background: none; }
   .feed { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  /* A phone thread: a 16 px rhythm and a tighter task card, so a short thread opens with its task card whole. */
+  :root .feed { gap: 16px; }
+  :root .task { padding: 10px 14px; }
+  /* Its copy button (shown on tap) sits in the card's corner, so it never wraps onto a second header line. */
+  :root .task { position: relative; } :root .task .who { padding-right: 36px; } :root .feed .task .who .cp { position: absolute; top: 0; right: 0; margin: 0; }
   /* One composer row: +, Options (sums up the picks), status, Send. */
   .tools { flex-wrap: nowrap; margin-top: 4px; }
   .tools .chip:not(.quiet) { display: none; }
@@ -857,7 +865,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Follow-on time + Copy: one 20 px meta row (the 44 px tap area overhangs it). */
   .who.mini { position: static; height: 20px; margin: 0 0 4px; }
   .who.mine { height: 20px; margin-bottom: 0; }
-  .who.mini .cp, .who.mine .cp { margin: -12px -8px -12px 0; }
+  .who.mini .cp, .who.mine .cp, .task .who .cp { margin: -12px -8px -12px 0; }
   #text, #pw { min-height: 44px; }
   #sendBtn { min-width: 44px; min-height: 44px; }
   summary, .thought summary, .tk, .trow.tn, .trow.t1, .tfind input, .ask-t, .ask-go { min-height: 44px; }
@@ -876,10 +884,19 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Threads tab: the four nav rows pair up (two rows of 44 px), so Needs you sits near the top. */
   .navrows, .navpair { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
   .navrows { padding-bottom: 2px; }
+  /* Phone: Studio, Library and Lessons share one row; Project chat is the Chat tab, so its tile goes
+     and the first thread sits one row higher. */
+  .navrows { grid-template-columns: repeat(3, 1fr); }
+  :root .app > .side .navrows .trow.tn.lesn { display: flex; gap: 8px; padding: 6px 10px; }
+  :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
+  .navpair { display: none; }
+  .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
+  :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
+  .navrows .trow.tn .when:empty { display: none; }
   /* Filter sits on the same 8 px grid as the tiles above and below it. */
   .tfind { padding: 2px 8px 4px; }
   /* Mark usage reset: its 44 px tap area overhangs the row. */
-  .asub .btn { margin: -10px -6px -10px 0; }
+  :root .asub .btn { min-height: 44px; margin: -10px -6px -10px 0; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -925,6 +942,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
     <div class="navrows">
       <a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
       <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
+      <button class="trow tn lesn" type="button" data-open="lessons" title="Team lessons: what one agent learns, every agent knows"><i data-ico="lightbulb" data-size="16"></i><span class="ttl">Lessons</span><span class="when" id="lesN"></span></button>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -1301,8 +1319,8 @@ function renderSide() {
     html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
-  } else html = `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>'
+  } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
@@ -1589,10 +1607,32 @@ function patchFeed(feed, items) {
 }
 // Off-screen messages use a guessed height (content-visibility), so the bottom moves once they
 // are measured: scroll again each frame until scrollHeight stops changing (at most 6 frames).
-function feedToBottom(f) {
+// The phone's Lessons tile (top row, next to Studio and Library) carries the same count.
+function lesN() {
+  const n = $('lesN'); if (!n) return;
+  n.textContent = S.lessons.length || ''; n.closest('.lesn').hidden = !S.accounts.length;
+}
+// On opening a thread, a message cut at the top edge by no more than the feed's bottom padding is
+// shown whole instead: the view moves up that little, which hides only empty padding, never the
+// live working line. A deeper cut stays (the newest message matters more).
+function feedToBottom(f, open = false) {
   let h = -1, n = 0;
-  const go = () => { if (f.scrollHeight === h || n++ > 5) return; h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
+  const go = () => {
+    if (f.scrollHeight === h || n++ > 5) { if (open) unclip(f); return; }
+    h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go);
+  };
   go();
+}
+function unclip(f) {
+  const top = f.getBoundingClientRect().top;
+  for (const el of f.children) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= top) continue;
+    const cut = top - r.top;
+    const pad = parseFloat(getComputedStyle(f).paddingBottom) || 0;
+    if (cut > 0 && cut <= pad) f.scrollTop = Math.max(0, f.scrollTop - cut);
+    return;
+  }
 }
 // Long feeds open fast with content-visibility: auto, then render their off-screen messages while
 // the page is idle: 5 per slice (a bigger slice is one long frame on a slow phone), newest first,
@@ -1664,7 +1704,7 @@ function renderFeed() {
   const added = patchFeed(feed, items);
   if (added && !fresh && added.length <= 3) for (const x of added) if (typeof x.k === 'number' || String(x.k).startsWith('tmp')) for (const n of x.nodes) if (n.nodeType === 1) n.classList.add('rise');
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
-  if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed);
+  if (stick || feed.dataset.sel !== String(sel)) feedToBottom(feed, feed.dataset.sel !== String(sel));
   feed.dataset.sel = String(sel);
   if (added) warmFeed();
   renderTools(t);
@@ -2427,7 +2467,7 @@ async function openSheet(kind, name) {
         <label class="pcheck"><input id="sResume" type="checkbox" ${s.autoResume ? 'checked' : ''}><span><b>Continue stopped threads</b><small>On another account</small></span></label>
       </div>
       <div class="sgrp"><h4>After a limit resets</h4>
-        <p class="hint">${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours. For always within a minute: in Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.'}</p>
+        <p class="hint">${S.timedWake ? 'Accounts are back at work within a minute of their reset, even with every page closed.' : 'Accounts come back within a minute while this page is open or an agent is working. With everything closed it can take hours.'}</p>${S.timedWake ? '' : '<details class="how"><summary>How to make it always within a minute</summary><p class="hint">In Vercel open dop-hub, Storage, add Upstash QStash (free), connect it to dop-hub, then Redeploy.</p></details>'}
       </div>
       <details class="sdet" id="connDet"><summary>Connection log</summary><div>
         <p class="hint">Last refresh ${speed.rtt} ms, ${speed.ms} ms of it in the hub. Below: each call from claude.ai or an agent, and each routine start, newest first.</p>

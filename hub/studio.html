@@ -102,6 +102,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
    One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 500; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: transform .12s ease-out; }
+::placeholder { color: var(--faint); opacity: 1; }
 .btn:hover { background: var(--sel); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
 .btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
@@ -149,7 +150,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
 .scenes button:hover { border-color: var(--soft); }
 .scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.status > .dot { align-self: flex-start; margin-top: 7px; margin-top: calc(.5lh - 4px); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--green); }
 .dot.busy { background: var(--amber); }
@@ -435,7 +437,9 @@ function draw(force = false) {
   const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${styleKey}`;
   if (!force && key === lastKey) return;
   lastKey = key;
-  const f = renderFrame(P, at.scene, at.t, { withBg: false });
+  // The boxed caption on screen: 14-20 CSS px whatever the frame's width (the saved video keeps 56/1600).
+  const shown = (56 * (cv.clientWidth || cv.width)) / W;
+  const f = renderFrame(P, at.scene, at.t, { withBg: false, capScale: shown ? Math.min(20, Math.max(14, shown)) / shown : 1 });
   paint(ctx, f, { width: cv.width, height: cv.height, bgCanvas: bgFor(at.scene), grainCanvas: grain });
   $('time').textContent = `${t.toFixed(1)} / ${total.toFixed(1)} s`;
   if (!scrubbing) $('scrub').value = String(Math.round((t / total) * 1000));
