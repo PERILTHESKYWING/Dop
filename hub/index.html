@@ -129,7 +129,8 @@ try {
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
 :root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .group { letter-spacing: .07em; }
-.tfind input::placeholder { color: var(--faint); opacity: 1; }
+/* every placeholder in the faint ink (6:1 on paper), never the browser's pale grey */
+::placeholder { color: var(--faint); opacity: 1; }
 :root .trow { border-radius: var(--r); padding: 10px 12px; }
 :root .trow .ttl { font-size: 16px; font-weight: 500; text-wrap: pretty; }
 :root .trow .tsub { font-size: 15px; }
@@ -525,6 +526,8 @@ a.opt { color: inherit; text-decoration: none; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
 .task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
+/* the copy button sits in the card's top-right corner, so a 44 px phone target never wraps onto its own line */
+.task { position: relative; } .task .who { padding-right: 40px; } .task .who .cp { position: absolute; top: 4px; right: 4px; margin: 0; }
 .task .who, .handover .who { font-weight: 500; }
 .handover .who { color: var(--ink); }
 .handover { border: 1px solid var(--line); border-left: 4px solid var(--green); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
@@ -640,7 +643,7 @@ button.fchip:hover { border-color: var(--faint); }
 .cap { padding: 0 16px 10px; margin: 0; font-size: 15px; }
 .acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 0 12px; }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
-/* Team: no alarm borders; the red word and the red bar carry "running low". */
+/* Team: no alarm borders; one red only (the bar). "Running low" is a strong amber word beside it. */
 .tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
@@ -672,7 +675,7 @@ button.fchip:hover { border-color: var(--faint); }
 .btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; }
 .aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan { font-weight: 400; color: var(--soft); }
-.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
+.state.busy { color: var(--green); } .state.low { color: var(--amber); font-weight: 600; } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
 .acard .sub { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 .acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
@@ -1270,7 +1273,7 @@ function threadRow(t) {
   return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
-const FIND_AT = 8;
+const FIND_AT = 12; // under 12 threads the whole list fits a phone screen, so the filter only pushes it down
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
   lastByThread = new Map(); lastByThreadAcct = new Map();

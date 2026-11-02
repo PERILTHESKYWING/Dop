@@ -149,7 +149,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
 .scenes button:hover { border-color: var(--soft); }
 .scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.45; color: var(--soft); display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+/* the dot sits on the first line's middle, not the paragraph's */
+.status .dot { margin-top: calc(.725em - 4px); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--green); }
 .dot.busy { background: var(--amber); }
@@ -432,10 +434,12 @@ function draw(force = false) {
   if (!P.scenes.length) return;
   const at = locate(P, Math.min(t, total - 1e-3));
   const q = quantize(P.style, at.t);
-  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${styleKey}`;
+  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${cv.clientWidth}|${styleKey}`;
   if (!force && key === lastKey) return;
   lastKey = key;
-  const f = renderFrame(P, at.scene, at.t, { withBg: false });
+  // On a narrow screen the boxed caption (38 of 1600 px) would show at ~9 px: grow it to read at 14 px.
+  const capScale = Math.min(2, Math.max(1, 14 / (38 * (cv.clientWidth || W) / W)));
+  const f = renderFrame(P, at.scene, at.t, { withBg: false, capScale });
   paint(ctx, f, { width: cv.width, height: cv.height, bgCanvas: bgFor(at.scene), grainCanvas: grain });
   $('time').textContent = `${t.toFixed(1)} / ${total.toFixed(1)} s`;
   if (!scrubbing) $('scrub').value = String(Math.round((t / total) * 1000));

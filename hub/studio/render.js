@@ -283,9 +283,11 @@ const luma = (c) => {
   return Number.isFinite(n) ? (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 : 1;
 };
 
-function caption(ops, text, st, scene = {}) {
-  const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
-  const lines = wrap(text, 58).slice(0, 3);
+// capScale > 1 when the player shows the frame small (a phone): the caption grows so it reads at
+// 14 px or more on screen, with fewer words per line. Saved videos always use 1.
+function caption(ops, text, st, scene = {}, capScale = 1) {
+  const size = (st.capPos === 'top' ? 50 : 38) * capScale; // a top subtitle is read over the picture: bigger, like the references
+  const lines = wrap(text, Math.min(58, Math.floor((W - 190) / (size * 0.46)))).slice(0, 3); // as many words as the widest box holds
   if (st.capPos === 'top') {
     // Subtitle style (f2): black sans at a medium weight (not bold) with a thin white edge,
     // no box, at the top centre (baseline at 8% of the frame); the shots keep her hair
@@ -329,7 +331,7 @@ export function cameraAt(scene, t) {
 
 // ---------- one frame ----------
 // sceneIndex + local time t. Returns { scene, drawing, bg (scene id for cache), world, overlay, camera }.
-export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
+export function renderFrame(p, sceneIndex, t, { withBg = true, capScale = 1 } = {}) {
   const scene = p.scenes[sceneIndex];
   const st = p.style;
   const { drawing, tq } = quantize(st, t);
@@ -364,7 +366,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   // Marks sit on the screen (x, y = share of the frame), like labels written on the
   // finished shot: a close-up never pushes them out of view.
   drawMarks(overlay, scene.marks, tq, st, W, H);
-  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene);
+  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene, capScale);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
