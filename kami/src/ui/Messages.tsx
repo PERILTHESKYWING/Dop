@@ -294,12 +294,12 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   // the device's speed, all measured (critics, round 2).
   const positions = ex?.totalVisits || most;
   const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
-  // On a phone the folded line is just "225 positions · 2 s" (one row by the chevron); the
-  // rest shows when the card is open (styles.css .th-wide).
+  // On a phone the folded line is "KataGo read 225 positions · 2 s" (one row by the chevron,
+  // naming the engine as a desktop does); the speed shows when the card is open (styles.css .th-wide).
   const done = positions ? (
     <span>
-      <span className="th-wide">KataGo read </span>
-      {positions.toLocaleString()} positions · {secs(ms)}
+      KataGo read {positions.toLocaleString()} positions
+      {ex && ex.reads > 1 ? ` in ${ex.reads} reads` : null} · {secs(ms)}
       {rate ? <span className="th-wide"> · {rate.toLocaleString()} a second on this device</span> : null}
     </span>
   ) : (
@@ -444,7 +444,7 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
       {longer && ex.totalVisits > 0 && (
         // A quick read says so, with its real size, and offers the longer one (critics 3 and 9).
         <p className="note quick-read">
-          Quick read ({ex.totalVisits.toLocaleString()} positions). A longer read can change the pick.{' '}
+          Quick read ({ex.totalVisits.toLocaleString()} positions{ex.reads > 1 ? ` in ${ex.reads} reads` : ''}). A longer read can change the pick.{' '}
           {onReadLonger && (
             <button type="button" className="text-btn" onClick={onReadLonger}>
               Read longer

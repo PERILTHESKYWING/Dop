@@ -76,6 +76,8 @@ export const SY = 0.0237;
 /** Margin from the outer lines to the edge, across and along (a 19x19 board is 424 x 454 mm). */
 const MX = (0.424 - 18 * SX) / 2;
 const MY = (0.454 - 18 * SY) / 2;
+/** The same margins in grid cells (project()'s dx, dy): where the wood ends past the outer lines. */
+export const WOOD_DX = MX / SX, WOOD_DY = MY / SY;
 const LINE = 0.0009;
 const FRAME = 0.0013;
 const STONE_B = { d: 0.0223, t: 0.0086 };

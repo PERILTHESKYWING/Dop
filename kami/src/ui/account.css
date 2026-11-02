@@ -54,7 +54,7 @@
   align-items: center;
   gap: 7px;
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .acct-code {
@@ -102,6 +102,9 @@
   .acct-actions .text-btn {
     min-height: 44px;
     font-size: 15px;
+  }
+  .acct-actions > .text-btn {
+    margin-left: -10px;
   }
   .acct-actions .btn {
     height: auto;

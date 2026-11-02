@@ -529,6 +529,14 @@ svg.board .mark-next {
   stroke: rgba(30, 22, 14, 0.75);
   stroke-width: 0.045px;
 }
+/* the keyboard's point: a stone-sized ink ring with a paper edge, readable on wood and stones */
+svg.board .mark-focus {
+  fill: none;
+  stroke: #15130f;
+  stroke-width: 0.09px;
+  paint-order: stroke;
+  filter: drop-shadow(0 0 0.04px #f7f3ea);
+}
 
 /* where the variations after this move go (study board): lettered, in the accent colour */
 svg.board .mark-var .mk-halo {

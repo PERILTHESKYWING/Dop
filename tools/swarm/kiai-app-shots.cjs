@@ -144,6 +144,19 @@ const rects = async (p) =>
     R.candidate = { ...(await rects(page)), readout: found || (await readout()) };
     if (found) await shot('5-hover-candidate');
     else console.log('no candidate disc found');
+    // 6 (desktop): keyboard focus on the board: Tab lands on it, the ring and the point show, an arrow moves the point.
+    if (vp.name === 'desktop') {
+      await page.mouse.move(5, 450);
+      await page.keyboard.press('Escape');
+      for (let i = 0; i < 40; i++) {
+        await page.keyboard.press('Tab');
+        if (await page.evaluate(() => document.activeElement?.classList.contains('bp-square'))) break;
+      }
+      await page.keyboard.press('ArrowLeft');
+      await page.waitForTimeout(600);
+      R.focus = { ...(await rects(page)), focused: await page.evaluate(() => document.activeElement?.className || ''), readout: await readout() };
+      await shot('6-board-focus');
+    }
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();
   }

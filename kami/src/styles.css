@@ -202,7 +202,7 @@ hr {
   margin: 4px 6px;
 }
 kbd {
-  font: 12px var(--font);
+  font: 14px var(--font);
   color: var(--muted);
 }
 .grow {
@@ -211,7 +211,7 @@ kbd {
 }
 .meta {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .icon {
   flex: none;
@@ -252,7 +252,7 @@ kbd {
   gap: 5px;
   padding: 6px 10px;
   border-radius: 8px;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink-2);
   white-space: nowrap;
 }
@@ -309,7 +309,7 @@ kbd {
 .link {
   color: var(--accent);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
 }
 .link.danger {
   color: var(--danger);
@@ -364,7 +364,7 @@ kbd {
 .seg button {
   padding: 4px 11px;
   border-radius: 7px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
   white-space: nowrap;
 }
@@ -379,7 +379,7 @@ kbd {
 }
 .seg.sm button {
   padding: 2px 8px;
-  font-size: 12.5px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 .seg.sm button:hover {
@@ -469,7 +469,7 @@ kbd {
 }
 .pop-foot {
   padding: 6px 10px 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -676,7 +676,7 @@ kbd {
 }
 .side-label {
   padding: 0 18px 6px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   font-weight: 500;
 }
@@ -707,7 +707,7 @@ kbd {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .conv.on .conv-title {
@@ -724,7 +724,7 @@ kbd {
 .conv-empty {
   padding: 6px 10px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .conv-rename {
   flex: 1;
@@ -734,7 +734,7 @@ kbd {
   width: 100%;
   padding: 5px 8px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink);
   border: 1px solid var(--accent);
   border-radius: 6px;
@@ -745,7 +745,7 @@ kbd {
   gap: 10px;
   align-items: center;
   padding: 7px 10px;
-  font-size: 13px;
+  font-size: 14px;
   width: 100%;
 }
 .side-foot {
@@ -794,7 +794,7 @@ kbd {
   text-overflow: ellipsis;
 }
 .account-plan {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 .account .pop {
@@ -1011,7 +1011,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow-pop);
-  font: 13.5px/1.5 var(--font);
+  font: 14px/1.5 var(--font);
   text-align: left;
   pointer-events: none;
   animation: fade 0.12s ease-out;
@@ -1021,7 +1021,7 @@ kbd {
 }
 .term-tip-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 2px;
 }
 .term-tip-text {
@@ -1035,7 +1035,7 @@ kbd {
   border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 .term-more:hover {
@@ -1126,7 +1126,7 @@ kbd {
   background: transparent;
   border-radius: 6px;
   padding: 2px 10px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .tag:hover,
@@ -1138,7 +1138,7 @@ kbd {
 .tag-at {
   color: var(--muted);
   margin-left: 5px;
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 .facts {
@@ -1167,7 +1167,7 @@ kbd {
   margin: 0 0 6px;
 }
 .level {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   font-weight: 500;
   border: 1px solid var(--line);
@@ -1505,7 +1505,7 @@ kbd {
   display: flex;
   gap: 8px;
   align-items: baseline;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1529,7 +1529,7 @@ kbd {
   gap: 6px;
   min-width: 0;
   flex: 0 1 auto;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   padding: 2px 8px;
   border-radius: 6px;
@@ -1576,11 +1576,11 @@ kbd {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 .pl-vs {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   flex: none;
 }
@@ -1606,7 +1606,7 @@ kbd {
   font-weight: 600;
 }
 .pl-caps {
-  font-size: 11.5px;
+  font-size: 14px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1705,15 +1705,15 @@ kbd {
 }
 .ev-state {
   flex: none;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   white-space: nowrap;
 }
-/* a previewed line's bar says whose read it shows, before the numbers: 13.5 px in secondary
+/* a previewed line's bar says whose read it shows, before the numbers: 14 px in secondary
    ink (13:1 on the panel, light and dark) */
 .ev-source {
   flex: none;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-2);
   white-space: nowrap;
@@ -1740,6 +1740,12 @@ kbd {
 }
 .bp-square {
   flex: none;
+}
+/* keyboard focus on the board: the ring sits inside the square, so the eval bar above never hides its top edge */
+.bp-square:focus-visible {
+  outline-color: var(--ink-2);
+  outline-offset: -2px;
+  border-radius: 6px;
 }
 /* numbers on the board in lining figures, as tall as capitals (Alegreya's default figures are
    old-style, x-height tall, and read two sizes smaller) */
@@ -2064,12 +2070,13 @@ kbd {
   font-weight: 400;
   margin-right: 4px;
 }
-/* Kiai's kaya: quieter, smaller coordinates than Dop's, and the base colour of the new wood */
+/* Kiai's kaya: quieter coordinates than Dop's (a lighter weight, 13 px or more on a desktop
+   board), dark enough for 4.5:1 on the wood, and the base colour of the new wood */
 .board-panel svg.board .bd-coords text {
-  font-size: 0.36px;
-  font-weight: 600;
-  fill: #4a2a0f;
-  fill-opacity: 0.62;
+  font-size: 0.42px;
+  font-weight: 500;
+  fill: #2b1808;
+  fill-opacity: 1;
 }
 .board-panel svg.board .bd-wood-base {
   fill: #b9773d;
@@ -2200,7 +2207,7 @@ kbd {
   gap: 8px;
   height: 38px;
   padding: 0 6px 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   border-bottom: 1px solid var(--line);
 }
@@ -2238,7 +2245,7 @@ kbd {
 
 /* Performance: chess.com's game review card. */
 .perf {
-  font-size: 13.5px;
+  font-size: 14px;
 }
 .perf-row {
   display: grid;
@@ -2268,7 +2275,7 @@ kbd {
 }
 .perf-head {
   min-height: 28px;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
 }
 .perf-player {
@@ -2329,7 +2336,7 @@ kbd {
 }
 .perf-foot {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 .bp-sheet {
@@ -2491,7 +2498,7 @@ kbd {
 }
 .set-blurb {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14px;
   margin: 0 0 14px;
 }
 .set-list {
@@ -2518,7 +2525,7 @@ kbd {
   font-weight: 500;
 }
 .set-help {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   margin-top: 2px;
 }
@@ -2548,7 +2555,13 @@ kbd {
 .textbox:focus,
 .numbox input:focus,
 .set-control select:focus {
-  border-color: var(--focus);
+  border-color: var(--ink-2);
+}
+/* a text field in focus is ink, not the red ring, so a right entry never reads as an error */
+.textbox:focus-visible,
+.numbox input:focus-visible,
+.set-control select:focus-visible {
+  outline-color: var(--ink-2);
 }
 .numbox {
   display: inline-flex;
@@ -2562,7 +2575,7 @@ kbd {
 }
 .unit {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 .range-row {
   display: inline-flex;
@@ -2638,16 +2651,16 @@ kbd {
 /* Dop's graph styles ask for these */
 .mono {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
 }
 .muted {
   color: var(--muted);
 }
 .small {
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .tiny {
-  font-size: 11.5px;
+  font-size: 14px;
 }
 .stone-dot {
   display: inline-block;
@@ -2762,14 +2775,14 @@ kbd {
     cursor: row-resize;
   }
   /* On a phone the board is about 300 px wide (a line every ~15 px), so text sized in board units
-     came out at 5 to 7 px. Coordinates are 0.76 of a line here (11 px or more on a 390 px
-     screen). KataGo's numbered marks are larger than a point (Board candBig, at most three of
-     them, lib/candLabels.ts) and their numbers 0.84 of a line, 12.5 px; one too wide for the
-     inside of its ring is set narrower, never smaller. The book's printed numbers stay 0.9. The
-     board itself does not move or change size. */
+     came out at 5 to 7 px. Coordinates are 0.86 of a line here (13 px on a 390 px screen).
+     KataGo's marks are larger than a point (Board candBig, every one numbered, crowded ones
+     moved apart and shrunk, lib/candLabels.ts phonePlaces) and their numbers 0.84 of a line,
+     12.5 px; one too wide for the inside of its ring is set narrower, never smaller. The book's
+     printed numbers stay 0.9. The board itself does not move or change size. */
   .board-panel svg.board .bd-coords text,
   .board-panel svg.board.book .bd-coords text {
-    font-size: 0.76px;
+    font-size: 0.86px;
   }
   .board-panel svg.board .cand.plain .cand-wr {
     font-size: 0.84px;
@@ -2802,8 +2815,10 @@ kbd {
   .bp-under {
     height: 34px;
   }
+  /* 14 px in two lines of 17 px: the key keeps the row's 34 px, so the board never moves */
   .bp-key {
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 17px;
     max-height: 34px;
   }
   .bp-key i {
@@ -2943,8 +2958,10 @@ kbd {
     order: 3;
     flex: 1 0 100%;
   }
+  /* the sheet runs to the screen's foot: room under the last row (a seal, Reset) past the
+     home bar, so it scrolls fully into view */
   .set-page {
-    padding: 8px 16px 24px;
+    padding: 8px 16px calc(40px + env(safe-area-inset-bottom));
   }
   .set-row {
     gap: 12px;

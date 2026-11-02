@@ -21,9 +21,10 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, holdPick, keyText, phonePick, phonePlaces, type PickHold } from '../lib/candLabels';
+import { candidateLabeler, keyText, phonePlaces } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
+import { locToGtp } from '../../../src/lib/go/coords';
 
 /** The 3D board and three.js load after the page, behind the flat board. */
 const Kaya3D = lazy(() => import('../three/Kaya3D'));
@@ -174,6 +175,8 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const [tab, setTab] = useState<TabId | null>(null);
   // A candidate disc under the pointer: its point and KataGo's line from it.
   const [hoverCand, setHoverCand] = useState<{ loc: Loc; pv: Loc[] } | null>(null);
+  // The keyboard's point on the board: Tab onto the board, arrows move it, Enter plays (null = no keyboard focus).
+  const [kbAt, setKbAt] = useState<Loc | null>(null);
   const hoverPv = hoverCand?.pv ?? null;
   // A point named in the preview's note, marked while hovered.
   const [notePoint, setNotePoint] = useState<Loc | null>(null);
@@ -246,10 +249,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       stones: b.stones,
       captures: b.captures as readonly number[] | undefined,
       last: lastLoc,
-      marks: [] as Mark[],
+      marks: (kbAt !== null ? [{ loc: kbAt, kind: 'focus' }] : []) as Mark[],
       variation: null as Move[] | null,
     };
-  }, [board, preview, notePoint]);
+  }, [board, preview, notePoint, kbAt]);
   useEffect(() => setNotePoint(null), [preview?.key]);
 
   // A local problem's answer shows only the part of the board that matters.
@@ -264,34 +267,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
   // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
   // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
-  // On a phone only a few marks carry a number, drawn larger than their point so it reads at
-  // 11 px or more, the moves the answer names among them; the others are small bare rings
-  // (lib/candLabels.ts phonePick). While KataGo reads, the numbered points hold for a second
-  // before they move (holdPick), so the numbers do not jump between marks as ranks swap.
+  // On a phone every mark carries its number, as on a desktop, drawn larger than its point so the
+  // number reads at 390 px; crowded marks move a little apart and shrink to fit, never below a
+  // desktop mark's size (lib/candLabels.ts phonePlaces).
   const bigMarks = phone && !book;
-  const held = useRef<{ key: string; hold: PickHold } | null>(null);
-  const [holdTick, setHoldTick] = useState(0);
-  const named = useMemo(() => (answerOf?.named ? new Set(answerOf.named) : null), [answerOf]);
-  const posKey = position ? positionKey(position) : '';
-  const numbered = useMemo(() => {
-    if (!bigMarks || !candidates?.length) return null;
-    const want = phonePick(candidates, board.size, named);
-    const prev = held.current?.key === posKey ? held.current.hold : null;
-    const hold = holdPick(prev, want, new Set(candidates.map((c) => c.loc)), Date.now());
-    held.current = { key: posKey, hold };
-    return hold.shown;
-    // holdTick: looked at again once a held pick's second is up
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bigMarks, candidates, board.size, named, posKey, holdTick]);
-  const waiting = !!numbered && !!held.current && held.current.hold.next !== numbered.join(',');
-  useEffect(() => {
-    if (!waiting) return;
-    const t = window.setTimeout(() => setHoldTick((n) => n + 1), 1050);
-    return () => window.clearTimeout(t);
-  }, [waiting, numbered]);
-  const places = useMemo(() => (numbered ? phonePlaces(numbered, board.size) : null), [numbered, board.size]);
+  const places = useMemo(() => (bigMarks && candidates?.length ? phonePlaces(candidates.map((c) => c.loc), board.size) : null), [bigMarks, candidates, board.size]);
   const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, numbered ? new Set(numbered) : null), [candidates, phone, answerRead, numbered]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
@@ -313,12 +295,20 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       const st = first.color === preview.base.toPlay ? moveStats(previewRead, first.loc, preview.base.toPlay, preview.base.size, phone) : null;
       return [st ? `${st.at}: ${st.text}` : '', lineBit(preview.line.length)].filter(Boolean).join(' · ');
     }
+    if (kbAt !== null && !hoverCand) {
+      const st = stoneNote(explainPositionOf(board, board.cursor), kbAt) ?? moveStats(read, kbAt, toPlay, board.size, phone);
+      const at = locToGtp(kbAt, board.size);
+      // a point KataGo did not mark: count the moves drawn on the board, the ones the eye can check
+      if (!st || (candidates?.length && !candidates.some((c) => c.loc === kbAt) && /^not in/i.test(st.text)))
+        return candidates?.length ? `${at}: not one of the ${candidates.length} moves KataGo marked · Enter plays here` : `${at}: empty · Enter plays here`;
+      return `${st.at}: ${st.text}`;
+    }
     if (hoverCand) {
       const st = moveStats(read, hoverCand.loc, toPlay, board.size, phone);
       return st ? [`${st.at}: ${st.text}`, lineBit(hoverCand.pv.length)].filter(Boolean).join(' · ') : '';
     }
     return '';
-  }, [preview, previewRead, hoverCand, read, toPlay, board.size, phone]);
+  }, [preview, previewRead, hoverCand, kbAt, board, read, toPlay, phone, candidates]);
 
   const [spoken, setSpoken] = useState('');
   useEffect(() => {
@@ -428,6 +418,32 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     setHoverCand(l === null || !pv ? null : { loc: l, pv });
   });
   const onBoardPlay = useEvent((l: Loc) => play(l));
+  // Keyboard play: the board's point starts on the last move (or the centre) when Tab lands on it.
+  const onSquareFocus = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || preview || !e.currentTarget.matches(':focus-visible')) return;
+    const last = board.cursor ? board.moves[board.cursor - 1].loc : PASS;
+    setKbAt(last !== PASS ? last : Math.floor((board.size * board.size) / 2));
+  };
+  const onSquareKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (preview || e.altKey || e.ctrlKey || e.metaKey) return;
+    const n = board.size;
+    const at = kbAt ?? Math.floor((n * n) / 2);
+    const x = at % n, y = Math.floor(at / n);
+    const step: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (step[e.key]) {
+      const [dx, dy] = step[e.key];
+      setKbAt(Math.min(n - 1, Math.max(0, y + dy)) * n + Math.min(n - 1, Math.max(0, x + dx)));
+    } else if ((e.key === 'Enter' || e.key === ' ') && kbAt !== null) {
+      if (view.stones[kbAt]) return;
+      play(kbAt);
+    } else if (e.key === 'Escape' && kbAt !== null) {
+      setKbAt(null);
+      e.currentTarget.blur();
+    } else return;
+    // the board's own keys: the document's arrow keys (step through the game) don't also run
+    e.preventDefault();
+    e.stopPropagation();
+  };
   const onCandidateClick = useEvent((l: Loc) => play(l, true));
   const ariaLabel = preview ? `Variation: ${preview.title}` : 'Board: click to play';
   const flatBoard = (
@@ -686,7 +702,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
       <div className="bp-body">
         <div className="bp-stage" ref={boxRef}>
-          <div className={`bp-square${crop ? ' zoomed' : ''}`} style={{ width: boxW, height: boxH }}>
+          <div
+            className={`bp-square${crop ? ' zoomed' : ''}`}
+            style={{ width: boxW, height: boxH }}
+            tabIndex={preview ? undefined : 0}
+            aria-label={preview ? undefined : 'Board. Arrow keys pick a point, Enter plays it, Escape leaves.'}
+            onFocus={onSquareFocus}
+            onBlur={() => setKbAt(null)}
+            onKeyDown={onSquareKey}
+          >
             {want3d ? (
               <Boundary fallback={flatBoard}>
               <Suspense fallback={flatBoard}>

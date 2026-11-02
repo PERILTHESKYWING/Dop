@@ -283,9 +283,13 @@ const luma = (c) => {
   return Number.isFinite(n) ? (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 : 1;
 };
 
-function caption(ops, text, st, scene = {}) {
-  const size = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
-  const lines = wrap(text, 58).slice(0, 3);
+// capMin: the smallest caption size in frame units. A small preview (a phone) passes the size that
+// reads at 14 CSS px there; the caption then grows and wraps shorter. Videos and SVGs leave it at 0.
+function caption(ops, text, st, scene = {}, capMin = 0) {
+  const base = st.capPos === 'top' ? 50 : 38; // a top subtitle is read over the picture: bigger, like the references
+  const size = Math.min(base * 2, Math.max(base, st.capPos === 'top' ? capMin / 0.86 : capMin));
+  // A bigger boxed caption wraps at what still fits its widest box (W - 120, the box adds 70); the base size keeps 58.
+  const lines = wrap(text, st.capPos === 'top' ? Math.round((58 * base) / size) : Math.min(58, Math.floor((W - 190) / (size * 0.46)))).slice(0, 3);
   if (st.capPos === 'top') {
     // Subtitle style (f2): black sans at a medium weight (not bold) with a thin white edge,
     // no box, at the top centre (baseline at 8% of the frame); the shots keep her hair
@@ -329,7 +333,7 @@ export function cameraAt(scene, t) {
 
 // ---------- one frame ----------
 // sceneIndex + local time t. Returns { scene, drawing, bg (scene id for cache), world, overlay, camera }.
-export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
+export function renderFrame(p, sceneIndex, t, { withBg = true, capMin = 0 } = {}) {
   const scene = p.scenes[sceneIndex];
   const st = p.style;
   const { drawing, tq } = quantize(st, t);
@@ -364,7 +368,7 @@ export function renderFrame(p, sceneIndex, t, { withBg = true } = {}) {
   // Marks sit on the screen (x, y = share of the frame), like labels written on the
   // finished shot: a close-up never pushes them out of view.
   drawMarks(overlay, scene.marks, tq, st, W, H);
-  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene);
+  if (st.captions && scene.narration) caption(overlay, scene.narration, st, scene, capMin);
   const z = cam.zoom;
   const fx = Math.max(W / 2 / z, Math.min(W - W / 2 / z, cam.x * W));
   const fy = Math.max(H / 2 / z, Math.min(H - H / 2 / z, cam.y * H));
