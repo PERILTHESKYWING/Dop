@@ -189,6 +189,51 @@
    "rankError10": 1.156,
    "positions": 443589,
    "calibrationGap": 0.22
+  },
+  {
+   "at": "2026-10-28T11:52:46.369Z",
+   "run": 36,
+   "rankGames": 95016,
+   "rankError1": 3.148,
+   "rankError10": 1.193,
+   "positions": 454176,
+   "calibrationGap": 0.22
+  },
+  {
+   "at": "2026-10-29T12:33:17.427Z",
+   "run": 37,
+   "rankGames": 102280,
+   "rankError1": 3.146,
+   "rankError10": 1.15,
+   "positions": 464116,
+   "calibrationGap": 0.22
+  },
+  {
+   "at": "2026-10-30T12:00:31.453Z",
+   "run": 38,
+   "rankGames": 109355,
+   "rankError1": 3.141,
+   "rankError10": 1.098,
+   "positions": 474009,
+   "calibrationGap": 0.23
+  },
+  {
+   "at": "2026-10-31T12:06:19.256Z",
+   "run": 39,
+   "rankGames": 115955,
+   "rankError1": 3.133,
+   "rankError10": 1.233,
+   "positions": 482781,
+   "calibrationGap": 0.23
+  },
+  {
+   "at": "2026-11-01T12:46:46.008Z",
+   "run": 40,
+   "rankGames": 122628,
+   "rankError1": 3.133,
+   "rankError10": 1.178,
+   "positions": 492798,
+   "calibrationGap": 0.23
   }
  ]
 }
