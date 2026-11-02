@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const OUT = process.argv[2] || path.join(__dirname, 'shots/before-hub');
 fs.mkdirSync(OUT, { recursive: true });
-const BASE = 'http://localhost:7791';
+const BASE = process.env.BASE || 'http://localhost:7791';
 
 async function ctx(browser, { w, h, dark = false, mobile = false, logged = true }) {
   const c = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile, colorScheme: dark ? 'dark' : 'light' });
