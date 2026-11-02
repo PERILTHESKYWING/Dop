@@ -98,11 +98,12 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
+/* Placeholders in the faint ink (6.2:1 light, 5.9:1 dark), never the browser's grey. */
+::placeholder { color: var(--faint); opacity: 1; }
 /* Buttons match the hub's .btn: 8 px radius, 600 weight, flat. 44 px tall so they are easy to tap.
    One filled (.go) button per area; .danger for deleting; .seg for on/off and either/or choices. */
 :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-size: 15px; font-weight: 500; line-height: 1.2; cursor: pointer; min-height: 44px; white-space: nowrap; transition: transform .12s ease-out; }
-::placeholder { color: var(--faint); opacity: 1; }
 .btn:hover { background: var(--sel); }
 .btn.go { background: var(--green); color: var(--on-green); border-color: var(--green); }
 .btn.go:hover { background: color-mix(in srgb, var(--green) 88%, var(--ink)); }
@@ -150,8 +151,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .scenes button { flex: none; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; padding: 4px 12px; font-size: 14px; cursor: pointer; min-height: 44px; }
 .scenes button:hover { border-color: var(--soft); }
 .scenes button[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.status > .dot { align-self: flex-start; margin-top: 7px; margin-top: calc(.5lh - 4px); }
+.status { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+/* The dot sits on the middle of the first text line (line box 1.45em), however many lines the note wraps to. */
+.status > .dot { margin-top: calc(.725em - 4px); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--green); }
 .dot.busy { background: var(--amber); }
@@ -409,10 +411,12 @@ const cv = $('cv');
 const ctx = cv.getContext('2d');
 const grain = makeGrain(document);
 const bgCache = new Map();
-let styleKey = '', t = 0, playing = false, playFrom = 0, playAt = 0, lastKey = '', total = totalSeconds(P);
+let styleKey = '', t = 0, playing = false, playFrom = 0, playAt = 0, lastKey = '', total = totalSeconds(P), capMin = 0;
 
 function sizeCanvas() {
   const r = cv.getBoundingClientRect();
+  // The caption never reads under 14 CSS px in the preview (a 390 px phone shows the frame at a quarter size).
+  capMin = r.width ? Math.ceil((14 * W) / r.width) : 0;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const w = Math.max(320, Math.min(W, Math.round(r.width * dpr)));
   if (cv.width !== w) { cv.width = w; cv.height = Math.round((w * H) / W); lastKey = ''; }
@@ -434,12 +438,10 @@ function draw(force = false) {
   if (!P.scenes.length) return;
   const at = locate(P, Math.min(t, total - 1e-3));
   const q = quantize(P.style, at.t);
-  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${styleKey}`;
+  const key = `${S.rev}|${at.scene}|${q.drawing}|${cv.width}|${capMin}|${styleKey}`;
   if (!force && key === lastKey) return;
   lastKey = key;
-  // The boxed caption on screen: 14-20 CSS px whatever the frame's width (the saved video keeps 56/1600).
-  const shown = (56 * (cv.clientWidth || cv.width)) / W;
-  const f = renderFrame(P, at.scene, at.t, { withBg: false, capScale: shown ? Math.min(20, Math.max(14, shown)) / shown : 1 });
+  const f = renderFrame(P, at.scene, at.t, { withBg: false, capMin });
   paint(ctx, f, { width: cv.width, height: cv.height, bgCanvas: bgFor(at.scene), grainCanvas: grain });
   $('time').textContent = `${t.toFixed(1)} / ${total.toFixed(1)} s`;
   if (!scrubbing) $('scrub').value = String(Math.round((t / total) * 1000));

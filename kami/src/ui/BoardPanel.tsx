@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, holdPick, keyText, phonePick, phonePlaces, type PickHold } from '../lib/candLabels';
+import { candidateLabeler, keyText, phonePlaces } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
 import { locToGtp } from '../../../src/lib/go/coords';
@@ -267,34 +267,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
   // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
   // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
-  // On a phone only a few marks carry a number, drawn larger than their point so it reads at
-  // 11 px or more, the moves the answer names among them; the others are small bare rings
-  // (lib/candLabels.ts phonePick). While KataGo reads, the numbered points hold for a second
-  // before they move (holdPick), so the numbers do not jump between marks as ranks swap.
+  // On a phone every mark carries its number, as on a desktop, drawn larger than its point so the
+  // number reads at 390 px; crowded marks move a little apart and shrink to fit, never below a
+  // desktop mark's size (lib/candLabels.ts phonePlaces).
   const bigMarks = phone && !book;
-  const held = useRef<{ key: string; hold: PickHold } | null>(null);
-  const [holdTick, setHoldTick] = useState(0);
-  const named = useMemo(() => (answerOf?.named ? new Set(answerOf.named) : null), [answerOf]);
-  const posKey = position ? positionKey(position) : '';
-  const numbered = useMemo(() => {
-    if (!bigMarks || !candidates?.length) return null;
-    const want = phonePick(candidates, board.size, named);
-    const prev = held.current?.key === posKey ? held.current.hold : null;
-    const hold = holdPick(prev, want, new Set(candidates.map((c) => c.loc)), Date.now());
-    held.current = { key: posKey, hold };
-    return hold.shown;
-    // holdTick: looked at again once a held pick's second is up
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bigMarks, candidates, board.size, named, posKey, holdTick]);
-  const waiting = !!numbered && !!held.current && held.current.hold.next !== numbered.join(',');
-  useEffect(() => {
-    if (!waiting) return;
-    const t = window.setTimeout(() => setHoldTick((n) => n + 1), 1050);
-    return () => window.clearTimeout(t);
-  }, [waiting, numbered]);
-  const places = useMemo(() => (numbered ? phonePlaces(numbered, board.size) : null), [numbered, board.size]);
+  const places = useMemo(() => (bigMarks && candidates?.length ? phonePlaces(candidates.map((c) => c.loc), board.size) : null), [bigMarks, candidates, board.size]);
   const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead, numbered ? new Set(numbered) : null), [candidates, phone, answerRead, numbered]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
