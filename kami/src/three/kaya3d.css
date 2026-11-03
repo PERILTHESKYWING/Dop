@@ -299,6 +299,15 @@
   font-weight: 500;
   color: var(--muted, #5f584d);
 }
+/* a phone (Kaya3D bigCoords): 16 px, capitals and lining figures about 10.5 px tall, set further
+   out from the wood; letters a little narrower so each stands apart from the next at a 12 px
+   step (critics, 2026-11-03: 13 px letters read as one squeezed string against the edge) */
+.k3.big-coords .k3-coord b {
+  display: inline-block;
+  font-size: 16px;
+  font-variant-numeric: lining-nums tabular-nums;
+  transform: scaleX(0.84);
+}
 
 /* on a phone the app's discs drop their visits; a tag's coordinate stays */
 @media (max-width: 600px) {

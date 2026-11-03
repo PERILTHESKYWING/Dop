@@ -132,7 +132,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 600px) {
   .wrap { padding: 0 0 24px; gap: 12px; }
   .card.stage { border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
-  .side { padding: 0 12px; }
+  .side { padding: 0 16px; }
   .top { flex-wrap: wrap; } .top h1 { flex: 1; } .top select { order: 5; flex-basis: 100%; max-width: none; }
 }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
@@ -158,7 +158,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .dot.live { background: var(--green); }
 .dot.busy { background: var(--amber); }
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-@media (min-width: 901px) { .side { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 92px); overflow-y: auto; } }
+/* Desktop: the panel is as tall as the preview card (never ending far above it); a long pane scrolls inside.
+   contain: size keeps the panel from growing the row, so the preview card sets the height. */
+@media (min-width: 901px) {
+  .side { position: sticky; top: 76px; align-self: stretch; max-height: calc(100vh - 92px); contain: size; }
+  .side > .card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .side .tabs { flex: none; }
+  .side .pane.on { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+  .side .fblive { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  /* the feedback box takes the spare height, like a composer */
+  .side .fblive textarea { flex: 1 1 auto; max-height: 420px; }
+  .side .fbdemo { flex: 1 1 auto; justify-content: flex-start; padding-top: 8px; padding-bottom: 24px; }
+  .side .notes { max-height: none; flex: 1 1 auto; }
+}
+/* Demo feedback pane: what happens with your own story, then one way to start it. */
+.fbdemo { display: flex; flex-direction: column; }
+.fbdemo h2 { font: 700 19px/1.25 var(--font); margin: 2px 0 0; }
+.fbdemo .hint { margin-top: 6px; }
+.steps { list-style: none; counter-reset: st; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+.steps li { counter-increment: st; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; font-size: 16px; line-height: 1.35; }
+.steps li::before { content: counter(st); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--chip); border: 1px solid var(--line-2); font-size: 14px; font-weight: 500; color: var(--ink); }
+.steps b { font-weight: 500; }
+.steps span { color: var(--soft); font-size: 15px; }
+.fbdemo .fbdemo-go { margin-top: 18px; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs button { flex: 1 0 auto; border: 0; background: none; padding: 11px 8px; font-size: 14px; cursor: pointer; color: var(--soft); border-bottom: 2px solid transparent; white-space: nowrap; min-height: 44px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 500; }
@@ -251,6 +273,19 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
           <button role="tab" aria-selected="false" data-tab="rules">Rules</button>
         </div>
         <div class="pane on" data-pane="fb">
+          <!-- The demo has no story behind it, so it shows how feedback works instead of controls that cannot act. -->
+          <div class="fbdemo" id="fbDemo" hidden>
+            <h2>Feedback opens on your own story</h2>
+            <p class="hint">This is the built-in demo, so there is nothing to send or rate here. With your own story:</p>
+            <ol class="steps">
+              <li><b>Describe the idea</b><span>One or two sentences under “New story”.</span></li>
+              <li><b>The team draws a sample</b><span>A short first cut, drawn in code, appears here by itself.</span></li>
+              <li><b>Say what to change</b><span>Type feedback in your own words, or rate a version Good or Not yet.</span></li>
+              <li><b>Approve the sample</b><span>The team keeps the characters and moves and makes the whole story.</span></li>
+            </ol>
+            <div class="row fbdemo-go"><button class="btn" id="fbDemoNew" type="button"><i data-ico="plus" data-size="16"></i>Start your own story</button></div>
+          </div>
+          <div class="fblive" id="fbLive">
           <textarea id="fbText" placeholder="Tell the team what to change, in your own words. e.g. &quot;Leo should look more annoyed, and hold the point longer.&quot;"></textarea>
           <label class="check"><input type="checkbox" id="fbRule"> Make this a rule for every story</label>
           <div class="row">
@@ -263,10 +298,12 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
               <button class="btn" id="rateGood" type="button" title="This version works"><i data-ico="thumbs-up" data-size="16"></i>Good</button>
               <button class="btn" id="rateBad" type="button" title="This version is not there yet"><i data-ico="thumbs-down" data-size="16"></i>Not yet</button>
             </div>
+            <p class="hint" id="rateHint" hidden></p>
           </div>
           <div class="split" id="fullBox" hidden>
             <p class="hint">Happy with the sample? The team keeps the characters and moves and makes the whole story.</p>
             <div class="row"><button class="btn go" id="fullBtn" type="button">Approve sample</button></div>
+          </div>
           </div>
         </div>
         <div class="pane" data-pane="notes"><div class="notes" id="notes"></div></div>
@@ -660,6 +697,10 @@ function updateButtons() {
   setOff($('fbSend'), noStory, 'Send this to the director and critic');
   setOff($('rateGood'), noDraw);
   setOff($('rateBad'), noDraw);
+  // The demo shows how feedback works instead of controls; a story with no drawing yet says why rating waits.
+  $('fbDemo').hidden = !noStory; $('fbLive').hidden = !!noStory;
+  $('rateHint').hidden = !noDraw || !!noStory;
+  $('rateHint').textContent = noDraw ? 'Rating opens once the team has drawn the first version.' : '';
   $('fbHint').textContent = noStory ? 'Start a story with “New story” first; then feedback goes to its team.' : 'The team revises and the new version appears here by itself.';
   lookButtons();
 }
@@ -858,6 +899,7 @@ for (const x of tabBtns) x.tabIndex = x.getAttribute('aria-selected') === 'true'
 
 // ---------- new story ----------
 $('newBtn').onclick = () => { $('newErr').textContent = ''; $('newDlg').showModal(); $('newIdea').focus(); };
+$('fbDemoNew').onclick = () => $('newBtn').click();
 $('newForm').addEventListener('submit', async (e) => {
   if (e.submitter?.value !== 'ok') return;
   e.preventDefault();

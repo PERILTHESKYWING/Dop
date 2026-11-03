@@ -284,3 +284,10 @@
     gap: 20px 12px;
   }
 }
+/* a phone: two seals a row, so each one's words have the width to read (critics, 2026-11-03) */
+@media (max-width: 480px) {
+  .seal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 16px;
+  }
+}

@@ -34,6 +34,7 @@ try {
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
   --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
+  --nt: var(--stone); --on-nt: var(--on-stone); --nt-edge: var(--stone-edge); --nt-hi: color-mix(in srgb, var(--stone) 85%, var(--kaya));
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
   --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
@@ -45,12 +46,14 @@ try {
   :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
     --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
   --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -123,8 +126,10 @@ try {
 :root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
-:root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
-@media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
+/* New task: the black stone in light. In dark a honey-sand fill, not the white stone: still the one filled button
+   in the sidebar, but no longer the brightest thing on screen (text 7.5:1, button 4.8:1 on the dark wood). */
+:root .app > .side #newTask { background: var(--nt); color: var(--on-nt); border-color: var(--nt-edge); }
+@media (hover: hover) { :root .app > .side #newTask:hover { background: var(--nt-hi); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
 :root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
@@ -301,6 +306,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
 .newtask[aria-pressed="true"] { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 .list { overflow-y: auto; padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 2px; }
+/* Rows keep their height in a long list (as flex items they shrank to 34 px and clipped the second title line). */
+.list > *, .list > .navpair > * { flex-shrink: 0; }
+/* Desktop: the list comes to rest on whole rows under the Filter field (proximity snap, so a fling is never
+   held back), and once scrolled its top 8 px fade (the padding above a resting row's text), so a row passing under the field reads as scrolled. */
+@media (min-width: 861px) {
+  .list { scroll-snap-type: y proximity; scroll-padding-top: 2px; }
+  .list > *, .list > .navpair > * { scroll-snap-align: start; }
+  .list > :first-child, .list > .navpair:first-child > :first-child { scroll-margin-top: 4px; } /* so the very top stays a resting point */
+  .list.scrolled { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px); mask-image: linear-gradient(to bottom, transparent 0, #000 8px); }
+}
 .group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
 .group.need { color: var(--amber); }
@@ -663,8 +678,11 @@ button.fchip:hover { border-color: var(--faint); }
 .ameta .conn { white-space: nowrap; }
 .asub { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .asub .sub { flex: 1; min-width: 0; margin-top: 0; }
-/* Mark usage reset: a quiet text button on the card, desktop and phone alike */
-:root .asub .btn { min-height: 28px; background: none; border-color: transparent; padding: 0 6px; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+/* Mark usage reset: a real small outline button (panel fill, border, 2 px bottom edge), never a footnote link.
+   32 px drawn; on the phone its ::after stretches the tap area to 44 px without making the row taller. */
+:root .asub .btn { position: relative; flex: none; min-height: 32px; padding: 0 12px; white-space: nowrap; font-size: 15px; background: var(--panel); border: 1px solid var(--line-2); border-bottom-width: 2px; color: var(--ink); text-decoration: none; }
+@media (hover: hover) { :root .asub .btn:hover { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 35%, var(--line-2)); } }
+:root .asub .btn:focus-visible { outline: 2px solid var(--stone); outline-offset: 2px; }
 /* One usage line: 5-hour and weekly side by side. */
 .use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
@@ -703,6 +721,12 @@ button.act { font: inherit; color: inherit; text-align: left; background: none; 
 button.act:hover .ttl { text-decoration: underline; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
+/* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
+.act-more { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 0 0 0 11px; font: inherit; font-size: 15px; font-weight: 500; color: var(--soft); text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer; }
+.act-more .act-n { font-weight: 400; }
+.act-more svg { flex: none; }
+@media (hover: hover) { .act-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
+.act-more:focus-visible { outline: 2px solid var(--stone); outline-offset: 1px; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
 .ag-who { font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
@@ -883,6 +907,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
   .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
   .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
+  .act-more { min-height: 44px; font-size: 15px; }
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
@@ -902,9 +927,8 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tfind { padding: 2px 8px 4px; }
   .navpair { display: none; }
   .brand { padding-top: 10px; padding-bottom: 6px; }
-  /* Mark usage reset: its 44 px tap area overhangs the row. */
-  /* :root to beat the desktop rule's 28 px, so the phone really gets 44 px. */
-  :root .asub .btn { min-height: 44px; margin: -10px -6px -10px 0; }
+  /* Mark usage reset: drawn 32 px, tapped 44 px (the ::after overhangs 6 px above and below). */
+  :root .asub .btn::after { content: ''; position: absolute; inset: -7px -4px; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -1335,10 +1359,28 @@ function renderSide() {
   const box = $('threads');
   for (const el of box.querySelectorAll('.trow.on')) if (el.dataset.thread !== String(sel)) { el.classList.remove('on'); el.removeAttribute('aria-current'); }
   const cur = box.querySelector(`.trow[data-thread="${sel}"]`);
-  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); }
+  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); rowWhole(box, cur); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
+
+// Desktop: a thread opened from a row half under the list's top or bottom edge scrolls into view whole,
+// and the list stops on a row start (the same resting points as the snap), so no row is cut at the top.
+function rowWhole(box, row) {
+  if (!matchMedia('(min-width: 861px)').matches) return;
+  const lr = box.getBoundingClientRect(), r = row.getBoundingClientRect();
+  if (r.top >= lr.top && r.bottom <= lr.bottom) return;
+  if (r.top < lr.top) { box.scrollTop += r.top - lr.top - 2; return; }
+  const need = box.scrollTop + r.bottom - lr.bottom + 4;
+  let to = box.scrollHeight;
+  for (const el of box.querySelectorAll(':scope > *, :scope > .navpair > *')) {
+    const pos = box.scrollTop + el.getBoundingClientRect().top - lr.top - 2;
+    if (pos >= need && pos < to) to = pos;
+  }
+  box.scrollTop = to;
+}
+// The top fade shows only once the list is scrolled (a toggle to the same state changes nothing).
+$('threads').addEventListener('scroll', (e) => e.currentTarget.classList.toggle('scrolled', e.currentTarget.scrollTop > 2), { passive: true });
 
 // ---------- feed ----------
 function threadCard(t) {
@@ -1621,16 +1663,52 @@ function lesN() {
 // are measured: scroll again each frame until scrollHeight stops changing (at most 6 frames).
 // open: a thread just opened. A short thread whose bottom would leave the task card half under the
 // header opens with the card whole instead (the rest is one short scroll away); a long one opens at the end.
+// Only the newest call runs its loop (opening a thread calls this twice in one tick); an open still
+// pending is carried over, so the last loop to finish does the opening fix-ups.
+let ftbRun = 0, ftbOpen = false;
 function feedToBottom(f, open = false) {
   let h = -1, n = 0;
-  const go = () => { if (f.scrollHeight === h || n++ > 5) { if (open) taskInView(f); return; } h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
+  const run = ++ftbRun;
+  if (open) { f.style.paddingBottom = ''; ftbOpen = true; }
+  const go = () => {
+    if (run !== ftbRun) return;
+    if (f.scrollHeight === h || n++ > 5) { if (ftbOpen) { ftbOpen = false; if (!taskInView(f)) lineOnTop(f); } return; }
+    h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go);
+  };
   go();
+}
+// A long thread opens at its end, which can leave a text line cut in half under the header. If the
+// empty space under the last item (feed padding, or the band under the pinned "working" line) can take
+// it, the view moves up just enough to show that line whole; otherwise the feed gets that much extra
+// bottom space and the line scrolls fully out. Either way the view starts on a whole line and nothing
+// at the bottom is cut. Only the one message at the top edge is measured, once per open.
+function lineOnTop(f) {
+  if (!f.scrollTop) return;
+  const fr = f.getBoundingClientRect(), y = fr.top + 1;
+  const el = document.elementFromPoint(fr.left + fr.width / 2, y);
+  const msg = el && el !== f && f.contains(el) ? el.closest('#feed > *') : null;
+  if (!msg) return;
+  const w = document.createTreeWalker(msg, NodeFilter.SHOW_TEXT), r = document.createRange();
+  let top = Infinity, bottom = 0;
+  while (w.nextNode()) {
+    r.selectNodeContents(w.currentNode);
+    for (const q of r.getClientRects()) if (q.height && q.height < 48 && q.top < y && q.bottom > y) { top = Math.min(top, q.top); bottom = Math.max(bottom, q.bottom); }
+  }
+  if (!bottom) return;
+  const hidden = Math.ceil(fr.top - top) + 3, shown = Math.ceil(bottom - fr.top) + 1;
+  const slack = fr.bottom - f.lastElementChild.getBoundingClientRect().bottom;
+  if (hidden <= slack) { f.scrollTop -= hidden; return; }
+  if (shown > 48) return;
+  f.style.paddingBottom = `calc(${getComputedStyle(f).paddingBottom} + ${shown}px)`;
+  f.scrollTop = f.scrollHeight;
 }
 function taskInView(f) {
   const card = f.querySelector('.task');
-  if (!card || !f.scrollTop) return;
+  if (!card || !f.scrollTop) return false;
   const top = f.getBoundingClientRect().top, r = card.getBoundingClientRect();
-  if (r.top < top && r.bottom > top) f.scrollTop -= top - r.top + parseFloat(getComputedStyle(f).paddingTop);
+  if (!(r.top < top && r.bottom > top)) return false;
+  f.scrollTop -= top - r.top + parseFloat(getComputedStyle(f).paddingTop);
+  return true;
 }
 // Long feeds open fast with content-visibility: auto, then render their off-screen messages while
 // the page is idle: 5 per slice (a bigger slice is one long frame on a slow phone), newest first,
@@ -1996,7 +2074,10 @@ $('pop').addEventListener('click', async (e) => {
 });
 
 // ---------- team ----------
-const useCls = (pct) => pct >= lowAt() ? 'bad' : pct >= lowAt() - 25 ? 'warn' : '';
+// One bar colour rule for every usage bar (account cards, the Usage sheet, the hub's own budget):
+// ink below 70%, amber from 70%, red only from 90%. A card's "Running low" word is separate and
+// never recolours its bars, so two accounts at the same % always show the same colour.
+const useCls = (pct) => pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : '';
 const barW = (pct) => pct > 0 ? Math.min(100, Math.max(2, pct)) : 0;
 function usageRow(label, pct, resets) {
   if (typeof pct !== 'number') return '';
@@ -2004,27 +2085,41 @@ function usageRow(label, pct, resets) {
 }
 const since = (at) => { const x = ago(Date.now() - at); return x === 'just now' ? x : x + ' ago'; };
 // The card's one usage line: 5-hour and weekly bars side by side; reset times in the tooltip.
-// A card already marked low says so in red once (its state word), so its bars stay ink.
-function useLine(u, low = false) {
-  const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${low ? '' : useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
+function useLine(u) {
+  const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
   return `<div class="use1">${one('5h', '5-hour', u.five_hour_pct, u.five_hour_resets)}${one('Wk', 'Weekly', u.seven_day_pct, u.seven_day_resets)}</div>`;
 }
-// What the account is doing now: one line per working thread and running sub-agent (its last post is in the tooltip).
+// Accounts whose thread list is open in full (this tab only; the default shows the newest few).
+const ACT_SHOW = 3;
+const actOpen = new Set((() => { try { return JSON.parse(sessionStorage.getItem('hub-act-open') || '[]'); } catch { return []; } })());
+function toggleActs(name) {
+  if (!actOpen.delete(name)) actOpen.add(name);
+  try { sessionStorage.setItem('hub-act-open', JSON.stringify([...actOpen])); } catch {}
+  renderTeam();
+  // The panel is redrawn, so keyboard focus goes back to the same toggle.
+  document.querySelector(`#team [data-act-more="${CSS.escape(name)}"]`)?.focus();
+}
+// What the account is doing now: one line per working thread, newest first (its last post is in the tooltip).
+// Only the newest 3 show until "N more" opens the rest, so the next account's card stays in view.
 function activityOf(a) {
   const mine = (t) => t.account === a.name || crewOf(t).includes(a.name);
-  const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
-  const row = (t) => {
+  const ts = S.threads.filter((t) => t.status === 'working' && mine(t)).map((t) => {
     const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
+    return { t, last, at: last?.at || t.updatedAt || t.createdAt || 0 };
+  }).sort((x, y) => y.at - x.at);
+  const row = ({ t, last, at }) => {
     // Every row has the same meta slot: when this account last spoke there (or the
     // thread last changed); "member" only when it isn't the lead.
-    const at = last?.at || t.updatedAt || t.createdAt || 0;
     const meta = [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
     return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${esc(meta)}</small></div></button>`;
   };
+  if (!ts.length) return '';
   // Running sub-agents are not repeated here: the Agents panel lists them, each with its one bar.
-  const rows = ts.map(row).join('');
+  const open = actOpen.has(a.name), cut = ts.length > ACT_SHOW + 1; // never hide just one
+  const shown = cut && !open ? ts.slice(0, ACT_SHOW) : ts;
+  const more = cut ? `<button type="button" class="act-more" data-act-more="${esc(a.name)}" aria-expanded="${open}">${open ? 'Show fewer' : `${ts.length - ACT_SHOW} more`}<span class="act-n">${open ? '' : ` · ${ts.length} threads`}</span>${icon(open ? 'chevron-down' : 'chevron-right', 14)}</button>` : '';
   // One list, so every row keeps the same pitch.
-  return rows ? `<div class="alist">${rows}</div>` : '';
+  return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
   const [cls, st] = acctState(a);
@@ -2040,13 +2135,13 @@ function accountCard(a) {
   // A card that needs connecting says why there are no numbers on the same line.
   const conn = needsLink ? `<div class="ameta"><button class="btn small" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : noUse}</div>` : '';
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
-  const usage = has ? useLine(u, a.low) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
+  const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    ${usage}
     ${conn}
     ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Mark usage reset</button>` : ''}</div>` : ''}
     ${act}
-    ${usage}
   </div>`;
 }
 // The ⋯ menu on an account card: the rarer actions, plus routines and where its usage came from.
@@ -2118,7 +2213,7 @@ function renderTeam() {
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
@@ -2188,6 +2283,7 @@ document.addEventListener('click', async (e) => {
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
+  const am = e.target.closest('[data-act-more]'); if (am) return toggleActs(am.dataset.actMore);
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
   const tab = e.target.closest('#tabs button'); if (tab) return tab.dataset.tab === 'chat' && sel ? openThread(0) : setTab(tab.dataset.tab);
   if (e.target.closest('#back')) return setTab('threads');

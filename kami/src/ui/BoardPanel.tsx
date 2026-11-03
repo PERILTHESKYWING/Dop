@@ -59,9 +59,17 @@ function zoomCrop(view: [number, number, number, number], size: number): Crop | 
   return crop.x1 - crop.x0 >= size - 3 && crop.y1 - crop.y0 >= size - 3 ? undefined : crop;
 }
 
-/** Width over height of a cropped board as Board draws it (its margin: 1.24 lines with coordinates, 0.6 without). */
-const cropAspect = (c: Crop, coords: boolean) => {
-  const m = coords ? 1.24 : 0.6;
+/**
+ * The flat board's margin round the grid on a phone, with coordinates (Board's coordMargin; 1.24
+ * on a desktop): room for 11 px letters with clear air to the edge stones and to the wood's edge
+ * (critics, 2026-11-03: A-T read as one squeezed string against the edge). The grid is about 5%
+ * smaller for it.
+ */
+const PHONE_COORD_M = 1.75;
+
+/** Width over height of a cropped board as Board draws it (its margin: `cm` lines with coordinates, 0.6 without). */
+const cropAspect = (c: Crop, coords: boolean, cm: number) => {
+  const m = coords ? cm : 0.6;
   return (c.x1 - c.x0 + 2 * m) / (c.y1 - c.y0 + 2 * m);
 };
 
@@ -265,15 +273,15 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   const ownership = !preview && territoryOn && read ? (read.ownership ?? boardRead.read?.ownership ?? null) : null;
   // A lopsided read labels each candidate with its loss against the best move (lib/candLabels.ts).
   const phone = useSyncExternalStore(onPhoneChange, isPhone, () => false);
-  // The same signed one-decimal numbers as on a desktop (critics, round 4: "−1.3" and "−0.9" both
-  // read "−1" on a phone; 2026-10-26: "0.9" there and "−0.9" here read as different numbers).
+  // The same unsigned one-decimal numbers as on a desktop (critics, round 4: "1.3" and "0.9" both
+  // read "1" on a phone; 2026-11-03: no minus sign on any width, the key says "points lost").
   // On a phone every mark carries its number, as on a desktop, drawn larger than its point so the
   // number reads at 390 px; crowded marks move a little apart and shrink to fit, never below a
   // desktop mark's size (lib/candLabels.ts phonePlaces).
   const bigMarks = phone && !book;
   const places = useMemo(() => (bigMarks && candidates?.length ? phonePlaces(candidates.map((c) => c.loc), board.size) : null), [bigMarks, candidates, board.size]);
   const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
-  const candLabel = useMemo(() => candidateLabeler(candidates, phone, !!answerRead), [candidates, phone, answerRead]);
+  const candLabel = useMemo(() => candidateLabeler(candidates, phone), [candidates, phone]);
 
   // The readout under the board for a previewed move or line, or a hovered disc: KataGo's own
   // numbers for its first move, or what a played stone is (lib/moveCaption.ts), from the read
@@ -465,6 +473,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       variation={variation}
       ownership={ownership}
       coords={coords}
+      coordMargin={phone ? PHONE_COORD_M : undefined}
       skin={book ? BOOK_SKIN : KIAI_SKIN}
       detail={book ? 'lite' : undefined}
       className={book ? 'book' : undefined}
@@ -473,14 +482,14 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const key = keyText(candidates, sideName, !!candLabel && !!candidates?.some((c) => candLabel(c).startsWith('+')), book);
+  const key = keyText(candidates, sideName, book);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board
   // never moves or changes size between a game, an answer and a hovered line.
   const [boxRef, side] = useSquare(phone ? UNDER_PHONE : UNDER_DESKTOP);
   // A cropped board keeps its own shape inside the square.
-  const aspect = crop ? cropAspect(crop, coords) : 1;
+  const aspect = crop ? cropAspect(crop, coords, phone ? PHONE_COORD_M : 1.24) : 1;
   const boxW = Math.round(aspect >= 1 ? side : side * aspect);
   const boxH = Math.round(aspect >= 1 ? side / aspect : side);
   const namesTitle = board.black || board.white ? `${board.black ?? 'Black'} vs ${board.white ?? 'White'}` : '';
@@ -731,6 +740,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                   variation={variation}
                   ownership={ownership}
                   coords={coords}
+                  bigCoords={phone}
                   tilt={angled ? 24 : 0}
                   wood={(style === 'shinkaya' || style === 'dark' ? style : 'kaya') as BoardWood}
                   ariaLabel={ariaLabel}

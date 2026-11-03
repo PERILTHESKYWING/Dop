@@ -119,6 +119,25 @@ export interface PaleMark {
 /** Printed numbers and marks, one canvas each, kept for the page's life (a few dozen at most). */
 const numberTex = new Map<string, Texture>();
 let numberFontReady: Promise<void> | null = null;
+/**
+ * Draws on `c` with lining figures, as tall as capitals, as the flat board's numbers are
+ * (styles.css `.bp-square svg.board text`): Alegreya's default figures are old-style, its "0"
+ * and "1" x-height tall. A canvas takes `font-variant-numeric` from its own style only while it
+ * is in the document (Chromium), so it is put there, out of sight, for the drawing; elsewhere
+ * the figures stay old-style, as before.
+ */
+function withLining(c: HTMLCanvasElement, draw: () => void) {
+  const host = typeof document !== 'undefined' ? document.body : null;
+  if (!host) return draw();
+  c.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;visibility:hidden;font-variant-numeric:lining-nums tabular-nums';
+  host.appendChild(c);
+  try {
+    draw();
+  } finally {
+    c.remove();
+    c.style.cssText = '';
+  }
+}
 function printedTexture(key: string, draw: (c: HTMLCanvasElement) => void): Texture {
   let t = numberTex.get(key);
   if (t) return t;
@@ -134,6 +153,9 @@ function printedTexture(key: string, draw: (c: HTMLCanvasElement) => void): Text
 }
 const numberTexture = (text: string, ink: string) => printedTexture(`${text}|${ink}`, (c) => drawNumber(c, text, ink));
 function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
+  withLining(c, () => drawNumberIn(c, text, ink));
+}
+function drawNumberIn(c: HTMLCanvasElement, text: string, ink: string) {
   const g = c.getContext('2d')!;
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = ink;
@@ -156,6 +178,9 @@ const tokenTexture = (text: string, side: StoneColor, best: boolean) => printedT
  * it shows on pale wood too), KataGo's choice with a ring twice as thick, the number in ink.
  */
 function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: boolean) {
+  withLining(c, () => drawTokenIn(c, text, side, best));
+}
+function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best: boolean) {
   const g = c.getContext('2d')!;
   g.clearRect(0, 0, c.width, c.height);
   const disc = (r: number, fill: string) => {
@@ -179,16 +204,18 @@ function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: b
   g.fillStyle = TOKEN_INK;
   g.textAlign = 'center';
   g.textBaseline = 'alphabetic';
-  // as tall as the disc allows, set narrower (never smaller) down to 62% so no corner of the
-  // number touches the ring (critics, 2026-10-27 round 1); only a longer one comes down in size
-  const inner = r - 5;
-  for (let px = 84; ; px -= 4) {
+  // as tall as the disc allows, set narrower (never smaller) down to 64% so no corner of the
+  // number touches the ring (critics, 2026-10-27 round 1); only a longer one comes down in size.
+  // Up to 96 px of the 128 (it was 84 while labels carried a minus sign; critics, 2026-11-03:
+  // a phone's digits were about 9 px tall).
+  const inner = r - 3;
+  for (let px = 96; ; px -= 4) {
     g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
     const m = g.measureText(text);
     const up = m.actualBoundingBoxAscent || px * 0.66, down = m.actualBoundingBoxDescent || 0;
-    const half = (up + down) / 2 + 2;
+    const half = (up + down) / 2 + 1;
     const room = 2 * Math.sqrt(Math.max(0, inner * inner - half * half));
-    if (m.width * 0.62 > room && px > 56) continue;
+    if (m.width * 0.64 > room && px > 56) continue;
     const y = 64 + (up - down) / 2;
     // a thin outline in the same ink: the number keeps its weight when the board shrinks it to a phone's point
     g.strokeStyle = TOKEN_INK;
