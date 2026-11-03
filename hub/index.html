@@ -34,6 +34,7 @@ try {
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
   --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
+  --nt: var(--stone); --on-nt: var(--on-stone); --nt-edge: var(--stone-edge); --nt-hi: color-mix(in srgb, var(--stone) 85%, var(--kaya));
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
   --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
@@ -45,12 +46,14 @@ try {
   :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
     --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
+    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
   --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -123,8 +126,10 @@ try {
 :root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
-:root .app > .side #newTask { background: var(--stone); color: var(--on-stone); border-color: var(--stone-edge); }
-@media (hover: hover) { :root .app > .side #newTask:hover { background: color-mix(in srgb, var(--stone) 85%, var(--kaya)); } }
+/* New task: the black stone in light. In dark a honey-sand fill, not the white stone: still the one filled button
+   in the sidebar, but no longer the brightest thing on screen (text 7.5:1, button 4.8:1 on the dark wood). */
+:root .app > .side #newTask { background: var(--nt); color: var(--on-nt); border-color: var(--nt-edge); }
+@media (hover: hover) { :root .app > .side #newTask:hover { background: var(--nt-hi); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
 :root .brand b { font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
 :root .app > .side .group, :root .app > .side .trow .when, :root .app > .side .trow.tn .when { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
@@ -663,8 +668,11 @@ button.fchip:hover { border-color: var(--faint); }
 .ameta .conn { white-space: nowrap; }
 .asub { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .asub .sub { flex: 1; min-width: 0; margin-top: 0; }
-/* Mark usage reset: a quiet text button on the card, desktop and phone alike */
-:root .asub .btn { min-height: 28px; background: none; border-color: transparent; padding: 0 6px; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+/* Mark usage reset: a real small outline button (panel fill, border, 2 px bottom edge), never a footnote link.
+   32 px drawn; on the phone its ::after stretches the tap area to 44 px without making the row taller. */
+:root .asub .btn { position: relative; flex: none; min-height: 32px; padding: 0 12px; white-space: nowrap; font-size: 15px; background: var(--panel); border: 1px solid var(--line-2); border-bottom-width: 2px; color: var(--ink); text-decoration: none; }
+@media (hover: hover) { :root .asub .btn:hover { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 35%, var(--line-2)); } }
+:root .asub .btn:focus-visible { outline: 2px solid var(--stone); outline-offset: 2px; }
 /* One usage line: 5-hour and weekly side by side. */
 .use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
@@ -902,9 +910,8 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tfind { padding: 2px 8px 4px; }
   .navpair { display: none; }
   .brand { padding-top: 10px; padding-bottom: 6px; }
-  /* Mark usage reset: its 44 px tap area overhangs the row. */
-  /* :root to beat the desktop rule's 28 px, so the phone really gets 44 px. */
-  :root .asub .btn { min-height: 44px; margin: -10px -6px -10px 0; }
+  /* Mark usage reset: drawn 32 px, tapped 44 px (the ::after overhangs 6 px above and below). */
+  :root .asub .btn::after { content: ''; position: absolute; inset: -7px -4px; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -1621,16 +1628,52 @@ function lesN() {
 // are measured: scroll again each frame until scrollHeight stops changing (at most 6 frames).
 // open: a thread just opened. A short thread whose bottom would leave the task card half under the
 // header opens with the card whole instead (the rest is one short scroll away); a long one opens at the end.
+// Only the newest call runs its loop (opening a thread calls this twice in one tick); an open still
+// pending is carried over, so the last loop to finish does the opening fix-ups.
+let ftbRun = 0, ftbOpen = false;
 function feedToBottom(f, open = false) {
   let h = -1, n = 0;
-  const go = () => { if (f.scrollHeight === h || n++ > 5) { if (open) taskInView(f); return; } h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go); };
+  const run = ++ftbRun;
+  if (open) { f.style.paddingBottom = ''; ftbOpen = true; }
+  const go = () => {
+    if (run !== ftbRun) return;
+    if (f.scrollHeight === h || n++ > 5) { if (ftbOpen) { ftbOpen = false; if (!taskInView(f)) lineOnTop(f); } return; }
+    h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go);
+  };
   go();
+}
+// A long thread opens at its end, which can leave a text line cut in half under the header. If the
+// empty space under the last item (feed padding, or the band under the pinned "working" line) can take
+// it, the view moves up just enough to show that line whole; otherwise the feed gets that much extra
+// bottom space and the line scrolls fully out. Either way the view starts on a whole line and nothing
+// at the bottom is cut. Only the one message at the top edge is measured, once per open.
+function lineOnTop(f) {
+  if (!f.scrollTop) return;
+  const fr = f.getBoundingClientRect(), y = fr.top + 1;
+  const el = document.elementFromPoint(fr.left + fr.width / 2, y);
+  const msg = el && el !== f && f.contains(el) ? el.closest('#feed > *') : null;
+  if (!msg) return;
+  const w = document.createTreeWalker(msg, NodeFilter.SHOW_TEXT), r = document.createRange();
+  let top = Infinity, bottom = 0;
+  while (w.nextNode()) {
+    r.selectNodeContents(w.currentNode);
+    for (const q of r.getClientRects()) if (q.height && q.height < 48 && q.top < y && q.bottom > y) { top = Math.min(top, q.top); bottom = Math.max(bottom, q.bottom); }
+  }
+  if (!bottom) return;
+  const hidden = Math.ceil(fr.top - top) + 3, shown = Math.ceil(bottom - fr.top) + 1;
+  const slack = fr.bottom - f.lastElementChild.getBoundingClientRect().bottom;
+  if (hidden <= slack) { f.scrollTop -= hidden; return; }
+  if (shown > 48) return;
+  f.style.paddingBottom = `calc(${getComputedStyle(f).paddingBottom} + ${shown}px)`;
+  f.scrollTop = f.scrollHeight;
 }
 function taskInView(f) {
   const card = f.querySelector('.task');
-  if (!card || !f.scrollTop) return;
+  if (!card || !f.scrollTop) return false;
   const top = f.getBoundingClientRect().top, r = card.getBoundingClientRect();
-  if (r.top < top && r.bottom > top) f.scrollTop -= top - r.top + parseFloat(getComputedStyle(f).paddingTop);
+  if (!(r.top < top && r.bottom > top)) return false;
+  f.scrollTop -= top - r.top + parseFloat(getComputedStyle(f).paddingTop);
+  return true;
 }
 // Long feeds open fast with content-visibility: auto, then render their off-screen messages while
 // the page is idle: 5 per slice (a bigger slice is one long frame on a slow phone), newest first,
@@ -1996,7 +2039,10 @@ $('pop').addEventListener('click', async (e) => {
 });
 
 // ---------- team ----------
-const useCls = (pct) => pct >= lowAt() ? 'bad' : pct >= lowAt() - 25 ? 'warn' : '';
+// One bar colour rule for every usage bar (account cards, the Usage sheet, the hub's own budget):
+// ink below 70%, amber from 70%, red only from 90%. A card's "Running low" word is separate and
+// never recolours its bars, so two accounts at the same % always show the same colour.
+const useCls = (pct) => pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : '';
 const barW = (pct) => pct > 0 ? Math.min(100, Math.max(2, pct)) : 0;
 function usageRow(label, pct, resets) {
   if (typeof pct !== 'number') return '';
@@ -2004,9 +2050,8 @@ function usageRow(label, pct, resets) {
 }
 const since = (at) => { const x = ago(Date.now() - at); return x === 'just now' ? x : x + ' ago'; };
 // The card's one usage line: 5-hour and weekly bars side by side; reset times in the tooltip.
-// A card already marked low says so in red once (its state word), so its bars stay ink.
-function useLine(u, low = false) {
-  const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${low ? '' : useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
+function useLine(u) {
+  const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
   return `<div class="use1">${one('5h', '5-hour', u.five_hour_pct, u.five_hour_resets)}${one('Wk', 'Weekly', u.seven_day_pct, u.seven_day_resets)}</div>`;
 }
 // What the account is doing now: one line per working thread and running sub-agent (its last post is in the tooltip).
@@ -2040,7 +2085,7 @@ function accountCard(a) {
   // A card that needs connecting says why there are no numbers on the same line.
   const conn = needsLink ? `<div class="ameta"><button class="btn small" data-open="connect" data-name="${esc(a.name)}">${a.oldLink ? 'Reconnect' : 'Connect'}</button>${a.oldLink ? '<span class="conn">Its link is out of date</span>' : noUse}</div>` : '';
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
-  const usage = has ? useLine(u, a.low) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
+  const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${conn}
@@ -2118,7 +2163,7 @@ function renderTeam() {
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${ovPct >= 85 ? 'bad' : ovPct >= 60 ? 'warn' : ''}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
