@@ -306,6 +306,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
 .newtask[aria-pressed="true"] { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 .list { overflow-y: auto; padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 2px; }
+/* Rows keep their height in a long list (as flex items they shrank to 34 px and clipped the second title line). */
+.list > *, .list > .navpair > * { flex-shrink: 0; }
+/* Desktop: the list comes to rest on whole rows under the Filter field (proximity snap, so a fling is never
+   held back), and once scrolled its top 8 px fade (the padding above a resting row's text), so a row passing under the field reads as scrolled. */
+@media (min-width: 861px) {
+  .list { scroll-snap-type: y proximity; scroll-padding-top: 2px; }
+  .list > *, .list > .navpair > * { scroll-snap-align: start; }
+  .list > :first-child, .list > .navpair:first-child > :first-child { scroll-margin-top: 4px; } /* so the very top stays a resting point */
+  .list.scrolled { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px); mask-image: linear-gradient(to bottom, transparent 0, #000 8px); }
+}
 .group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
 .group.need { color: var(--amber); }
@@ -711,6 +721,12 @@ button.act { font: inherit; color: inherit; text-align: left; background: none; 
 button.act:hover .ttl { text-decoration: underline; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
+/* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
+.act-more { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 0 0 0 11px; font: inherit; font-size: 15px; font-weight: 500; color: var(--soft); text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer; }
+.act-more .act-n { font-weight: 400; }
+.act-more svg { flex: none; }
+@media (hover: hover) { .act-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
+.act-more:focus-visible { outline: 2px solid var(--stone); outline-offset: 1px; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
 .ag-who { font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
@@ -891,6 +907,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
   .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
   .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
+  .act-more { min-height: 44px; font-size: 15px; }
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
@@ -1342,10 +1359,28 @@ function renderSide() {
   const box = $('threads');
   for (const el of box.querySelectorAll('.trow.on')) if (el.dataset.thread !== String(sel)) { el.classList.remove('on'); el.removeAttribute('aria-current'); }
   const cur = box.querySelector(`.trow[data-thread="${sel}"]`);
-  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); }
+  if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); rowWhole(box, cur); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
 }
+
+// Desktop: a thread opened from a row half under the list's top or bottom edge scrolls into view whole,
+// and the list stops on a row start (the same resting points as the snap), so no row is cut at the top.
+function rowWhole(box, row) {
+  if (!matchMedia('(min-width: 861px)').matches) return;
+  const lr = box.getBoundingClientRect(), r = row.getBoundingClientRect();
+  if (r.top >= lr.top && r.bottom <= lr.bottom) return;
+  if (r.top < lr.top) { box.scrollTop += r.top - lr.top - 2; return; }
+  const need = box.scrollTop + r.bottom - lr.bottom + 4;
+  let to = box.scrollHeight;
+  for (const el of box.querySelectorAll(':scope > *, :scope > .navpair > *')) {
+    const pos = box.scrollTop + el.getBoundingClientRect().top - lr.top - 2;
+    if (pos >= need && pos < to) to = pos;
+  }
+  box.scrollTop = to;
+}
+// The top fade shows only once the list is scrolled (a toggle to the same state changes nothing).
+$('threads').addEventListener('scroll', (e) => e.currentTarget.classList.toggle('scrolled', e.currentTarget.scrollTop > 2), { passive: true });
 
 // ---------- feed ----------
 function threadCard(t) {
@@ -2054,22 +2089,37 @@ function useLine(u) {
   const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
   return `<div class="use1">${one('5h', '5-hour', u.five_hour_pct, u.five_hour_resets)}${one('Wk', 'Weekly', u.seven_day_pct, u.seven_day_resets)}</div>`;
 }
-// What the account is doing now: one line per working thread and running sub-agent (its last post is in the tooltip).
+// Accounts whose thread list is open in full (this tab only; the default shows the newest few).
+const ACT_SHOW = 3;
+const actOpen = new Set((() => { try { return JSON.parse(sessionStorage.getItem('hub-act-open') || '[]'); } catch { return []; } })());
+function toggleActs(name) {
+  if (!actOpen.delete(name)) actOpen.add(name);
+  try { sessionStorage.setItem('hub-act-open', JSON.stringify([...actOpen])); } catch {}
+  renderTeam();
+  // The panel is redrawn, so keyboard focus goes back to the same toggle.
+  document.querySelector(`#team [data-act-more="${CSS.escape(name)}"]`)?.focus();
+}
+// What the account is doing now: one line per working thread, newest first (its last post is in the tooltip).
+// Only the newest 3 show until "N more" opens the rest, so the next account's card stays in view.
 function activityOf(a) {
   const mine = (t) => t.account === a.name || crewOf(t).includes(a.name);
-  const ts = S.threads.filter((t) => t.status === 'working' && mine(t));
-  const row = (t) => {
+  const ts = S.threads.filter((t) => t.status === 'working' && mine(t)).map((t) => {
     const last = lastByThreadAcct.get(`${t.id}|${a.name}`);
+    return { t, last, at: last?.at || t.updatedAt || t.createdAt || 0 };
+  }).sort((x, y) => y.at - x.at);
+  const row = ({ t, last, at }) => {
     // Every row has the same meta slot: when this account last spoke there (or the
     // thread last changed); "member" only when it isn't the lead.
-    const at = last?.at || t.updatedAt || t.createdAt || 0;
     const meta = [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
     return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${esc(meta)}</small></div></button>`;
   };
+  if (!ts.length) return '';
   // Running sub-agents are not repeated here: the Agents panel lists them, each with its one bar.
-  const rows = ts.map(row).join('');
+  const open = actOpen.has(a.name), cut = ts.length > ACT_SHOW + 1; // never hide just one
+  const shown = cut && !open ? ts.slice(0, ACT_SHOW) : ts;
+  const more = cut ? `<button type="button" class="act-more" data-act-more="${esc(a.name)}" aria-expanded="${open}">${open ? 'Show fewer' : `${ts.length - ACT_SHOW} more`}<span class="act-n">${open ? '' : ` · ${ts.length} threads`}</span>${icon(open ? 'chevron-down' : 'chevron-right', 14)}</button>` : '';
   // One list, so every row keeps the same pitch.
-  return rows ? `<div class="alist">${rows}</div>` : '';
+  return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
   const [cls, st] = acctState(a);
@@ -2088,10 +2138,10 @@ function accountCard(a) {
   const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    ${usage}
     ${conn}
     ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Mark usage reset</button>` : ''}</div>` : ''}
     ${act}
-    ${usage}
   </div>`;
 }
 // The ⋯ menu on an account card: the rarer actions, plus routines and where its usage came from.
@@ -2233,6 +2283,7 @@ document.addEventListener('click', async (e) => {
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
   const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
+  const am = e.target.closest('[data-act-more]'); if (am) return toggleActs(am.dataset.actMore);
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
   const tab = e.target.closest('#tabs button'); if (tab) return tab.dataset.tab === 'chat' && sel ? openThread(0) : setTab(tab.dataset.tab);
   if (e.target.closest('#back')) return setTab('threads');
