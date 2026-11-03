@@ -11,15 +11,19 @@ const read = { candidates: FINAL.cands.map((c) => ({ loc: loc(c.at), winrate: c.
 
 describe('the caption over a previewed move (KataGo numbers only)', () => {
   it('names KataGo’s choice with its win chance and visits', () => {
-    expect(moveStats(read, loc('Q9'), 1, 19)).toEqual({ at: 'Q9', text: 'KataGo’s choice · Black 3% · 1,515 positions' });
+    expect(moveStats(read, loc('Q9'), 1, 19)).toEqual({ at: 'Q9', text: 'KataGo’s choice · Black 3% · KataGo looked here 1,515 times' });
   });
   it('ranks another move and gives its loss in points, in the board labels’ rounding', () => {
     // R12: lead −10.19 against Q9's −8.62 → 1.6 points worse
-    expect(moveStats(read, loc('R12'), 1, 19)?.text).toBe('KataGo’s 2nd most-read move · Black 1%, 1.6 points worse · 214 positions');
-    expect(moveStats(read, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 positions');
-    // with the read's total, the count says its share of it (as the answer's total)
-    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · 92 of 2,000 positions');
-    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19)?.text).toBe('KataGo’s 3rd most-read move · Black 1%, 2.7 points worse · 92 of 2,000 positions in the last read');
+    expect(moveStats(read, loc('R12'), 1, 19)?.text).toBe('KataGo’s 2nd most-read move · Black 1%, 1.6 points worse · KataGo looked here 214 times');
+    expect(moveStats(read, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · looked here 92 times');
+    // the move's own looks, never a share of a total (no third count beside the answer's "N positions in 2 reads")
+    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19, true)?.text).toBe('3rd most read · Black 1%, 2.7 points worse · looked here 92 times');
+    expect(moveStats({ ...read, visits: 2000 }, loc('Q10'), 1, 19)?.text).not.toMatch(/positions|of 2,000/);
+    // one look is "once"
+    const once = { candidates: [{ ...read.candidates[0], visits: 1 }] };
+    expect(moveStats(once, loc('Q9'), 1, 19)?.text).toBe('KataGo’s choice · Black 3% · KataGo looked here once');
+    expect(moveStats(once, loc('Q9'), 1, 19, true)?.text).toBe('KataGo’s choice · Black 3% · looked here once');
   });
   it('says plainly when KataGo did not list the move, and nothing for a pass or no read', () => {
     expect(moveStats(read, loc('A1'), 1, 19)?.text).toBe('Not in KataGo’s top 8 moves here');

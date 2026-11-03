@@ -20,6 +20,11 @@ export interface Kaya3DProps {
   marks?: Mark[];
   ownership?: ArrayLike<number> | null;
   coords?: boolean;
+  /**
+   * A phone: larger coordinates, set further out from the wood, with the frame widened for them
+   * (critics, 2026-11-03: A-T read as one squeezed string against the wood's edge).
+   */
+  bigCoords?: boolean;
   crop?: { x0: number; y0: number; x1: number; y1: number };
   candidates?: CandidateMark[] | null;
   /** The figure on a pale stone in place of the win chance (e.g. the lead once a game is decided). */
@@ -109,9 +114,9 @@ export default function Kaya3D(p: Kaya3DProps) {
   const cropKey = p.crop ? `${p.crop.x0},${p.crop.y0},${p.crop.x1},${p.crop.y1}` : '';
   const tilt = p.crop ? 0 : (p.tilt ?? 0);
   useEffect(() => {
-    viewRef.current?.setView({ kind: 'top', crop: p.crop ?? null, pad: p.coords ? 0.95 : 0.1, tilt }, 500);
+    viewRef.current?.setView({ kind: 'top', crop: p.crop ?? null, pad: p.coords ? (p.bigCoords ? 1.25 : 0.95) : 0.1, tilt }, 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, cropKey, p.coords, tilt]);
+  }, [ready, cropKey, p.coords, p.bigCoords, tilt]);
 
   useEffect(() => {
     viewRef.current?.setStones(p.stones);
@@ -171,7 +176,7 @@ export default function Kaya3D(p: Kaya3DProps) {
     if (p.coords) {
       const c = p.crop ?? { x0: 0, y0: 0, x1: size - 1, y1: size - 1 };
       const whole = !p.crop;
-      const off = whole ? 1.22 : 0.95;
+      const off = whole ? (p.bigCoords ? 1.5 : 1.22) : p.bigCoords ? 1.1 : 0.95;
       // seen at an angle, the bottom letters sit on the table just in front of the board, below its front face
       const front = whole && tilt > 0 ? -BOARD_T : 0;
       for (let x = c.x0; x <= c.x1; x++) {
@@ -184,7 +189,7 @@ export default function Kaya3D(p: Kaya3DProps) {
       }
     }
     return out;
-  }, [p.stones, p.variation, p.candidates, p.lastMove, p.marks, p.coords, p.crop, size, tilt]);
+  }, [p.stones, p.variation, p.candidates, p.lastMove, p.marks, p.coords, p.bigCoords, p.crop, size, tilt]);
 
   // place them after every frame the view draws (the camera may be easing)
   useEffect(() => {
@@ -279,7 +284,7 @@ export default function Kaya3D(p: Kaya3DProps) {
   };
 
   return (
-    <div ref={wrap} className={`k3${p.onPlay ? ' playable' : ''}`} role="img" aria-label={p.ariaLabel ?? 'Go board'}>
+    <div ref={wrap} className={`k3${p.onPlay ? ' playable' : ''}${p.bigCoords ? ' big-coords' : ''}`} role="img" aria-label={p.ariaLabel ?? 'Go board'}>
       {!drawn && p.placeholder && <div className="k3-wait">{p.placeholder}</div>}
       <canvas ref={canvas} className="k3-canvas" onPointerMove={onMove} onPointerLeave={onLeave} onClick={onClick as unknown as React.MouseEventHandler} />
       <div ref={layer} className="k3-layer" aria-hidden="true">

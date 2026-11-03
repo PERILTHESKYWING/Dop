@@ -41,6 +41,11 @@ export interface BoardProps {
   ownership?: ArrayLike<number> | null;
   pending?: Loc | null;
   coords?: boolean;
+  /**
+   * With `coords`: the margin from the outer lines to the board's edge, in points (default 1.24).
+   * A larger one gives larger coordinates room on a small board (Kiai's phone); Dop never sets it.
+   */
+  coordMargin?: number;
   /** Crop to a window of the board (mini boards). */
   crop?: { x0: number; y0: number; x1: number; y1: number };
   className?: string;
@@ -92,6 +97,8 @@ const PLAIN_BIG_R = 0.76;
 const PLAIN_BARE_R = 0.38;
 /** Room kept between a plain label's corners and the inside of its ring (board units). */
 const PLAIN_PAD = 0.04;
+/** The narrowest a big (candBig) mark's label is set before it is set smaller instead. */
+const BIG_CONDENSE = 0.66;
 const CAND_STOPS: [number, [number, number, number]][] = [
   [0, [120, 214, 104]],
   [0.5, [244, 197, 66]],
@@ -335,8 +342,8 @@ interface Geometry {
   t: number;
 }
 
-function geometry(size: number, coords: boolean, edge: boolean): Geometry {
-  const m = coords ? 1.24 : 0.6;
+function geometry(size: number, coords: boolean, edge: boolean, coordMargin = 1.24): Geometry {
+  const m = coords ? coordMargin : 0.6;
   const W = size - 1 + 2 * m;
   const t = edge ? W * 0.018 : 0;
   return { m, mv: m - t / 2, W, t };
@@ -546,7 +553,7 @@ function BoardImpl(p: BoardProps) {
   const coords = !!p.coords;
   const full = (p.detail ?? (p.crop || !coords ? 'lite' : 'full')) === 'full';
   const cropped = !!p.crop;
-  const g = useMemo(() => geometry(size, coords, full && !cropped), [size, coords, full, cropped]);
+  const g = useMemo(() => geometry(size, coords, full && !cropped, p.coordMargin), [size, coords, full, cropped, p.coordMargin]);
   // A full board fills a square exactly (surface + front edge), so a square box has no letterboxing.
   const vb = cropped
     ? `${crop.x0 - g.m} ${crop.y0 - g.m} ${crop.x1 - crop.x0 + 2 * g.m} ${crop.y1 - crop.y0 + 2 * g.m}`
@@ -778,14 +785,28 @@ function BoardImpl(p: BoardProps) {
         if (typeof t.getComputedTextLength !== 'function' || !disc) return;
         t.removeAttribute('textLength');
         t.removeAttribute('lengthAdjust');
+        t.style.removeProperty('font-size');
         // the widest a line of digits half a font-size tall can be inside the ring's inner edge
         // (a mark without a ring, the book's cleared point, only keeps the label inside its width)
         const sw = parseFloat(getComputedStyle(disc).strokeWidth) || 0;
         const r = disc.r.baseVal.value;
         const inner = r - sw / 2 - PLAIN_PAD;
-        const half = 0.36 * (parseFloat(getComputedStyle(t).fontSize) || 0);
-        const room = getComputedStyle(disc).stroke === 'none' || !sw ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - half * half));
-        if (!room || t.getComputedTextLength() <= room) return;
+        const ringless = getComputedStyle(disc).stroke === 'none' || !sw;
+        const fs0 = parseFloat(getComputedStyle(t).fontSize) || 0;
+        const roomAt = (fs: number) => (ringless ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - (0.36 * fs) ** 2)));
+        const len0 = t.getComputedTextLength();
+        let fs = fs0;
+        let room = roomAt(fs);
+        // a big (candBig) mark shrunk by a crowded neighbour sets its label smaller rather than
+        // narrower than BIG_CONDENSE of its width (its full-size neighbours keep their size)
+        if (t.parentElement?.classList.contains('big'))
+          for (let i = 0; i < 12 && fs > 0 && len0 * (fs / fs0) * BIG_CONDENSE > room; i++) {
+            fs *= 0.94;
+            room = roomAt(fs);
+          }
+        if (fs !== fs0) t.style.fontSize = `${fs.toFixed(3)}px`;
+        const len = len0 * (fs / fs0);
+        if (!room || len <= room) return;
         t.setAttribute('textLength', room.toFixed(3));
         t.setAttribute('lengthAdjust', 'spacingAndGlyphs');
       });

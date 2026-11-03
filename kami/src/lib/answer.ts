@@ -32,7 +32,9 @@ async function quickLook(prober: Prober, pos: ExplainPosition, onThought: (t: Th
     if (!r || !best || signal?.aborted) return;
     const side = pos.toPlay === 1 ? 'Black' : 'White';
     const lead = best.scoreLead;
-    const score = Math.abs(lead) < 0.5 ? 'about even' : `${side} ${lead > 0 ? 'ahead' : 'behind'} by about ${Math.abs(lead).toFixed(1)} points`;
+    // A 32-visit read: its score is provisional and can differ from the header's deeper read
+    // (critics, 2026-11-03: "behind by about 10.7" next to White +11.1), so it says "so far".
+    const score = `so far: ${Math.abs(lead) < 0.5 ? 'about even' : `${side} ${lead > 0 ? 'ahead' : 'behind'} by about ${Math.abs(lead).toFixed(1)} points`}`;
     onThought({ text: `Quick look → KataGo's first choice is ${locToGtp(best.loc, pos.size)} (${score}). Reading deeper…`, ms: Date.now() - t0, visits: r.visits });
   } catch (e) {
     if ((e as Error)?.name === 'AbortError') throw e;

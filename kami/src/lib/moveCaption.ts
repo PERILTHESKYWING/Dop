@@ -3,7 +3,7 @@
  * caption that explains the previewed move"). One plain line, made only of KataGo's numbers
  * already on screen: where the move ranks in KataGo's read, the win chance after it, what it
  * loses against KataGo's choice (in the board labels' rounding, lib/candLabels.ts) and how many
- * positions KataGo read under it (its visits). No language model, and nothing about the board that KataGo did not measure.
+ * times KataGo looked at it (its visits). No language model, and nothing about the board that KataGo did not measure.
  */
 import { fmt1 } from '../../../src/lib/coach/explain/geometry';
 import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
@@ -22,7 +22,7 @@ const ordinal = (n: number) => {
 export interface MoveStats {
   /** The move's point, e.g. "Q9". */
   at: string;
-  /** "KataGo’s 2nd most-read move · Black 54%, 1.2 points worse · 1,200 positions" (`compact`: shorter rank words, for a phone). */
+  /** "KataGo’s 2nd most-read move · Black 54%, 1.2 points worse · KataGo looked here 1,200 times" (`compact`: shorter words, for a phone). */
   text: string;
 }
 
@@ -51,10 +51,10 @@ export function moveStats(read: (Pick<EngineRead, 'candidates'> & { visits?: num
     const pts = shown === '1.0' ? 'point' : 'points';
     loss = Number(shown) === 0 ? 'about as good' : d > 0 ? `${shown} ${pts} worse` : `${shown} ${pts} ahead on a shorter read`;
   }
-  // "53 of 160 positions in the last read": the move's share of the read the board shows. The
-  // answer's total adds up every read it made, so the caption names which total it is (critics, 2026-10-28).
-  const all = read.visits && read.visits > c.visits ? ` of ${read.visits.toLocaleString('en-US')}` : '';
-  const visits = `${c.visits.toLocaleString('en-US')}${all} positions${all ? (compact ? '' : ' in the last read') : ''}`;
+  // "KataGo looked here 47 times": the move's own visits, as a plain count of looks, so it never
+  // reads as a third total next to the answer's "209 positions in 2 reads" (critics, 2026-11-03).
+  const times = c.visits === 1 ? 'once' : `${c.visits.toLocaleString('en-US')} times`;
+  const visits = `${compact ? 'looked' : 'KataGo looked'} here ${times}`;
   const text = [rank, loss ? `${win}, ${loss}` : win, visits].join(' · ');
   return { at, text };
 }
