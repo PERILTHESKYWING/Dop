@@ -12,8 +12,12 @@ async function ctx(browser, { w, h, dark = false, mobile = false, logged = true 
   return c;
 }
 const settle = (p, ms = 700) => p.waitForTimeout(ms);
-async function openThread(p, title) {
-  await p.locator('.trow', { hasText: title }).first().click();
+// A done thread whose PR the hub sees as merged can drop out of the list (seen 2026-11-03 on main too):
+// open the fallback title instead of stopping the whole set.
+async function openThread(p, title, fallback) {
+  let row = p.locator('.trow', { hasText: title }).first();
+  if (fallback && !(await row.count())) { console.log('no row', title, '-> using', fallback); row = p.locator('.trow', { hasText: fallback }).first(); }
+  await row.click();
   await settle(p);
 }
 
@@ -36,7 +40,7 @@ async function openThread(p, title) {
     await snap(p, `d-${tag}-02-project-chat`);
     await openThread(p, 'Kiai phone review');
     await snap(p, `d-${tag}-03-thread-working`);
-    await openThread(p, 'Ko marker');
+    await openThread(p, 'Ko marker', 'Hub: Team panel');
     await snap(p, `d-${tag}-04-thread-done-pr`);
     await openThread(p, 'Forge: pick');
     await snap(p, `d-${tag}-05-thread-question`);

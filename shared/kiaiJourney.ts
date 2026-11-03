@@ -499,8 +499,8 @@ interface SealDef {
 }
 
 export const SEALS: SealDef[] = [
-  { id: 'sanrensei', kanji: '三連星', reading: 'sanrensei', title: 'Three in a row', how: 'Study three days in a row.', by: 'streak', goal: 3 },
-  { id: 'ichinichi', kanji: '一日一局', reading: 'ichinichi ikkyoku', title: 'A game a day', how: 'Review games on 7 different days.', by: 'reviewDays', goal: 7 },
+  { id: 'sanrensei', kanji: '三日連続', reading: 'mikka renzoku', title: 'Three in a row', how: 'Study three days in a row.', by: 'streak', goal: 3 },
+  { id: 'ichinichi', kanji: '一日一局', reading: 'ichinichi ikkyoku', title: 'A game a day', how: 'Review on 7 different days.', by: 'reviewDays', goal: 7 },
   { id: 'shicho', kanji: '征', reading: 'shichō', title: 'The ladder', how: 'Thirty days in a row. Rest days keep it going.', by: 'streak', goal: 30 },
   { id: 'narabe', kanji: '棋譜並べ', reading: 'kifu narabe', title: 'Replaying games', how: 'Review 10 whole games.', by: 0, goal: 10 },
   { id: 'hyakkyoku', kanji: '百局', reading: 'hyakkyoku', title: 'A hundred games', how: 'Review 100 whole games.', by: 0, goal: 100 },

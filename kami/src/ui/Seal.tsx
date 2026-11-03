@@ -11,7 +11,7 @@ export function dayLabel(day: DayKey, long = false): string {
  * A seal (hanko). Earned: a white-text seal (白文印), solid vermilion with the characters left in
  * paper colour. Not yet: an outline only. One character large; two to four in ONE column, top to
  * bottom, on an upright seal: a square of columns read right to left (as carved seals are) reads
- * as a scrambled word to anyone reading across (三連星 came out as 星三連), and one column
+ * as a scrambled word to anyone reading across (三連星, the old seal here, came out as 星三連), and one column
  * reads the same way for every reader. No gradient, glow, animation or sound.
  */
 export function SealMark({ seal, size = 72 }: { seal: Seal; size?: number }) {

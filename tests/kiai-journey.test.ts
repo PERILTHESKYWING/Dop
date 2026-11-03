@@ -338,8 +338,8 @@ describe('presented with restraint', () => {
     expect(head).not.toMatch(/\bkyu\b/);
   });
   it('uses real Go words for its seals', () => {
-    // each checked by hand: the sanrensei opening, ladder, replaying game records, life and death,
-    // "hand talk" (an old name for Go), tesuji; 一日一局 and 百局 are plain phrases a player reads at once
-    expect(SEALS.map((x) => x.kanji)).toEqual(['三連星', '一日一局', '征', '棋譜並べ', '百局', '死活', '手談', '手筋']);
+    // each checked by hand: ladder, replaying game records, life and death, "hand talk" (an old name for Go), tesuji;
+    // 三日連続 ("three days running"; 三連星 read as the sanrensei opening to Go players, critics 2026-11-03), 一日一局 and 百局 are plain phrases
+    expect(SEALS.map((x) => x.kanji)).toEqual(['三日連続', '一日一局', '征', '棋譜並べ', '百局', '死活', '手談', '手筋']);
   });
 });

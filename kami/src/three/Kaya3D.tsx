@@ -195,6 +195,7 @@ export default function Kaya3D(p: Kaya3DProps) {
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
+    const big = !!p.bigCoords;
     const place = () => {
       const el = layer.current;
       if (!el) return;
@@ -205,6 +206,15 @@ export default function Kaya3D(p: Kaya3DProps) {
         if (!L) continue;
         const pt = v.project(L.loc, L.lift, L.dx ?? 0, L.dy ?? 0);
         k.style.transform = `translate(${pt.x.toFixed(1)}px, ${pt.y.toFixed(1)}px)`;
+        // a phone's side numbers: sized to their own row's height, which the lean shrinks toward
+        // the far edge, so 19, 18, 17 keep about 3 px apart instead of touching (critics, 2026-11-03)
+        if (big && L.dx) {
+          const row = Math.floor(L.loc / size);
+          const q = v.project(row < size - 1 ? L.loc + size : L.loc - size, L.lift, L.dx, 0);
+          const pitch = Math.abs(q.y - pt.y);
+          const b = k.firstElementChild as HTMLElement | null;
+          if (b) b.style.fontSize = `${Math.max(11, Math.min(16, (pitch - 3) / 0.66)).toFixed(1)}px`;
+        }
       }
       // text scales with the board: one grid cell in CSS px
       const a = v.project(0, 0), b = v.project(1, 0);
@@ -228,7 +238,7 @@ export default function Kaya3D(p: Kaya3DProps) {
     return () => {
       if (v.onFrame === place) v.onFrame = null;
     };
-  }, [labels, ready, size, tilt]);
+  }, [labels, ready, size, tilt, p.bigCoords]);
 
   // ------------------------------------------------------------- pointer
 
