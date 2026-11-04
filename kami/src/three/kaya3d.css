@@ -302,9 +302,13 @@
 /* a phone (Kaya3D bigCoords): 16 px, capitals and lining figures about 10.5 px tall, set further
    out from the wood; letters a little narrower so each stands apart from the next at a 12 px
    step (critics, 2026-11-03: 13 px letters read as one squeezed string against the edge) */
+/* Kaya3D then sizes each side number to its row and each letter to its column (about 12.5 px on
+   the far row, 14 px on the near one), in a lighter weight so the narrow far row stays open
+   (critics, 2026-11-04) */
 .k3.big-coords .k3-coord b {
   display: inline-block;
   font-size: 16px;
+  font-weight: 400;
   font-variant-numeric: lining-nums tabular-nums;
   transform: scaleX(0.84);
 }

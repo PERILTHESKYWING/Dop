@@ -201,6 +201,12 @@ function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best:
   } else r -= ring;
   disc(r, TOKEN_FILL);
   if (!text) return;
+  // KataGo's choice in a one-sided read (candLabels PICK): a filled ink dot, not a number, so it
+  // never reads as one more chip among the point marks (critics, 2026-11-04)
+  if (text === '●') {
+    disc(Math.round(r * 0.56), TOKEN_INK);
+    return;
+  }
   g.fillStyle = TOKEN_INK;
   g.textAlign = 'center';
   g.textBaseline = 'alphabetic';

@@ -18,6 +18,14 @@ export const QUICK_VISITS = 32;
 const QUICK_MS = 2500;
 
 /**
+ * Black's lead in words, rounded as the header's eval bar rounds it ("White +11.1" is "White
+ * ahead by 11.1 points"), so the thinking card and the header read the same number.
+ */
+export function leadWords(bLead: number): string {
+  return Math.abs(bLead) < 0.05 ? 'even' : `${bLead > 0 ? 'Black' : 'White'} ahead by ${Math.abs(bLead).toFixed(1)} points`;
+}
+
+/**
  * A first useful line within seconds: KataGo's first choice from a quick read (or the board's
  * read, when it already has one), shown as a live thinking step while the full read runs.
  * Numbers only from KataGo; any failure here just skips the step.
@@ -30,11 +38,10 @@ async function quickLook(prober: Prober, pos: ExplainPosition, onThought: (t: Th
     const r = signal ? await untilAborted(read, signal) : await read;
     const best = r?.candidates[0];
     if (!r || !best || signal?.aborted) return;
-    const side = pos.toPlay === 1 ? 'Black' : 'White';
-    const lead = best.scoreLead;
-    // A 32-visit read: its score is provisional and can differ from the header's deeper read
-    // (critics, 2026-11-03: "behind by about 10.7" next to White +11.1), so it says "so far".
-    const score = `so far: ${Math.abs(lead) < 0.5 ? 'about even' : `${side} ${lead > 0 ? 'ahead' : 'behind'} by about ${Math.abs(lead).toFixed(1)} points`}`;
+    // The score is the read's own root lead, worded like the header's "White +11.1": the quick
+    // look gets the same cached read the header shows (readPosition), so both say one number.
+    // (critics, 2026-11-03/04: the card used KataGo's first choice's lead, 10.7, next to 11.1.)
+    const score = `so far: ${leadWords(r.bLead)}`;
     onThought({ text: `Quick look → KataGo's first choice is ${locToGtp(best.loc, pos.size)} (${score}). Reading deeper…`, ms: Date.now() - t0, visits: r.visits });
   } catch (e) {
     if ((e as Error)?.name === 'AbortError') throw e;
