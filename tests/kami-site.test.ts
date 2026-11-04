@@ -1,6 +1,6 @@
 /** Kami site (kami/): question parsing, [[vN]] chips, writer fallback, concept routing, kami-write. */
 import { describe, expect, it, vi } from 'vitest';
-import { answerQuestion } from '../kami/src/lib/answer';
+import { answerQuestion, leadWords } from '../kami/src/lib/answer';
 import { blocks, engineText, plainText, splitChips } from '../kami/src/lib/chips';
 import { LlmUnavailable, type CallLlm } from '../kami/src/lib/llm';
 import { boardFromSgf, emptyBoard, playAt, type BoardState } from '../kami/src/lib/position';
@@ -321,5 +321,14 @@ describe('kami-write task', () => {
     expect((await handleLlmRequest('POST', JSON.stringify({ task: 'kami-write', prompt: '' }), env, noNet)).status).toBe(400);
     expect((await handleLlmRequest('POST', JSON.stringify({ task: 'kami-write', prompt: 'x', kind: 'poem' }), env, noNet)).status).toBe(400);
     expect((await handleLlmRequest('POST', JSON.stringify({ task: 'kami-write', prompt: 'x' }), {}, noNet)).status).toBe(503);
+  });
+});
+
+describe('the thinking card’s score', () => {
+  it('words the header’s number: the read’s root lead, rounded as the eval bar rounds it', () => {
+    // the header's "White +11.1" is the card's "White ahead by 11.1 points" (critics, 2026-11-04)
+    expect(leadWords(-11.12)).toBe('White ahead by 11.1 points');
+    expect(leadWords(3.04)).toBe('Black ahead by 3.0 points');
+    expect(leadWords(0.04)).toBe('even');
   });
 });

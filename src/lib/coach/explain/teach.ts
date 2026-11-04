@@ -18,7 +18,7 @@ import { replay } from '../../go/board';
 import { other, PASS, type Color, type Loc } from '../../go/types';
 import { boardPicture, purposes, strongNear, type Purpose } from './effects';
 import { keyPointOf, localR, movePurposes, type ConceptContext } from './concepts';
-import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead, zoneName } from './geometry';
+import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead, winPct, zoneName } from './geometry';
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
@@ -626,8 +626,9 @@ export function teach(input: TeachInput): Teaching {
     if (sit.sharp) {
       if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out ${fmt1(-g)} points ahead${ref(id)}.`);
       else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
-      else if (g < 2) summary.push(`${C(o.loc)} is a little worse${ref(id)}.`);
-      else summary.push(`${C(o.loc)} is clearly worse${ref(id)}.`);
+      // with KataGo's number, the one its row under KataGo's numbers gives (a pro teacher, 2026-11-04:
+      // "a little worse" alone does not say how much)
+      else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse (${fmt1(g)} ${fmt1(g) === '1.0' ? 'point' : 'points'})${ref(id)}.`);
       nearLine([best.loc, o.loc], g < NEAR_PTS);
       return;
     }
@@ -653,9 +654,16 @@ export function teach(input: TeachInput): Teaching {
     const near = cands
       .filter((c, i) => (i < 3 || c.visits >= Math.max(2, top * 0.02)) && !named.includes(c.loc))
       .slice(0, 10)
-      .filter((c) => Math.abs(best.lead - c.scoreLead) < NEAR_PTS)
-      .map((c) => C(c.loc));
-    if (near.length) summary.push(`${near.length > 1 ? `${near.slice(0, -1).join(', ')} and ${near[near.length - 1]} are` : `${near[0]} is`} about as good${tieSaid ? ' too' : ` as ${C(best.loc)}`}.`);
+      .filter((c) => Math.abs(best.lead - c.scoreLead) < NEAR_PTS);
+    // each move the text calls about as good gets its own row under KataGo's numbers (critics,
+    // 2026-11-04: the list showed Q10 and Q12 while the text judged R12)
+    for (const c of near) {
+      const at = `${C(c.loc)} is `;
+      if (!facts.some((x) => x.text.startsWith(at)))
+        fact(`${C(c.loc)} is about as good as ${C(best.loc)} (${fmt1(Math.abs(best.lead - c.scoreLead))} points apart; ${me}'s win chance ${winPct(c.winrate)}).`);
+    }
+    const names = near.map((c) => C(c.loc));
+    if (names.length) summary.push(`${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are` : `${names[0]} is`} about as good${tieSaid ? ' too' : ` as ${C(best.loc)}`}.`);
   }
 
   /** Where the game stands, in a line (XIAO, item 14: "give the player some context"). */

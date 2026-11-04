@@ -5,7 +5,7 @@
  * loses against KataGo's choice (in the board labels' rounding, lib/candLabels.ts) and how many
  * times KataGo looked at it (its visits). No language model, and nothing about the board that KataGo did not measure.
  */
-import { fmt1 } from '../../../src/lib/coach/explain/geometry';
+import { fmt1, winPct } from '../../../src/lib/coach/explain/geometry';
 import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
 import { replay } from '../../../src/lib/go/board';
 import { locToGtp } from '../../../src/lib/go/coords';
@@ -43,7 +43,7 @@ export function moveStats(read: (Pick<EngineRead, 'candidates'> & { visits?: num
   const side = toPlay === 1 ? 'Black' : 'White';
   // The rank is by visits (the read's own order), which is not always the order of points lost, so say so.
   const rank = i === 0 ? 'KataGo’s choice' : compact ? `${ordinal(i + 1)} most read` : `KataGo’s ${ordinal(i + 1)} most-read move`;
-  const win = `${side} ${Math.round(c.winrate * 100)}%`;
+  const win = `${side} ${winPct(c.winrate)}`;
   let loss = '';
   if (i > 0) {
     const d = best.scoreLead - c.scoreLead;

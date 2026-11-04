@@ -58,7 +58,13 @@ export function Composer({ value, onChange, levels, level, onLevel, running, onS
   }, [value]);
 
   const submit = () => {
-    if (!running && value.trim()) onSend(value);
+    if (!running && value.trim()) {
+      onSend(value);
+      // a touch screen: sent, the box lets go of focus, so the keyboard folds away and the box keeps
+      // its resting edge while the answer reads (critics, 2026-11-04: a focused 2 px edge stayed on
+      // the answer screen and changed when a tap elsewhere took focus)
+      if (window.matchMedia?.('(pointer: coarse)').matches) ta.current?.blur();
+    }
   };
 
   return (

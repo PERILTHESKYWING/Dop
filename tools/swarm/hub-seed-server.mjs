@@ -6,6 +6,12 @@ process.env.HUB_PASSWORD = 'dev';
 await import(new URL('../../hub/dev.mjs', import.meta.url));
 const { hubFromEnv } = await import(new URL('../../hub/lib/api.js', import.meta.url));
 const hub = hubFromEnv();
+// A seed clock, so the opened working thread shows real ages ("2m", "5m") instead of everything "just now".
+// The whole seed runs from 10 minutes ago up to now (a working thread quiet for 15 minutes counts as stopped).
+const realNow = Date.now;
+// Each read moves the clock on 1 ms, so a post made right after a session start counts as later (the agent connected).
+const at = (minAgo) => { let t = realNow() - minAgo * 60e3; Date.now = () => ++t; };
+at(10);
 
 await hub.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_main_opus', token: 'tokmain1' }, { model: 'sonnet', id: 'trig_main_son', token: 'tokmain2' }] });
 await hub.upsertAccount({ name: 'Alt', plan: 'pro', routines: [{ model: 'opus', id: 'trig_alt_opus', token: 'tokalt1' }] });
@@ -30,18 +36,29 @@ await hub.route(await coord(), {
     { title: 'Ko marker unreadable in dark mode', brief: 'The ko square uses the same ink as the board lines in dark. Give it a contrast that passes 3:1 on both themes.', model: 'sonnet', account: 'Alt 2' },
   ],
 });
+at(9.6);
 const ths = await hub.threads();
 const t1 = ths.find((t) => t.title.startsWith('Kiai phone'));
 const t2 = ths.find((t) => t.title.startsWith('Ko marker'));
+// The working thread: session start, a measurement, a why-note, a handover, a sub-agent benchmark that reports
+// its runs, an update and a lesson, then a check-in, at realistic gaps (its Activity block shows these).
+await hub.start(await A('Main'), JSON.stringify({ role: 'worker', thread: t1.id }));
+at(8.3);
 await hub.agentPost(await A('Main'), { thread: t1.id, kind: 'progress', text: 'Measured on a Moto G4 profile (4x CPU, Fast 3G): **first paint 2.84 s**, review ready 4.1 s.\n\nBiggest blocker: the 3D board module (412 KB) loads before the move list. Splitting it so the flat board paints first.' });
+at(7.2);
 await hub.agentPost(await A('Main'), { thread: t1.id, kind: 'thinking', text: 'The flat board is already in the entry chunk, so lazy-loading three.js should not change what the user sees first.' });
-await hub.agentRun(await A('Main'), { action: 'start', id: 'bench', thread: t1.id, title: 'Run throttled benchmark x5', step: 'Run 3 of 5', pct: 60 });
-await hub.agentPost(await A('Main'), { thread: t1.id, kind: 'progress', text: 'After the split: first paint **0.92 s** (median of 5), review ready 2.3 s. Running the full test suite now.' });
+at(7);
 
 await hub.agentPost(await owner(t2, 'Alt 2'), { thread: t2.id, kind: 'progress', text: 'The ko square was `#3b332a` on `#4a3420` wood: contrast 1.2:1. Changed to the white-stone ink in dark (6.8:1) and kept black in light (9.1:1).' });
+at(6.2);
 await hub.checkpoint(await owner(t2, 'Alt 2'), { thread: t2.id, done: 'Ko marker uses stone ink per theme; screenshot test added.', next: 'Nothing; ready for review.', branch: 'claude/ko-marker-dark' });
 await hub.agentPost(await owner(t2, 'Alt 2'), { thread: t2.id, kind: 'done', text: 'Done. Ko marker passes 3:1 on both themes. PR: https://github.com/PERILTHESKYWING/Dop/pull/116' });
 await hub.routed(await coord(), p1.id, 'Both threads are running.');
+at(5.5);
+await hub.checkpoint(await A('Main'), { thread: t1.id, done: 'Moved three.js and the 3D board into a lazy chunk; the flat board paints from the entry chunk.', next: 'Benchmark 5 throttled runs, then npm test and the phone shots.', branch: 'claude/kiai-review-first-paint' });
+at(4.6);
+await hub.agentRun(await A('Main'), { action: 'start', id: 'bench', thread: t1.id, title: 'Run throttled benchmark ×5', step: 'Run 1 of 5', pct: 0 });
+at(4.2);
 
 // A second prompt
 const p2 = await hub.prompt({ text: 'Which joseki source should the Forge use for the next problem set? Ask me before you start.', model: '' });
@@ -63,11 +80,19 @@ for (const [title, acc] of [['Kiai study path: XP table 30k to 9d', 'Main'], ['D
   await hub.agentPost(await owner(t, acc), { thread: t.id, kind: 'done', text: `Done: ${title}.` });
 }
 
+at(2.2);
+await hub.agentPost(await A('Main'), { thread: t1.id, kind: 'progress', text: 'Runs 1-3 after the split: first paint **0.94 s, 0.92 s, 0.91 s** (was 2.84 s), review ready 2.3 s. Two runs left, then the full test suite.' });
+at(1.6);
 await hub.learn({ text: 'Push once per thread when the work is done, never after each edit.', kind: 'do', why: 'Vercel Hobby allows about 100 deployments a day.', by: 'XIAO' });
 await hub.learn({ text: 'Never name Gemini in the Kiai app.', kind: 'dont', why: 'Product rule.', by: 'Main', thread: t1.id });
 // Alt has connected before (it is only low on usage now).
 await hub.touchAccount('Alt');
 await hub.learn({ text: 'Bump ENGINE_FILES whenever public/engine changes.', kind: 'do', why: 'Vercel caches /engine for a week.', by: 'Alt' });
+at(0.9);
+await hub.agentRun(await A('Main'), { action: 'update', id: 'bench', step: 'Run 4 of 5', pct: 70 });
+at(0.3);
+await hub.heartbeat(t1.id, 'Main');
+Date.now = realNow;
 console.log('SEEDED', (await hub.threads()).length, 'threads');
 
 if (process.env.BIG === '1') {

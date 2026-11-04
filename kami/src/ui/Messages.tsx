@@ -13,6 +13,7 @@ import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage, longerLevel } from '../lib/levels';
 import { NOTES } from '../lib/writer';
+import { markFacts } from '../lib/markFacts';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
@@ -272,7 +273,7 @@ function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : nul
   );
 }
 
-const secs = (ms: number) => (ms < 1000 ? 'under 1 s' : `${Math.round(ms / 1000)} s`);
+const secs = (ms: number) => (ms < 1000 ? 'under\u00a01\u00a0s' : `${Math.round(ms / 1000)}\u00a0s`);
 
 /** Seconds since `t0`, ticking, so a read that has not reported a step yet still visibly runs. */
 function Elapsed({ t0, bare }: { t0: number; bare?: boolean }) {
@@ -285,7 +286,7 @@ function Elapsed({ t0, bare }: { t0: number; bare?: boolean }) {
   return bare ? <>{t}</> : <span className="meta">{t}</span>;
 }
 
-function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean }) {
+function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean; quick?: boolean }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
   // Done, it says what was done: how many positions KataGo read (its largest step's visits).
@@ -294,13 +295,23 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   // the device's speed, all measured (critics, round 2).
   const positions = ex?.totalVisits || most;
   const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
-  // On a phone the folded line is "KataGo read 225 positions · 2 s" (one row by the chevron,
-  // naming the engine as a desktop does); the speed shows when the card is open (styles.css .th-wide).
+  // The phone shows the same line, speed and "on this device" included (critics, 2026-11-04: the
+  // proof was desktop-only), and ends "quick read" when a longer read is offered beside it; a
+  // phone's folded row leaves out "in N reads" and the rate (styles.css .th-reads, .th-rate).
   const done = positions ? (
     <span>
-      KataGo read {positions.toLocaleString()} positions
-      {ex && ex.reads > 1 ? ` in ${ex.reads} reads` : null} · {secs(ms)}
-      {rate ? <span className="th-wide"> · {rate.toLocaleString()} a second on this device</span> : null}
+      KataGo read {positions.toLocaleString()}&nbsp;positions
+      {ex && ex.reads > 1 ? <span className="th-reads"> in {ex.reads} reads</span> : null}
+      {rate ? (
+        <>
+          <span className="th-time">{` · ${secs(ms)}`}</span>
+          {/* a phone folds the rate into the open card, so the row never breaks inside a figure */}
+          <span className="th-rate"> · {rate.toLocaleString()}&nbsp;a&nbsp;second on this&nbsp;device</span>
+        </>
+      ) : (
+        ` on this device · ${secs(ms)}`
+      )}
+      {quick ? <span className="th-quick"> · quick&nbsp;read</span> : null}
     </span>
   ) : (
     `Read for ${secs(ms)}`
@@ -330,7 +341,8 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
             </span>
             {live && i === steps.length - 1 ? (
               // The step still reading: its time ticks (a fixed "0.0 s" read as frozen).
-              <span className="meta">
+              // in a fixed slot of tabular figures, so the sentence before it never re-wraps as it ticks
+              <span className="meta live-count">
                 {s.visits ? `${s.visits.toLocaleString()} positions · ` : ''}
                 <Elapsed t0={t0} bare />
               </span>
@@ -418,14 +430,28 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   // "KataGo's numbers" section is not shown again above it, and a rounded restatement of the
   // first sentence ("White leads by about 11 points") is not listed.
   const sections = ex.sections.filter((s) => s.title !== 'KataGo’s numbers' && s.title !== "KataGo's numbers");
-  const facts = ex.facts.filter((f) => !f.quiet);
+  // every marked move has its row, so each mark on the board can be checked (critics, 2026-11-04)
+  const bestCount = useSetting<number>('board.bestCount');
+  const listed = ex.facts.filter((f) => !f.quiet);
+  const facts = [...listed, ...markFacts(ex, listed, bestCount).map((text, i) => ({ id: `mark${i}`, text }))];
+  // a row about another move for the side to play, against KataGo's choice
+  const alt = (t: string) => /^[A-HJ-T]\d{1,2} is (about as good as|[\d.]+ points? (worse than|ahead of)) /.test(t);
   // Each Go term is underlined once: where it first appears in the answer, then in the facts.
   const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...sections.map((s) => s.text)]);
   const factPlan = firstTerms(facts.map((f) => f.text));
   const longer = longerLevel(msg.level ?? levelOfMessage(msg)?.id);
   return (
     <>
-      <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} />
+      {/* "Read longer" is an outlined button on the read's own row, which ends "· quick read", so
+          the count shows once (critics, 2026-11-04: a caveat line and a bare link took two rows) */}
+      <div className="read-row">
+        <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} quick={!!longer && ex.totalVisits > 0} />
+        {longer && ex.totalVisits > 0 && onReadLonger && (
+          <button type="button" className="read-longer" onClick={onReadLonger} title="A longer read can change the pick">
+            Read longer
+          </button>
+        )}
+      </div>
       {w.text ? (
         <RichText text={w.text} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
       ) : (
@@ -441,17 +467,6 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
       )}
       {w.note && <p className="note">{w.note}</p>}
       {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
-      {longer && ex.totalVisits > 0 && (
-        // A quick read says so, with its real size, and offers the longer one (critics 3 and 9).
-        <p className="note quick-read">
-          Quick read ({ex.totalVisits.toLocaleString()} positions{ex.reads > 1 ? ` in ${ex.reads} reads` : ''}). A longer read can change the pick.{' '}
-          {onReadLonger && (
-            <button type="button" className="text-btn" onClick={onReadLonger}>
-              Read longer
-            </button>
-          )}
-        </p>
-      )}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {facts.length > 0 && (
         <details className="facts" open>
@@ -459,12 +474,30 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
             KataGo’s numbers ({facts.length}) <Icon name="down" size={14} />
           </summary>
           <ul>
-            {facts.map((f, i) => (
-              <li key={f.id}>
-                <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
-              </li>
-            ))}
+            {facts.map((f, i) =>
+              alt(f.text) ? null : (
+                <li key={f.id}>
+                  <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
+                </li>
+              ),
+            )}
           </ul>
+          {/* the other moves under a heading that names whose they are, so a point that is also a
+              reply in KataGo's line ("the cut at R10") never reads as having two owners */}
+          {facts.some((f) => alt(f.text)) && (
+            <>
+              <p className="facts-head">Other moves for {colorName(ex.position.toPlay)}</p>
+              <ul>
+                {facts.map((f, i) =>
+                  alt(f.text) ? (
+                    <li key={f.id}>
+                      <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
+                    </li>
+                  ) : null,
+                )}
+              </ul>
+            </>
+          )}
         </details>
       )}
     </>
@@ -703,7 +736,8 @@ const KamiMessage = memo(function KamiMessage({
         Kiai
         {lvl && !(a && a.type === 'concept' && lvl.id !== 'ultrago') ? (
           <span className="meta">
-            {' · '}
+            {/* "Reading: Low", as the composer says it: a bare "Low" read like a rating (critics, 2026-11-04) */}
+            {lvl.id === 'ultrago' ? ' · ' : ' · Reading: '}
             <LevelName level={lvl} />
           </span>
         ) : null}

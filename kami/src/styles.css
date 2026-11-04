@@ -1100,6 +1100,14 @@ kbd {
 .thoughts li .meta {
   margin-left: 8px;
 }
+/* the live step's counter: one fixed slot of tabular figures ("1,240 positions · 12.3 s" fits),
+   so the sentence before it keeps its line breaks while the seconds tick (critics, 2026-11-04) */
+.thoughts li .meta.live-count {
+  display: inline-block;
+  min-width: 22ch;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 /* before the first step lands: plain words and the seconds ticking, no light effect */
 .thoughts li.wait {
   list-style: none;
@@ -1159,6 +1167,12 @@ kbd {
   padding-left: 22px;
   font-size: 15px;
   color: var(--ink-2);
+}
+/* "Other moves for Black": whose moves the rows under it are (Messages.tsx) */
+.facts-head {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--muted);
 }
 .concept h3 {
   font-family: var(--font);
@@ -1818,15 +1832,25 @@ kbd {
   box-shadow: inset 0 0 0 1.5px #b9773d, inset 0 0 0 9px rgba(185, 119, 61, 0.18);
 }
 /* the key's mark is the board's: a tan disc ringed in the colour to play (see .cand.plain) */
+/* the key's mark is the board's, drawn on a little wood of its own so it looks the same on the
+   light and the dark page (critics, 2026-11-04: on the dark page its ink ring vanished and it
+   read as a gold "O"): a tan disc ringed in ink (Black to play) or ink-light-ink (White), the
+   proportions of kaya.ts drawToken */
 .bp-key i.ring {
-  background: #e4c493;
-  box-shadow: inset 0 0 0 2px #1b1714;
+  width: 20px;
+  height: 20px;
+  box-shadow: none;
+  background: radial-gradient(circle closest-side, #e4c493 0 70%, #1b1714 0 80%, #c98a4a 0 100%);
 }
 .bp-key i.ring.w {
-  box-shadow:
-    inset 0 0 0 1px #1b1714,
-    inset 0 0 0 3px #fbf8f1,
-    inset 0 0 0 4px #1b1714;
+  background: radial-gradient(circle closest-side, #e4c493 0 62%, #1b1714 0 67%, #fbf8f1 0 75%, #1b1714 0 80%, #c98a4a 0 100%);
+}
+/* a one-sided read: KataGo's choice, a thick ink ring round a filled ink dot (candLabels PICK) */
+.bp-key i.ring.pick {
+  background: radial-gradient(circle closest-side, #1b1714 0 27%, #e4c493 0 56%, #1b1714 0 80%, #c98a4a 0 100%);
+}
+.bp-key i.ring.pick.w {
+  background: radial-gradient(circle closest-side, #1b1714 0 24%, #e4c493 0 48%, #1b1714 0 54%, #fbf8f1 0 74%, #1b1714 0 80%, #c98a4a 0 100%);
 }
 /* the last move on the flat boards: a small solid dot, no glow (a ring read as a "0") */
 .board-panel svg.board .bd-last-glow {
@@ -2688,9 +2712,49 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- phones and small tablets */
+/* the quick-read offer: "quick read" ends the read's own line and "Read longer" is an outlined
+   button beside it (Messages.tsx .read-row) */
+.read-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.read-row > .thoughts {
+  flex: 1;
+  min-width: 0;
+}
+.read-longer {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-ui);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .read-longer {
+    min-height: 44px;
+  }
+}
 @media (max-width: 899px) {
-  .thoughts:not([open]) .th-wide {
+  /* folded beside "Read longer": "KataGo read 239 positions · quick read" on one row; the reads,
+     the time and the rate show when the card opens (critics, 2026-11-04: the row wrapped) */
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-reads,
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-time,
+  .thoughts:not([open]) .th-rate {
     display: none;
+  }
+  .read-row {
+    gap: 6px;
+    align-items: center;
+  }
+  .read-longer {
+    padding: 0 10px;
+    font-size: 14px;
   }
   .kami-app,
   .kami-app.side-folded {
@@ -2827,6 +2891,10 @@ kbd {
   .bp-key i {
     width: 15px;
     height: 15px;
+  }
+  .bp-key i.ring {
+    width: 18px;
+    height: 18px;
   }
   .bp-graph {
     max-height: 48%;
