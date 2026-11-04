@@ -38,8 +38,11 @@ async function openThread(p, title, fallback) {
     p = await c.newPage();
     await p.goto(BASE + '/'); await p.waitForSelector('.trow'); await settle(p, 1200);
     await snap(p, `d-${tag}-02-project-chat`);
+    // The opened working thread: its Activity block (current step, last actions with ages) sits above the composer.
     await openThread(p, 'Kiai phone review');
     await snap(p, `d-${tag}-03-thread-working`);
+    // A working thread whose agent has not connected yet: the block says what it waits for.
+    if (!dark) { await openThread(p, 'Library: video'); await snap(p, `d-${tag}-03b-thread-waiting`); }
     await openThread(p, 'Ko marker', 'Hub: Team panel');
     await snap(p, `d-${tag}-04-thread-done-pr`);
     await openThread(p, 'Forge: pick');
@@ -81,6 +84,11 @@ async function openThread(p, title, fallback) {
     await snap(p, `m-${tag}-03-threads-tab`);
     await openThread(p, 'Kiai phone review');
     await snap(p, `m-${tag}-04-thread-working`);
+    if (!dark) {
+      await p.click('.tabs button[data-tab="threads"]'); await settle(p, 400);
+      await openThread(p, 'Library: video');
+      await snap(p, `m-${tag}-04b-thread-waiting`);
+    }
     await p.click('.tabs button[data-tab="threads"]'); await settle(p, 400);
     await openThread(p, 'Forge: pick');
     await snap(p, `m-${tag}-05-thread-question`);

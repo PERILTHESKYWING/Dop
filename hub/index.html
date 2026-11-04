@@ -552,6 +552,37 @@ a.opt { color: inherit; text-decoration: none; }
    and a short fade show that messages pass under it. */
 .feed > .thinking { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); }
 .feed > .thinking::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+/* Activity: the working line, then the current step and the last few actions with their ages. Pinned
+   like the working line; plain type, no motion; ages in tabular figures in one narrow column. */
+.feed > .activity { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); display: grid; gap: 4px; }
+.feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+.activity .thinking { padding-right: 96px; }
+.activity.min .thinking { padding-right: 128px; }
+.act-tog { position: absolute; top: 3px; right: 0; min-height: 30px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--soft); font-size: 13px; font-weight: 500; }
+@media (hover: hover) { .act-tog:hover { color: var(--ink); border-color: var(--line-2); } }
+.act-body { --age: 40px; max-width: 820px; display: grid; gap: 2px; padding: 2px 0 2px 21px; font-size: 14px; line-height: 20px; }
+.act-now { margin: 0 0 2px; display: flex; gap: 10px; align-items: baseline; min-width: 0; color: var(--ink); }
+.act-k { flex: none; width: var(--age); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+.act-now .act-v { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.act-now.wait .act-v { white-space: normal; font-weight: 400; color: var(--soft); }
+.act-extra { font-weight: 400; color: var(--soft); }
+.act-pct { flex: none; font-variant-numeric: tabular-nums; color: var(--soft); }
+.act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.act-list li { display: flex; gap: 10px; align-items: baseline; min-width: 0; color: var(--soft); }
+.act-list .ago { flex: none; width: var(--age); font-variant-numeric: tabular-nums; color: var(--faint); }
+.act-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-t b { font-weight: 500; color: var(--ink); }
+.act-t i { font-style: normal; color: var(--ink); }
+:root[data-bg]:not([data-bg=""]) .feed > .activity { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px 10px; box-shadow: none; }
+:root[data-bg]:not([data-bg=""]) .feed > .activity .act-tog { top: 8px; right: 10px; }
+/* Phone: the newest three actions, a 44 px Hide target, ages a little narrower. */
+@container feed (max-width: 560px) {
+  .act-body { --age: 34px; padding-left: 0; }
+  .activity .thinking { padding-right: 60px; }
+  .act-list li:nth-child(n+4) { display: none; }
+  .act-tog { top: 4px; min-height: 30px; }
+  .act-tog::before { content: ''; position: absolute; inset: -7px -4px; }
+}
 .task .who, .handover .who { font-weight: 500; }
 .handover .who { color: var(--ink); }
 .handover { border: 1px solid var(--line); border-left: 4px solid var(--green); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
@@ -722,10 +753,11 @@ button.act:hover .ttl { text-decoration: underline; }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
-.act-more { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; padding: 0 0 0 11px; font: inherit; font-size: 15px; font-weight: 500; color: var(--soft); text-align: left; background: none; border: 0; border-radius: 4px; cursor: pointer; }
-.act-more .act-n { font-weight: 400; }
-.act-more svg { flex: none; }
-@media (hover: hover) { .act-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
+/* "N more" opens the rest: a small outline button like Mark usage reset, so it reads as a control, not a caption. */
+.act-more { position: relative; display: inline-flex; align-items: center; gap: 4px; justify-self: start; min-height: 28px; margin-left: 11px; padding: 0 8px 0 10px; font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); text-align: left; background: var(--panel); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 7px; cursor: pointer; }
+.act-more .act-n { font-weight: 400; color: var(--soft); }
+.act-more svg { flex: none; color: var(--soft); }
+@media (hover: hover) { .act-more:hover { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 35%, var(--line-2)); } }
 .act-more:focus-visible { outline: 2px solid var(--stone); outline-offset: 1px; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
@@ -907,7 +939,8 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
   .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
   .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
-  .act-more { min-height: 44px; font-size: 15px; }
+  .act-more { min-height: 32px; font-size: 15px; }
+  .act-more::after { content: ''; position: absolute; inset: -7px -4px; }
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
@@ -1243,9 +1276,9 @@ function clawd(cls = '') {
 const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.now() - at)}</span>`;
 // One live line per agent at work: who, how long, and the step its running sub-agent reports
 // ("Main working · 1m 16s · Run 3 of 5"). The clock ticks in place, so the feed only redraws on news.
-function thinkingLine(who, since, key, state = 'working', step = '') {
-  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''})</span></div>`;
-  return `<div class="thinking"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}</span></div>`;
+function thinkingLine(who, since, key, state = 'working', step = '', tail = '') {
+  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
+  return `<div class="thinking"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
 const stepOf = (t, name) => { const g = (S.agents || []).find((x) => x.thread === t.id && x.account === name && x.status === 'running'); return g ? g.step || g.title || '' : ''; };
@@ -1258,18 +1291,97 @@ function liveLines(t, msgs) {
     return thinkingLine('Coordinator', last.at, 'c' + last.id);
   }
   if (t.archived || !['working', 'new'].includes(t.status)) return '';
-  const out = [];
-  if (t.account && thoughtShown(t.account)) out.push(thinkingLine(t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`, t.status === 'new' ? 'starting' : 'working', stepOf(t, t.account)));
-  for (const n of crewOf(t)) if (thoughtShown(n)) out.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', stepOf(t, n)));
-  return out.join('');
+  return activityHtml(t, msgs);
 }
+// ---------- activity: what a working thread is doing ----------
+// Pinned above the composer: who is on it and for how long, the current step in plain words, then the
+// last few things the agents did, each with its age. Built only from what the hub already holds (posts,
+// handovers, sub-agent reports, the session start, the last check-in); nothing is guessed. With nothing
+// reported yet it says what it is waiting for. "Hide" folds it to the one working line (kept per browser).
+let actMin = ls.get('hub-activity') === 'min';
+const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
+const agoHeard = (ms) => (ms < 60e3 ? 'seen just now' : `seen ${ago(ms)} ago`);
+const AGO_FMT = { s: agoShort, h: agoHeard };
+const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
+// One plain line from a post: no Markdown marks, links as their words.
+const plainLine = (s) => String(s || '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^\s*(#+|>|[-*] )\s*/gm, '').replace(/\s+/g, ' ').trim();
+const lastSentence = (s) => { const p = plainLine(s).split(/(?<=[.!?])\s+(?=[A-Z0-9])/).filter(Boolean); return p.at(-1) || ''; };
+const ACT_VERB = { progress: 'Posted', note: 'Posted', done: 'Finished', question: 'Asked', answer: 'Answered', thinking: 'Noted why', lesson: 'Saved a lesson', handover: 'Saved a handover' };
+const runningOn = (t) => (S.agents || []).filter((g) => g.thread === t.id && g.status === 'running').sort((a, b) => b.at - a.at);
+function threadActions(t, msgs) {
+  const lead = t.account, nowAgent = runningOn(t)[0];
+  const ev = [];
+  for (const m of msgs) {
+    if (m.pending || m.from === 'XIAO' || m.kind === 'brief') continue;
+    if (m.from === 'hub') {
+      const s = m.kind === 'start' && /^Started (.+?)\.?$/.exec(m.text);
+      if (s) ev.push({ at: m.at, verb: 'Started', text: capModels(s[1]) });
+      continue;
+    }
+    // Thinking notes follow ⋯ › Show agents' thinking notes (hidden there, hidden here).
+    if (!ACT_VERB[m.kind] || (m.kind === 'thinking' && (think.mode === 'hide' || !thoughtShown(m.from)))) continue;
+    let text = m.kind === 'lesson' ? lessonProse(m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '')) : m.kind === 'handover' ? ((/^Done: (.*)$/m.exec(m.text) || [])[1] || m.text) : m.text;
+    text = plainLine(text);
+    ev.push({ at: m.at, verb: ACT_VERB[m.kind], text, who: m.from !== lead ? m.from : '' });
+  }
+  for (const g of S.agents || []) {
+    if (g.thread !== t.id) continue;
+    const who = g.account !== lead ? g.account : '';
+    ev.push({ at: g.started, verb: 'Started sub-agent', text: g.title, who });
+    // The newest running step is the "Now" line (with its age), so it is not listed twice.
+    if (g.status === 'running' && g.step && g.at - g.started > 1000 && g !== nowAgent) ev.push({ at: g.at, verb: 'Sub-agent step', text: `${g.title}: ${g.step}`, who });
+    if (g.status !== 'running' && g.finished) ev.push({ at: g.finished, verb: g.status === 'failed' ? 'Sub-agent failed' : 'Sub-agent finished', text: g.note ? plainLine(g.note) : g.title, who });
+  }
+  return ev.filter((e) => e.at).sort((a, b) => b.at - a.at);
+}
+// The current step: a running sub-agent's report, else the handover's next step if it is the newest
+// word, else the last sentence of the newest update (labelled as such). null: nothing reported yet.
+function currentStep(t, msgs) {
+  const run = runningOn(t);
+  if (run.length) { const g = run[0]; return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct: g.pct, at: g.at, more: run.length - 1 }; }
+  const post = msgs.filter((m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind)).at(-1);
+  const cp = t.checkpoint;
+  if (cp?.next && (!post || cp.at >= post.at)) return { k: 'Next', v: plainLine(cp.next) };
+  if (post) return { k: 'Latest', v: lastSentence(post.text) };
+  return null;
+}
+function waitingFor(t) {
+  const who = t.account || 'an account';
+  if (t.status === 'new' || !t.account) return t.account ? `Waiting for ${who}'s session to start. Nothing reported yet.` : 'Waiting for an account with usage left to take it.';
+  if (!((t.lastAgentAt || 0) > (t.lastFireAt || 0))) return `Waiting for ${who} to connect. Its first step shows here once it reports one.`;
+  return `${who} is connected but has not reported a step yet.`;
+}
+function activityHtml(t, msgs) {
+  const lines = [];
+  const step = currentStep(t, msgs);
+  // Connected: the agent has called the hub since its session was started (lastFireAt).
+  const connected = !!t.account && (t.lastAgentAt || 0) > (t.lastFireAt || 0);
+  const heard = connected ? ` · ${agoEl(t.lastAgentAt, 'h')}` : '';
+  if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`, t.status === 'new' || !connected ? 'starting' : 'working', actMin ? stepOf(t, t.account) : '', heard));
+  for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : ''));
+  if (!lines.length) return '';
+  const tog = `<button type="button" class="act-tog" data-act-tog aria-expanded="${!actMin}" aria-controls="actBody">${actMin ? 'Show activity' : 'Hide'}</button>`;
+  if (actMin) return `<section class="activity min" aria-label="Activity">${tog}${lines.join('')}</section>`;
+  const ev = threadActions(t, msgs).slice(0, 5);
+  const now = step
+    ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}%`, step.at && agoEl(step.at)].filter(Boolean).join(' · ')}</span>` : ''}</p>`
+    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}</span></p>`;
+  const list = ev.length ? `<ol class="act-list" aria-label="Last actions, newest first">${ev.map((e) => `<li>${agoEl(e.at)}<span class="act-t"><b>${esc(e.verb)}</b> ${e.who ? `<i>${esc(e.who)}:</i> ` : ''}${esc(nb(e.text))}</span></li>`).join('')}</ol>` : '';
+  return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
+}
+$('feed').addEventListener('click', (e) => {
+  if (!e.target.closest('[data-act-tog]')) return;
+  actMin = !actMin;
+  ls.set('hub-activity', actMin ? 'min' : '');
+  renderFeed();
+});
 let verbStep = Math.floor(Date.now() / VERB_MS);
 // Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
 // Calm: one tick a second, clock text only. Lively: Claude Code's 120 ms spinner.
-const SPINS = document.getElementsByClassName('spin'), VERB_ELS = document.getElementsByClassName('verb'), SINCE_ELS = document.getElementsByClassName('since');
+const SPINS = document.getElementsByClassName('spin'), VERB_ELS = document.getElementsByClassName('verb'), SINCE_ELS = document.getElementsByClassName('since'), AGO_ELS = document.getElementsByClassName('ago');
 let spinTimer = 0;
 function spinTick() {
-  if (!SINCE_ELS.length && !VERB_ELS.length) return;
+  if (!SINCE_ELS.length && !VERB_ELS.length && !AGO_ELS.length) return;
   if (VERB_ELS.length) {
     spinI = (spinI + 1) % SPIN_LOOP.length;
     for (const el of SPINS) if (el.dataset.spin !== undefined) el.innerHTML = SPIN_LOOP[spinI];
@@ -1279,6 +1391,7 @@ function spinTick() {
     }
   }
   for (const el of SINCE_ELS) { const v = span(Date.now() - Number(el.dataset.since)); if (el.textContent !== v) el.textContent = v; }
+  for (const el of AGO_ELS) { const v = (AGO_FMT[el.dataset.f] || agoShort)(Date.now() - Number(el.dataset.at)); if (el.textContent !== v) el.textContent = v; }
 }
 function spinRun() { clearInterval(spinTimer); spinTimer = document.hidden ? 0 : setInterval(spinTick, lively() ? 120 : 1000); if (!document.hidden) spinTick(); }
 document.addEventListener('visibilitychange', spinRun);
@@ -1762,7 +1875,7 @@ function renderFeed() {
   if (hid) items.push({ k: 'hidden', h: `<div class="note thoughts-hidden">${hid} thinking note${hid > 1 ? 's' : ''} hidden · <button type="button" class="btn small quiet" data-pop="think">Show</button></div>` });
   const live = liveLines(t, msgs);
   // c: what counts as a change; the clock (and a lively spinner and verb) tick in place, so the line keeps its node.
-  if (live) items.push({ k: 'live', h: live, c: live.replace(/(class="since"[^>]*>)[^<]*/g, '$1').replace(/<span class="spin" data-spin>.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
+  if (live) items.push({ k: 'live', h: live, c: live.replace(/(class="(?:since|ago)"[^>]*>)[^<]*/g, '$1').replace(/<span class="spin" data-spin>.*?<\/span>/g, '').replace(/(data-verb="\d+">)[^<]*/g, '$1') });
   if (!items.length) {
     let html = S.loading ? '<div class="note">Loading…</div>' : '';
     if (!html && sel === NEW_CHAT) html = `<div class="hello">
