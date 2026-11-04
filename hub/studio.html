@@ -680,12 +680,14 @@ function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
   // every frame says how it was made: drawn in code by the Claude team, never a picture model
-  // Said plainly: lines and shapes written as code, no image generator (a critic read "drawn in code" as unclear).
-  $('badge').textContent = S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
+  // Said plainly: lines and shapes written as code by Claude, no image generator. On a narrow screen the badge
+  // stays short so it never covers the drawing; the status line under the video carries the full sentence.
+  const narrow = matchMedia('(max-width: 700px)').matches;
+  $('badge').textContent = narrow ? 'Drawn in code by Claude' : S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo. Press “New story” and your Claude team writes your own and draws every frame in code, in this style.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, drawn in code by Claude with no image generator. Press “New story” and your Claude team writes your own and draws every frame the same way.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';

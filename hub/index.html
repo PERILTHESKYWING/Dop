@@ -35,7 +35,7 @@ try {
   --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --nt: var(--stone); --on-nt: var(--on-stone); --nt-edge: var(--stone-edge); --nt-hi: color-mix(in srgb, var(--stone) 85%, var(--kaya));
-  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
+  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --amber-text: #8a4f00; --on-amber: #fff; --red: #b3352b;
   --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
   --clay: rgb(217, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
@@ -47,14 +47,14 @@ try {
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
 /* Over a background picture the sidebar goes back to frosted glass, so the wood tokens fall back to plain ones. */
@@ -318,9 +318,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
-.group.need, .group.noconn { color: var(--amber); }
+.group.need { color: var(--amber); } .group.noconn { color: var(--amber-text); }
 :root .app > .side .group.noconn, :root .app > .side .trow .when.nc { color: var(--kaya-amber); }
-:root .app > .side .trow.on .when.nc { color: var(--amber); }
+:root .app > .side .trow.on .when.nc { color: var(--amber-text); }
 .trow { text-align: left; border: 0; background: none; border-radius: 6px; padding: 9px 10px; display: grid; gap: 4px; width: 100%; }
 .trow:hover, .trow.on { background: var(--sel); }
 .trow.on { box-shadow: inset 3px 0 0 var(--ink); }
@@ -344,12 +344,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-waiting .dot { background: var(--amber); }
 .st-queued .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .st-stalled .dot { background: var(--red); }
-.st-starting .stx { color: var(--soft); } .st-noconn .stx { color: var(--amber); }
+.st-starting .stx { color: var(--soft); } .st-noconn .stx { color: var(--amber-text); }
 .st-starting .dot, .st-new .dot, .ss-starting > .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
-.st-noconn .dot, .ss-noconn > .dot { background: var(--amber); box-shadow: none; }
-.state.starting { color: var(--soft); } .state.noconn { color: var(--amber); }
+.st-noconn .dot, .ss-noconn > .dot { background: none; box-shadow: inset 0 0 0 2px var(--amber); }
+.state.starting { color: var(--soft); } .state.noconn, .state.busy.warn { color: var(--amber-text); }
 /* A working account with a silent thread says so in amber under its bars ("Working · 1 thread not connected"). */
-:root .acard .sub.snote { color: var(--amber); }
+:root .acard .sub.snote { color: var(--amber-text); }
 
 /* main */
 .main { min-width: 0; }
@@ -387,7 +387,7 @@ a.opt { color: inherit; text-decoration: none; }
 /* a live run, still but not a status dot: a green ring round a dot, and its state word in green */
 .wdot { box-sizing: border-box; width: 12px; height: 12px; margin: 0 1px; padding: 2px; border: 1.5px solid var(--green); border-radius: 50%; background: var(--green); background-clip: content-box; flex: none; }
 .thinking .tstate { color: var(--green); font-weight: 500; }
-.thinking.idle .tstate { color: var(--soft); } .thinking.late .tstate { color: var(--amber); }
+.thinking.idle .tstate { color: var(--soft); } .thinking.late .tstate { color: var(--amber-text); }
 .thinking.idle .wdot { border-color: var(--faint); background: none; }
 .thinking.late .wdot { border-color: var(--amber); background: var(--amber); background-clip: content-box; }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
@@ -577,12 +577,11 @@ a.opt { color: inherit; text-decoration: none; }
 .act-now .act-v { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .act-now.wait .act-v { white-space: normal; font-weight: 400; color: var(--soft); }
 .act-extra { font-weight: 400; color: var(--soft); }
-/* Start again and Open session side by side, under the text and in line with it. The header has Open
-   session on a computer, so here it shows on the phone only. */
+/* Start again and Open session side by side, under the text and in line with it, on every width. */
 .act-acts { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0 2px calc(var(--age) + 10px); }
 .act-acts .btn { white-space: nowrap; text-decoration: none; color: var(--ink); }
-.act-sess { display: none; }
-@container feed (max-width: 560px) { .act-sess { display: inline-flex; align-items: center; } .act-acts .btn { min-height: 36px; } }
+.act-sess { display: inline-flex; align-items: center; }
+@container feed (max-width: 560px) { .act-acts .btn { min-height: 36px; } }
 .act-pct { flex: none; font-variant-numeric: tabular-nums; color: var(--soft); }
 .act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .act-row { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: none; font: inherit; color: var(--soft); text-align: left; cursor: pointer; }
@@ -1005,6 +1004,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
+  /* Not connected: the same hollow amber ring as its sidebar dot, apart from the solid Needs-you badge. */
+  .tabs .ncring { display: inline-block; width: 10px; height: 10px; margin-left: 6px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); vertical-align: 1px; }
+  .tabs .ncring.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
 .btn:active, .chip:active, .attach:active, .tcard:active, .cp:active, .pbtn:active, .ask-o:active, .ask-go:active, .tk:active, .opt:active, .trow:active, .seg button:active, .walls button:active, .tabs button:active, .fchip .x:active, .sw-del:active, .sw-x:active { transform: translateY(1px); transition-duration: 0s; }
@@ -1055,7 +1057,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   </main>
   <aside class="col team" id="team"></aside>
   <nav class="tabs" id="tabs" aria-label="Sections">
-    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span></button>
+    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span><span class="ncring hidden" id="ncRing" role="img"></span></button>
     <button type="button" data-tab="chat">Chat</button>
     <button type="button" data-tab="team">Team</button>
   </nav>
@@ -1572,6 +1574,8 @@ function renderSide() {
   if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); rowWhole(box, cur); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
+  const nc = S.threads.filter(isNoconn).length, ring = $('ncRing');
+  ring.classList.toggle('hidden', !nc); ring.setAttribute('aria-label', `${nc} thread${nc === 1 ? '' : 's'} not connected`); ring.title = ring.getAttribute('aria-label');
 }
 
 // Desktop: a thread opened from a row half under the list's top or bottom edge scrolls into view whole,
@@ -1594,8 +1598,8 @@ $('threads').addEventListener('scroll', (e) => e.currentTarget.classList.toggle(
 
 // ---------- feed ----------
 function threadCard(t) {
-  return `<button class="tcard st-${t.status}" data-thread="${t.id}"><span class="dot"></span><span class="ttl">${esc(t.title)}</span><span class="go">Open</span>
-    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(t.archived ? 'Archived' : STATUS[t.status])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
+  return `<button class="tcard st-${threadState(t)[0]}" data-thread="${t.id}"><span class="dot"></span><span class="ttl">${esc(t.title)}</span><span class="go">Open</span>
+    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(threadState(t)[1])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
 }
 function picksOf(meta) {
   if (!meta) return '';
@@ -2334,7 +2338,10 @@ function activityOf(a) {
   return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
-  const [cls, st, stNote] = acctState(a);
+  const [cls0, st0, stNote] = acctState(a);
+  // A working account with a silent thread never reads all-clear: amber "Working · 1 stuck" (short, so the name keeps its room).
+  const stuck = stNote ? Number(stNote.split(' ')[0]) : 0;
+  const cls = stuck ? `${cls0} warn` : cls0, st = stuck ? `Working · ${stuck} stuck` : st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
@@ -2400,9 +2407,8 @@ function agentRow(g) {
   const t = Date.now();
   const stale = g.status === 'running' && t - g.at > AGENT_STALE;
   const cls = stale ? 'stale' : g.status;
-  const dur = ago((g.finished || t) - g.started);
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
-  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
 function agentPanel() {
   const list = S.agents || [];
