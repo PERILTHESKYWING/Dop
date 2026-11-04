@@ -389,7 +389,7 @@ a.opt { color: inherit; text-decoration: none; }
 .thinking .tstate { color: var(--green); font-weight: 500; }
 .thinking.idle .tstate { color: var(--soft); } .thinking.late .tstate { color: var(--amber-text); }
 .thinking.idle .wdot { border-color: var(--faint); background: none; }
-.thinking.late .wdot { border-color: var(--amber); background: var(--amber); background-clip: content-box; }
+.thinking.late .wdot { border-color: var(--amber); background: none; }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
@@ -2339,9 +2339,9 @@ function activityOf(a) {
 }
 function accountCard(a) {
   const [cls0, st0, stNote] = acctState(a);
-  // A working account with a silent thread never reads all-clear: amber "Working · 1 stuck" (short, so the name keeps its room).
+  // A working account with a silent thread never reads all-clear: its "Working" turns amber, and the line under its bars names the state ("1 thread not connected").
   const stuck = stNote ? Number(stNote.split(' ')[0]) : 0;
-  const cls = stuck ? `${cls0} warn` : cls0, st = stuck ? `Working · ${stuck} stuck` : st0;
+  const cls = stuck ? `${cls0} warn` : cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
