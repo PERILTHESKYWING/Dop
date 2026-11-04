@@ -1168,6 +1168,12 @@ kbd {
   font-size: 15px;
   color: var(--ink-2);
 }
+/* "Other moves for Black": whose moves the rows under it are (Messages.tsx) */
+.facts-head {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
 .concept h3 {
   font-family: var(--font);
   font-size: 19px;
@@ -2706,8 +2712,8 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- phones and small tablets */
-/* the quick-read offer: a line under the answer on a desktop; on a phone "quick read" ends the
-   read's own line and "Read longer" is an outlined button beside it (Messages.tsx .read-row) */
+/* the quick-read offer: "quick read" ends the read's own line and "Read longer" is an outlined
+   button beside it (Messages.tsx .read-row) */
 .read-row {
   display: flex;
   align-items: flex-start;
@@ -2716,10 +2722,6 @@ kbd {
 .read-row > .thoughts {
   flex: 1;
   min-width: 0;
-}
-.th-quick,
-.read-longer.qr-top {
-  display: none;
 }
 .read-longer {
   flex: none;
@@ -2739,17 +2741,20 @@ kbd {
   }
 }
 @media (max-width: 899px) {
-  .th-quick {
-    display: inline;
-  }
-  .th-reads {
+  /* folded beside "Read longer": "KataGo read 239 positions · quick read" on one row; the reads,
+     the time and the rate show when the card opens (critics, 2026-11-04: the row wrapped) */
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-reads,
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-time,
+  .thoughts:not([open]) .th-rate {
     display: none;
   }
-  .read-longer.qr-top {
-    display: block;
+  .read-row {
+    gap: 6px;
+    align-items: center;
   }
-  .quick-read.qr-bottom {
-    display: none;
+  .read-longer {
+    padding: 0 10px;
+    font-size: 14px;
   }
   .kami-app,
   .kami-app.side-folded {
