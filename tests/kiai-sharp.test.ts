@@ -210,22 +210,26 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('the key names every figure a mark can show, in one name for the number', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    // one-sided, said in words; no "≈" or "≥" named when none is on the board
-    expect(keyText(cands, 'Black')).toBe('KataGo’s choice. White is far ahead (Black 1%), so the others show points lost against it.');
+    // one-sided, said in plain words; no "≈" or "≥" named when none is on the board
+    expect(keyText(cands, 'Black')).toBe('KataGo’s move. White is far ahead (Black 1%). Numbers: points lost by playing there.');
     expect(keyText(cands, 'White')).not.toMatch(/\+/);
-    expect(keyText(cands, 'Black', true)).toMatch(/^Underlined: KataGo’s choice/);
+    expect(keyText(cands, 'Black', true)).toMatch(/^Underlined: KataGo’s move/);
     for (const t of [keyText(cands, 'Black'), keyText([c(0.45, -1)], 'Black')]) expect(t).not.toMatch(/winrate|win %/);
     // each mark is named with its one meaning, only when it is shown
     const close = [c(0.01, -11, 0), c(0.01, -11.2, 1), c(0.01, -12, 2)];
-    expect(keyText(close, 'Black')).toMatch(/\(≈ within 0\.3\)\.$/);
+    expect(keyText(close, 'Black')).toMatch(/ · ≈\u00a0about the\u00a0same\.$/);
     const ahead = [c(0.99, 11, 0), c(0.99, 11.6, 1), c(0.99, 10.9, 2)];
-    expect(keyText(ahead, 'Black')).toBe('KataGo’s choice. Black is far ahead (White 1%), so the others show points lost against it (≈ within 0.3, ≥ ahead on a shorter read).');
+    expect(keyText(ahead, 'Black')).toBe('KataGo’s move. Black is far ahead (White 1%). Numbers: points lost by playing there · ≈\u00a0about the\u00a0same · ≥\u00a0ahead on a shorter\u00a0read.');
+    // a phone: short enough for the key's two lines at 390 px
+    expect(keyText(close, 'Black', false, undefined, true)).toBe('KataGo’s move. White is far ahead (Black 1%). Numbers: points lost · ≈ about the same.');
+    // a win chance under half a percent is "<1%", never "0%"
+    expect(keyText([c(0.003, -30, 0), c(0.001, -31, 1)], 'Black')).toMatch(/\(Black <1%\)/);
   });
   it('says the game is decided only when gameDecided agrees (late, from the points), not from 99% alone', () => {
     const cands = [c(0.01, -11, 0), c(0.01, -12, 1)];
     // the demo: move 34, White +11.1, Black 1%: far ahead, not decided
-    expect(keyText(cands, 'Black', false, { move: 34, bLead: -11.1, size: 19 })).toMatch(/^KataGo’s choice\. White is far ahead \(Black 1%\)/);
-    expect(keyText(cands, 'Black', false, { move: 200, bLead: -31, size: 19 })).toMatch(/^KataGo’s choice\. The game is decided \(White \+31\.0\)/);
+    expect(keyText(cands, 'Black', false, { move: 34, bLead: -11.1, size: 19 })).toMatch(/^KataGo’s move\. White is far ahead \(Black 1%\)/);
+    expect(keyText(cands, 'Black', false, { move: 200, bLead: -31, size: 19 })).toMatch(/^KataGo’s move\. The game is decided \(White \+31\.0\)/);
   });
   const at = (x: number, y: number) => y * 19 + x;
   const m = (rank: number, x: number, y: number, lead: number) => ({ ...c(0.01, lead, rank), loc: at(x, y) });
@@ -324,5 +328,20 @@ describe('round 2: plain words', () => {
     expect(longerLevel('medium')?.id).toBe('high');
     expect(longerLevel('max')).toBeNull();
     expect(longerLevel('ultrago')).toBeNull();
+  });
+});
+
+describe('KataGo’s numbers list every marked move', () => {
+  it('adds a row for each mark the facts leave out, in the board’s rounding', async () => {
+    const { markFacts } = await import('../kami/src/lib/markFacts');
+    const at = (x: number, y: number) => y * 19 + x;
+    const cand = (x: number, y: number, lead: number, win: number, visits: number) => ({ loc: at(x, y), scoreLead: lead, winrate: win, visits, pv: [] });
+    const root = { visits: 200, bWin: 0.01, bLead: -11, ownership: null, candidates: [cand(15, 9, -11, 0.006, 100), cand(15, 7, -12.3, 0.004, 40), cand(16, 7, -11.2, 0.006, 30), cand(16, 9, -12, 0.005, 20)] };
+    const position = { size: 19, komi: 7.5, toPlay: 1 as const, setup: [], moves: [] };
+    const facts = [{ text: "KataGo's best move for Black is Q10: Black's win chance 1%, Black trails by 11.0 points." }, { text: 'Q12 is 1.3 points worse than Q10 (Black’s win chance <1%).' }];
+    expect(markFacts({ root, position }, facts, 10)).toEqual([
+      "R12 is about as good as Q10 (0.2 points apart; Black's win chance 1%).",
+      "R10 is 1.0 point worse than Q10 (Black's win chance 1%).",
+    ]);
   });
 });

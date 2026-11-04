@@ -170,7 +170,7 @@ function drawNumberIn(c: HTMLCanvasElement, text: string, ink: string) {
 }
 
 /** The flat board's candidate colours (kami/src/styles.css, .cand.plain): ink, a light ring, the cleared disc. */
-const TOKEN_INK = '#1b1714', TOKEN_LIGHT = '#fbf8f1', TOKEN_FILL = '#e4c493';
+const TOKEN_INK = '#1b1714', TOKEN_LIGHT = '#fbf8f1', TOKEN_FILL = 'rgba(228, 196, 147, 0.8)';
 const tokenTexture = (text: string, side: StoneColor, best: boolean) => printedTexture(`token|${text}|${side}|${best}`, (c) => drawToken(c, text, side, best));
 /**
  * A candidate printed on the wood, on a canvas one point wide (128 px): a tan disc a little
@@ -192,19 +192,32 @@ function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best:
   // a mark without a number is drawn small (scaled down in setPale), so its ring is thicker here;
   // KataGo's choice has a ring three times the others', plain at a phone's size on dark wood too
   const ring = best ? 18 : text ? 6 : 14;
+  // rings as bands (not discs stacked under each other), so the fill inside can let the wood
+  // show through: a mark printed on the board, never a cream stone (critics, 2026-11-04)
+  const band = (from: number, to: number, fill: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.arc(64, 64, from, 0, Math.PI * 2);
+    g.arc(64, 64, to, 0, Math.PI * 2, true);
+    g.fill();
+  };
   let r = 61;
-  disc(r, TOKEN_INK);
   if (side === 2) {
-    disc((r -= 3), TOKEN_LIGHT);
-    disc((r -= ring), TOKEN_INK);
-    r -= 3;
-  } else r -= ring;
+    band(r, r - 3, TOKEN_INK);
+    band(r - 3, r - 3 - ring, TOKEN_LIGHT);
+    band(r - 3 - ring, r - 6 - ring, TOKEN_INK);
+    r -= 6 + ring;
+  } else {
+    band(r, r - ring, TOKEN_INK);
+    r -= ring;
+  }
   disc(r, TOKEN_FILL);
   if (!text) return;
   // KataGo's choice in a one-sided read (candLabels PICK): a filled ink dot, not a number, so it
   // never reads as one more chip among the point marks (critics, 2026-11-04)
   if (text === '●') {
-    disc(Math.round(r * 0.56), TOKEN_INK);
+    // well under a stone's size (about a third of a point across), so it never reads as one
+    disc(Math.round(r * 0.48), TOKEN_INK);
     return;
   }
   g.fillStyle = TOKEN_INK;

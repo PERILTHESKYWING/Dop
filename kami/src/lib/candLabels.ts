@@ -18,7 +18,7 @@
  * point lead.
  */
 import { gameDecided } from '../../../src/lib/coach/explain/decided';
-import { fmt1 } from '../../../src/lib/coach/explain/geometry';
+import { fmt1, winPct } from '../../../src/lib/coach/explain/geometry';
 
 interface Cand {
   winrate: number;
@@ -135,7 +135,7 @@ export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | un
  * The other marks' unsigned numbers are named as points lost against KataGo's choice. `book`:
  * the book diagram, where marks are printed numbers and KataGo's choice is underlined.
  */
-export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', book = false, game?: KeyGame): string {
+export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', book = false, game?: KeyGame, compact = false): string {
   const choice = book ? 'Underlined' : 'Thick ring';
   if (!lopsidedRead(cands)) return `${book ? 'Numbers' : 'Rings'}: KataGo’s best moves, with ${side}’s win chance. ${choice}: KataGo’s choice.`;
   // A one-sided read, said in plain words first (critics, 2026-11-04: at 97%+ say so, rather than
@@ -145,15 +145,17 @@ export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black'
   const sideWins = best.winrate >= 0.5;
   const leader = sideWins ? side : side === 'Black' ? 'White' : 'Black';
   const trailer = leader === 'Black' ? 'White' : 'Black';
-  const trailWin = Math.round((sideWins ? 1 - best.winrate : best.winrate) * 100);
+  const trailWin = winPct(sideWins ? 1 - best.winrate : best.winrate);
   const status =
-    game && gameDecided(game.move, game.bLead, game.size) ? `The game is decided (${leader} +${Math.abs(game.bLead).toFixed(1)})` : `${leader} is far ahead (${trailer} ${trailWin}%)`;
+    game && gameDecided(game.move, game.bLead, game.size) ? `The game is decided (${leader} +${Math.abs(game.bLead).toFixed(1)})` : `${leader} is far ahead (${trailer} ${trailWin})`;
   // each mark named only when it is on the board, so "≈" and "≥" each mean one thing
   const label = candidateLabeler(cands)!;
   const shown = new Set(cands!.map(label));
-  const marks = [shown.has(SAME) ? '≈ within 0.3' : '', shown.has(AHEAD) ? '≥ ahead on a shorter read' : ''].filter(Boolean).join(', ');
-  const pick = book ? 'Underlined: KataGo’s choice' : 'KataGo’s choice';
-  return `${pick}. ${status}, so the others show points lost against it${marks ? ` (${marks})` : ''}.`;
+  // plain teacher wording a beginner can read in one go (critics, 2026-11-04 round 1)
+  // `compact` (a phone): the shortest true words, so the key keeps to its two lines
+  const marks = [compact ? 'Numbers: points lost' : 'Numbers: points lost by playing there', shown.has(SAME) ? '≈\u00a0about the\u00a0same' : '', shown.has(AHEAD) ? '≥\u00a0ahead on a shorter\u00a0read' : ''].filter(Boolean).join(' · ');
+  const pick = book ? 'Underlined: KataGo’s move' : 'KataGo’s move';
+  return `${pick}. ${status}. ${marks}.`;
 }
 
 /** What the key needs to say whether a one-sided game is decided: the move number, Black's lead, the board size. */
