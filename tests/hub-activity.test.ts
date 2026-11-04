@@ -74,7 +74,11 @@ describe('hub thread state while a session connects', () => {
     expect(page).toContain('const [ss, st] = threadState(t);');
     expect(page).toContain("['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`]");
     // The one real action: the hub's existing retry (a new session), offered in the block.
-    expect(page).toContain("stCls === 'noconn' ? ' <button type=\"button\" class=\"btn small act-retry\" data-act=\"retry\"");
+    expect(page).toContain(`\${stCls === 'noconn' ? \`<div class="act-acts"><button type="button" class="btn small" data-act="retry"`);
+    // WORKING and "N threads running" count only threads whose agent has called; the silent ones get an amber group.
+    expect(page).toContain("['Not connected', by(isNoconn), 'noconn'],");
+    expect(page).toContain("['Working', by(isRunning)],");
+    expect(page).toContain('const running = S.threads.filter(isRunning).length;');
   });
 });
 

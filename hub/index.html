@@ -318,7 +318,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
-.group.need { color: var(--amber); }
+.group.need, .group.noconn { color: var(--amber); }
+:root .app > .side .group.noconn, :root .app > .side .trow .when.nc { color: var(--kaya-amber); }
+:root .app > .side .trow.on .when.nc { color: var(--amber); }
 .trow { text-align: left; border: 0; background: none; border-radius: 6px; padding: 9px 10px; display: grid; gap: 4px; width: 100%; }
 .trow:hover, .trow.on { background: var(--sel); }
 .trow.on { box-shadow: inset 3px 0 0 var(--ink); }
@@ -346,6 +348,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-starting .dot, .st-new .dot, .ss-starting > .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .st-noconn .dot, .ss-noconn > .dot { background: var(--amber); box-shadow: none; }
 .state.starting { color: var(--soft); } .state.noconn { color: var(--amber); }
+/* A working account with a silent thread says so in amber under its bars ("Working · 1 thread not connected"). */
+:root .acard .sub.snote { color: var(--amber); }
 
 /* main */
 .main { min-width: 0; }
@@ -573,7 +577,12 @@ a.opt { color: inherit; text-decoration: none; }
 .act-now .act-v { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .act-now.wait .act-v { white-space: normal; font-weight: 400; color: var(--soft); }
 .act-extra { font-weight: 400; color: var(--soft); }
-.act-retry { margin-left: 6px; white-space: nowrap; vertical-align: baseline; }
+/* Start again and Open session side by side, under the text and in line with it. The header has Open
+   session on a computer, so here it shows on the phone only. */
+.act-acts { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0 2px calc(var(--age) + 10px); }
+.act-acts .btn { white-space: nowrap; text-decoration: none; color: var(--ink); }
+.act-sess { display: none; }
+@container feed (max-width: 560px) { .act-sess { display: inline-flex; align-items: center; } .act-acts .btn { min-height: 36px; } }
 .act-pct { flex: none; font-variant-numeric: tabular-nums; color: var(--soft); }
 .act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .act-row { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: none; font: inherit; color: var(--soft); text-align: left; cursor: pointer; }
@@ -581,9 +590,12 @@ a.opt { color: inherit; text-decoration: none; }
 /* Detail capped near 72 characters so a wide screen never stretches a row into a long grey line. */
 .act-t { flex: 0 1 auto; max-width: 72ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-row.open .act-t { white-space: normal; }
-.act-up .act-t { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.age-pad { flex: none; width: var(--age); }
+.act-up .act-t { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); }
+.act-up u { text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.act-up .act-latest { color: var(--soft); white-space: pre; }
 .act-up .act-t svg { flex: none; color: var(--soft); }
-@media (hover: hover) { .act-up:hover .act-t { text-decoration-color: currentColor; } }
+@media (hover: hover) { .act-up:hover u { text-decoration-color: currentColor; } }
 .act-t b { font-weight: 500; color: var(--ink); }
 .act-t i { font-style: normal; color: var(--ink); }
 :root[data-bg]:not([data-bg=""]) .feed > .activity { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px 10px; box-shadow: none; }
@@ -595,6 +607,7 @@ a.opt { color: inherit; text-decoration: none; }
   .act-list li:nth-child(n+4) { display: none; }
   .act-row { min-height: 32px; align-items: center; }
   .act-now { flex-wrap: wrap; row-gap: 0; }
+  .act-now.wait { flex-wrap: nowrap; }
   .act-pct { flex-basis: 100%; padding-left: calc(var(--age) + 10px); }
   .act-tog { top: 4px; min-height: 30px; }
   .act-tog::before { content: ''; position: absolute; inset: -7px -4px; }
@@ -1263,7 +1276,8 @@ function acctState(a) {
       const late = ts.filter((t) => threadState(t)[0] === 'noconn');
       return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`] : ['starting', 'Starting'];
     }
-    return ['busy', 'Working'];
+    const nc = ts.filter((t) => t.account === a.name && isNoconn(t)).length;
+    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} not connected` : ''];
   }
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
@@ -1330,8 +1344,8 @@ const actOpenRows = new Set();
 const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
 // Elapsed on the working line: seconds only in the first minute, then whole minutes (the text changes once a minute).
 const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
-const agoHeard = (ms) => (ms < 60e3 ? 'seen just now' : `seen ${ago(ms)} ago`);
-const agoReport = (ms) => (ms < 60e3 ? 'reported just now' : `reported ${ago(ms)} ago`);
+const agoHeard = (ms) => (ms < 60e3 ? 'last heard just now' : `last heard ${ago(ms)} ago`);
+const agoReport = (ms) => (ms < 60e3 ? 'step reported just now' : `step reported ${ago(ms)} ago`);
 const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
@@ -1339,6 +1353,9 @@ const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">
 const NOCONN_MS = 2 * 60e3;
 const unheard = (t) => !t.archived && t.status === 'working' && !!t.account && !((t.lastAgentAt || 0) > (t.lastFireAt || 0));
 const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - (t.lastFireAt || t.lastAgentAt || Date.now())) / 60e3));
+const isNoconn = (t) => threadState(t)[0] === 'noconn';
+const isStarting = (t) => !t.archived && threadState(t)[0] === 'starting';
+const isRunning = (t) => !t.archived && ['working', 'new'].includes(t.status) && !isNoconn(t) && !isStarting(t);
 // What a thread is doing, said the same way in the header pill, the Team card, the sidebar and Tasks: [class, words].
 function threadState(t) {
   if (t.archived) return ['done', 'Archived'];
@@ -1417,12 +1434,12 @@ function activityHtml(t, msgs) {
   const ups = sessionUpdates(t, msgs);
   if (ups.length) {
     const newest = ups.at(-1);
-    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}">${agoEl(newest.at)}<span class="act-t">${icon('arrow-up', 14)}${ups.length} update${ups.length > 1 ? 's' : ''} above</span></button></li>` });
+    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}"><span class="age-pad"></span><span class="act-t">${icon('arrow-up', 14)}<u>${ups.length} update${ups.length > 1 ? 's' : ''} above</u><span class="act-latest">· latest ${agoEl(newest.at)}</span></span></button></li>` });
   }
   rows.sort((a, b) => b.at - a.at);
   const now = step
     ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}% done`, step.at && agoEl(step.at, 'r')].filter(Boolean).join(' · ')}</span>` : ''}</p>`
-    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}${stCls === 'noconn' ? ' <button type="button" class="btn small act-retry" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>' : ''}</span></p>`;
+    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}</span></p>${stCls === 'noconn' ? `<div class="act-acts"><button type="button" class="btn small" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>${t.sessionUrl ? `<a class="btn small act-sess" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}</div>` : ''}`;
   const list = rows.length ? `<ol class="act-list" aria-label="Recent, newest first">${rows.map((r) => r.h).join('')}</ol>` : '';
   return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
 }
@@ -1506,7 +1523,7 @@ let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
   const [ss, st] = threadState(t);
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1528,7 +1545,10 @@ function renderSide() {
   const by = (f) => live.filter(f).reverse();
   const groups = [
     ['Needs you', by((t) => t.status === 'waiting'), 'need'],
-    ['Working', by((t) => ['working', 'new'].includes(t.status))],
+    // Started but silent: their own amber group, so WORKING counts only threads whose agent has called.
+    ['Not connected', by(isNoconn), 'noconn'],
+    ['Starting', by(isStarting)],
+    ['Working', by(isRunning)],
     ['Waiting', by((t) => ['queued', 'stalled'].includes(t.status))],
     ['Done', by((t) => t.status === 'done').slice(0, 30)],
   ];
@@ -1783,7 +1803,7 @@ function renderHead(t) {
     return;
   }
   if (!t) {
-    const running = S.threads.filter((x) => ['working', 'new'].includes(x.status)).length;
+    const running = S.threads.filter(isRunning).length;
     setHtml($('head'), `${back}<h2>Project chat</h2>${avList(S.accounts.map((a) => a.name), '')}${pill('', ` style="background:${running ? 'var(--green)' : 'var(--faint)'}"`, running ? `${running} thread${running > 1 ? 's' : ''} running` : 'All quiet')}${more()}${panelBtn('team')}`);
     applyPanels(); return;
   }
@@ -2314,7 +2334,7 @@ function activityOf(a) {
   return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
-  const [cls, st] = acctState(a);
+  const [cls, st, stNote] = acctState(a);
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
@@ -2332,6 +2352,7 @@ function accountCard(a) {
     <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${usage}
     ${conn}
+    ${stNote && !sub ? `<div class="asub"><div class="sub snote">${esc(stNote)}</div></div>` : ''}
     ${sub || a.low ? `<div class="asub"><div class="sub${a.problem ? ' wrap fix' : a.pausedUntil > Date.now() ? ' wrap' : ''}" title="${esc(sub)}">${esc(sub)}</div>${a.low ? `<button class="btn small" data-low="${esc(a.name)}" data-v="0">Mark usage reset</button>` : ''}</div>` : ''}
     ${act}
   </div>`;
@@ -2355,7 +2376,9 @@ document.addEventListener('click', (e) => { if (e.target.closest('#pop [data-ope
 // The same groups (and counts) as the threads sidebar: Needs you, Working, Waiting, Done.
 const TASK_GROUPS = [
   ['Needs you', 'need', (t) => t.status === 'waiting'],
-  ['Working on', 'work', (t) => ['working', 'new'].includes(t.status)],
+  ['Not connected', 'noconn', isNoconn],
+  ['Starting', 'start', isStarting],
+  ['Working on', 'work', isRunning],
   ['Not started', 'todo', (t) => ['queued', 'stalled'].includes(t.status)],
   ['Finished', 'fin', (t) => t.status === 'done'],
 ];
