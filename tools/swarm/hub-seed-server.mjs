@@ -9,7 +9,8 @@ const hub = hubFromEnv();
 // A seed clock, so the opened working thread shows real ages ("2m", "5m") instead of everything "just now".
 // The whole seed runs from 10 minutes ago up to now (a working thread quiet for 15 minutes counts as stopped).
 const realNow = Date.now;
-const at = (minAgo) => { const t = realNow() - minAgo * 60e3; Date.now = () => t; };
+// Each read moves the clock on 1 ms, so a post made right after a session start counts as later (the agent connected).
+const at = (minAgo) => { let t = realNow() - minAgo * 60e3; Date.now = () => ++t; };
 at(10);
 
 await hub.upsertAccount({ name: 'Main', plan: 'max', routines: [{ model: 'opus', id: 'trig_main_opus', token: 'tokmain1' }, { model: 'sonnet', id: 'trig_main_son', token: 'tokmain2' }] });

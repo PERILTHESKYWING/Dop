@@ -46,14 +46,14 @@ try {
   :root:not([data-theme="light"]) { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
-    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
+    --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
     --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
-    --nt: #bfa47a; --on-nt: #1b1712; --nt-edge: #8f7756; --nt-hi: #cbb38a;
+    --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
   --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
@@ -126,8 +126,8 @@ try {
 :root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
 @media (hover: hover) { :root .app > .side .btn:not(.quiet):hover { background: var(--panel); } }
-/* New task: the black stone in light. In dark a honey-sand fill, not the white stone: still the one filled button
-   in the sidebar, but no longer the brightest thing on screen (text 7.5:1, button 4.8:1 on the dark wood). */
+/* New task: the stone, as Send is: black in light, the white stone in dark, a step dimmer than Send's
+   (#ddd5c7 vs #f3efe7) so it reads as the primary control without being the brightest thing on screen. */
 :root .app > .side #newTask { background: var(--nt); color: var(--on-nt); border-color: var(--nt-edge); }
 @media (hover: hover) { :root .app > .side #newTask:hover { background: var(--nt-hi); } }
 :root .app > .side #newTask[aria-pressed="true"] { background: var(--panel); color: var(--ink); border-color: var(--stone); }
@@ -342,6 +342,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-waiting .dot { background: var(--amber); }
 .st-queued .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .st-stalled .dot { background: var(--red); }
+.st-starting .stx { color: var(--soft); } .st-noconn .stx { color: var(--amber); }
+.st-starting .dot, .st-new .dot, .ss-starting > .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
+.st-noconn .dot, .ss-noconn > .dot { background: var(--amber); box-shadow: none; }
+.state.starting { color: var(--soft); } .state.noconn { color: var(--amber); }
 
 /* main */
 .main { min-width: 0; }
@@ -379,6 +383,9 @@ a.opt { color: inherit; text-decoration: none; }
 /* a live run, still but not a status dot: a green ring round a dot, and its state word in green */
 .wdot { box-sizing: border-box; width: 12px; height: 12px; margin: 0 1px; padding: 2px; border: 1.5px solid var(--green); border-radius: 50%; background: var(--green); background-clip: content-box; flex: none; }
 .thinking .tstate { color: var(--green); font-weight: 500; }
+.thinking.idle .tstate { color: var(--soft); } .thinking.late .tstate { color: var(--amber); }
+.thinking.idle .wdot { border-color: var(--faint); background: none; }
+.thinking.late .wdot { border-color: var(--amber); background: var(--amber); background-clip: content-box; }
 .thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
@@ -562,15 +569,21 @@ a.opt { color: inherit; text-decoration: none; }
 @media (hover: hover) { .act-tog:hover { color: var(--ink); border-color: var(--line-2); } }
 .act-body { --age: 40px; max-width: 820px; display: grid; gap: 2px; padding: 2px 0 2px 21px; font-size: 14px; line-height: 20px; }
 .act-now { margin: 0 0 2px; display: flex; gap: 10px; align-items: baseline; min-width: 0; color: var(--ink); }
-.act-k { flex: none; width: var(--age); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+.act-k { flex: none; width: var(--age); font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
 .act-now .act-v { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .act-now.wait .act-v { white-space: normal; font-weight: 400; color: var(--soft); }
 .act-extra { font-weight: 400; color: var(--soft); }
+.act-retry { margin-left: 6px; white-space: nowrap; vertical-align: baseline; }
 .act-pct { flex: none; font-variant-numeric: tabular-nums; color: var(--soft); }
 .act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-.act-list li { display: flex; gap: 10px; align-items: baseline; min-width: 0; color: var(--soft); }
-.act-list .ago { flex: none; width: var(--age); font-variant-numeric: tabular-nums; color: var(--faint); }
-.act-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-row { display: flex; gap: 10px; align-items: baseline; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: none; font: inherit; color: var(--soft); text-align: left; cursor: pointer; }
+.act-list .ago { flex: none; width: var(--age); font-variant-numeric: tabular-nums; color: var(--soft); }
+/* Detail capped near 72 characters so a wide screen never stretches a row into a long grey line. */
+.act-t { flex: 0 1 auto; max-width: 72ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-row.open .act-t { white-space: normal; }
+.act-up .act-t { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.act-up .act-t svg { flex: none; color: var(--soft); }
+@media (hover: hover) { .act-up:hover .act-t { text-decoration-color: currentColor; } }
 .act-t b { font-weight: 500; color: var(--ink); }
 .act-t i { font-style: normal; color: var(--ink); }
 :root[data-bg]:not([data-bg=""]) .feed > .activity { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px 10px; box-shadow: none; }
@@ -580,6 +593,9 @@ a.opt { color: inherit; text-decoration: none; }
   .act-body { --age: 34px; padding-left: 0; }
   .activity .thinking { padding-right: 60px; }
   .act-list li:nth-child(n+4) { display: none; }
+  .act-row { min-height: 32px; align-items: center; }
+  .act-now { flex-wrap: wrap; row-gap: 0; }
+  .act-pct { flex-basis: 100%; padding-left: calc(var(--age) + 10px); }
   .act-tog { top: 4px; min-height: 30px; }
   .act-tog::before { content: ''; position: absolute; inset: -7px -4px; }
 }
@@ -1240,7 +1256,15 @@ function acctState(a) {
   if (a.problem) return ['fix', 'Needs you'];
   if (a.low) return ['low', 'Running low'];
   if (a.pausedUntil > Date.now()) return ['paused', 'Paused'];
-  if (a.working) return ['busy', 'Working'];
+  if (a.working) {
+    // Every thread it is on was started but not heard from yet: say so, as the thread does.
+    const ts = S.threads.filter((t) => t.status === 'working' && !t.archived && (t.account === a.name || crewOf(t).includes(a.name)));
+    if (ts.length && ts.every((t) => t.account === a.name && unheard(t))) {
+      const late = ts.filter((t) => threadState(t)[0] === 'noconn');
+      return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`] : ['starting', 'Starting'];
+    }
+    return ['busy', 'Working'];
+  }
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
 }
@@ -1276,9 +1300,12 @@ function clawd(cls = '') {
 const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.now() - at)}</span>`;
 // One live line per agent at work: who, how long, and the step its running sub-agent reports
 // ("Main working · 1m 16s · Run 3 of 5"). The clock ticks in place, so the feed only redraws on news.
-function thinkingLine(who, since, key, state = 'working', step = '', tail = '') {
-  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${sinceSpan(since)} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
-  return `<div class="thinking"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${sinceSpan(since)}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
+function thinkingLine(who, since, key, state = 'working', step = '', tail = '', elapsed = '') {
+  const clockHtml = elapsed || sinceSpan(since);
+  if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${clockHtml} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
+  // starting: a grey ring; not connected: amber. Green stays "working" only.
+  const cls = state === 'starting' ? ' idle' : state === 'not connected' ? ' late' : '';
+  return `<div class="thinking${cls}"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${clockHtml}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
 const stepOf = (t, name) => { const g = (S.agents || []).find((x) => x.thread === t.id && x.account === name && x.status === 'running'); return g ? g.step || g.title || '' : ''; };
@@ -1294,51 +1321,68 @@ function liveLines(t, msgs) {
   return activityHtml(t, msgs);
 }
 // ---------- activity: what a working thread is doing ----------
-// Pinned above the composer: who is on it and for how long, the current step in plain words, then the
-// last few things the agents did, each with its age. Built only from what the hub already holds (posts,
-// handovers, sub-agent reports, the session start, the last check-in); nothing is guessed. With nothing
-// reported yet it says what it is waiting for. "Hide" folds it to the one working line (kept per browser).
+// Pinned above the composer: who is on it and for how long, the current step in plain words, then what
+// the transcript does not already show (sub-agent starts, steps and finishes), with one "N updates above"
+// line that scrolls to this session's posts. Built only from what the hub already holds; nothing is
+// guessed. With nothing reported yet it says what it is waiting for. "Hide" folds it to the working line.
 let actMin = ls.get('hub-activity') === 'min';
+const actOpenRows = new Set();
 const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
+// Elapsed on the working line: seconds only in the first minute, then whole minutes (the text changes once a minute).
+const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
 const agoHeard = (ms) => (ms < 60e3 ? 'seen just now' : `seen ${ago(ms)} ago`);
-const AGO_FMT = { s: agoShort, h: agoHeard };
+const agoReport = (ms) => (ms < 60e3 ? 'reported just now' : `reported ${ago(ms)} ago`);
+const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
+// A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
+// together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Not connected".
+const NOCONN_MS = 2 * 60e3;
+const unheard = (t) => !t.archived && t.status === 'working' && !!t.account && !((t.lastAgentAt || 0) > (t.lastFireAt || 0));
+const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - (t.lastFireAt || t.lastAgentAt || Date.now())) / 60e3));
+// What a thread is doing, said the same way in the header pill, the Team card, the sidebar and Tasks: [class, words].
+function threadState(t) {
+  if (t.archived) return ['done', 'Archived'];
+  if (t.status === 'new') return ['starting', 'Starting'];
+  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Not connected · ${unheardMin(t)}m`] : ['starting', 'Starting'];
+  if (t.status === 'queued' && t.account) return ['queued', `Waiting for ${t.account}`];
+  return [t.status, STATUS[t.status] || t.status];
+}
 // One plain line from a post: no Markdown marks, links as their words.
 const plainLine = (s) => String(s || '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^\s*(#+|>|[-*] )\s*/gm, '').replace(/\s+/g, ' ').trim();
 const lastSentence = (s) => { const p = plainLine(s).split(/(?<=[.!?])\s+(?=[A-Z0-9])/).filter(Boolean); return p.at(-1) || ''; };
-const ACT_VERB = { progress: 'Posted', note: 'Posted', done: 'Finished', question: 'Asked', answer: 'Answered', thinking: 'Noted why', lesson: 'Saved a lesson', handover: 'Saved a handover' };
+const UPDATE_KINDS = ['progress', 'note', 'done', 'question', 'answer', 'thinking', 'lesson', 'handover'];
 const runningOn = (t) => (S.agents || []).filter((g) => g.thread === t.id && g.status === 'running').sort((a, b) => b.at - a.at);
-function threadActions(t, msgs) {
+// Rows the transcript does not show: sub-agent starts, steps and finishes, newest first. The newest
+// running step is the "Now" line, so it is not listed twice.
+function threadActions(t) {
   const lead = t.account, nowAgent = runningOn(t)[0];
   const ev = [];
-  for (const m of msgs) {
-    if (m.pending || m.from === 'XIAO' || m.kind === 'brief') continue;
-    if (m.from === 'hub') {
-      const s = m.kind === 'start' && /^Started (.+?)\.?$/.exec(m.text);
-      if (s) ev.push({ at: m.at, verb: 'Started', text: capModels(s[1]) });
-      continue;
-    }
-    // Thinking notes follow ⋯ › Show agents' thinking notes (hidden there, hidden here).
-    if (!ACT_VERB[m.kind] || (m.kind === 'thinking' && (think.mode === 'hide' || !thoughtShown(m.from)))) continue;
-    let text = m.kind === 'lesson' ? lessonProse(m.text.replace(/^L\d+ (\[[^\]]+\] )?/, '')) : m.kind === 'handover' ? ((/^Done: (.*)$/m.exec(m.text) || [])[1] || m.text) : m.text;
-    text = plainLine(text);
-    ev.push({ at: m.at, verb: ACT_VERB[m.kind], text, who: m.from !== lead ? m.from : '' });
-  }
   for (const g of S.agents || []) {
     if (g.thread !== t.id) continue;
     const who = g.account !== lead ? g.account : '';
     ev.push({ at: g.started, verb: 'Started sub-agent', text: g.title, who });
-    // The newest running step is the "Now" line (with its age), so it is not listed twice.
     if (g.status === 'running' && g.step && g.at - g.started > 1000 && g !== nowAgent) ev.push({ at: g.at, verb: 'Sub-agent step', text: `${g.title}: ${g.step}`, who });
     if (g.status !== 'running' && g.finished) ev.push({ at: g.finished, verb: g.status === 'failed' ? 'Sub-agent failed' : 'Sub-agent finished', text: g.note ? plainLine(g.note) : g.title, who });
   }
   return ev.filter((e) => e.at).sort((a, b) => b.at - a.at);
 }
+// The agents' posts in this session (since the hub last started a session here), as shown above;
+// thinking notes count only while ⋯ › Show agents' thinking notes shows them.
+function sessionUpdates(t, msgs) {
+  const start = msgs.filter((m) => m.from === 'hub' && m.kind === 'start').at(-1)?.id || 0;
+  return msgs.filter((m) => m.id > start && !m.pending && m.from !== 'XIAO' && m.from !== 'hub' && UPDATE_KINDS.includes(m.kind)
+    && !(m.kind === 'thinking' && (think.mode === 'hide' || !thoughtShown(m.from))));
+}
 // The current step: a running sub-agent's report, else the handover's next step if it is the newest
 // word, else the last sentence of the newest update (labelled as such). null: nothing reported yet.
 function currentStep(t, msgs) {
   const run = runningOn(t);
-  if (run.length) { const g = run[0]; return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct: g.pct, at: g.at, more: run.length - 1 }; }
+  if (run.length) {
+    const g = run[0];
+    // A percent next to "Run 4 of 5" reads as a second, different count: shown only when the step has none.
+    const pct = g.pct != null && !/\b\d+\s*(of|\/)\s*\d+\b/.test(g.step || '') ? g.pct : null;
+    return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct, at: g.at, more: run.length - 1 };
+  }
   const post = msgs.filter((m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind)).at(-1);
   const cp = t.checkpoint;
   if (cp?.next && (!post || cp.at >= post.at)) return { k: 'Next', v: plainLine(cp.next) };
@@ -1348,33 +1392,66 @@ function currentStep(t, msgs) {
 function waitingFor(t) {
   const who = t.account || 'an account';
   if (t.status === 'new' || !t.account) return t.account ? `Waiting for ${who}'s session to start. Nothing reported yet.` : 'Waiting for an account with usage left to take it.';
-  if (!((t.lastAgentAt || 0) > (t.lastFireAt || 0))) return `Waiting for ${who} to connect. Its first step shows here once it reports one.`;
+  if (unheard(t)) {
+    if (threadState(t)[0] === 'noconn') return `${who}'s session was started ${unheardMin(t)}m ago and has not called the hub yet.`;
+    return `Waiting for ${who} to connect. Its first step shows here once it reports one.`;
+  }
   return `${who} is connected but has not reported a step yet.`;
 }
+const actRow = (key, age, inner) => `<li><button type="button" class="act-row${actOpenRows.has(key) ? ' open' : ''}" data-act-row="${esc(key)}" aria-expanded="${actOpenRows.has(key)}">${age}<span class="act-t">${inner}</span></button></li>`;
 function activityHtml(t, msgs) {
   const lines = [];
   const step = currentStep(t, msgs);
-  // Connected: the agent has called the hub since its session was started (lastFireAt).
-  const connected = !!t.account && (t.lastAgentAt || 0) > (t.lastFireAt || 0);
-  const heard = connected ? ` · ${agoEl(t.lastAgentAt, 'h')}` : '';
-  if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), `${t.id}${t.account}${t.startedAt || ''}`, t.status === 'new' || !connected ? 'starting' : 'working', actMin ? stepOf(t, t.account) : '', heard));
-  for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, t.crew[n].startedAt || t.crew[n].at || Date.now(), `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : ''));
+  const [stCls] = threadState(t);
+  const quiet = unheard(t) || t.status === 'new';
+  const heard = quiet ? '' : ` · ${agoEl(t.lastAgentAt, 'h')}`;
+  // Not connected yet: the same whole minutes as the pill and the Team card (all redrawn together).
+  const elapsed = quiet ? `<span>${unheardMin(t)}m</span>` : agoEl(t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), 'e');
+  const state = stCls === 'noconn' ? 'not connected' : quiet ? 'starting' : 'working';
+  if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, 0, `${t.id}${t.account}${t.startedAt || ''}`, state, actMin ? stepOf(t, t.account) : '', heard, elapsed));
+  for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, 0, `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : '', '', agoEl(t.crew[n].startedAt || t.crew[n].at || Date.now(), 'e')));
   if (!lines.length) return '';
   const tog = `<button type="button" class="act-tog" data-act-tog aria-expanded="${!actMin}" aria-controls="actBody">${actMin ? 'Show activity' : 'Hide'}</button>`;
   if (actMin) return `<section class="activity min" aria-label="Activity">${tog}${lines.join('')}</section>`;
-  const ev = threadActions(t, msgs).slice(0, 5);
+  const rows = threadActions(t).slice(0, 4).map((e) => ({ at: e.at, h: actRow(`${e.verb}${e.at}`, agoEl(e.at), `<b>${esc(e.verb)}</b> ${e.who ? `<i>${esc(e.who)}:</i> ` : ''}${esc(nb(e.text))}`) }));
+  const ups = sessionUpdates(t, msgs);
+  if (ups.length) {
+    const newest = ups.at(-1);
+    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}">${agoEl(newest.at)}<span class="act-t">${icon('arrow-up', 14)}${ups.length} update${ups.length > 1 ? 's' : ''} above</span></button></li>` });
+  }
+  rows.sort((a, b) => b.at - a.at);
   const now = step
-    ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}%`, step.at && agoEl(step.at)].filter(Boolean).join(' · ')}</span>` : ''}</p>`
-    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}</span></p>`;
-  const list = ev.length ? `<ol class="act-list" aria-label="Last actions, newest first">${ev.map((e) => `<li>${agoEl(e.at)}<span class="act-t"><b>${esc(e.verb)}</b> ${e.who ? `<i>${esc(e.who)}:</i> ` : ''}${esc(nb(e.text))}</span></li>`).join('')}</ol>` : '';
+    ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}% done`, step.at && agoEl(step.at, 'r')].filter(Boolean).join(' · ')}</span>` : ''}</p>`
+    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}${stCls === 'noconn' ? ' <button type="button" class="btn small act-retry" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>' : ''}</span></p>`;
+  const list = rows.length ? `<ol class="act-list" aria-label="Recent, newest first">${rows.map((r) => r.h).join('')}</ol>` : '';
   return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
 }
 $('feed').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-act-row]');
+  if (row) {
+    // A cut-off row opens to its full text, and closes again.
+    const k = row.dataset.actRow;
+    if (!actOpenRows.delete(k)) actOpenRows.add(k);
+    row.classList.toggle('open', actOpenRows.has(k)); row.setAttribute('aria-expanded', String(actOpenRows.has(k)));
+    return;
+  }
+  const go = e.target.closest('[data-act-goto]');
+  if (go) {
+    // To the first of this session's posts; drawn first if it is older than the shown window.
+    const id = go.dataset.actGoto;
+    let el = $('feed').querySelector(`[data-mid="${CSS.escape(id)}"]`);
+    if (!el) { feedEarly[sel] = 0; renderFeed(); el = $('feed').querySelector(`[data-mid="${CSS.escape(id)}"]`); }
+    el?.scrollIntoView({ block: 'start' });
+    return;
+  }
   if (!e.target.closest('[data-act-tog]')) return;
   actMin = !actMin;
   ls.set('hub-activity', actMin ? 'min' : '');
   renderFeed();
 });
+// "Starting" turns into "Not connected · Nm" with time alone: redraw while such a thread exists, so the
+// pill, the Team card and the block say the same minutes.
+setInterval(() => { if (!document.hidden && S.threads.some(unheard)) render(); }, 15_000);
 let verbStep = Math.floor(Date.now() / VERB_MS);
 // Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
 // Calm: one tick a second, clock text only. Lively: Claude Code's 120 ms spinner.
@@ -1428,8 +1505,8 @@ let lastByThread = new Map(), lastByThreadAcct = new Map();
 let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
 function threadRow(t) {
-  const st = t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status] || t.status;
-  return `<button class="trow t1 st-${t.status}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  const [ss, st] = threadState(t);
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1711,7 +1788,7 @@ function renderHead(t) {
     applyPanels(); return;
   }
   // Title, who is on it, status; one contextual action (Start again / Restore); Mark done, Archive and Delete live in ⋯.
-  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${t.status}`, '', t.archived ? 'Archived' : t.status === 'queued' && t.account ? `Waiting for ${t.account}` : STATUS[t.status])}
+  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${threadState(t)[0]}`, '', threadState(t)[1])}
     ${t.sessionUrl ? `<a class="btn small quiet hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : ''}
@@ -1817,7 +1894,8 @@ function lineOnTop(f) {
 }
 function taskInView(f) {
   const card = f.querySelector('.task');
-  if (!card || !f.scrollTop) return false;
+  // A working thread opens on its end: the pinned Activity block would otherwise cover its newest posts.
+  if (!card || !f.scrollTop || f.querySelector(':scope > .activity')) return false;
   const top = f.getBoundingClientRect().top, r = card.getBoundingClientRect();
   if (!(r.top < top && r.bottom > top)) return false;
   f.scrollTop -= top - r.top + parseFloat(getComputedStyle(f).paddingTop);
@@ -2223,7 +2301,8 @@ function activityOf(a) {
   const row = ({ t, last, at }) => {
     // Every row has the same meta slot: when this account last spoke there (or the
     // thread last changed); "member" only when it isn't the lead.
-    const meta = [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
+    const [ss, sw] = threadState(t);
+    const meta = ss === 'starting' || ss === 'noconn' ? sw : [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
     return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${esc(meta)}</small></div></button>`;
   };
   if (!ts.length) return '';
@@ -2282,7 +2361,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) ? `<small>${esc(t.status === 'queued' && t.account ? 'Waiting for ' + t.account : STATUS[t.status])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) || ['starting', 'noconn'].includes(threadState(t)[0]) ? `<small>${esc(threadState(t)[1])}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
@@ -2300,7 +2379,7 @@ function agentRow(g) {
   const cls = stale ? 'stale' : g.status;
   const dur = ago((g.finished || t) - g.started);
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
-  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + esc(dur) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
 function agentPanel() {
   const list = S.agents || [];
