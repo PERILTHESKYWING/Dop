@@ -2706,14 +2706,47 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- phones and small tablets */
-/* the quick-read offer: under the answer on a desktop, above it on a phone (Messages.tsx) */
-.quick-read.qr-top {
+/* the quick-read offer: a line under the answer on a desktop; on a phone "quick read" ends the
+   read's own line and "Read longer" is an outlined button beside it (Messages.tsx .read-row) */
+.read-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.read-row > .thoughts {
+  flex: 1;
+  min-width: 0;
+}
+.th-quick,
+.read-longer.qr-top {
   display: none;
 }
+.read-longer {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-ui);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .read-longer {
+    min-height: 44px;
+  }
+}
 @media (max-width: 899px) {
-  .quick-read.qr-top {
+  .th-quick {
+    display: inline;
+  }
+  .th-reads {
+    display: none;
+  }
+  .read-longer.qr-top {
     display: block;
-    margin: 2px 0 8px;
   }
   .quick-read.qr-bottom {
     display: none;

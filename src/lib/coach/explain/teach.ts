@@ -626,8 +626,9 @@ export function teach(input: TeachInput): Teaching {
     if (sit.sharp) {
       if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out ${fmt1(-g)} points ahead${ref(id)}.`);
       else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
-      else if (g < 2) summary.push(`${C(o.loc)} is a little worse${ref(id)}.`);
-      else summary.push(`${C(o.loc)} is clearly worse${ref(id)}.`);
+      // with KataGo's number, the one its row under KataGo's numbers gives (a pro teacher, 2026-11-04:
+      // "a little worse" alone does not say how much)
+      else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse (${fmt1(g)} ${fmt1(g) === '1.0' ? 'point' : 'points'})${ref(id)}.`);
       nearLine([best.loc, o.loc], g < NEAR_PTS);
       return;
     }

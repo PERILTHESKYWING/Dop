@@ -286,7 +286,7 @@ function Elapsed({ t0, bare }: { t0: number; bare?: boolean }) {
   return bare ? <>{t}</> : <span className="meta">{t}</span>;
 }
 
-function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean }) {
+function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean; quick?: boolean }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
   // Done, it says what was done: how many positions KataGo read (its largest step's visits).
@@ -296,12 +296,14 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra }: { steps: T
   const positions = ex?.totalVisits || most;
   const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
   // The phone shows the same line, speed and "on this device" included (critics, 2026-11-04: the
-  // proof was desktop-only); it may take two rows there.
+  // proof was desktop-only), and says "quick read" there in place of the desktop's line under the
+  // answer, so the answer starts higher (styles.css .th-reads, .th-quick).
   const done = positions ? (
     <span>
       KataGo read {positions.toLocaleString()} positions
-      {ex && ex.reads > 1 ? ` in ${ex.reads} reads` : null}
+      {ex && ex.reads > 1 ? <span className="th-reads"> in {ex.reads} reads</span> : null}
       {rate ? ` · ${secs(ms)} · ${rate.toLocaleString()} a second on this device` : ` on this device · ${secs(ms)}`}
+      {quick ? <span className="th-quick"> · quick read</span> : null}
     </span>
   ) : (
     `Read for ${secs(ms)}`
@@ -430,19 +432,16 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   const longer = longerLevel(msg.level ?? levelOfMessage(msg)?.id);
   return (
     <>
-      <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} />
-      {longer && ex.totalVisits > 0 && (
-        // a phone: the offer sits right under the read's own line, above the answer, where the
-        // pane shows it (critics, 2026-11-04: at the bottom it was below the fold)
-        <p className="note quick-read qr-top">
-          A quick read: a longer one can change the pick.{' '}
-          {onReadLonger && (
-            <button type="button" className="text-btn" onClick={onReadLonger}>
-              Read longer
-            </button>
-          )}
-        </p>
-      )}
+      {/* a phone: "Read longer" is an outlined button on the read's own row, above the answer
+          (critics, 2026-11-04: a caveat line and a bare link took two more rows of the pane) */}
+      <div className="read-row">
+        <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} quick={!!longer && ex.totalVisits > 0} />
+        {longer && ex.totalVisits > 0 && onReadLonger && (
+          <button type="button" className="read-longer qr-top" onClick={onReadLonger} title="A longer read can change the pick">
+            Read longer
+          </button>
+        )}
+      </div>
       {w.text ? (
         <RichText text={w.text} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
       ) : (
