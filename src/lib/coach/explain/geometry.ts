@@ -25,6 +25,15 @@ export function fmt1(x: number): string {
   return (r === 0 ? 0 : r).toFixed(1);
 }
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
+/**
+ * A win chance, rounded as Kiai's header rounds it, but never a flat "0%" or "100%" while the
+ * read still gives the other side a chance: "<1%", ">99%" (critics, 2026-11-04: the list said
+ * "0%" next to the header's "1%").
+ */
+export const winPct = (x: number): string => {
+  const r = Math.round(x * 100);
+  return r <= 0 && x > 0 ? '<1%' : r >= 100 && x < 1 ? '>99%' : `${r}%`;
+};
 
 /** "Black leads by 2.3" / "White leads by 1.1" / "the game is even" from Black's lead. */
 export function leadPhrase(bLead: number): string {

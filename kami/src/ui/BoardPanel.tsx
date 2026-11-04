@@ -3,6 +3,7 @@ import { Board, type Mark } from '../../../src/components/Board';
 import '../../../src/components/boardscreen.css';
 import { candidateMarks, lineOf } from '../../../src/lib/analysis/candidates';
 import type { EngineRead, ExplainPosition } from '../../../src/lib/coach/explain/types';
+import { winPct } from '../../../src/lib/coach/explain/geometry';
 import { replay } from '../../../src/lib/go/board';
 import { colorName, PASS, type Loc, type Move } from '../../../src/lib/go/types';
 import { cachedRead, positionKey, useBoardRead, useLineReads } from '../lib/analysis';
@@ -482,7 +483,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const key = keyText(candidates, sideName, book, read ? { move: board.cursor, bLead: read.bLead, size: board.size } : undefined);
+  const key = keyText(candidates, sideName, book, read ? { move: board.cursor, bLead: read.bLead, size: board.size } : undefined, phone);
   // a one-sided read: the key's sample is KataGo's choice, its thick ring with the ink dot
   const keyPick = lopsidedRead(candidates);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
@@ -695,18 +696,18 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           inert={!!preview}
           title={
             shown
-              ? `Black ${(bWin * 100).toFixed(1)}% · White ${((1 - bWin) * 100).toFixed(1)}%${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource.toLowerCase()})` : pending ? ' (reading)' : ''}`
+              ? `Black ${winPct(bWin)} · White ${winPct(1 - bWin)}${leadText ? ` · ${leadText}` : ''}${evSource ? ` (${evSource.toLowerCase()})` : pending ? ' (reading)' : ''}`
               : 'Play a move to see who is ahead'
           }
         >
           {/* whose read this is comes first, where it has room (critics, round 1: crammed at the right edge on a phone) */}
           {evSource && shown && <span className="ev-source">{evSource}:</span>}
-          <span className="ev-n">{shown ? `Black ${Math.round(bWin * 100)}%` : 'Black'}</span>
+          <span className="ev-n">{shown ? `Black ${winPct(bWin)}` : 'Black'}</span>
           <span className="ev-track" aria-hidden="true">
             <span className="ev-fill" style={{ transform: `scaleX(${bWin.toFixed(3)})` }} />
             <span className="ev-mid" />
           </span>
-          <span className="ev-n">{shown ? `White ${100 - Math.round(bWin * 100)}%` : 'White'}</span>
+          <span className="ev-n">{shown ? `White ${winPct(1 - bWin)}` : 'White'}</span>
           {leadText && <span className="ev-lead">{leadText}</span>}
           {!evSource && pending && shown && <span className="ev-state">reading</span>}
         </div>

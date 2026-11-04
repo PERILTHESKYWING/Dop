@@ -1100,6 +1100,14 @@ kbd {
 .thoughts li .meta {
   margin-left: 8px;
 }
+/* the live step's counter: one fixed slot of tabular figures ("1,240 positions · 12.3 s" fits),
+   so the sentence before it keeps its line breaks while the seconds tick (critics, 2026-11-04) */
+.thoughts li .meta.live-count {
+  display: inline-block;
+  min-width: 22ch;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 /* before the first step lands: plain words and the seconds ticking, no light effect */
 .thoughts li.wait {
   list-style: none;
@@ -1818,29 +1826,25 @@ kbd {
   box-shadow: inset 0 0 0 1.5px #b9773d, inset 0 0 0 9px rgba(185, 119, 61, 0.18);
 }
 /* the key's mark is the board's: a tan disc ringed in the colour to play (see .cand.plain) */
+/* the key's mark is the board's, drawn on a little wood of its own so it looks the same on the
+   light and the dark page (critics, 2026-11-04: on the dark page its ink ring vanished and it
+   read as a gold "O"): a tan disc ringed in ink (Black to play) or ink-light-ink (White), the
+   proportions of kaya.ts drawToken */
 .bp-key i.ring {
-  background: #e4c493;
-  box-shadow: inset 0 0 0 2px #1b1714;
-  /* a 1 px edge so the ink ring still shows on the dark page (it vanished there, leaving a tan "O") */
-  outline: 1px solid var(--line-ui);
+  width: 20px;
+  height: 20px;
+  box-shadow: none;
+  background: radial-gradient(circle closest-side, #e4c493 0 70%, #1b1714 0 80%, #c98a4a 0 100%);
 }
 .bp-key i.ring.w {
-  box-shadow:
-    inset 0 0 0 1px #1b1714,
-    inset 0 0 0 3px #fbf8f1,
-    inset 0 0 0 4px #1b1714;
+  background: radial-gradient(circle closest-side, #e4c493 0 62%, #1b1714 0 67%, #fbf8f1 0 75%, #1b1714 0 80%, #c98a4a 0 100%);
 }
-/* a one-sided read: the sample is KataGo's choice as the board draws it, a thick ring round a
-   filled ink dot (lib/candLabels.ts PICK) */
+/* a one-sided read: KataGo's choice, a thick ink ring round a filled ink dot (candLabels PICK) */
 .bp-key i.ring.pick {
-  background: radial-gradient(circle closest-side, #1b1714 0 44%, #e4c493 calc(44% + 0.5px));
-  box-shadow: inset 0 0 0 2.5px #1b1714;
+  background: radial-gradient(circle closest-side, #1b1714 0 27%, #e4c493 0 56%, #1b1714 0 80%, #c98a4a 0 100%);
 }
 .bp-key i.ring.pick.w {
-  box-shadow:
-    inset 0 0 0 1px #1b1714,
-    inset 0 0 0 2.5px #fbf8f1,
-    inset 0 0 0 3.5px #1b1714;
+  background: radial-gradient(circle closest-side, #1b1714 0 24%, #e4c493 0 48%, #1b1714 0 54%, #fbf8f1 0 74%, #1b1714 0 80%, #c98a4a 0 100%);
 }
 /* the last move on the flat boards: a small solid dot, no glow (a ring read as a "0") */
 .board-panel svg.board .bd-last-glow {
@@ -2702,8 +2706,16 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- phones and small tablets */
+/* the quick-read offer: under the answer on a desktop, above it on a phone (Messages.tsx) */
+.quick-read.qr-top {
+  display: none;
+}
 @media (max-width: 899px) {
-  .thoughts:not([open]) .th-wide {
+  .quick-read.qr-top {
+    display: block;
+    margin: 2px 0 8px;
+  }
+  .quick-read.qr-bottom {
     display: none;
   }
   .kami-app,
@@ -2841,6 +2853,10 @@ kbd {
   .bp-key i {
     width: 15px;
     height: 15px;
+  }
+  .bp-key i.ring {
+    width: 18px;
+    height: 18px;
   }
   .bp-graph {
     max-height: 48%;
