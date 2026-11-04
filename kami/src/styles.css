@@ -1821,12 +1821,26 @@ kbd {
 .bp-key i.ring {
   background: #e4c493;
   box-shadow: inset 0 0 0 2px #1b1714;
+  /* a 1 px edge so the ink ring still shows on the dark page (it vanished there, leaving a tan "O") */
+  outline: 1px solid var(--line-ui);
 }
 .bp-key i.ring.w {
   box-shadow:
     inset 0 0 0 1px #1b1714,
     inset 0 0 0 3px #fbf8f1,
     inset 0 0 0 4px #1b1714;
+}
+/* a one-sided read: the sample is KataGo's choice as the board draws it, a thick ring round a
+   filled ink dot (lib/candLabels.ts PICK) */
+.bp-key i.ring.pick {
+  background: radial-gradient(circle closest-side, #1b1714 0 44%, #e4c493 calc(44% + 0.5px));
+  box-shadow: inset 0 0 0 2.5px #1b1714;
+}
+.bp-key i.ring.pick.w {
+  box-shadow:
+    inset 0 0 0 1px #1b1714,
+    inset 0 0 0 2.5px #fbf8f1,
+    inset 0 0 0 3.5px #1b1714;
 }
 /* the last move on the flat boards: a small solid dot, no glow (a ring read as a "0") */
 .board-panel svg.board .bd-last-glow {

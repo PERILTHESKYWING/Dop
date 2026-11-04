@@ -21,7 +21,7 @@ import type { BoardWood } from '../three/kaya';
 import { webglOk } from '../three/support';
 import type { SettingsPage } from './Settings';
 import { Boundary, LoadFailed } from './Boundary';
-import { candidateLabeler, keyText, phonePlaces } from '../lib/candLabels';
+import { candidateLabeler, keyText, lopsidedRead, phonePlaces } from '../lib/candLabels';
 import { Term } from './Term';
 import { moveStats, stoneNote } from '../lib/moveCaption';
 import { locToGtp } from '../../../src/lib/go/coords';
@@ -482,7 +482,9 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   );
   const caps = view.captures;
   const sideName = toPlay === 1 ? 'Black' : 'White';
-  const key = keyText(candidates, sideName, book);
+  const key = keyText(candidates, sideName, book, read ? { move: board.cursor, bLead: read.bLead, size: board.size } : undefined);
+  // a one-sided read: the key's sample is KataGo's choice, its thick ring with the ink dot
+  const keyPick = lopsidedRead(candidates);
   // The note under a previewed line, or the key to KataGo's discs, shares the stage with the board.
   const keyOn = !preview && !!candidates?.length;
   // One row under the board is always kept for the key or the note (filled or not), so the board
@@ -765,7 +767,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                 key
               ) : (
                 <>
-                  <i className={`ring${toPlay === 2 ? ' w' : ''}`} aria-hidden="true" /> {key}
+                  <i className={`ring${toPlay === 2 ? ' w' : ''}${keyPick ? ' pick' : ''}`} aria-hidden="true" /> {key}
                 </>
               )}
             </p>

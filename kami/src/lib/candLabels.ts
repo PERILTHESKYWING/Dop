@@ -5,15 +5,19 @@
  * every candidate's win chance rounds to 0-2 or 98-100 those numbers are all the same, so each
  * candidate shows what it loses against KataGo's choice in points instead (critics, rounds 1
  * and 2): KataGo's choice (the most visited move, the answer's "best move", drawn with the
- * thick ring) shows its own win chance with a % sign ("1%"), the others the points they lose
+ * thick ring) carries a filled ink dot, a form of its own (critics, 2026-11-04: its "1%" was a
+ * chip like the point marks, and a win chance of 1% says nothing a move can change; the key says
+ * who is far ahead in words), the others the points they lose
  * against it, "0.9", "1.3", in the same rounding as the answer's text ("Q12 is 1.1 points worse"
- * is Q12's "1.1"), and a move within noise of the choice "≈". One convention on every width
+ * is Q12's "1.1"), a move within noise of the choice "≈" and one ahead of it on a shorter read
+ * "≥" (two marks, each named in the key only when it is on the board). One convention on every width
  * (critics, 2026-10-26: the phone's "0.9" and the desktop's "−0.9" read as different numbers),
  * and no minus sign on any width (critics, 2026-11-03: the key already says "points lost", and
  * the sign cost a phone's digits their size); the board sets a long label narrower to fit its
  * mark. "The game is decided" is said only when gameDecided() agrees: late in the game, from the
  * point lead.
  */
+import { gameDecided } from '../../../src/lib/coach/explain/decided';
 import { fmt1 } from '../../../src/lib/coach/explain/geometry';
 
 interface Cand {
@@ -25,8 +29,12 @@ interface Cand {
   loc?: number;
 }
 
-/** A move as good as KataGo's choice: within noise of it, or ahead of it on a shorter read. */
+/** A move about as good as KataGo's choice: within noise of it (under 0.3 points either way). */
 export const SAME = '≈';
+/** A move ahead of KataGo's choice by 0.3 points or more, on its shorter read (no "+": it never reads as a gain). */
+export const AHEAD = '≥';
+/** KataGo's choice among point labels: drawn as a filled ink dot inside its thick ring, no number. */
+export const PICK = '●';
 /** A loss that rounds to less than this (points) is noise between two reads: "≈". */
 export const NOISE = 0.3;
 
@@ -44,19 +52,22 @@ export function lopsidedRead(cands: readonly Cand[] | null | undefined): boolean
 /**
  * A candidate's label against KataGo's choice: the points it loses, "0.9" (one decimal, the
  * answer's rounding, no sign: the key says the numbers are points lost); "≈" when that rounds
- * to under 0.3 points (noise between reads) or the move came out ahead on its shorter read
- * (critics, 2026-11-03: a "+0.1" ring read as better than KataGo's choice). `compact` (a phone's
+ * to under 0.3 points either way (noise between reads), "≥" when the move came out 0.3 or more
+ * ahead on its shorter read (critics, 2026-11-03: a "+0.1" ring read as better than KataGo's
+ * choice; 2026-11-04: one "≈" for both "equal" and "ahead on a shorter read" was unclear).
+ * `compact` (a phone's
  * small marks) gives whole points from 10 up ("19"), so a big loss still fits; below 10 it is
  * the same one decimal (critics, round 4: whole points made 0.9 and 1.3 both "1").
  */
 export function lossLabel(c: Cand, best: Cand, compact = false): string {
   const loss = best.scoreLead - c.scoreLead;
   const shown = compact && loss >= 9.95 ? String(Math.round(loss)) : fmt1(loss);
-  return Number(shown) < NOISE ? SAME : shown;
+  const n = Number(shown);
+  return n <= -NOISE ? AHEAD : n < NOISE ? SAME : shown;
 }
 
-/** KataGo's choice among loss labels: its win chance for the side to play, "1%" (the % tells it from a loss in points). */
-export const bestLabel = (best: Cand): string => `${Math.round(best.winrate * 100)}%`;
+/** KataGo's choice among loss labels: the ink dot (its win chance is in the key's words and the eval bar). */
+export const bestLabel = (_best: Cand): string => PICK;
 
 /** A phone's mark: its radius in points at full size (0.82; 0.76 before its digits grew, critics 2026-11-03). */
 export const BIG_R = 0.82;
@@ -124,9 +135,30 @@ export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | un
  * The other marks' unsigned numbers are named as points lost against KataGo's choice. `book`:
  * the book diagram, where marks are printed numbers and KataGo's choice is underlined.
  */
-export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', book = false): string {
+export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', book = false, game?: KeyGame): string {
   const choice = book ? 'Underlined' : 'Thick ring';
   if (!lopsidedRead(cands)) return `${book ? 'Numbers' : 'Rings'}: KataGo’s best moves, with ${side}’s win chance. ${choice}: KataGo’s choice.`;
-  // "Others" (not "Other rings") so the clause still fits one line of a 390 px phone with KataGo's choice named
-  return `${choice}: KataGo’s choice, with ${side}’s win chance. Others: points lost against KataGo’s choice (≈ same).`;
+  // A one-sided read, said in plain words first (critics, 2026-11-04: at 97%+ say so, rather than
+  // show tenths as if they decided the game). "Decided" only when gameDecided() agrees (late, from
+  // the point lead); before that "far ahead", with the trailing side's win chance.
+  const best = cands!.find((c) => c.rank === 0) ?? cands![0];
+  const sideWins = best.winrate >= 0.5;
+  const leader = sideWins ? side : side === 'Black' ? 'White' : 'Black';
+  const trailer = leader === 'Black' ? 'White' : 'Black';
+  const trailWin = Math.round((sideWins ? 1 - best.winrate : best.winrate) * 100);
+  const status =
+    game && gameDecided(game.move, game.bLead, game.size) ? `The game is decided (${leader} +${Math.abs(game.bLead).toFixed(1)})` : `${leader} is far ahead (${trailer} ${trailWin}%)`;
+  // each mark named only when it is on the board, so "≈" and "≥" each mean one thing
+  const label = candidateLabeler(cands)!;
+  const shown = new Set(cands!.map(label));
+  const marks = [shown.has(SAME) ? '≈ within 0.3' : '', shown.has(AHEAD) ? '≥ ahead on a shorter read' : ''].filter(Boolean).join(', ');
+  const pick = book ? 'Underlined: KataGo’s choice' : 'KataGo’s choice';
+  return `${pick}. ${status}, so the others show points lost against it${marks ? ` (${marks})` : ''}.`;
+}
+
+/** What the key needs to say whether a one-sided game is decided: the move number, Black's lead, the board size. */
+export interface KeyGame {
+  move: number;
+  bLead: number;
+  size: number;
 }

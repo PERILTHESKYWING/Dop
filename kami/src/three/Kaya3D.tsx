@@ -214,6 +214,16 @@ export default function Kaya3D(p: Kaya3DProps) {
           const pitch = Math.abs(q.y - pt.y);
           const b = k.firstElementChild as HTMLElement | null;
           if (b) b.style.fontSize = `${Math.max(11, Math.min(16, (pitch - 3) / 0.66)).toFixed(1)}px`;
+        } else if (big && L.dy && !L.dx) {
+          // and its letters the same way, to their own column's width there: the far (top) row's
+          // columns are about 12 px apart, so M and N keep 4 px between them instead of touching
+          // (critics, 2026-11-03/04: the top row A-T read as one squeezed string). The widest
+          // capital (M) is about 0.72 em at the 0.84 squeeze (kaya3d.css), two side by side 0.68.
+          const col = L.loc % size;
+          const q = v.project(col < size - 1 ? L.loc + 1 : L.loc - 1, L.lift, 0, L.dy);
+          const pitch = Math.abs(q.x - pt.x);
+          const b = k.firstElementChild as HTMLElement | null;
+          if (b) b.style.fontSize = `${Math.max(11, Math.min(16, (pitch - 4) / 0.68)).toFixed(1)}px`;
         }
       }
       // text scales with the board: one grid cell in CSS px

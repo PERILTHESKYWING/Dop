@@ -181,24 +181,25 @@ describe('a calm, even opening keeps XIAO’s relaxed voice', () => {
 describe('candidate labels in a lopsided game', () => {
   const c = (winrate: number, scoreLead: number, rank?: number) => ({ winrate, scoreLead, ...(rank !== undefined ? { rank } : {}) });
   it('show the loss against KataGo’s choice, not the same lead everywhere', () => {
-    const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.8, 3)];
-    // KataGo's choice shows its win chance with a % (never "0.0"), the others the points they
-    // lose in the answer's own rounding, unsigned; a thinner read that came out ahead is "≈".
-    expect(cands.map(candidateLabeler(cands)!)).toEqual(['1%', '0.9', '1.3', '≈']);
-    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['1%', '0.9', '1.3', '≈']);
+    const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -10.9, 3)];
+    // KataGo's choice is the ink dot (a form of its own, not a "1%" chip), the others the points
+    // they lose in the answer's own rounding, unsigned; within 0.3 either way is "≈".
+    expect(cands.map(candidateLabeler(cands)!)).toEqual(['●', '0.9', '1.3', '≈']);
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['●', '0.9', '1.3', '≈']);
     expect(lossLabel(c(0, -30), c(0, -11))).toBe('19.0');
     expect(lossLabel(c(0, -30), c(0, -11), true)).toBe('19');
     expect(lossLabel(c(0, -11.03), c(0, -11))).toBe('≈');
     // within noise (rounds to under 0.3 points) is "≈"; 0.3 is shown
     expect(lossLabel(c(0, -11.2), c(0, -11))).toBe('≈');
     expect(lossLabel(c(0, -11.3), c(0, -11))).toBe('0.3');
-    // ahead of the pick on a shorter read: "≈", never "+0.1"
+    // ahead of the pick within noise: "≈", never "+0.1"; 0.3 or more ahead on a shorter read: "≥"
     expect(lossLabel(c(0, -10.9), c(0, -11))).toBe('≈');
-    expect(lossLabel(c(0, -8), c(0, -11))).toBe('≈');
+    expect(lossLabel(c(0, -10.7), c(0, -11))).toBe('≥');
+    expect(lossLabel(c(0, -8), c(0, -11))).toBe('≥');
   });
   it('the same unsigned one-decimal numbers on a phone as on a desktop (whole points from 10)', () => {
     const cands = [c(0.01, -11.05, 0), c(0.01, -11.95, 1), c(0.004, -12.35, 2), c(0.01, -11.4, 3), c(0, -30, 4)];
-    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['1%', '0.9', '1.3', '0.3', '19']);
+    expect(cands.map(candidateLabeler(cands, true)!)).toEqual(['●', '0.9', '1.3', '0.3', '19']);
     expect(cands.map(candidateLabeler(cands, true)!).slice(0, 4)).toEqual(cands.map(candidateLabeler(cands)!).slice(0, 4));
     // no sign on any width: neither a minus (U+2212 or a hyphen) nor a plus
     for (const compact of [false, true]) expect(cands.map(candidateLabeler(cands, compact)!).some((l) => /[−+-]/.test(l))).toBe(false);
@@ -209,10 +210,22 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('the key names every figure a mark can show, in one name for the number', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];
-    expect(keyText(cands, 'Black')).toBe('Thick ring: KataGo’s choice, with Black’s win chance. Others: points lost against KataGo’s choice (≈ same).');
+    // one-sided, said in words; no "≈" or "≥" named when none is on the board
+    expect(keyText(cands, 'Black')).toBe('KataGo’s choice. White is far ahead (Black 1%), so the others show points lost against it.');
     expect(keyText(cands, 'White')).not.toMatch(/\+/);
     expect(keyText(cands, 'Black', true)).toMatch(/^Underlined: KataGo’s choice/);
     for (const t of [keyText(cands, 'Black'), keyText([c(0.45, -1)], 'Black')]) expect(t).not.toMatch(/winrate|win %/);
+    // each mark is named with its one meaning, only when it is shown
+    const close = [c(0.01, -11, 0), c(0.01, -11.2, 1), c(0.01, -12, 2)];
+    expect(keyText(close, 'Black')).toMatch(/\(≈ within 0\.3\)\.$/);
+    const ahead = [c(0.99, 11, 0), c(0.99, 11.6, 1), c(0.99, 10.9, 2)];
+    expect(keyText(ahead, 'Black')).toBe('KataGo’s choice. Black is far ahead (White 1%), so the others show points lost against it (≈ within 0.3, ≥ ahead on a shorter read).');
+  });
+  it('says the game is decided only when gameDecided agrees (late, from the points), not from 99% alone', () => {
+    const cands = [c(0.01, -11, 0), c(0.01, -12, 1)];
+    // the demo: move 34, White +11.1, Black 1%: far ahead, not decided
+    expect(keyText(cands, 'Black', false, { move: 34, bLead: -11.1, size: 19 })).toMatch(/^KataGo’s choice\. White is far ahead \(Black 1%\)/);
+    expect(keyText(cands, 'Black', false, { move: 200, bLead: -31, size: 19 })).toMatch(/^KataGo’s choice\. The game is decided \(White \+31\.0\)/);
   });
   const at = (x: number, y: number) => y * 19 + x;
   const m = (rank: number, x: number, y: number, lead: number) => ({ ...c(0.01, lead, rank), loc: at(x, y) });
@@ -227,7 +240,7 @@ describe('candidate labels in a lopsided game', () => {
   };
   it('a phone numbers every mark, as a desktop does', () => {
     const label = candidateLabeler(demo, true)!;
-    expect(demo.map(label)).toEqual(['1%', '1.0', '1.3', '≈', '1.0', '1.0']);
+    expect(demo.map(label)).toEqual(['●', '1.0', '1.3', '≈', '1.0', '1.0']);
     expect(demo.map(label).every((t) => t !== '')).toBe(true);
     // a close game: every mark carries the win chance (the default label)
     expect(candidateLabeler(demo.map((x) => ({ ...x, winrate: 0.45 })), true)).toBeUndefined();
