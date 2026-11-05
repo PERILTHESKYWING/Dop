@@ -21,6 +21,16 @@ async function openThread(p, title, fallback) {
   await settle(p);
 }
 
+// Presses Tab until the focused element passes the test (or n presses), then lets the ring draw.
+async function tabTo(p, test, n) {
+  const src = test.toString();
+  for (let i = 0; i < n; i++) {
+    await p.keyboard.press('Tab');
+    if (await p.evaluate((src) => { const el = document.activeElement; return !!el && el !== document.body && (0, eval)(src)(el); }, src)) break;
+  }
+  await settle(p, 250);
+}
+
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' }).catch(() => chromium.launch());
   const shots = [];
@@ -98,6 +108,33 @@ async function openThread(p, title, fallback) {
     await p.goto(BASE + '/library.html'); await settle(p, 1500); await snap(p, `m-${tag}-07-library`);
     await p.goto(BASE + '/studio.html'); await settle(p, 1500); await snap(p, `m-${tag}-08-studio`);
     await c.close();
+
+    // Keyboard focus (named z-focus-* so they sort after the shots above): Tab through the threads list
+    // and an open thread, and show where the ring is.
+    for (const phone of [false, true]) {
+      const dev = phone ? 'm' : 'd';
+      c = await ctx(browser, phone ? { w: 390, h: 844, dark, mobile: true } : { w: 1440, h: 900, dark });
+      p = await c.newPage();
+      await p.goto(BASE + '/'); await p.waitForSelector('.trow', { state: 'attached' }); await settle(p, 1200);
+      if (phone) { await p.click('.tabs button[data-tab="threads"]'); await settle(p, 400); }
+      await p.evaluate(() => document.activeElement?.blur());
+      await tabTo(p, (el) => el.matches('.trow.t1.has-step'), 30);
+      await snap(p, `z-focus-${dev}-${tag}-1-threads`);
+      await openThread(p, 'Kiai phone review');
+      await p.evaluate(() => document.activeElement?.blur());
+      await tabTo(p, (el) => el.matches('.act-tog'), 40);
+      await snap(p, `z-focus-${dev}-${tag}-2-thread`);
+      await p.keyboard.press('Tab'); await p.keyboard.press('Tab'); await p.keyboard.press('Tab'); await settle(p, 200);
+      await snap(p, `z-focus-${dev}-${tag}-3-thread-composer`);
+      if (!phone && !dark) {
+        // A menu opened from the keyboard: focus moves into it on its picked item.
+        await tabTo(p, (el) => el.matches('.chip.quiet'), 10);
+        await p.keyboard.press('Enter'); await settle(p, 300);
+        await snap(p, `z-focus-${dev}-${tag}-4-options-menu`);
+        await p.keyboard.press('Escape');
+      }
+      await c.close();
+    }
   }
   await browser.close();
   console.log(shots.join('\n'));

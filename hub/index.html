@@ -176,6 +176,8 @@ try {
 :root .tcard .go { color: var(--ink); }
 :root .cbox { border-radius: 12px; box-shadow: none; border-color: var(--line-2); border-bottom-width: 2px; }
 :root .cbox:focus-within { border-color: var(--stone); }
+/* Typing in the composer: the same 2 px stone ring as every text field (border plus a 1 px shadow). */
+:root .cbox:has(textarea:focus-visible) { box-shadow: 0 0 0 1px var(--stone); }
 :root .cbox textarea { font-size: 17px; }
 :root .hello h3 { font-weight: 700; font-size: 32px; }
 :root .ask-o { border-radius: var(--r); }
@@ -528,8 +530,9 @@ a.opt { color: inherit; text-decoration: none; }
 /* Without bubbles the text would slide over the red Delete; a page-coloured backing hides it. */
 :root:not([data-bg]) .sw-in, :root[data-bg=""] .sw-in { background: var(--bg); }
 .sw.open .sw-in { transform: translateX(-104px); }
-.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s; }
-.sw.open .sw-del, .sw.drag .sw-del { opacity: 1; pointer-events: auto; }
+.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; visibility: hidden; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s, visibility 0s .15s; }
+/* Hidden (not only see-through) until shown, so Tab never lands on an invisible Delete; shown at once, hidden after the fade. */
+.sw.open .sw-del, .sw.drag .sw-del { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .15s, visibility 0s; }
 .sw-x { position: absolute; top: 2px; right: 2px; z-index: 2; opacity: 0; border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; background: var(--panel); color: var(--soft); font: inherit; font-size: 15px; line-height: 1.3; }
 .sw:hover .sw-x, .sw-x:focus-visible { opacity: 1; }
 .sw.open .sw-x { opacity: 0; pointer-events: none; }
@@ -1785,6 +1788,9 @@ function swipeable(m, h) {
   return `<div class="sw${openMsg === m.id ? ' open' : ''}${contOf(m) ? ' cont' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">${icon('ellipsis', 16)}</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
 }
 function setOpen(id) {
+  // Closing the message whose Delete has focus: focus goes back to its options button, not to the page.
+  const at = document.activeElement?.closest?.('.sw.open');
+  if (at && Number(at.dataset.mid) !== id) at.querySelector('.sw-x')?.focus();
   openMsg = id;
   for (const el of document.querySelectorAll('.sw')) el.classList.toggle('open', Number(el.dataset.mid) === id);
 }
@@ -2179,11 +2185,21 @@ function grow() { const ta = $('text'); ta.style.height = 'auto'; ta.style.heigh
 
 // ---------- popover menus ----------
 let popKind = '';
+// Keyboard in a menu: opened by keys, focus goes to its picked (or first) item; a pick that redraws the
+// menu keeps focus on the same item; Escape, Done or a pick that closes it gives focus back to its button;
+// Tab past either end closes it and goes on from that button.
+const popEls = () => [...$('pop').querySelectorAll('button:not([disabled]), a[href], input:not([disabled])')].filter((el) => el.getClientRects().length);
+const popKey = (el) => {
+  const b = el.closest('button, a, input'); if (!b) return '';
+  const ks = ['opt', 'pick', 'tact', 'v', 'popdone'].filter((k) => b.dataset[k] !== undefined);
+  return ks.map((k) => `[data-${k}="${CSS.escape(b.dataset[k])}"]`).join('');
+};
 function openPop(kind, anchor) {
+  const pop = $('pop');
+  const was = pop.contains(document.activeElement) ? popKey(document.activeElement) : '';
   popKind = kind;
   const t = S.threads.find((x) => x.id === sel);
   const p = curPicks(t);
-  const pop = $('pop');
   pop.classList.toggle('big', kind === 'opts');
   if (kind === 'opts') {
     // Every pick in one menu, one tap each. Segments for single choices, toggles for accounts.
@@ -2238,10 +2254,29 @@ function openPop(kind, anchor) {
   const w = pop.offsetWidth, h = pop.offsetHeight;
   pop.style.left = Math.max(12, Math.min(kind === 'tmenu' || kind.startsWith('amenu:') ? r.right - w : r.left, innerWidth - w - 12)) + 'px';
   pop.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + 'px';
+  const back = was && pop.querySelector(was);
+  if (back) back.focus({ preventScroll: true });
+  else if (keyNav) (pop.querySelector('[aria-pressed="true"], .opt.on') || popEls()[0])?.focus({ preventScroll: true });
 }
 // The button that opened the last menu: a sheet opened from that menu gives focus back to it.
 let popBtn = null;
-function closePop() { popBtn = document.querySelector('[data-pop][aria-expanded="true"]') || popBtn; $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false'); }
+function closePop() {
+  const kind = popKind, inside = $('pop').contains(document.activeElement);
+  popBtn = document.querySelector('[data-pop][aria-expanded="true"]') || popBtn; $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
+  if (!inside || !kind) return;
+  // Focus was in the menu: back to its button (found again next frame if a redraw replaced it).
+  popBtn?.isConnected && popBtn.focus({ preventScroll: true });
+  requestAnimationFrame(() => { if (document.activeElement === document.body && $('sheet').classList.contains('hidden')) document.querySelector(`[data-pop="${CSS.escape(kind)}"]`)?.focus({ preventScroll: true }); });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || $('pop').classList.contains('hidden')) return;
+  const at = document.activeElement, els = popEls();
+  if (!els.length) return;
+  if (at?.matches?.('[data-pop][aria-expanded="true"]') && !e.shiftKey) { e.preventDefault(); els[0].focus(); return; }
+  if (!$('pop').contains(at)) return;
+  if (e.shiftKey && at === els[0]) { e.preventDefault(); closePop(); }
+  else if (!e.shiftKey && at === els.at(-1)) closePop(); // focus is on the menu's button now, so Tab goes on from it
+});
 async function setPick(patch) {
   const t = S.threads.find((x) => x.id === sel);
   if (!t) { Object.assign(opts, patch); saveOpts(); return renderTools(null); }
@@ -2519,7 +2554,8 @@ document.addEventListener('click', async (e) => {
   if (e.target.closest('[data-attach]')) return $('fileIn').click();
   const fo = e.target.closest('[data-fopen]'); if (fo) return openFile(fo.dataset.fopen);
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
-  const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
+  const mm = e.target.closest('[data-mmenu]');
+  if (mm) { setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu)); if (openMsg != null) mm.parentElement.querySelector('.sw-del')?.focus(); return; }
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
   const am = e.target.closest('[data-act-more]'); if (am) return toggleActs(am.dataset.actMore);
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));
