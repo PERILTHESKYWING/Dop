@@ -145,12 +145,15 @@ try {
 :root .app > .side .trow .tsub .when, :root .app > .side .st-done .stx, :root .app > .side .trow .lsub { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .st-waiting .stx, :root .app > .side .st-queued .stx { color: var(--kaya-amber); }
 :root .app > .side .trow.st-waiting:not(.on) { background: var(--panel); color: var(--ink); box-shadow: inset 3px 0 0 var(--amber); }
-:root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+:root .trow.t1 .ttl { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: break-word; }
+/* Keyboard focus opens a cut title to its full length (the pointer has the tooltip). */
+:root .trow.t1:focus-visible .ttl { -webkit-line-clamp: unset; }
 /* Desktop: titles wrap to two lines (full title in the tooltip), one small owner avatar per row. */
 @media (min-width: 861px) {
   :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
   :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; text-wrap: balance; }
   :root .trow.tn .ttl { font-size: 15px; }
+  :root .trow.t1 .tstep { font-size: 15px; line-height: 20px; }
 }
 .trow.t1 .avs { opacity: .9; }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
@@ -176,6 +179,8 @@ try {
 :root .tcard .go { color: var(--ink); }
 :root .cbox { border-radius: 12px; box-shadow: none; border-color: var(--line-2); border-bottom-width: 2px; }
 :root .cbox:focus-within { border-color: var(--stone); }
+/* Typing in the composer: the same 2 px stone ring as every text field (border plus a 1 px shadow). */
+:root .cbox:has(textarea:focus-visible) { box-shadow: 0 0 0 1px var(--stone); }
 :root .cbox textarea { font-size: 17px; }
 :root .hello h3 { font-weight: 700; font-size: 32px; }
 :root .ask-o { border-radius: var(--r); }
@@ -332,6 +337,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow.t1 .when { color: var(--soft); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
 .trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; }
+/* A working thread's current step: one muted, cut-off line under the title (rows without a step keep one line). */
+.trow.t1.has-step { row-gap: 1px; }
+.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 18px; font-weight: 400; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .trow.on .tstep { color: var(--soft); }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
 .stx { font-weight: 500; white-space: nowrap; }
 .st-working .stx, .st-new .stx { color: var(--green); }
@@ -523,8 +533,9 @@ a.opt { color: inherit; text-decoration: none; }
 /* Without bubbles the text would slide over the red Delete; a page-coloured backing hides it. */
 :root:not([data-bg]) .sw-in, :root[data-bg=""] .sw-in { background: var(--bg); }
 .sw.open .sw-in { transform: translateX(-104px); }
-.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s; }
-.sw.open .sw-del, .sw.drag .sw-del { opacity: 1; pointer-events: auto; }
+.sw-del { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; visibility: hidden; pointer-events: none; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--red); color: var(--panel); font: inherit; font-size: 15px; font-weight: 500; transition: opacity .15s, visibility 0s .15s; }
+/* Hidden (not only see-through) until shown, so Tab never lands on an invisible Delete; shown at once, hidden after the fade. */
+.sw.open .sw-del, .sw.drag .sw-del { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .15s, visibility 0s; }
 .sw-x { position: absolute; top: 2px; right: 2px; z-index: 2; opacity: 0; border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; background: var(--panel); color: var(--soft); font: inherit; font-size: 15px; line-height: 1.3; }
 .sw:hover .sw-x, .sw-x:focus-visible { opacity: 1; }
 .sw.open .sw-x { opacity: 0; pointer-events: none; }
@@ -778,6 +789,10 @@ button.fchip:hover { border-color: var(--faint); }
 .act small { color: var(--soft); font-size: 12px; flex: none; white-space: nowrap; }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
+/* Not connected: a hollow amber marker (an amber edge with a clear middle) and amber meta, never the working green. */
+button.act.nc { border-left: 3px double var(--amber); }
+.act.nc small { color: var(--amber-text); }
+button.act.starting { border-left-color: var(--line-2); }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
@@ -967,12 +982,23 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
   .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
   .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
+  .alist .act.nc { border-left: 0; }
+  .alist .act.nc .act-top { border-left: 3px double var(--amber); }
+  .alist .act.starting .act-top { border-left-color: var(--line-2); }
   .act-more { min-height: 32px; font-size: 15px; }
   .act-more::after { content: ''; position: absolute; inset: -7px -4px; }
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
-  .atop .btn.more { margin: -6px -8px -6px 0; }
+  /* ...and sits above the row under it, which otherwise took the bottom-left corner of that 44 px square. */
+  .atop .btn.more { margin: -6px -8px -6px 0; position: relative; z-index: 1; }
+  /* Its focus ring is drawn inside the 44 px square so it never lands on the usage row below. */
+  :root .atop .btn.more:focus-visible { outline-offset: -8px; }
+  /* The Look sheet's segments are 44 px tall; the Team footer (Settings, Look, Read usage, Sign out) keeps its
+     31 px boxes and gets a 45 px tap area from an overhanging ::after. */
+  .seg button { min-height: 44px; }
+  .acts.foot .btn { position: relative; }
+  .acts.foot .btn::after { content: ''; position: absolute; inset: -7px 0; }
   .team > .thead:first-child { padding-top: 10px; }
   /* The last heading in a tab never ends flush under the tab bar. */
   .team, .side .list { padding-bottom: 56px; }
@@ -1005,8 +1031,12 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
   /* Not connected: the same hollow amber ring as its sidebar dot, apart from the solid Needs-you badge. */
-  .tabs .ncring { display: inline-block; width: 10px; height: 10px; margin-left: 6px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); vertical-align: 1px; }
-  .tabs .ncring.hidden { display: none; }
+  /* Not connected: "◦ 1 not connected" on a second line, the same hollow amber ring as its sidebar dot, in words. */
+  .tabs button { flex-wrap: wrap; align-content: center; row-gap: 0; }
+  .tabs button:has(.nclab:not(.hidden)) { padding: 4px 0; }
+  .tabs .nclab { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 5px; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--amber-text); }
+  .tabs .nclab::before { content: ''; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); }
+  .tabs .nclab.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
 .btn:active, .chip:active, .attach:active, .tcard:active, .cp:active, .pbtn:active, .ask-o:active, .ask-go:active, .tk:active, .opt:active, .trow:active, .seg button:active, .walls button:active, .tabs button:active, .fchip .x:active, .sw-del:active, .sw-x:active { transform: translateY(1px); transition-duration: 0s; }
@@ -1057,7 +1087,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   </main>
   <aside class="col team" id="team"></aside>
   <nav class="tabs" id="tabs" aria-label="Sections">
-    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span><span class="ncring hidden" id="ncRing" role="img"></span></button>
+    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span><span class="nclab hidden" id="ncRing"></span></button>
     <button type="button" data-tab="chat">Chat</button>
     <button type="button" data-tab="team">Team</button>
   </nav>
@@ -1276,7 +1306,7 @@ function acctState(a) {
     const ts = S.threads.filter((t) => t.status === 'working' && !t.archived && (t.account === a.name || crewOf(t).includes(a.name)));
     if (ts.length && ts.every((t) => t.account === a.name && unheard(t))) {
       const late = ts.filter((t) => threadState(t)[0] === 'noconn');
-      return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`] : ['starting', 'Starting'];
+      return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
     }
     const nc = ts.filter((t) => t.account === a.name && isNoconn(t)).length;
     return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} not connected` : ''];
@@ -1348,13 +1378,19 @@ const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return 
 const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
 const agoHeard = (ms) => (ms < 60e3 ? 'last heard just now' : `last heard ${ago(ms)} ago`);
 const agoReport = (ms) => (ms < 60e3 ? 'step reported just now' : `step reported ${ago(ms)} ago`);
-const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport };
+// A working row in the thread list with no step: the same last-heard time as its Activity block.
+const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ago(ms)} ago`}`;
+const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
 // together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Not connected".
 const NOCONN_MS = 2 * 60e3;
 const unheard = (t) => !t.archived && t.status === 'working' && !!t.account && !((t.lastAgentAt || 0) > (t.lastFireAt || 0));
-const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - (t.lastFireAt || t.lastAgentAt || Date.now())) / 60e3));
+const unheardAt = (t) => t.lastFireAt || t.lastAgentAt || Date.now();
+const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - unheardAt(t)) / 60e3));
+// "Not connected · 4m" as HTML whose minutes tick in place (an .ago span counting from the session start).
+const minHtml = (s, at) => esc(s).replace(/\b(\d+)m\b/, `<span class="ago" data-at="${at}" data-f="m">$1m</span>`);
+const stHtml = ([, w, at]) => (at ? minHtml(w, at) : esc(w));
 const isNoconn = (t) => threadState(t)[0] === 'noconn';
 const isStarting = (t) => !t.archived && threadState(t)[0] === 'starting';
 const isRunning = (t) => !t.archived && ['working', 'new'].includes(t.status) && !isNoconn(t) && !isStarting(t);
@@ -1362,7 +1398,7 @@ const isRunning = (t) => !t.archived && ['working', 'new'].includes(t.status) &&
 function threadState(t) {
   if (t.archived) return ['done', 'Archived'];
   if (t.status === 'new') return ['starting', 'Starting'];
-  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Not connected · ${unheardMin(t)}m`] : ['starting', 'Starting'];
+  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Not connected · ${unheardMin(t)}m`, unheardAt(t)] : ['starting', 'Starting'];
   if (t.status === 'queued' && t.account) return ['queued', `Waiting for ${t.account}`];
   return [t.status, STATUS[t.status] || t.status];
 }
@@ -1394,7 +1430,8 @@ function sessionUpdates(t, msgs) {
 }
 // The current step: a running sub-agent's report, else the handover's next step if it is the newest
 // word, else the last sentence of the newest update (labelled as such). null: nothing reported yet.
-function currentStep(t, msgs) {
+const isUpdatePost = (m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind);
+function currentStep(t, msgs, post = msgs.filter(isUpdatePost).at(-1)) {
   const run = runningOn(t);
   if (run.length) {
     const g = run[0];
@@ -1402,7 +1439,6 @@ function currentStep(t, msgs) {
     const pct = g.pct != null && !/\b\d+\s*(of|\/)\s*\d+\b/.test(g.step || '') ? g.pct : null;
     return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct, at: g.at, more: run.length - 1 };
   }
-  const post = msgs.filter((m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind)).at(-1);
   const cp = t.checkpoint;
   if (cp?.next && (!post || cp.at >= post.at)) return { k: 'Next', v: plainLine(cp.next) };
   if (post) return { k: 'Latest', v: lastSentence(post.text) };
@@ -1425,7 +1461,7 @@ function activityHtml(t, msgs) {
   const quiet = unheard(t) || t.status === 'new';
   const heard = quiet ? '' : ` · ${agoEl(t.lastAgentAt, 'h')}`;
   // Not connected yet: the same whole minutes as the pill and the Team card (all redrawn together).
-  const elapsed = quiet ? `<span>${unheardMin(t)}m</span>` : agoEl(t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), 'e');
+  const elapsed = quiet ? agoEl(unheardAt(t), 'm') : agoEl(t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), 'e');
   const state = stCls === 'noconn' ? 'not connected' : quiet ? 'starting' : 'working';
   if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, 0, `${t.id}${t.account}${t.startedAt || ''}`, state, actMin ? stepOf(t, t.account) : '', heard, elapsed));
   for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, 0, `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : '', '', agoEl(t.crew[n].startedAt || t.crew[n].at || Date.now(), 'e')));
@@ -1441,7 +1477,7 @@ function activityHtml(t, msgs) {
   rows.sort((a, b) => b.at - a.at);
   const now = step
     ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}% done`, step.at && agoEl(step.at, 'r')].filter(Boolean).join(' · ')}</span>` : ''}</p>`
-    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${esc(waitingFor(t))}</span></p>${stCls === 'noconn' ? `<div class="act-acts"><button type="button" class="btn small" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>${t.sessionUrl ? `<a class="btn small act-sess" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}</div>` : ''}`;
+    : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${minHtml(waitingFor(t), unheardAt(t))}</span></p>${stCls === 'noconn' ? `<div class="act-acts"><button type="button" class="btn small" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>${t.sessionUrl ? `<a class="btn small act-sess" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}</div>` : ''}`;
   const list = rows.length ? `<ol class="act-list" aria-label="Recent, newest first">${rows.map((r) => r.h).join('')}</ol>` : '';
   return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
 }
@@ -1468,9 +1504,12 @@ $('feed').addEventListener('click', (e) => {
   ls.set('hub-activity', actMin ? 'min' : '');
   renderFeed();
 });
-// "Starting" turns into "Not connected · Nm" with time alone: redraw while such a thread exists, so the
-// pill, the Team card and the block say the same minutes.
-setInterval(() => { if (!document.hidden && S.threads.some(unheard)) render(); }, 15_000);
+// "Starting" turns into "Not connected · Nm" with time alone. The minutes tick in place (the clock tick
+// below), so this redraws only when a thread's state flips (starting -> not connected); ncKey is the
+// states the last render drew.
+let ncKey = '';
+const ncStates = () => S.threads.filter(unheard).map((t) => `${t.id}:${threadState(t)[0]}`).join();
+setInterval(() => { if (!document.hidden && S.threads.some(unheard) && ncStates() !== ncKey) render(); }, 15_000);
 let verbStep = Math.floor(Date.now() / VERB_MS);
 // Live lists, so a tick doesn't search the whole page; the timer stops while the tab is hidden.
 // Calm: one tick a second, clock text only. Lively: Claude Code's 120 ms spinner.
@@ -1519,21 +1558,37 @@ $('feed').addEventListener('click', (e) => {
 
 // ---------- sidebar ----------
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
-// Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
-let lastByThread = new Map(), lastByThreadAcct = new Map();
+// A working thread with a reported step gets a second, muted line: the Activity block's Now (or Next) step.
+// Filled once per renderSide: each thread's last message, its last update post (for the step), and its last non-thinking post per account (Team activity).
+let lastByThread = new Map(), lastByThreadAcct = new Map(), lastPostByThread = new Map();
 let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
+// The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
+function rowStep(t) {
+  if (!isRunning(t)) return '';
+  // The progress goes first so an ellipsis cuts the task name, never "Run 4 of 5".
+  const g = runningOn(t)[0];
+  if (g) return g.step ? `${g.step} · ${g.title}` : g.title;
+  const s = currentStep(t, null, lastPostByThread.get(t.id) ?? null);
+  return !s || s.k === 'Latest' ? '' : s.k === 'Next' ? `Next: ${s.v}` : s.v;
+}
+// Every working row has a second line, so a silent thread never looks like a busy one: its step, or
+// "No step yet · heard 4m ago" (ticking in place like the Activity block's ages).
 function threadRow(t) {
   const [ss, st] = threadState(t);
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  const step = rowStep(t);
+  const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? agoEl(t.lastAgentAt, 'n') : '';
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
-  lastByThread = new Map(); lastByThreadAcct = new Map();
+  ncKey = ncStates();
+  lastByThread = new Map(); lastByThreadAcct = new Map(); lastPostByThread = new Map();
   for (const m of S.messages) {
     lastByThread.set(m.thread, m);
+    if (isUpdatePost(m)) lastPostByThread.set(m.thread, m);
     if (m.kind !== 'thinking' && m.from !== 'XIAO' && m.from !== 'hub') { const a = acctOf(m.from); if (a) lastByThreadAcct.set(`${m.thread}|${a.name}`, m); }
   }
   setHtml($('clawdMark'), lively() ? clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'anim busy' : 'anim') : '');
@@ -1575,7 +1630,10 @@ function renderSide() {
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
   const nc = S.threads.filter(isNoconn).length, ring = $('ncRing');
-  ring.classList.toggle('hidden', !nc); ring.setAttribute('aria-label', `${nc} thread${nc === 1 ? '' : 's'} not connected`); ring.title = ring.getAttribute('aria-label');
+  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} not connected` : '';
+  // One spoken name for the tab: what the count badge and the amber line mean.
+  const tabT = document.querySelector('#tabs [data-tab="threads"]');
+  tabT.setAttribute('aria-label', ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} not connected`].filter(Boolean).join(', '));
 }
 
 // Desktop: a thread opened from a row half under the list's top or bottom edge scrolls into view whole,
@@ -1599,7 +1657,7 @@ $('threads').addEventListener('scroll', (e) => e.currentTarget.classList.toggle(
 // ---------- feed ----------
 function threadCard(t) {
   return `<button class="tcard st-${threadState(t)[0]}" data-thread="${t.id}"><span class="dot"></span><span class="ttl">${esc(t.title)}</span><span class="go">Open</span>
-    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${esc(threadState(t)[1])}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
+    <span class="meta">${avList(threadAccounts(t))}<span class="stx">${stHtml(threadState(t))}</span><span>${MODEL_NAME[t.model] || t.model}</span><span title="Effort: ${esc(THINK_NAME[t.thinking || 'medium'])}">${esc(THINK_NAME[t.thinking || 'medium'])} effort</span></span></button>`;
 }
 function picksOf(meta) {
   if (!meta) return '';
@@ -1768,6 +1826,9 @@ function swipeable(m, h) {
   return `<div class="sw${openMsg === m.id ? ' open' : ''}${contOf(m) ? ' cont' : ''}" data-mid="${m.id}"><div class="sw-in">${h}</div><button type="button" class="sw-x" data-mmenu="${m.id}" title="Delete this message" aria-label="Message options">${icon('ellipsis', 16)}</button><button type="button" class="sw-del" data-mdel="${m.id}">Delete</button></div>`;
 }
 function setOpen(id) {
+  // Closing the message whose Delete has focus: focus goes back to its options button, not to the page.
+  const at = document.activeElement?.closest?.('.sw.open');
+  if (at && Number(at.dataset.mid) !== id) at.querySelector('.sw-x')?.focus();
   openMsg = id;
   for (const el of document.querySelectorAll('.sw')) el.classList.toggle('open', Number(el.dataset.mid) === id);
 }
@@ -1800,7 +1861,7 @@ function renderHead(t) {
   const back = `<button class="back ib" id="back" type="button" aria-label="Threads" title="Threads">${icon('chevron-left', 22)}</button>` + panelBtn('side');
   // The header holds status, Session and ⋯ only; how agents' thinking shows is a setting in ⋯.
   // Phones: Session moves into ⋯ too.
-  const pill = (cls, dot, word) => `<span class="pill ${cls}" title="${esc(word)}"><span class="dot"${dot}></span><span class="pl">${esc(word)}</span></span>`;
+  const pill = (cls, dot, word, at) => `<span class="pill ${cls}" title="${esc(word)}"><span class="dot"${dot}></span><span class="pl">${at ? minHtml(word, at) : esc(word)}</span></span>`;
   const more = (cls = '') => `<button type="button" class="btn small more ${cls}" data-pop="tmenu" aria-label="More" title="More">${icon('ellipsis', 18)}</button>`;
   if (!t && sel === NEW_CHAT) {
     setHtml($('head'), `${back}<h2>New chat</h2><span class="pill wide">One agent · no coordinator</span>`);
@@ -1812,7 +1873,7 @@ function renderHead(t) {
     applyPanels(); return;
   }
   // Title, who is on it, status; one contextual action (Start again / Restore); Mark done, Archive and Delete live in ⋯.
-  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${threadState(t)[0]}`, '', threadState(t)[1])}
+  setHtml($('head'), `${back}<h2 title="#${t.id} ${esc(t.title)}">${esc(t.title)}</h2>${avList(threadAccounts(t), '')}${pill(`st-${threadState(t)[0]}`, '', threadState(t)[1], threadState(t)[2])}
     ${t.sessionUrl ? `<a class="btn small quiet hs" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}
     ${['stalled', 'queued'].includes(t.status) && !t.archived ? '<button type="button" class="btn small" data-act="retry">Start again</button>' : ''}
     ${t.archived ? '<button type="button" class="btn small" data-act="restore">Restore</button>' : ''}
@@ -2162,11 +2223,21 @@ function grow() { const ta = $('text'); ta.style.height = 'auto'; ta.style.heigh
 
 // ---------- popover menus ----------
 let popKind = '';
+// Keyboard in a menu: opened by keys, focus goes to its picked (or first) item; a pick that redraws the
+// menu keeps focus on the same item; Escape, Done or a pick that closes it gives focus back to its button;
+// Tab past either end closes it and goes on from that button.
+const popEls = () => [...$('pop').querySelectorAll('button:not([disabled]), a[href], input:not([disabled])')].filter((el) => el.getClientRects().length);
+const popKey = (el) => {
+  const b = el.closest('button, a, input'); if (!b) return '';
+  const ks = ['opt', 'pick', 'tact', 'v', 'popdone'].filter((k) => b.dataset[k] !== undefined);
+  return ks.map((k) => `[data-${k}="${CSS.escape(b.dataset[k])}"]`).join('');
+};
 function openPop(kind, anchor) {
+  const pop = $('pop');
+  const was = pop.contains(document.activeElement) ? popKey(document.activeElement) : '';
   popKind = kind;
   const t = S.threads.find((x) => x.id === sel);
   const p = curPicks(t);
-  const pop = $('pop');
   pop.classList.toggle('big', kind === 'opts');
   if (kind === 'opts') {
     // Every pick in one menu, one tap each. Segments for single choices, toggles for accounts.
@@ -2221,10 +2292,29 @@ function openPop(kind, anchor) {
   const w = pop.offsetWidth, h = pop.offsetHeight;
   pop.style.left = Math.max(12, Math.min(kind === 'tmenu' || kind.startsWith('amenu:') ? r.right - w : r.left, innerWidth - w - 12)) + 'px';
   pop.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + 'px';
+  const back = was && pop.querySelector(was);
+  if (back) back.focus({ preventScroll: true });
+  else if (keyNav) (pop.querySelector('[aria-pressed="true"], .opt.on') || popEls()[0])?.focus({ preventScroll: true });
 }
 // The button that opened the last menu: a sheet opened from that menu gives focus back to it.
 let popBtn = null;
-function closePop() { popBtn = document.querySelector('[data-pop][aria-expanded="true"]') || popBtn; $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false'); }
+function closePop() {
+  const kind = popKind, inside = $('pop').contains(document.activeElement);
+  popBtn = document.querySelector('[data-pop][aria-expanded="true"]') || popBtn; $('pop').classList.add('hidden'); popKind = ''; for (const b of document.querySelectorAll('[data-pop][aria-expanded="true"]')) b.setAttribute('aria-expanded', 'false');
+  if (!inside || !kind) return;
+  // Focus was in the menu: back to its button (found again next frame if a redraw replaced it).
+  popBtn?.isConnected && popBtn.focus({ preventScroll: true });
+  requestAnimationFrame(() => { if (document.activeElement === document.body && $('sheet').classList.contains('hidden')) document.querySelector(`[data-pop="${CSS.escape(kind)}"]`)?.focus({ preventScroll: true }); });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || $('pop').classList.contains('hidden')) return;
+  const at = document.activeElement, els = popEls();
+  if (!els.length) return;
+  if (at?.matches?.('[data-pop][aria-expanded="true"]') && !e.shiftKey) { e.preventDefault(); els[0].focus(); return; }
+  if (!$('pop').contains(at)) return;
+  if (e.shiftKey && at === els[0]) { e.preventDefault(); closePop(); }
+  else if (!e.shiftKey && at === els.at(-1)) closePop(); // focus is on the menu's button now, so Tab goes on from it
+});
 async function setPick(patch) {
   const t = S.threads.find((x) => x.id === sel);
   if (!t) { Object.assign(opts, patch); saveOpts(); return renderTools(null); }
@@ -2327,7 +2417,7 @@ function activityOf(a) {
     // thread last changed); "member" only when it isn't the lead.
     const [ss, sw] = threadState(t);
     const meta = ss === 'starting' || ss === 'noconn' ? sw : [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
-    return `<button type="button" class="act" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${esc(meta)}</small></div></button>`;
+    return `<button type="button" class="act${ss === 'noconn' ? ' nc' : ss === 'starting' ? ' starting' : ''}" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${ss === 'noconn' ? stHtml(threadState(t)) : esc(meta)}</small></div></button>`;
   };
   if (!ts.length) return '';
   // Running sub-agents are not repeated here: the Agents panel lists them, each with its one bar.
@@ -2338,10 +2428,10 @@ function activityOf(a) {
   return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
-  const [cls0, st0, stNote] = acctState(a);
-  // A working account with a silent thread never reads all-clear: its "Working" turns amber, and the line under its bars names the state ("1 thread not connected").
-  const stuck = stNote ? Number(stNote.split(' ')[0]) : 0;
-  const cls = stuck ? `${cls0} warn` : cls0, st = st0;
+  const [cls0, st0, stNote, stAt] = acctState(a);
+  // "Working" is green on every card; a silent thread is named in amber on the line under the bars
+  // ("1 thread not connected") and marked on its own row, so amber means "not connected" only.
+  const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
   const back = (ms) => until(new Date(ms).toISOString()).replace('resets ', '');
@@ -2356,7 +2446,7 @@ function accountCard(a) {
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${stAt ? minHtml(st, stAt) : esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${usage}
     ${conn}
     ${stNote && !sub ? `<div class="asub"><div class="sub snote">${esc(stNote)}</div></div>` : ''}
@@ -2391,7 +2481,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) || ['starting', 'noconn'].includes(threadState(t)[0]) ? `<small>${esc(threadState(t)[1])}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) || ['starting', 'noconn'].includes(threadState(t)[0]) ? `<small>${stHtml(threadState(t))}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
@@ -2408,6 +2498,9 @@ function agentRow(g) {
   const stale = g.status === 'running' && t - g.at > AGENT_STALE;
   const cls = stale ? 'stale' : g.status;
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
+  if (th && th.id === sel && $('app').dataset.tab === 'chat' && g.status === 'running' && !stale) {
+    return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>running ${agoEl(g.started)}</small></div><div class="ag-step">${g.step ? esc(g.step) + ' · ' : ''}this thread</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  }
   return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
 function agentPanel() {
@@ -2471,6 +2564,8 @@ function setTab(tab) {
   const shown = tab === 'chat' && sel ? 'threads' : tab;
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === shown));
   if (tab === 'chat' && was !== 'chat') toBottom();
+  // The Team panel says "this thread" only while that thread is on screen.
+  if (was !== tab) renderTeam();
 }
 const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
@@ -2502,7 +2597,8 @@ document.addEventListener('click', async (e) => {
   if (e.target.closest('[data-attach]')) return $('fileIn').click();
   const fo = e.target.closest('[data-fopen]'); if (fo) return openFile(fo.dataset.fopen);
   const md = e.target.closest('[data-mdel]'); if (md) return deleteMsg(Number(md.dataset.mdel));
-  const mm = e.target.closest('[data-mmenu]'); if (mm) return setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu));
+  const mm = e.target.closest('[data-mmenu]');
+  if (mm) { setOpen(openMsg === Number(mm.dataset.mmenu) ? null : Number(mm.dataset.mmenu)); if (openMsg != null) mm.parentElement.querySelector('.sw-del')?.focus(); return; }
   if (openMsg != null) { setOpen(null); if (e.target.closest('.sw')) return; }
   const am = e.target.closest('[data-act-more]'); if (am) return toggleActs(am.dataset.actMore);
   const th = e.target.closest('[data-thread]'); if (th) return openThread(Number(th.dataset.thread));

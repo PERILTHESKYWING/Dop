@@ -90,6 +90,10 @@ export interface TermNames {
  */
 export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   hane: { zh: '扳', ja: 'ハネ' },
+  stretch: { zh: '长', ja: 'ノビ' },
+  cut: { zh: '断', ja: 'キリ' },
+  block: { zh: '挡', ja: 'オサエ' },
+  descent: { zh: '立', ja: 'サガリ' },
   atari: { zh: '打吃', ja: 'アタリ' },
   ko: { zh: '劫', ja: 'コウ' },
   ladder: { zh: '征子', ja: 'シチョウ' },
@@ -129,7 +133,7 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   invasion: { zh: '打入', ja: '打ち込み' },
   reduction: { zh: '浅消', ja: '消し' },
   moyo: { zh: '模样', ja: '模様' },
-  thickness: { zh: '厚势', ja: '厚み' },
+  thickness: { zh: '厚味', ja: '厚み' },
   'big point': { zh: '大场', ja: '大場' },
   yose: { zh: '官子', ja: 'ヨセ' },
   dame: { zh: '单官', ja: 'ダメ' },

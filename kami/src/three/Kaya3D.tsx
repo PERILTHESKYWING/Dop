@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CandidateMark, Mark } from '../../../src/components/Board';
 import { PASS, type Color, type Loc, type Move } from '../../../src/lib/go/types';
-import { KayaView, WOOD_DX, WOOD_DY, type BoardWood, type PaleMark, type StoneColor } from './kaya';
+import { CHIP_H, CHIP_W, KayaView, WOOD_DX, WOOD_DY, type BoardWood, type PaleMark, type StoneColor } from './kaya';
 import './kaya3d.css';
 
 export interface Kaya3DProps {
@@ -64,6 +64,9 @@ interface Label {
   /** Offset in board cells (coordinates sit outside the grid). */
   dx?: number;
   dy?: number;
+  /** A frame's size in board cells (the focus frame round a chip). */
+  w?: number;
+  h?: number;
 }
 
 export default function Kaya3D(p: Kaya3DProps) {
@@ -171,6 +174,16 @@ export default function Kaya3D(p: Kaya3DProps) {
     for (const [k, m] of (p.marks ?? []).entries()) {
       if (m.loc === PASS || m.loc == null) continue;
       const onStone = !!st[m.loc] || !!p.variation?.some((v) => v.loc === m.loc);
+      // keyboard focus on one of KataGo's chips: a frame round the chip, where it is drawn, so its
+      // number stays readable (critics, 2026-11-05: the round focus ring covered "1.3")
+      const cand = m.kind === 'focus' && !onStone && !p.variation?.length ? p.candidates?.find((c) => c.loc === m.loc && c.rank !== 0) : undefined;
+      const text = cand ? (p.candLabel ? p.candLabel(cand) : winText(cand.winrate)) : '';
+      if (cand && text) {
+        const place = p.candBig ? p.candPlace?.(cand) : undefined;
+        const r = p.candBig ? (place?.r ?? 0.76) : 0.477;
+        out.push({ key: `m${k}`, loc: m.loc, lift: 0.0004, cls: 'k3-mark k3-focus on-chip', dx: place?.dx, dy: place?.dy, w: (r * CHIP_W) / 61, h: (r * CHIP_H) / 61 });
+        continue;
+      }
       out.push({ key: `m${k}`, loc: m.loc, lift: onStone ? STONE_TOP : 0.0004, cls: `k3-mark k3-${m.kind}${onStone ? ' on-stone' : ''}`, text: m.label });
     }
     if (p.coords) {
@@ -189,13 +202,21 @@ export default function Kaya3D(p: Kaya3DProps) {
       }
     }
     return out;
-  }, [p.stones, p.variation, p.candidates, p.lastMove, p.marks, p.coords, p.bigCoords, p.crop, size, tilt]);
+  }, [p.stones, p.variation, p.candidates, p.candLabel, p.candBig, p.candPlace, p.lastMove, p.marks, p.coords, p.bigCoords, p.crop, size, tilt]);
 
   // place them after every frame the view draws (the camera may be easing)
   useEffect(() => {
     const v = viewRef.current;
     if (!v) return;
     const big = !!p.bigCoords;
+    // a label's size is written only when its rounded value changes: place() runs on every
+    // camera frame, and a style write each time restyled every label (performance critic)
+    const setFont = (b: HTMLElement, v: string) => {
+      if (b.dataset.fs !== v) {
+        b.dataset.fs = v;
+        b.style.fontSize = v;
+      }
+    };
     const place = () => {
       const el = layer.current;
       if (!el) return;
@@ -213,7 +234,7 @@ export default function Kaya3D(p: Kaya3DProps) {
           const q = v.project(row < size - 1 ? L.loc + size : L.loc - size, L.lift, L.dx, 0);
           const pitch = Math.abs(q.y - pt.y);
           const b = k.firstElementChild as HTMLElement | null;
-          if (b) b.style.fontSize = `${Math.max(11, Math.min(16, (pitch - 3) / 0.66)).toFixed(1)}px`;
+          if (b) setFont(b, `${Math.max(11, Math.min(16, (pitch - 3) / 0.66)).toFixed(1)}px`);
         } else if (big && L.dy && !L.dx) {
           // and its letters the same way, to their own column's width there: the far (top) row's
           // columns are about 12 px apart, so M and N keep 4 px between them instead of touching
@@ -223,7 +244,7 @@ export default function Kaya3D(p: Kaya3DProps) {
           const q = v.project(col < size - 1 ? L.loc + 1 : L.loc - 1, L.lift, 0, L.dy);
           const pitch = Math.abs(q.x - pt.x);
           const b = k.firstElementChild as HTMLElement | null;
-          if (b) b.style.fontSize = `${Math.max(11, Math.min(16, (pitch - 4) / 0.68)).toFixed(1)}px`;
+          if (b) setFont(b, `${Math.max(11, Math.min(16, (pitch - 4) / 0.68)).toFixed(1)}px`);
         }
       }
       // text scales with the board: one grid cell in CSS px
@@ -253,6 +274,8 @@ export default function Kaya3D(p: Kaya3DProps) {
   // ------------------------------------------------------------- pointer
 
   const hoverCand = useRef<Loc | null>(null);
+  /** Hover and tap areas round a candidate reach at least this far (CSS px): 24 px across (WCAG 2.5.8). */
+  const HIT_PX = 12;
   const locAt = (e: React.PointerEvent) => {
     const v = viewRef.current;
     if (!v) return null;
@@ -266,23 +289,37 @@ export default function Kaya3D(p: Kaya3DProps) {
     if (p.crop && (x < p.crop.x0 || x > p.crop.x1 || y < p.crop.y0 || y > p.crop.y1)) return null;
     return y * size + x;
   };
+  /**
+   * The candidate whose mark (where it is drawn: a phone's may sit a little off its point) is
+   * nearest the pointer, how far (points), and the reach of a hover or tap there: 0.62 of a point
+   * and at least HIT_PX either way (24 px across on a phone, whose points are about 14 px apart).
+   */
+  const nearestCand = (e: React.PointerEvent | React.MouseEvent, g: { gx: number; gy: number }) => {
+    if (!p.candidates?.length) return null;
+    let best: Loc | null = null, bestD = Infinity;
+    for (const c of p.candidates) {
+      const at = p.candBig ? p.candPlace?.(c) : undefined;
+      const d = Math.hypot(g.gx - (c.loc % size) - (at?.dx ?? 0), g.gy - Math.floor(c.loc / size) - (at?.dy ?? 0));
+      if (d < bestD) {
+        bestD = d;
+        best = c.loc;
+      }
+    }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const g2 = viewRef.current?.gridAt(e.clientX - r.left + HIT_PX, e.clientY - r.top);
+    const reach = Math.max(0.62, g2 ? Math.hypot(g2.gx - g.gx, g2.gy - g.gy) : 0);
+    return best === null ? null : { loc: best, d: bestD, reach };
+  };
   const onMove = (e: React.PointerEvent) => {
     const g = locAt(e);
     const l = toLoc(g);
     const v = viewRef.current;
     if (v && p.onPlay) v.setHover(l, l !== null && !p.stones[l] ? ((p.toPlay ?? null) as StoneColor | null) : null);
     // a candidate keeps the hover until the pointer is clearly past it (no flicker at cell edges)
-    if (p.candidates?.length && g) {
-      let best: Loc | null = null, bestD = Infinity;
-      for (const c of p.candidates) {
-        const d = Math.hypot(g.gx - (c.loc % size), g.gy - Math.floor(c.loc / size));
-        if (d < bestD) {
-          bestD = d;
-          best = c.loc;
-        }
-      }
+    const near = g ? nearestCand(e, g) : null;
+    if (near) {
       const cur = hoverCand.current;
-      const next = cur !== null && best === cur && bestD <= 0.85 ? cur : bestD <= 0.62 ? best : null;
+      const next = cur !== null && near.loc === cur && near.d <= near.reach + 0.23 ? cur : near.d <= near.reach ? near.loc : null;
       if (next !== cur) {
         hoverCand.current = next;
         p.onCandidateHover?.(next);
@@ -297,7 +334,10 @@ export default function Kaya3D(p: Kaya3DProps) {
     }
   };
   const onClick = (e: React.PointerEvent) => {
-    const l = toLoc(locAt(e));
+    const g = locAt(e);
+    // a tap on a phone's mark (larger than its point, maybe moved off it) takes its move
+    const near = p.candBig && g ? nearestCand(e, g) : null;
+    const l = near && near.d <= near.reach ? near.loc : toLoc(g);
     if (l === null || p.stones[l]) return;
     if (p.onPlay) p.onPlay(l);
     else if (p.candidates?.some((c) => c.loc === l)) p.onCandidateClick?.(l);
@@ -309,7 +349,7 @@ export default function Kaya3D(p: Kaya3DProps) {
       <canvas ref={canvas} className="k3-canvas" onPointerMove={onMove} onPointerLeave={onLeave} onClick={onClick as unknown as React.MouseEventHandler} />
       <div ref={layer} className="k3-layer" aria-hidden="true">
         {labels.map((L) => (
-          <span key={L.key} className={`k3-l ${L.cls}`}>
+          <span key={L.key} className={`k3-l ${L.cls}`} style={L.w ? ({ '--fw': L.w.toFixed(3), '--fh': (L.h ?? L.w).toFixed(3) } as React.CSSProperties) : undefined}>
             {L.text !== undefined && <b>{L.text}</b>}
             {L.sub && <i>{L.sub}</i>}
           </span>

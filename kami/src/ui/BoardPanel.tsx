@@ -280,7 +280,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // number reads at 390 px; crowded marks move a little apart and shrink to fit, never below a
   // desktop mark's size (lib/candLabels.ts phonePlaces).
   const bigMarks = phone && !book;
-  const places = useMemo(() => (bigMarks && candidates?.length ? phonePlaces(candidates.map((c) => c.loc), board.size) : null), [bigMarks, candidates, board.size]);
+  const places = useMemo(() => (bigMarks && candidates?.length ? phonePlaces(candidates.map((c) => c.loc), board.size, view.stones) : null), [bigMarks, candidates, board.size, view.stones]);
   const candPlace = useMemo(() => (places ? (c: { loc: Loc }) => places.get(c.loc) : undefined), [places]);
   const candLabel = useMemo(() => candidateLabeler(candidates, phone), [candidates, phone]);
 
@@ -469,6 +469,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       candLabel={candLabel}
       candBig={bigMarks}
       candPlace={candPlace}
+      candChip={!book}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}

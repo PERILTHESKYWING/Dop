@@ -78,7 +78,8 @@ describe('findTerms', () => {
 
   it('skips everyday phrases', () => {
     expect(terms('a net gain of a few points')).toEqual([]);
-    expect(terms('keep an eye on the cut')).toEqual([]);
+    expect(terms('keep an eye on the cut')).toEqual(['cut']);
+    expect(terms('White cuts the lead; a block of stones; it cuts down the gap')).toEqual([]);
     expect(terms('a second eye to live')).toEqual(['eye']);
   });
 
@@ -114,6 +115,15 @@ describe('Kami term rendering helpers', () => {
     expect(termOf('Black plays the stretch at Q9.')).toEqual(['stretch']);
     expect(termOf('a nobi')).toEqual(['stretch']);
     expect(termOf('a long stretch of the side; the wall stretches across the board; it is a stretch to call it thick')).toEqual([]);
+  });
+  it('names the shapes the answers use: the cut, the block, the descent', () => {
+    expect(termOf('the cut at R10, then the block at Q9 and the descent at S2')).toEqual(['cut', 'block', 'descent']);
+    expect(termOf('a kiri, an osae, a sagari')).toEqual(['cut', 'block', 'descent']);
+  });
+  it('says each contact move touches, and links the verb attach to tsuke', () => {
+    expect(findTerms('the hane')[0].entry.def).toMatch(/touches the end of the opponent/);
+    expect(termOf("White's Q11 attaches to the black stone.")).toEqual(['tsuke']);
+    expect(termCard(findTerms('attach')[0].entry).title).toBe('Attach (tsuke)');
   });
   it('defines kakari as near the corner stone, not touching it', () => {
     expect(findTerms('a kakari')[0].entry.def).toMatch(/near, not touching/);

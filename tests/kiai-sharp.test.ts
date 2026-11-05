@@ -206,7 +206,7 @@ describe('candidate labels in a lopsided game', () => {
   });
   it('a close game keeps the win chance', () => {
     expect(candidateLabeler([c(0.45, -1), c(0.4, -2)])).toBeUndefined();
-    expect(keyText([c(0.45, -1)], 'Black')).toBe('Rings: KataGo’s best moves, with Black’s win chance. Thick ring: KataGo’s choice.');
+    expect(keyText([c(0.45, -1)], 'Black')).toBe('Numbers: KataGo’s best moves, with Black’s win chance. Ring: KataGo’s choice.');
   });
   it('the key names every figure a mark can show, in one name for the number', () => {
     const cands = [c(0.01, -11), c(0.01, -12)];

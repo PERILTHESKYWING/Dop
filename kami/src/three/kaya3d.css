@@ -275,6 +275,14 @@
   border-radius: 50%;
   box-shadow: 0 0 0 2px #f7f3ea, inset 0 0 0 1px #f7f3ea;
 }
+/* keyboard focus on one of KataGo's chips: a rounded frame just outside the chip (where it is drawn),
+   so its number stays readable */
+.k3-focus.on-chip::before {
+  width: calc(var(--cell) * var(--fw) + 8px);
+  height: calc(var(--cell) * var(--fh) + 8px);
+  border-width: 2px;
+  border-radius: 6px;
+}
 .k3-evidence::before {
   border-color: #15130f;
 }
