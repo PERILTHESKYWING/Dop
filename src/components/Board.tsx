@@ -75,6 +75,11 @@ export interface BoardProps {
   candBig?: boolean;
   /** With candBig: a numbered mark's place, moved off its point by (dx, dy) and its radius (board units). */
   candPlace?: (c: CandidateMark) => { dx: number; dy: number; r: number } | undefined;
+  /**
+   * Plain marks other than KataGo's choice drawn as low rounded chips, not circles, so they never
+   * read as stones at a glance; the choice keeps its round ring.
+   */
+  candChip?: boolean;
   onCandidateHover?: (loc: Loc | null) => void;
   onCandidateClick?: (loc: Loc) => void;
   /** A line of play drawn as numbered see-through stones (a candidate's variation). */
@@ -99,6 +104,11 @@ const PLAIN_BARE_R = 0.38;
 const PLAIN_PAD = 0.04;
 /** The narrowest a big (candBig) mark's label is set before it is set smaller instead. */
 const BIG_CONDENSE = 0.66;
+/** A chip (candChip) is as wide as its circle would be and this much of it tall; a phone's at most CHIP_BIG_H. */
+const CHIP_H = 0.7;
+const CHIP_BIG_H = 1.12;
+/** Hover and tap areas round a candidate reach at least this far (CSS px): 24 px across (WCAG 2.5.8). */
+const HIT_PX = 12;
 const CAND_STOPS: [number, [number, number, number]][] = [
   [0, [120, 214, 104]],
   [0.5, [244, 197, 66]],
@@ -735,15 +745,25 @@ function BoardImpl(p: BoardProps) {
       const wrText = wr >= 99.95 ? '100' : wr < 0.05 ? '0' : wr >= 10 ? wr.toFixed(1) : wr.toFixed(1);
       if (compact) labels.push(label);
       const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? (place?.r ?? PLAIN_BIG_R) : PLAIN_R;
+      // a chip: as wide as the circle, lower than it, square corners rounded (a bare one a small square)
+      const chip = plain && p.candChip && c.rank !== 0;
+      const cw = bare ? 1.5 * r : 2 * r;
+      const ch = bare ? cw : p.candBig ? Math.min(2 * r, CHIP_BIG_H) : 2 * r * CHIP_H;
+      const shape = (cls: string, fill?: string) =>
+        chip ? (
+          <rect className={cls} x={x - cw / 2} y={y - ch / 2} width={cw} height={ch} rx={ch * 0.22} fill={fill} />
+        ) : (
+          <circle className={cls} cx={x} cy={y} r={r} fill={fill} />
+        );
       return (
         <g
           key={`c${c.loc}`}
-          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${side}${bare ? ' bare' : plain && p.candBig ? ' big' : ''}`}
+          className={`cand${c.rank === 0 ? ' cand-best' : ''}${compact ? ' compact' : ''}${plain ? ' plain' : ''}${chip ? ' chip' : ''}${side}${bare ? ' bare' : plain && p.candBig ? ' big' : ''}`}
           style={plain ? undefined : { opacity: c.rank === 0 ? 1 : 0.5 + 0.5 * Math.sqrt(Math.max(0, Math.min(1, c.share))) }}
         >
           {/* under a light ring, an ink edge a little wider shows on both sides of it (a pale ring alone vanishes on pale wood) */}
-          {side === ' to-w' && <circle className="cand-edge" cx={x} cy={y} r={r} />}
-          <circle className="cand-disc" cx={x} cy={y} r={r} fill={plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness)} />
+          {side === ' to-w' && shape('cand-edge')}
+          {shape('cand-disc', plain ? '#fbf8f1' : c.rank === 0 ? CAND_BEST : candColor(c.badness))}
           {bare ? null : compact ? (
             <text className="cand-wr" x={x} y={y + 0.02}>
               {label}
@@ -781,21 +801,25 @@ function BoardImpl(p: BoardProps) {
     const fit = () => {
       if (!alive) return;
       el.querySelectorAll<SVGTextElement>('.cand.plain .cand-wr').forEach((t) => {
-        const disc = t.parentElement?.querySelector<SVGCircleElement>('.cand-disc');
+        const disc = t.parentElement?.querySelector<SVGCircleElement | SVGRectElement>('.cand-disc');
         if (typeof t.getComputedTextLength !== 'function' || !disc) return;
+        const rect = disc instanceof SVGRectElement ? disc : null;
         t.removeAttribute('textLength');
         t.removeAttribute('lengthAdjust');
         t.style.removeProperty('font-size');
         // the widest a line of digits half a font-size tall can be inside the ring's inner edge
         // (a mark without a ring, the book's cleared point, only keeps the label inside its width)
         const sw = parseFloat(getComputedStyle(disc).strokeWidth) || 0;
-        const r = disc.r.baseVal.value;
+        const r = rect ? rect.width.baseVal.value / 2 : (disc as SVGCircleElement).r.baseVal.value;
         const inner = r - sw / 2 - PLAIN_PAD;
         const ringless = getComputedStyle(disc).stroke === 'none' || !sw;
         const fs0 = parseFloat(getComputedStyle(t).fontSize) || 0;
-        const roomAt = (fs: number) => (ringless ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - (0.36 * fs) ** 2)));
+        // a chip: its straight inside, less the rounding at the corners; a circle: the chord at the digits' top
+        const roomAt = (fs: number) => (rect ? 2 * inner - rect.rx.baseVal.value * 0.6 : ringless ? 1.9 * r : 2 * Math.sqrt(Math.max(0, inner * inner - (0.36 * fs) ** 2)));
         const len0 = t.getComputedTextLength();
         let fs = fs0;
+        // a chip's digits (about 0.7 of the size tall) keep inside its height
+        if (rect) fs = Math.min(fs, (rect.height.baseVal.value - sw - 2 * PLAIN_PAD) / 0.72);
         let room = roomAt(fs);
         // a big (candBig) mark shrunk by a crowded neighbour sets its label smaller rather than
         // narrower than BIG_CONDENSE of its width (its full-size neighbours keep their size)
@@ -859,6 +883,29 @@ function BoardImpl(p: BoardProps) {
     const x = Math.round(q.x), y = Math.round(q.y);
     if (x < 0 || y < 0 || x >= size || y >= size) return null;
     return y * size + x;
+  };
+  /** Hover and tap reach: 0.62 of a point, and at least HIT_PX either way. */
+  const hitR = Math.max(0.62, HIT_PX / unitPx);
+  /** The candidate whose mark (where it is drawn, moved off its point on a phone) is nearest, and how far (board units). */
+  const nearestCand = (e: { clientX: number; clientY: number; currentTarget: SVGRectElement }) => {
+    const svg = e.currentTarget.ownerSVGElement;
+    const m = svg?.getScreenCTM();
+    if (!svg || !m || !p.candidates?.length) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const q = pt.matrixTransform(m.inverse());
+    let best: Loc | null = null;
+    let bestD = Infinity;
+    for (const c of p.candidates) {
+      const at = p.candBig ? p.candPlace?.(c) : undefined;
+      const d = Math.hypot(q.x - (c.loc % size) - (at?.dx ?? 0), q.y - Math.floor(c.loc / size) - (at?.dy ?? 0));
+      if (d < bestD) {
+        bestD = d;
+        best = c.loc;
+      }
+    }
+    return best === null ? null : { loc: best, d: bestD };
   };
 
   return (
@@ -936,27 +983,11 @@ function BoardImpl(p: BoardProps) {
             // flickers on and off on every tiny pointer move. Once a candidate is hovered, the
             // pointer has to move clearly past it (keepR) before it lets go.
             if (p.candidates?.length) {
-              const svg = e.currentTarget.ownerSVGElement;
-              const m = svg?.getScreenCTM();
               const cur = hoveredCand.current;
-              let next: Loc | null = null;
-              if (m) {
-                const pt = svg!.createSVGPoint();
-                pt.x = e.clientX;
-                pt.y = e.clientY;
-                const q = pt.matrixTransform(m.inverse());
-                let best: Loc | null = null;
-                let bestD = Infinity;
-                for (const c of p.candidates) {
-                  const d = Math.hypot(q.x - (c.loc % size), q.y - Math.floor(c.loc / size));
-                  if (d < bestD) {
-                    bestD = d;
-                    best = c.loc;
-                  }
-                }
-                const hitR = 0.62, keepR = 0.85;
-                next = cur !== null && best === cur && bestD <= keepR ? cur : bestD <= hitR ? best : null;
-              }
+              const near = nearestCand(e);
+              // at least HIT_PX round a mark (a phone's points are about 14 px apart)
+              const keepR = Math.max(0.85, hitR + 0.2);
+              const next = near && ((cur !== null && near.loc === cur && near.d <= keepR) || near.d <= hitR) ? near.loc : null;
               if (next !== cur) {
                 hoveredCand.current = next;
                 p.onCandidateHover?.(next);
@@ -974,7 +1005,9 @@ function BoardImpl(p: BoardProps) {
             }
           }}
           onClick={(e) => {
-            const l = locFromEvent(e as unknown as PointerEvent<SVGRectElement>);
+            // a tap on a phone's mark (larger than its point, maybe moved off it) takes its move
+            const near = p.candBig ? nearestCand(e) : null;
+            const l = near && near.d <= hitR && !stones[near.loc] ? near.loc : locFromEvent(e as unknown as PointerEvent<SVGRectElement>);
             if (l === null || stones[l]) return;
             if (interactive) p.onPlay!(l);
             else if (p.candidates?.some((x) => x.loc === l)) p.onCandidateClick?.(l);

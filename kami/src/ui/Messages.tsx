@@ -440,6 +440,9 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...sections.map((s) => s.text)]);
   const factPlan = firstTerms(facts.map((f) => f.text));
   const longer = longerLevel(msg.level ?? levelOfMessage(msg)?.id);
+  // A phone opens KataGo's numbers folded under their count, so the whole answer fits the pane
+  // under the board; a tap opens them (critics, 2026-11-04). A desktop opens them.
+  const [factsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia?.('(max-width: 899px)').matches);
   return (
     <>
       {/* "Read longer" is an outlined button on the read's own row, which ends "· quick read", so
@@ -469,7 +472,7 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
       {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {facts.length > 0 && (
-        <details className="facts" open>
+        <details className="facts" open={factsOpen}>
           <summary>
             KataGo’s numbers ({facts.length}) <Icon name="down" size={14} />
           </summary>
@@ -937,7 +940,7 @@ export function Messages({ messages, running, board, link, onAsk, onRegenerate, 
             <KamiMessage key={m.id} m={m} running={running?.msgId === m.id ? running : null} isLast={i === messages.length - 1} link={link} onRegenerate={onRegenerate} onAsk={onAsk} onShowBoard={onShowBoard} busy={i === messages.length - 1 && busy} onReadLonger={onReadLonger} />
           ),
         )}
-        <div ref={spacer} aria-hidden="true" />
+        <div ref={spacer} className="msgs-tail" aria-hidden="true" />
         <div ref={end} />
       </div>
     </AskContext.Provider>

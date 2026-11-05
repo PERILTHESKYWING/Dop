@@ -71,6 +71,10 @@ const SPECS: Spec[] = [
   { term: 'dragon', concept: 'weak-group', def: 'Dragon: a long group of stones stretching across the board, often still without two eyes.' },
   // Shape and moves
   { term: 'stretch', aliases: ['nobi'], def: "Stretch (nobi): a stone played straight on from your own, in contact, usually alongside the opponent's stones, making the chain longer." },
+  // The shapes the answers name (explain/shapes.ts: "the cut at R10", "the block", "the descent")
+  { term: 'cut', aliases: ['kiri'], def: "Cut: a stone played between two of the opponent's stones that are linked only diagonally, splitting them apart." },
+  { term: 'block', aliases: ['osae'], def: "Block (osae): a stone played straight in front of the opponent's stones, in contact, so they cannot go further that way." },
+  { term: 'descent', aliases: ['sagari'], def: 'Descent (sagari): a stone played straight on from your own toward the edge of the board, in contact with it.' },
   { term: 'hane', def: "Hane: a move that bends around the end of the opponent's stones, diagonally from your own stone." },
   { term: 'tsuke', aliases: ['attachment', 'contact play'], def: "Tsuke (attachment): a stone placed directly against an opponent's stone, often to settle or to see how they answer." },
   { term: 'kosumi', aliases: ['diagonal move', 'diagonal play'], def: 'Kosumi (diagonal move): a stone placed diagonally next to your own; slow, but solid and hard to cut.' },
@@ -134,7 +138,7 @@ const MATCHERS: { entry: GlossaryEntry; re: RegExp }[] = GLOSSARY.flatMap((entry
 );
 
 /** Everyday phrases that use a Go word in its ordinary sense. */
-const IDIOMS = /(?<![\p{L}\p{N}])(?:net\s+(?:gain|loss|losses|result|effect|change|value|score)s?|keep(?:s|ing)?\s+an\s+eye\s+on|eye\s+to\s+eye|(?:a|long|short|home|final)\s+stretch|stretch(?:es)?\s+of|stretch(?:es)?\s+(?:out|across|along|from|to|toward|towards|into|over|between|thin))(?![\p{L}\p{N}])/giu;
+const IDIOMS = /(?<![\p{L}\p{N}])(?:net\s+(?:gain|loss|losses|result|effect|change|value|score)s?|keep(?:s|ing)?\s+an\s+eye\s+on|eye\s+to\s+eye|(?:a|long|short|home|final)\s+stretch|stretch(?:es)?\s+of|stretch(?:es)?\s+(?:out|across|along|from|to|toward|towards|into|over|between|thin)|cut(?:s|ting)?\s+(?:short|down|back|it\s+fine)|cut(?:s|ting)?\s+(?:the|its|their|white['’]s|black['’]s)\s+(?:lead|gap|margin|deficit|losses|loss)|(?:building\s+)?blocks?\s+of)(?![\p{L}\p{N}])/giu;
 /** [[v1]] / [[d1]] chips and board points like Q16 or q4. */
 const REFS = /\[\[[^\]]*\]\]|(?<![\p{L}\p{N}])[A-HJ-Ta-hj-t](?:1[0-9]|[1-9])(?![\p{L}\p{N}])/gu;
 

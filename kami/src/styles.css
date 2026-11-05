@@ -973,6 +973,19 @@ kbd {
   border-bottom: 1.5px solid var(--accent-line);
   cursor: pointer;
 }
+/* a coordinate's hover and tap area is at least 24 px each way (WCAG 2.5.8), past its letters */
+.pt {
+  position: relative;
+}
+.pt::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 24px);
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
 .pt:hover,
 .pt.on {
   background: var(--accent-soft);
@@ -980,6 +993,8 @@ kbd {
 }
 /* Go terms with a definition on hover or tap (glossary) */
 .term {
+  /* 4 px above and below the letters: a hover or tap area 24 px tall or more, the line unmoved */
+  padding-block: 4px;
   text-decoration-line: underline;
   text-decoration-style: dotted;
   text-decoration-color: var(--faint);
@@ -1836,14 +1851,30 @@ kbd {
    light and the dark page (critics, 2026-11-04: on the dark page its ink ring vanished and it
    read as a gold "O"): a tan disc ringed in ink (Black to play) or ink-light-ink (White), the
    proportions of kaya.ts drawToken */
+/* the other moves' mark is a chip (kaya.ts drawChip): tan, edged in ink, or ink-light-ink for White,
+   with a wood rim so it shows on the dark page */
 .bp-key i.ring {
-  width: 20px;
-  height: 20px;
-  box-shadow: none;
-  background: radial-gradient(circle closest-side, #e4c493 0 70%, #1b1714 0 80%, #c98a4a 0 100%);
+  width: 22px;
+  height: 15px;
+  border-radius: 4px;
+  background: #e4c493;
+  box-shadow:
+    inset 0 0 0 1.5px #1b1714,
+    0 0 0 1.5px #c98a4a;
 }
 .bp-key i.ring.w {
-  background: radial-gradient(circle closest-side, #e4c493 0 62%, #1b1714 0 67%, #fbf8f1 0 75%, #1b1714 0 80%, #c98a4a 0 100%);
+  box-shadow:
+    inset 0 0 0 1px #1b1714,
+    inset 0 0 0 2.5px #fbf8f1,
+    inset 0 0 0 3.5px #1b1714,
+    0 0 0 1.5px #c98a4a;
+}
+.bp-key i.ring.pick,
+.bp-key i.ring.pick.w {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: none;
 }
 /* a one-sided read: KataGo's choice, a thick ink ring round a filled ink dot (candLabels PICK) */
 .bp-key i.ring.pick {
@@ -2735,9 +2766,17 @@ kbd {
   font-size: 15px;
   cursor: pointer;
 }
+/* a touch screen: "Read longer" is 32 px to the eye and 44 px to a finger (the ::before reaches
+   6 px past it above and below), so the read row stays one line of text tall */
 @media (pointer: coarse) {
   .read-longer {
-    min-height: 44px;
+    position: relative;
+    min-height: 32px;
+  }
+  .read-longer::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
   }
 }
 @media (max-width: 899px) {
@@ -2812,11 +2851,16 @@ kbd {
   .conv-tools {
     display: flex;
   }
+  /* 8 px less than 58% of the screen, taken from the padding under the step card and inside it,
+     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room */
   .board-panel {
     width: auto;
-    height: var(--board-h, 58dvh);
-    padding: 2px 10px 6px;
+    height: var(--board-h, calc(58dvh - 8px));
+    padding: 2px 10px 4px;
     gap: 4px;
+  }
+  .bp-foot {
+    padding: 0 6px 0;
   }
   .splitter {
     width: auto;
@@ -2893,6 +2937,11 @@ kbd {
     height: 15px;
   }
   .bp-key i.ring {
+    width: 20px;
+    height: 14px;
+  }
+  .bp-key i.ring.pick,
+  .bp-key i.ring.pick.w {
     width: 18px;
     height: 18px;
   }
@@ -2967,6 +3016,50 @@ kbd {
   .who {
     margin-bottom: 2px;
   }
+  /* The whole answer fits the pane under the board (critics, 2026-11-04: it scrolled). The copy and
+     redo buttons sit at the right end of Kiai's name row instead of a row of their own; the
+     question's edit button sits beside its bubble; KataGo's numbers start folded under their count
+     (Messages.tsx); and messages are 18 px apart. */
+  .msg {
+    margin-bottom: 18px;
+  }
+  /* the last message ends 10 px over the pane's foot (the composer's own 8 px gap follows) */
+  .msg:has(+ .msgs-tail) {
+    margin-bottom: 10px;
+  }
+  .msg.kami {
+    position: relative;
+  }
+  .msg.kami > .msg-tools {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    margin: 0;
+  }
+  .msg.user:not(.editing) {
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+  .msg.user > .msg-tools {
+    margin: 0;
+  }
+  .msg.user .bubble {
+    max-width: calc(85% - 30px);
+  }
+  .read-row {
+    margin-bottom: 4px;
+  }
+  .read-row .thoughts {
+    margin-bottom: 0;
+  }
+  .facts {
+    margin: 4px 0 0;
+  }
+  .facts summary {
+    min-height: 24px;
+  }
   .thoughts {
     border: 0;
     margin-bottom: 6px;
@@ -2981,8 +3074,11 @@ kbd {
   .msg.kami .ans-section,
   .font-serif .msg.kami .rich,
   .font-serif .msg.kami .ans-section {
-    font-size: 17px;
-    line-height: 1.55;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  .msg.kami .rich > p:last-child {
+    margin-bottom: 4px;
   }
   /* the step buttons and the graph buttons, a little tighter */
   .step-btn {
@@ -3138,6 +3234,11 @@ kbd {
 }
 .messages {
   padding-bottom: 20px;
+}
+@media (max-width: 899px) {
+  .messages {
+    padding-bottom: 12px;
+  }
 }
 /* a term card's Chinese and Japanese names, after its English title */
 .term-tip-names {

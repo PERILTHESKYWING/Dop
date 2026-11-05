@@ -90,6 +90,10 @@ export interface TermNames {
  */
 export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   hane: { zh: '扳', ja: 'ハネ' },
+  stretch: { zh: '长', ja: 'ノビ' },
+  cut: { zh: '断', ja: 'キリ' },
+  block: { zh: '挡', ja: 'オサエ' },
+  descent: { zh: '立', ja: 'サガリ' },
   atari: { zh: '打吃', ja: 'アタリ' },
   ko: { zh: '劫', ja: 'コウ' },
   ladder: { zh: '征子', ja: 'シチョウ' },

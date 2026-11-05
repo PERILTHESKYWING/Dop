@@ -201,6 +201,12 @@ function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best:
     g.arc(64, 64, to, 0, Math.PI * 2, true);
     g.fill();
   };
+  // Every mark but KataGo's choice is a low chip with rounded corners, not a disc: round marks the
+  // size of a stone read as stones at a glance (a pro teacher, three rounds). The choice keeps its ring.
+  if (!best) {
+    drawChip(g, text, side);
+    return;
+  }
   let r = 61;
   if (side === 2) {
     band(r, r - 3, TOKEN_INK);
@@ -242,6 +248,77 @@ function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best:
     g.lineJoin = 'round';
     g.strokeText(text, 64, y, room - 4);
     g.fillText(text, 64, y, room - 4);
+    return;
+  }
+}
+
+/** A rounded rectangle path centred on the 128 px canvas. */
+function rrect(g: CanvasRenderingContext2D, w: number, h: number, rad: number, ccw = false) {
+  const x0 = 64 - w / 2, y0 = 64 - h / 2, x1 = 64 + w / 2, y1 = 64 + h / 2;
+  const k = Math.min(rad, w / 2, h / 2);
+  if (!ccw) {
+    g.moveTo(x0 + k, y0);
+    g.arcTo(x1, y0, x1, y1, k);
+    g.arcTo(x1, y1, x0, y1, k);
+    g.arcTo(x0, y1, x0, y0, k);
+    g.arcTo(x0, y0, x1, y0, k);
+  } else {
+    g.moveTo(x0 + k, y0);
+    g.arcTo(x0, y0, x0, y1, k);
+    g.arcTo(x0, y1, x1, y1, k);
+    g.arcTo(x1, y1, x1, y0, k);
+    g.arcTo(x1, y0, x0, y0, k);
+  }
+  g.closePath();
+}
+/** The chip's size on the 128 px canvas: as wide as the choice's disc, 0.7 of it tall (a bare one a small square). */
+export const CHIP_W = 122, CHIP_H = 86, CHIP_BARE = 92;
+/**
+ * A candidate other than KataGo's choice: a tan chip edged in the colour to play (an ink edge for
+ * Black; for White a light band between ink hairlines), its number in ink as large as its height allows.
+ */
+function drawChip(g: CanvasRenderingContext2D, text: string, side: StoneColor) {
+  const w0 = text ? CHIP_W : CHIP_BARE, h0 = text ? CHIP_H : CHIP_BARE;
+  const edge = text ? 6 : 14;
+  const band = (inset: number, width: number, fill: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    rrect(g, w0 - 2 * inset, h0 - 2 * inset, h0 * 0.22 - inset);
+    rrect(g, w0 - 2 * (inset + width), h0 - 2 * (inset + width), h0 * 0.22 - inset - width, true);
+    g.fill();
+  };
+  let inset = 0;
+  if (side === 2) {
+    band(0, 3, TOKEN_INK);
+    band(3, edge, TOKEN_LIGHT);
+    band(3 + edge, 3, TOKEN_INK);
+    inset = 6 + edge;
+  } else {
+    band(0, edge, TOKEN_INK);
+    inset = edge;
+  }
+  g.fillStyle = TOKEN_FILL;
+  g.beginPath();
+  rrect(g, w0 - 2 * inset, h0 - 2 * inset, h0 * 0.22 - inset);
+  g.fill();
+  if (!text) return;
+  g.fillStyle = TOKEN_INK;
+  g.textAlign = 'center';
+  g.textBaseline = 'alphabetic';
+  // as tall as the chip's inside allows (digits keep 6 px clear of the edge), set narrower down
+  // to 64% before a long one comes down in size
+  const roomW = w0 - 2 * inset - 10, roomH = h0 - 2 * inset - 12;
+  for (let px = 96; ; px -= 4) {
+    g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
+    const m = g.measureText(text);
+    const up = m.actualBoundingBoxAscent || px * 0.66, down = m.actualBoundingBoxDescent || 0;
+    if ((up + down > roomH || m.width * 0.64 > roomW) && px > 40) continue;
+    const y = 64 + (up - down) / 2;
+    g.strokeStyle = TOKEN_INK;
+    g.lineWidth = 4;
+    g.lineJoin = 'round';
+    g.strokeText(text, 64, y, roomW);
+    g.fillText(text, 64, y, roomW);
     return;
   }
 }
