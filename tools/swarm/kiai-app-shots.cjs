@@ -90,6 +90,7 @@ const rects = async (p) =>
     });
     R.chipText = await page.evaluate(() => document.querySelector('.engine-slot')?.textContent || '');
     R.players = await page.evaluate(() => [...document.querySelectorAll('.pl-name')].map((e) => ({ t: e.textContent, clipped: e.scrollWidth > e.clientWidth })));
+    const answerScroll = await page.evaluate(() => document.querySelector('.messages').scrollTop);
     await shot('3-answer');
     // hover (desktop) or tap (phone) the first idea chip / point in the answer
     const tag = (await page.$('.msg.kami .tags .tag')) || (await page.$('.msg.kami .rich .pt'));
@@ -200,12 +201,27 @@ const rects = async (p) =>
     // 8 (phone): a tap on a term pins its card
     if (vp.name === 'phone') {
       await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+      // the chat as the answer opened (Tab in 6 and 7 may have scrolled it), so the tap is judged
+      // where a reader makes it; the tap itself must not scroll the chat
+      await page.keyboard.press('Escape');
+      await page.evaluate((y) => (document.querySelector('.messages').scrollTop = y), answerScroll);
+      await page.waitForTimeout(300);
       const term = await page.$('.msg.kami .term');
       if (term) {
+        const before = await page.evaluate(() => document.querySelector('.messages').scrollTop);
         await term.tap();
         await page.waitForTimeout(500);
-        R.termTap = await page.evaluate(() => document.querySelector('.term-tip.pinned')?.textContent || null);
+        R.termTap = await page.evaluate((before) => {
+          const t = document.querySelector('.term-tip.pinned');
+          const r = t && t.getBoundingClientRect();
+          const cut = r ? [...document.querySelectorAll('button:not(.pt):not(.chip):not(.tag), textarea, summary')].filter((b) => !t.contains(b)).map((b) => b.getBoundingClientRect()).filter((b) => b.width && b.right > r.left && b.left < r.right && ((b.top < r.top && b.bottom > r.top) || (b.top < r.bottom && b.bottom > r.bottom))).length : null;
+          return { text: t?.textContent || null, scrolled: document.querySelector('.messages').scrollTop - before, tip: r && [Math.round(r.top), Math.round(r.bottom)], halfCoveredButtons: cut };
+        }, before);
         await shot('8-term-tap');
+        // a tap outside closes it
+        await page.touchscreen.tap(20, 430);
+        await page.waitForTimeout(300);
+        R.termTap.closesOnTapOutside = !(await page.$('.term-tip'));
       }
     }
     console.log(vp.name, scheme, JSON.stringify(R));

@@ -1011,32 +1011,72 @@ kbd {
   text-decoration-color: var(--accent);
   background: var(--accent-soft);
 }
+/* the focus ring: the coordinates' corner (4 px), 2 px clear of the letters */
 .term:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 1px;
+  outline-offset: -2px;
+  border-radius: 4px;
+  padding-inline: 4px;
+  margin-inline: -4px;
 }
 .term-tip {
   position: fixed;
   z-index: 90;
   width: max-content;
-  max-width: min(300px, calc(100vw - 16px));
+  max-width: min(320px, calc(100vw - 16px));
   padding: 9px 12px 10px;
   background: var(--raised);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: var(--shadow-pop);
-  font: 14px/1.5 var(--font);
+  /* a soft shadow, the card sits on the page rather than floats (critics, 2026-11-05) */
+  box-shadow: 0 2px 10px rgba(20, 20, 19, 0.1);
+  font: 15px/1.45 var(--font);
   text-align: left;
   pointer-events: none;
   animation: fade 0.12s ease-out;
 }
 .term-tip.pinned {
   pointer-events: auto;
+  padding-right: 36px;
+}
+/* a small pointer at the term: on the card's top edge, or its bottom edge when the card is above */
+.term-tip::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--arrow, 50%) - 6px);
+  top: -6px;
+  width: 10px;
+  height: 10px;
+  background: var(--raised);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.term-tip.above::before {
+  top: auto;
+  bottom: -6px;
+  transform: rotate(225deg);
+}
+/* the pinned card's close button: 28 px to the finger, in the corner */
+.term-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--muted);
+}
+.term-close:hover {
+  background: var(--hover);
+  color: var(--ink);
 }
 .term-tip-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   margin-bottom: 2px;
 }
 .term-tip-text {
@@ -1675,10 +1715,11 @@ kbd {
 .bp-foot.dim span {
   color: var(--muted);
 }
+/* while a line is previewed the step card rests (inert): its controls go muted but keep 3:1 or
+   more (a11y critic, 2026-11-05: at 0.45 they read 2:1); only a truly disabled button fades */
 .bp-eval.dim .ev-track,
-.bp-foot.dim input,
-.bp-foot.dim svg {
-  opacity: 0.45;
+.bp-foot.dim input {
+  opacity: 0.6;
 }
 /* before any read there is nothing to show: the bar keeps its place but stays hidden */
 .bp-eval.empty {
@@ -1857,16 +1898,15 @@ kbd {
   width: 22px;
   height: 15px;
   border-radius: 4px;
-  background: #e4c493;
+  background: #ecd9b8;
   box-shadow:
-    inset 0 0 0 1.5px #1b1714,
+    inset 0 0 0 1px rgba(27, 23, 20, 0.6),
     0 0 0 1.5px #c98a4a;
 }
 .bp-key i.ring.w {
   box-shadow:
-    inset 0 0 0 1px #1b1714,
-    inset 0 0 0 2.5px #fbf8f1,
-    inset 0 0 0 3.5px #1b1714,
+    inset 0 0 0 0.75px rgba(27, 23, 20, 0.42),
+    inset 0 0 0 2px #fbf8f1,
     0 0 0 1.5px #c98a4a;
 }
 .bp-key i.ring.pick,
@@ -1929,6 +1969,22 @@ kbd {
 }
 .board-panel svg.board .cand.plain text {
   fill: #1b1714;
+}
+/* KataGo's other moves as chips (Board candChip, as kaya.ts drawChip): warm paper a little
+   see-through, a soft edge (about 60% ink) in the colour to play, so the choice's ring is the
+   strongest mark (critics, 2026-11-05) */
+.board-panel svg.board .cand.plain.chip .cand-disc {
+  fill: rgba(243, 229, 203, 0.74);
+  stroke: rgba(27, 23, 20, 0.6);
+  stroke-width: 0.04;
+}
+.board-panel svg.board .cand.plain.chip.to-w .cand-disc {
+  stroke: rgba(251, 248, 241, 0.85);
+  stroke-width: 0.06;
+}
+.board-panel svg.board .cand.plain.chip .cand-edge {
+  stroke: rgba(27, 23, 20, 0.42);
+  stroke-width: 0.09;
 }
 /* a phone's marks without a number: a ring about 11 px across with a clear edge, smaller than a
    stone so it never reaches one, and the numbered ones stand out */
@@ -3080,6 +3136,11 @@ kbd {
   .msg.kami .rich > p:last-child {
     margin-bottom: 4px;
   }
+  /* a phone's term card: the screen's width less 8 px a side, so it is short (2 or 3 lines) */
+  .term-tip {
+    max-width: none;
+    width: calc(100vw - 16px);
+  }
   /* the step buttons and the graph buttons, a little tighter */
   .step-btn {
     height: 32px;
@@ -3226,6 +3287,19 @@ kbd {
   text-overflow: ellipsis;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+/* a phone's readout alone (a hovered mark or the keyboard point) wraps to the row's two lines
+   instead of ending "loo…" (a11y critic, 2026-11-05); the row keeps its 34 px, so the board stays */
+@media (max-width: 899px) {
+  .bp-note > .bp-readout:only-child {
+    white-space: normal;
+    font-size: 14px;
+    line-height: 17px;
+  }
+  .bp-note:has(> .bp-readout:only-child) {
+    max-height: 34px;
+    line-height: 17px;
+  }
 }
 /* the conversation stops clear of the message box: a gap above the box, and room under the last
    line once scrolled to the end (critics, round 4: the last line looked cut behind the box) */

@@ -120,6 +120,11 @@ describe('Kami term rendering helpers', () => {
     expect(termOf('the cut at R10, then the block at Q9 and the descent at S2')).toEqual(['cut', 'block', 'descent']);
     expect(termOf('a kiri, an osae, a sagari')).toEqual(['cut', 'block', 'descent']);
   });
+  it('says each contact move touches, and links the verb attach to tsuke', () => {
+    expect(findTerms('the hane')[0].entry.def).toMatch(/touches the end of the opponent/);
+    expect(termOf("White's Q11 attaches to the black stone.")).toEqual(['tsuke']);
+    expect(termCard(findTerms('attach')[0].entry).title).toBe('Attach (tsuke)');
+  });
   it('defines kakari as near the corner stone, not touching it', () => {
     expect(findTerms('a kakari')[0].entry.def).toMatch(/near, not touching/);
   });

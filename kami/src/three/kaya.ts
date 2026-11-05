@@ -116,8 +116,15 @@ export interface PaleMark {
   token?: { best: boolean; scale?: number; dx?: number; dy?: number };
 }
 
-/** Printed numbers and marks, one canvas each, kept for the page's life (a few dozen at most). */
+/**
+ * Printed numbers and marks, one canvas each, least recently used first. At most NUMBER_TEX_MAX
+ * are kept (a long read labels many values): the oldest one not on the board is freed, with the
+ * views' materials for it (performance critic, 2026-11-05: the cache grew for the page's life).
+ */
 const numberTex = new Map<string, Texture>();
+const NUMBER_TEX_MAX = 64;
+/** setPale calls so far: a texture used in the current one is never freed under it. */
+let paleGen = 0;
 let numberFontReady: Promise<void> | null = null;
 /**
  * Draws on `c` with lining figures, as tall as capitals, as the flat board's numbers are
@@ -126,34 +133,59 @@ let numberFontReady: Promise<void> | null = null;
  * is in the document (Chromium), so it is put there, out of sight, for the drawing; elsewhere
  * the figures stay old-style, as before.
  */
-function withLining(c: HTMLCanvasElement, draw: () => void) {
-  const host = typeof document !== 'undefined' ? document.body : null;
-  if (!host) return draw();
-  c.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;visibility:hidden;font-variant-numeric:lining-nums tabular-nums';
-  host.appendChild(c);
-  try {
-    draw();
-  } finally {
-    c.remove();
-    c.style.cssText = '';
+let liningCanvas: HTMLCanvasElement | null = null;
+/** One hidden 128 px canvas kept in the document for every printed label (no append/remove per label). */
+function liningHost(): HTMLCanvasElement | null {
+  if (typeof document === 'undefined' || !document.body) return null;
+  if (!liningCanvas || !liningCanvas.isConnected) {
+    liningCanvas = document.createElement('canvas');
+    liningCanvas.width = liningCanvas.height = 128;
+    liningCanvas.setAttribute('aria-hidden', 'true');
+    liningCanvas.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;visibility:hidden;pointer-events:none;font-variant-numeric:lining-nums tabular-nums';
+    document.body.appendChild(liningCanvas);
   }
+  return liningCanvas;
+}
+function withLining(c: HTMLCanvasElement, draw: (target: HTMLCanvasElement) => void) {
+  const host = liningHost();
+  if (!host) return draw(c);
+  draw(host);
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, c.width, c.height);
+  g.drawImage(host, 0, 0);
 }
 function printedTexture(key: string, draw: (c: HTMLCanvasElement) => void): Texture {
   let t = numberTex.get(key);
-  if (t) return t;
+  if (t) {
+    // most recently used last
+    numberTex.delete(key);
+    numberTex.set(key, t);
+    (t.userData as { gen: number }).gen = paleGen;
+    return t;
+  }
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   draw(c);
   t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
   t.anisotropy = 4;
-  t.userData = { draw };
+  t.userData = { draw, gen: paleGen };
   numberTex.set(key, t);
+  if (numberTex.size > NUMBER_TEX_MAX)
+    for (const [k, old] of numberTex) {
+      if (numberTex.size <= NUMBER_TEX_MAX) break;
+      if ((old.userData as { gen: number }).gen === paleGen) continue;
+      numberTex.delete(k);
+      liveViews.forEach((v) => v.dropFace?.(old));
+      old.dispose();
+    }
   return t;
 }
+/** How many printed label textures are kept now (tests, the performance check). */
+export const printedTextureCount = () => numberTex.size;
 const numberTexture = (text: string, ink: string) => printedTexture(`${text}|${ink}`, (c) => drawNumber(c, text, ink));
 function drawNumber(c: HTMLCanvasElement, text: string, ink: string) {
-  withLining(c, () => drawNumberIn(c, text, ink));
+  withLining(c, (t) => drawNumberIn(t, text, ink));
 }
 function drawNumberIn(c: HTMLCanvasElement, text: string, ink: string) {
   const g = c.getContext('2d')!;
@@ -164,9 +196,11 @@ function drawNumberIn(c: HTMLCanvasElement, text: string, ink: string) {
   // as big as the stone allows: a number should read at a glance even on a phone, so longer
   // ones ("-11", "-0.9") keep their height and are set narrower rather than smaller; they stay
   // inside the stone (104 of its 128) so two neighbours' numbers never run together
-  const px = text.length >= 4 ? 88 : text.length === 3 ? 98 : text.length === 2 ? 112 : 118;
+  // (138 for one digit, 124 for two: a phone's stone is about 13 px, its digits were 6 px tall;
+  // critics 2026-11-05) set narrower to the stone's 108 rather than smaller
+  const px = text.length >= 4 ? 92 : text.length === 3 ? 104 : text.length === 2 ? 124 : 138;
   g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
-  g.fillText(text, 64, 71, 104);
+  g.fillText(text, 64, 72, 108);
 }
 
 /** The flat board's candidate colours (kami/src/styles.css, .cand.plain): ink, a light ring, the cleared disc. */
@@ -178,7 +212,7 @@ const tokenTexture = (text: string, side: StoneColor, best: boolean) => printedT
  * it shows on pale wood too), KataGo's choice with a ring twice as thick, the number in ink.
  */
 function drawToken(c: HTMLCanvasElement, text: string, side: StoneColor, best: boolean) {
-  withLining(c, () => drawTokenIn(c, text, side, best));
+  withLining(c, (t) => drawTokenIn(t, text, side, best));
 }
 function drawTokenIn(c: HTMLCanvasElement, text: string, side: StoneColor, best: boolean) {
   const g = c.getContext('2d')!;
@@ -271,15 +305,23 @@ function rrect(g: CanvasRenderingContext2D, w: number, h: number, rad: number, c
   }
   g.closePath();
 }
-/** The chip's size on the 128 px canvas: as wide as the choice's disc, 0.7 of it tall (a bare one a small square). */
-export const CHIP_W = 122, CHIP_H = 86, CHIP_BARE = 92;
 /**
- * A candidate other than KataGo's choice: a tan chip edged in the colour to play (an ink edge for
- * Black; for White a light band between ink hairlines), its number in ink as large as its height allows.
+ * The chip's size on the 128 px canvas, a little narrower than the choice's disc (122) so two
+ * neighbours keep a gap of 2 px or more on a phone (critics, 2026-11-05: Q12 and R12 touched), 0.7
+ * of the disc tall; a bare one a small square. In points: width 1.83 and height 1.41 of the mark's radius.
+ */
+export const CHIP_W = 112, CHIP_H = 86, CHIP_BARE = 88;
+/** The chip's face: warm paper, a little see-through, so the choice's ring stays the strongest mark (and no brighter than a white stone on the dark page). */
+const CHIP_FILL = 'rgba(243, 229, 203, 0.74)';
+/** Its edge in the colour to play at about 60% (critics, 2026-11-05: the full-ink edge competed with the choice's ring). */
+const CHIP_INK = 'rgba(27, 23, 20, 0.6)', CHIP_LIGHT = 'rgba(251, 248, 241, 0.85)', CHIP_HAIR = 'rgba(27, 23, 20, 0.42)';
+/**
+ * A candidate other than KataGo's choice: a paper chip edged in the colour to play (a soft ink edge
+ * for Black; for White a light band inside a soft ink hairline), its number in ink as large as its height allows.
  */
 function drawChip(g: CanvasRenderingContext2D, text: string, side: StoneColor) {
   const w0 = text ? CHIP_W : CHIP_BARE, h0 = text ? CHIP_H : CHIP_BARE;
-  const edge = text ? 6 : 14;
+  const edge = text ? 4 : 10;
   const band = (inset: number, width: number, fill: string) => {
     g.fillStyle = fill;
     g.beginPath();
@@ -289,15 +331,14 @@ function drawChip(g: CanvasRenderingContext2D, text: string, side: StoneColor) {
   };
   let inset = 0;
   if (side === 2) {
-    band(0, 3, TOKEN_INK);
-    band(3, edge, TOKEN_LIGHT);
-    band(3 + edge, 3, TOKEN_INK);
-    inset = 6 + edge;
+    band(0, 2, CHIP_HAIR);
+    band(2, edge, CHIP_LIGHT);
+    inset = 2 + edge;
   } else {
-    band(0, edge, TOKEN_INK);
+    band(0, edge, CHIP_INK);
     inset = edge;
   }
-  g.fillStyle = TOKEN_FILL;
+  g.fillStyle = CHIP_FILL;
   g.beginPath();
   rrect(g, w0 - 2 * inset, h0 - 2 * inset, h0 * 0.22 - inset);
   g.fill();
@@ -305,9 +346,9 @@ function drawChip(g: CanvasRenderingContext2D, text: string, side: StoneColor) {
   g.fillStyle = TOKEN_INK;
   g.textAlign = 'center';
   g.textBaseline = 'alphabetic';
-  // as tall as the chip's inside allows (digits keep 6 px clear of the edge), set narrower down
-  // to 64% before a long one comes down in size
-  const roomW = w0 - 2 * inset - 10, roomH = h0 - 2 * inset - 12;
+  // as tall as the chip's inside allows (digits keep 4 px clear of the edge; critics, 2026-11-05:
+  // a phone's read small), set narrower down to 64% before a long one comes down in size
+  const roomW = w0 - 2 * inset - 8, roomH = h0 - 2 * inset - 8;
   for (let px = 96; ; px -= 4) {
     g.font = `800 ${px}px "Alegreya Sans", ui-sans-serif, system-ui, sans-serif`;
     const m = g.measureText(text);
@@ -404,7 +445,7 @@ export interface KayaOptions {
 const loader = new TextureLoader();
 const texCache = new Map<string, Texture>();
 /** Views to redraw when a texture arrives (they only draw on demand). */
-const liveViews = new Set<{ invalidate(shadows?: boolean): void }>();
+const liveViews = new Set<{ invalidate(shadows?: boolean): void; dropFace?(t: Texture): void }>();
 function tex(name: string, color = true, variant = ''): Texture {
   const key = `${name}|${color}|${variant}`;
   let t = texCache.get(key);
@@ -1800,7 +1841,16 @@ export class KayaView {
    * Translucent stones with numbers on their faces (see PaleMark). Replaces what was shown;
    * null clears. If the site's font has not loaded yet, they are drawn again once it has.
    */
+  /** A printed label's texture was freed (printedTexture's LRU): its material goes too. */
+  dropFace(t: Texture) {
+    const m = this.faceMats.get(t);
+    if (!m) return;
+    this.faceMats.delete(t);
+    m.dispose();
+  }
+
   setPale(marks: PaleMark[] | null) {
+    paleGen++;
     // materials and the number planes are kept and reused (see paleMat): disposing them would
     // drop their compiled shaders, and the next update (several a second while KataGo reads)
     // would compile them again
