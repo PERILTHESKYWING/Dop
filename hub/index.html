@@ -977,7 +977,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* Tighter cards, so the first running agent shows at 390x844; the ⋯ keeps its 44 px by overhanging the row. */
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
-  .atop .btn.more { margin: -6px -8px -6px 0; }
+  /* ...and sits above the row under it, which otherwise took the bottom-left corner of that 44 px square. */
+  .atop .btn.more { margin: -6px -8px -6px 0; position: relative; z-index: 1; }
+  /* Team footer (Settings, Look, Read usage, Sign out) and the Look sheet's segments: 44 px tall to tap. */
+  .acts.foot .btn, .seg button { min-height: 44px; }
   .team > .thead:first-child { padding-top: 10px; }
   /* The last heading in a tab never ends flush under the tab bar. */
   .team, .side .list { padding-bottom: 56px; }
