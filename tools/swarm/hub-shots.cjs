@@ -121,7 +121,9 @@ async function tabTo(p, test, n) {
       await tabTo(p, (el) => el.matches('.trow.t1.has-step'), 30);
       await snap(p, `z-focus-${dev}-${tag}-1-threads`);
       await openThread(p, 'Kiai phone review');
-      await p.evaluate(() => document.activeElement?.blur());
+      // Start from the thread's header, as after opening it: Tabbing through the whole sidebar first would
+      // scroll the list to its last row (the browser shows each focused row), hiding Project chat in the shot.
+      await p.evaluate(() => [...document.querySelectorAll('#head a[href], #head button')].find((el) => el.getClientRects().length)?.focus());
       await tabTo(p, (el) => el.matches('.act-tog'), 40);
       await snap(p, `z-focus-${dev}-${tag}-2-thread`);
       await p.keyboard.press('Tab'); await p.keyboard.press('Tab'); await p.keyboard.press('Tab'); await settle(p, 200);
@@ -132,6 +134,13 @@ async function tabTo(p, test, n) {
         await p.keyboard.press('Enter'); await settle(p, 300);
         await snap(p, `z-focus-${dev}-${tag}-4-options-menu`);
         await p.keyboard.press('Escape');
+      }
+      if (phone) {
+        // A Team card's ··· from the keyboard: the ring is drawn around its whole 44x44 target.
+        await p.click('.tabs button[data-tab="team"]'); await settle(p, 400);
+        await p.focus('#team .thead button');
+        await tabTo(p, (el) => el.matches('.atop .more'), 10);
+        await snap(p, `z-focus-${dev}-${tag}-4-team-more`);
       }
       await c.close();
     }

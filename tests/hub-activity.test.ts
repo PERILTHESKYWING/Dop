@@ -83,15 +83,18 @@ describe('hub thread state while a session connects', () => {
     const fired = Date.now() - 30e3;
     expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: fired, lastAgentAt: fired })).toEqual(['starting', 'Starting']);
     const old = Date.now() - 4.5 * 60e3;
-    expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toEqual(['noconn', 'Not connected · 4m']);
+    // The third item is the session start the "4m" counts from, so the minutes can tick in place.
+    expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toEqual(['noconn', 'Not connected · 4m', old]);
     expect(waitingFor({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toMatch(/^Alt 2's session was started 4m ago/);
     expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old + 1 })).toEqual(['working', 'Working']);
     expect(threadState({ status: 'new', account: 'Alt 2' })).toEqual(['starting', 'Starting']);
   });
   it('uses the same state words in the pill, the sidebar, the Team card and Tasks', () => {
-    expect(page).toContain("pill(`st-${threadState(t)[0]}`, '', threadState(t)[1])");
+    expect(page).toContain("pill(`st-${threadState(t)[0]}`, '', threadState(t)[1], threadState(t)[2])");
     expect(page).toContain('const [ss, st] = threadState(t);');
-    expect(page).toContain("['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`]");
+    expect(page).toContain("['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))]");
+    // The minutes tick in place; the 15 s timer redraws only when a thread's state flips.
+    expect(page).toContain('S.threads.some(unheard) && ncStates() !== ncKey) render();');
     // The one real action: the hub's existing retry (a new session), offered in the block.
     expect(page).toContain(`\${stCls === 'noconn' ? \`<div class="act-acts"><button type="button" class="btn small" data-act="retry"`);
     // WORKING and "N threads running" count only threads whose agent has called; the silent ones get an amber group.
