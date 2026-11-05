@@ -77,6 +77,8 @@ export const MIN_R = 0.48;
 const PHONE_GAP = 2 * BIG_R + 0.08;
 /** 0.3 of a point (was 0.2): a pair of neighbours then stays near full size, so its larger digits need not shrink (critics, 2026-11-03). */
 export const MAX_SHIFT = 0.3;
+/** How far (points) a stone next to a mark pushes it; half that sideways, where a chip has more room. */
+const STONE_PUSH = 0.16;
 
 /** Where a phone's mark sits: moved off its point by (dx, dy) and its radius, in points. */
 export interface MarkPlace {
@@ -92,9 +94,25 @@ export interface MarkPlace {
  * move up to 0.3 of a point apart, and each shrinks to clear its nearest neighbour, never below a
  * desktop mark's size, so no number is dropped.
  */
-export function phonePlaces(locs: readonly number[], size: number): Map<number, MarkPlace> {
+export function phonePlaces(locs: readonly number[], size: number, stones?: ArrayLike<number>): Map<number, MarkPlace> {
   const xy = locs.map((l) => [l % size, Math.floor(l / size)]);
   const shift = locs.map(() => [0, 0]);
+  // A stone right next to a mark pushes it STONE_PUSH away, so a chip (lower than it is wide)
+  // keeps clear of the stone's edge where it can (critics, 2026-11-05: Q12's chip touched R11).
+  if (stones)
+    xy.forEach(([x, y], i) => {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size || !stones[ny * size + nx]) continue;
+        shift[i][0] -= dx * STONE_PUSH * (dx ? 0.5 : 1);
+        shift[i][1] -= dy * STONE_PUSH;
+      }
+    });
   for (let i = 0; i < locs.length; i++)
     for (let j = i + 1; j < locs.length; j++) {
       const ux = xy[j][0] - xy[i][0], uy = xy[j][1] - xy[i][1];

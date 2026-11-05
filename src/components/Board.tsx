@@ -104,9 +104,9 @@ const PLAIN_BARE_R = 0.38;
 const PLAIN_PAD = 0.04;
 /** The narrowest a big (candBig) mark's label is set before it is set smaller instead. */
 const BIG_CONDENSE = 0.66;
-/** A chip (candChip) is as wide as its circle would be and this much of it tall; a phone's at most CHIP_BIG_H. */
+/** A chip (candChip) is CHIP_W of its circle's width (a gap between neighbours) and CHIP_H of it tall, as kaya.ts drawChip. */
+const CHIP_W = 0.92;
 const CHIP_H = 0.7;
-const CHIP_BIG_H = 1.12;
 /** Hover and tap areas round a candidate reach at least this far (CSS px): 24 px across (WCAG 2.5.8). */
 const HIT_PX = 12;
 const CAND_STOPS: [number, [number, number, number]][] = [
@@ -747,8 +747,8 @@ function BoardImpl(p: BoardProps) {
       const r = !plain ? 0.47 : bare ? PLAIN_BARE_R : p.candBig ? (place?.r ?? PLAIN_BIG_R) : PLAIN_R;
       // a chip: as wide as the circle, lower than it, square corners rounded (a bare one a small square)
       const chip = plain && p.candChip && c.rank !== 0;
-      const cw = bare ? 1.5 * r : 2 * r;
-      const ch = bare ? cw : p.candBig ? Math.min(2 * r, CHIP_BIG_H) : 2 * r * CHIP_H;
+      const cw = bare ? 1.5 * r : 2 * r * CHIP_W;
+      const ch = bare ? cw : 2 * r * CHIP_H;
       const shape = (cls: string, fill?: string) =>
         chip ? (
           <rect className={cls} x={x - cw / 2} y={y - ch / 2} width={cw} height={ch} rx={ch * 0.22} fill={fill} />
