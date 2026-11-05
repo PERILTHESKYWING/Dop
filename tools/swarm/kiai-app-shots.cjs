@@ -57,6 +57,12 @@ const rects = async (p) =>
     await page.keyboard.press('Enter');
     await page.waitForTimeout(Number(process.env.THINK_MS || 900));
     R.thinking = await rects(page);
+    // room left empty under the thinking card, to the pane's foot (px)
+    R.thinkingGap = await page.evaluate(() => {
+      const m = document.querySelector('.messages').getBoundingClientRect();
+      const k = [...document.querySelectorAll('.msg.kami')].pop().getBoundingClientRect();
+      return Math.round(m.bottom - k.bottom);
+    });
     await shot('2-thinking');
     for (let i = 0; i < 120; i++) {
       if (!(await page.$('[aria-label="Stop"]')) && i > 1) break;
@@ -75,6 +81,12 @@ const rects = async (p) =>
       const ys = new Set();
       for (const r of range.getClientRects()) if (r.bottom <= Math.min(m.bottom, c.top) && r.top >= m.top) ys.add(Math.round(r.top));
       return { visibleLines: ys.size, msgsBottom: Math.round(m.bottom), composerTop: Math.round(c.top) };
+    });
+    // the whole answer card in view without scrolling: its top and bottom against the pane's
+    R.answerCard = await page.evaluate(() => {
+      const m = document.querySelector('.messages').getBoundingClientRect();
+      const k = [...document.querySelectorAll('.msg.kami')].pop().getBoundingClientRect();
+      return { top: Math.round(k.top), bottom: Math.round(k.bottom), h: Math.round(k.height), paneTop: Math.round(m.top), paneBottom: Math.round(m.bottom), whole: k.top >= m.top - 0.5 && k.bottom <= m.bottom + 0.5 };
     });
     R.chipText = await page.evaluate(() => document.querySelector('.engine-slot')?.textContent || '');
     R.players = await page.evaluate(() => [...document.querySelectorAll('.pl-name')].map((e) => ({ t: e.textContent, clipped: e.scrollWidth > e.clientWidth })));
@@ -144,18 +156,57 @@ const rects = async (p) =>
     R.candidate = { ...(await rects(page)), readout: found || (await readout()) };
     if (found) await shot('5-hover-candidate');
     else console.log('no candidate disc found');
-    // 6 (desktop): keyboard focus on the board: Tab lands on it, the ring and the point show, an arrow moves the point.
-    if (vp.name === 'desktop') {
-      await page.mouse.move(5, 450);
-      await page.keyboard.press('Escape');
-      for (let i = 0; i < 40; i++) {
+    // 6: keyboard focus on the board (desktop and phone): Tab lands on it at the last move, then an
+    // arrow moves the point onto one of KataGo's marks next to it, so the focus ring is judged on a
+    // candidate (the readout under the board names it).
+    await page.mouse.move(5, 450);
+    await page.keyboard.press('Escape');
+    const focusOn = async (test) => {
+      await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+      for (let i = 0; i < 60; i++) {
         await page.keyboard.press('Tab');
-        if (await page.evaluate(() => document.activeElement?.classList.contains('bp-square'))) break;
+        if (await page.evaluate(test)) return true;
       }
-      await page.keyboard.press('ArrowLeft');
+      return false;
+    };
+    if (await focusOn(() => document.activeElement?.classList.contains('bp-square'))) {
+      await page.waitForTimeout(300);
+      const back = { ArrowUp: 'ArrowDown', ArrowDown: 'ArrowUp', ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' };
+      let onMark = false;
+      for (const k of ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft']) {
+        await page.keyboard.press(k);
+        await page.waitForTimeout(250);
+        const t = await readout();
+        if (/choice|worse|same|ahead/.test(t) && !/not one of/.test(t)) {
+          onMark = true;
+          break;
+        }
+        await page.keyboard.press(back[k]);
+      }
       await page.waitForTimeout(600);
-      R.focus = { ...(await rects(page)), focused: await page.evaluate(() => document.activeElement?.className || ''), readout: await readout() };
+      R.focus = { ...(await rects(page)), focused: await page.evaluate(() => document.activeElement?.className || ''), onMark, readout: await readout() };
       await shot('6-board-focus');
+    } else console.log('board never took focus');
+    // 7: keyboard focus on a Go term in the answer: its ring and its card (English, Chinese, Japanese)
+    if (await focusOn(() => document.activeElement?.classList.contains('term'))) {
+      await page.waitForTimeout(500);
+      R.termFocus = await page.evaluate(() => {
+        const e = document.activeElement.getBoundingClientRect();
+        const t = document.querySelector('.term-tip');
+        return { term: document.activeElement.textContent, h: Math.round(e.height), tip: t ? t.textContent : null };
+      });
+      await shot('7-term-focus');
+    } else console.log('no term took focus');
+    // 8 (phone): a tap on a term pins its card
+    if (vp.name === 'phone') {
+      await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+      const term = await page.$('.msg.kami .term');
+      if (term) {
+        await term.tap();
+        await page.waitForTimeout(500);
+        R.termTap = await page.evaluate(() => document.querySelector('.term-tip.pinned')?.textContent || null);
+        await shot('8-term-tap');
+      }
     }
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();
