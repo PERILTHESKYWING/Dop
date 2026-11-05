@@ -133,7 +133,7 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   invasion: { zh: '打入', ja: '打ち込み' },
   reduction: { zh: '浅消', ja: '消し' },
   moyo: { zh: '模样', ja: '模様' },
-  thickness: { zh: '厚势', ja: '厚み' },
+  thickness: { zh: '厚味', ja: '厚み' },
   'big point': { zh: '大场', ja: '大場' },
   yose: { zh: '官子', ja: 'ヨセ' },
   dame: { zh: '单官', ja: 'ダメ' },

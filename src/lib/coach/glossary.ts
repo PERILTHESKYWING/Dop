@@ -73,7 +73,7 @@ const SPECS: Spec[] = [
   { term: 'stretch', aliases: ['nobi'], def: "Stretch (nobi): a stone played straight on from your own and touching it, usually alongside the opponent's stones, making the chain longer." },
   // The shapes the answers name (explain/shapes.ts: "the cut at R10", "the block", "the descent")
   // (each says what the move touches: the pro teacher's rule, critics 2026-11-05)
-  { term: 'cut', aliases: ['kiri'], def: "Cut: a stone played on the empty point where two of the opponent's stones meet only diagonally, so they can no longer join." },
+  { term: 'cut', aliases: ['kiri'], def: "Cut: a stone on the point where the opponent's stones link only diagonally (or by a knight's move), so they can no longer join." },
   { term: 'block', aliases: ['osae'], def: "Block (osae): a stone played touching the end of the opponent's stones, in their path, so they cannot go further that way." },
   { term: 'descent', aliases: ['sagari'], def: 'Descent (sagari): a stone played touching your own, straight down from it toward the nearer edge of the board.' },
   { term: 'hane', def: "Hane: a move played diagonally from your own stone that touches the end of the opponent's stone and bends around it." },

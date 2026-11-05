@@ -664,7 +664,7 @@ function CopyButton({ text }: { text: string }) {
         }
       }}
     >
-      <Icon name={done ? 'check' : 'copy'} size={26} />
+      <Icon name={done ? 'check' : 'copy'} size={18} />
     </button>
   );
 }
@@ -700,7 +700,7 @@ const UserMessage = memo(function UserMessage({ m, canEdit, onEdit }: { m: ChatM
         <CopyButton text={m.text} />
         {canEdit && (
           <button type="button" className="icon-btn sm" aria-label="Edit" title="Edit" onClick={() => setEdit(m.text)}>
-            <Icon name="edit" size={26} />
+            <Icon name="edit" size={18} />
           </button>
         )}
       </div>
@@ -756,7 +756,7 @@ const KamiMessage = memo(function KamiMessage({
           <CopyButton text={copyText(m)} />
           {isLast && !busy && (
             <button type="button" className="icon-btn sm" aria-label="Regenerate" title="Regenerate" onClick={onRegenerate}>
-              <Icon name="redo" size={26} />
+              <Icon name="redo" size={18} />
             </button>
           )}
         </div>

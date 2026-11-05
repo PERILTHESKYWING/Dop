@@ -992,6 +992,8 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .acards { gap: 6px; }
   /* ...and sits above the row under it, which otherwise took the bottom-left corner of that 44 px square. */
   .atop .btn.more { margin: -6px -8px -6px 0; position: relative; z-index: 1; }
+  /* Its focus ring is drawn inside the 44 px square so it never lands on the usage row below. */
+  :root .atop .btn.more:focus-visible { outline-offset: -8px; }
   /* The Look sheet's segments are 44 px tall; the Team footer (Settings, Look, Read usage, Sign out) keeps its
      31 px boxes and gets a 45 px tap area from an overhanging ::after. */
   .seg button { min-height: 44px; }
@@ -1564,6 +1566,9 @@ const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(
 // The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
 function rowStep(t) {
   if (!isRunning(t)) return '';
+  // The progress goes first so an ellipsis cuts the task name, never "Run 4 of 5".
+  const g = runningOn(t)[0];
+  if (g) return g.step ? `${g.step} · ${g.title}` : g.title;
   const s = currentStep(t, null, lastPostByThread.get(t.id) ?? null);
   return !s || s.k === 'Latest' ? '' : s.k === 'Next' ? `Next: ${s.v}` : s.v;
 }
@@ -2493,8 +2498,8 @@ function agentRow(g) {
   const stale = g.status === 'running' && t - g.at > AGENT_STALE;
   const cls = stale ? 'stale' : g.status;
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
-  if (th && th.id === sel && g.status === 'running' && !stale) {
-    return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>running ${agoEl(g.started)}</small></div><div class="ag-step">this thread</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  if (th && th.id === sel && $('app').dataset.tab === 'chat' && g.status === 'running' && !stale) {
+    return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>running ${agoEl(g.started)}</small></div><div class="ag-step">${g.step ? esc(g.step) + ' · ' : ''}this thread</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
   }
   return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
@@ -2559,6 +2564,8 @@ function setTab(tab) {
   const shown = tab === 'chat' && sel ? 'threads' : tab;
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === shown));
   if (tab === 'chat' && was !== 'chat') toBottom();
+  // The Team panel says "this thread" only while that thread is on screen.
+  if (was !== tab) renderTeam();
 }
 const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }

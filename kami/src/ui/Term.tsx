@@ -44,11 +44,17 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       setPos((p) => (p && p.left === left && p.top === top && p.below === below && p.arrow === arrow ? p : { left, top, below, arrow }));
     };
     place();
-    window.addEventListener('scroll', place, true);
-    window.addEventListener('resize', place);
+    // at most one placement per frame while scrolling (it measures the page's buttons)
+    let raf = 0;
+    const onMove = () => {
+      if (!raf) raf = requestAnimationFrame(() => ((raf = 0), place()));
+    };
+    window.addEventListener('scroll', onMove, { capture: true, passive: true });
+    window.addEventListener('resize', onMove);
     return () => {
-      window.removeEventListener('scroll', place, true);
-      window.removeEventListener('resize', place);
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
     };
   }, [open, pinned]);
 
