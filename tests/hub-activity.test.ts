@@ -58,6 +58,25 @@ describe('hub activity Now line', () => {
   });
 });
 
+// The thread list shows the same Now / Next step under a working row, from each thread's last update post.
+describe('hub thread list step line', () => {
+  const rowCode = page.slice(page.indexOf('function rowStep(t)'), page.indexOf('function threadRow(t)'));
+  const isPost = (m: { from: string; kind: string }) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind);
+  const rows = (S: unknown) => new Function('S', 'ago', 'think', 'thoughtShown', 'STATUS', 'lastPostByThread',
+    `${code}${rowCode}return { rowStep };`)(S, () => '', { mode: 'fold', hide: [] }, () => true, { working: 'Working' },
+    new Map([[3, msgs.filter(isPost).at(-1)]])) as { rowStep: (t: object) => string };
+  const working = { id: 3, account: 'Main', status: 'working', lastFireAt: T0, lastAgentAt: T0 + 1 };
+  it('shows the running sub-agent step, else the handover next step, and nothing for a bare update', () => {
+    expect(rows({ agents: [bench] }).rowStep(working)).toBe('Benchmark · Run 4 of 5');
+    expect(rows({ agents: [] }).rowStep({ ...working, checkpoint: { at: T0 + 120e3, next: 'Benchmark 5 runs.' } })).toBe('Next: Benchmark 5 runs.');
+    expect(rows({ agents: [] }).rowStep(working)).toBe('');
+  });
+  it('shows nothing for a thread that is done or not connected yet', () => {
+    expect(rows({ agents: [bench] }).rowStep({ ...working, status: 'done' })).toBe('');
+    expect(rows({ agents: [bench] }).rowStep({ ...working, lastAgentAt: T0 - 1 })).toBe('');
+  });
+});
+
 describe('hub thread state while a session connects', () => {
   it('says Starting, then Not connected with whole minutes, then Working once the agent calls', () => {
     const { threadState, waitingFor } = make({ agents: [] });

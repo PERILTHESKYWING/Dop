@@ -332,6 +332,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow.t1 .when { color: var(--soft); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
 .trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; }
+/* A working thread's current step: one muted, cut-off line under the title (rows without a step keep one line). */
+.trow.t1.has-step { row-gap: 1px; }
+.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 18px; font-weight: 400; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
+:root .app > .side .trow.on .tstep { color: var(--soft); }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
 .stx { font-weight: 500; white-space: nowrap; }
 .st-working .stx, .st-new .stx { color: var(--green); }
@@ -1394,7 +1399,8 @@ function sessionUpdates(t, msgs) {
 }
 // The current step: a running sub-agent's report, else the handover's next step if it is the newest
 // word, else the last sentence of the newest update (labelled as such). null: nothing reported yet.
-function currentStep(t, msgs) {
+const isUpdatePost = (m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind);
+function currentStep(t, msgs, post = msgs.filter(isUpdatePost).at(-1)) {
   const run = runningOn(t);
   if (run.length) {
     const g = run[0];
@@ -1402,7 +1408,6 @@ function currentStep(t, msgs) {
     const pct = g.pct != null && !/\b\d+\s*(of|\/)\s*\d+\b/.test(g.step || '') ? g.pct : null;
     return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct, at: g.at, more: run.length - 1 };
   }
-  const post = msgs.filter((m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind)).at(-1);
   const cp = t.checkpoint;
   if (cp?.next && (!post || cp.at >= post.at)) return { k: 'Next', v: plainLine(cp.next) };
   if (post) return { k: 'Latest', v: lastSentence(post.text) };
@@ -1519,21 +1524,30 @@ $('feed').addEventListener('click', (e) => {
 
 // ---------- sidebar ----------
 // One line per thread: status dot (spinner while working), title, who, age. The full status is in the tooltip.
-// Filled once per renderSide: each thread's last message, and its last non-thinking post per account (Team activity).
-let lastByThread = new Map(), lastByThreadAcct = new Map();
+// A working thread with a reported step gets a second, muted line: the Activity block's Now (or Next) step.
+// Filled once per renderSide: each thread's last message, its last update post (for the step), and its last non-thinking post per account (Team activity).
+let lastByThread = new Map(), lastByThreadAcct = new Map(), lastPostByThread = new Map();
 let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
+// The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
+function rowStep(t) {
+  if (!isRunning(t)) return '';
+  const s = currentStep(t, null, lastPostByThread.get(t.id) ?? null);
+  return !s || s.k === 'Latest' ? '' : s.k === 'Next' ? `Next: ${s.v}` : s.v;
+}
 function threadRow(t) {
   const [ss, st] = threadState(t);
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}</button>`;
+  const step = rowStep(t);
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${step ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${step ? `<span class="tstep">${esc(nb(step))}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
 function renderSide() {
-  lastByThread = new Map(); lastByThreadAcct = new Map();
+  lastByThread = new Map(); lastByThreadAcct = new Map(); lastPostByThread = new Map();
   for (const m of S.messages) {
     lastByThread.set(m.thread, m);
+    if (isUpdatePost(m)) lastPostByThread.set(m.thread, m);
     if (m.kind !== 'thinking' && m.from !== 'XIAO' && m.from !== 'hub') { const a = acctOf(m.from); if (a) lastByThreadAcct.set(`${m.thread}|${a.name}`, m); }
   }
   setHtml($('clawdMark'), lively() ? clawd(S.threads.some((t) => t.status === 'working' && !t.archived) ? 'anim busy' : 'anim') : '');
