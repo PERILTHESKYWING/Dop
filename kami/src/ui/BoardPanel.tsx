@@ -469,6 +469,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       candLabel={candLabel}
       candBig={bigMarks}
       candPlace={candPlace}
+      candChip={!book}
       onCandidateHover={onCandidateHover}
       onCandidateClick={onCandidateClick}
       variation={variation}

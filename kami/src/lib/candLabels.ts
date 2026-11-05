@@ -136,8 +136,9 @@ export function candidateLabeler<C extends Cand>(cands: readonly C[] | null | un
  * the book diagram, where marks are printed numbers and KataGo's choice is underlined.
  */
 export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black' | 'White', book = false, game?: KeyGame, compact = false): string {
-  const choice = book ? 'Underlined' : 'Thick ring';
-  if (!lopsidedRead(cands)) return `${book ? 'Numbers' : 'Rings'}: KataGo’s best moves, with ${side}’s win chance. ${choice}: KataGo’s choice.`;
+  // the other moves are chips, not rings (Board candChip, kaya.ts drawChip): the key names them "Numbers"
+  const choice = book ? 'Underlined' : 'Ring';
+  if (!lopsidedRead(cands)) return `Numbers: KataGo’s best moves, with ${side}’s win chance. ${choice}: KataGo’s choice.`;
   // A one-sided read, said in plain words first (critics, 2026-11-04: at 97%+ say so, rather than
   // show tenths as if they decided the game). "Decided" only when gameDecided() agrees (late, from
   // the point lead); before that "far ahead", with the trailing side's win chance.

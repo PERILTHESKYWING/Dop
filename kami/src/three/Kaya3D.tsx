@@ -253,6 +253,8 @@ export default function Kaya3D(p: Kaya3DProps) {
   // ------------------------------------------------------------- pointer
 
   const hoverCand = useRef<Loc | null>(null);
+  /** Hover and tap areas round a candidate reach at least this far (CSS px): 24 px across (WCAG 2.5.8). */
+  const HIT_PX = 12;
   const locAt = (e: React.PointerEvent) => {
     const v = viewRef.current;
     if (!v) return null;
@@ -266,23 +268,37 @@ export default function Kaya3D(p: Kaya3DProps) {
     if (p.crop && (x < p.crop.x0 || x > p.crop.x1 || y < p.crop.y0 || y > p.crop.y1)) return null;
     return y * size + x;
   };
+  /**
+   * The candidate whose mark (where it is drawn: a phone's may sit a little off its point) is
+   * nearest the pointer, how far (points), and the reach of a hover or tap there: 0.62 of a point
+   * and at least HIT_PX either way (24 px across on a phone, whose points are about 14 px apart).
+   */
+  const nearestCand = (e: React.PointerEvent | React.MouseEvent, g: { gx: number; gy: number }) => {
+    if (!p.candidates?.length) return null;
+    let best: Loc | null = null, bestD = Infinity;
+    for (const c of p.candidates) {
+      const at = p.candBig ? p.candPlace?.(c) : undefined;
+      const d = Math.hypot(g.gx - (c.loc % size) - (at?.dx ?? 0), g.gy - Math.floor(c.loc / size) - (at?.dy ?? 0));
+      if (d < bestD) {
+        bestD = d;
+        best = c.loc;
+      }
+    }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const g2 = viewRef.current?.gridAt(e.clientX - r.left + HIT_PX, e.clientY - r.top);
+    const reach = Math.max(0.62, g2 ? Math.hypot(g2.gx - g.gx, g2.gy - g.gy) : 0);
+    return best === null ? null : { loc: best, d: bestD, reach };
+  };
   const onMove = (e: React.PointerEvent) => {
     const g = locAt(e);
     const l = toLoc(g);
     const v = viewRef.current;
     if (v && p.onPlay) v.setHover(l, l !== null && !p.stones[l] ? ((p.toPlay ?? null) as StoneColor | null) : null);
     // a candidate keeps the hover until the pointer is clearly past it (no flicker at cell edges)
-    if (p.candidates?.length && g) {
-      let best: Loc | null = null, bestD = Infinity;
-      for (const c of p.candidates) {
-        const d = Math.hypot(g.gx - (c.loc % size), g.gy - Math.floor(c.loc / size));
-        if (d < bestD) {
-          bestD = d;
-          best = c.loc;
-        }
-      }
+    const near = g ? nearestCand(e, g) : null;
+    if (near) {
       const cur = hoverCand.current;
-      const next = cur !== null && best === cur && bestD <= 0.85 ? cur : bestD <= 0.62 ? best : null;
+      const next = cur !== null && near.loc === cur && near.d <= near.reach + 0.23 ? cur : near.d <= near.reach ? near.loc : null;
       if (next !== cur) {
         hoverCand.current = next;
         p.onCandidateHover?.(next);
@@ -297,7 +313,10 @@ export default function Kaya3D(p: Kaya3DProps) {
     }
   };
   const onClick = (e: React.PointerEvent) => {
-    const l = toLoc(locAt(e));
+    const g = locAt(e);
+    // a tap on a phone's mark (larger than its point, maybe moved off it) takes its move
+    const near = p.candBig && g ? nearestCand(e, g) : null;
+    const l = near && near.d <= near.reach ? near.loc : toLoc(g);
     if (l === null || p.stones[l]) return;
     if (p.onPlay) p.onPlay(l);
     else if (p.candidates?.some((c) => c.loc === l)) p.onCandidateClick?.(l);
