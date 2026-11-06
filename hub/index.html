@@ -363,7 +363,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-starting .dot, .st-new .dot, .ss-starting > .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .st-noconn .dot, .ss-noconn > .dot { background: none; box-shadow: inset 0 0 0 2px var(--amber); }
 .state.starting { color: var(--soft); } .state.noconn, .state.busy.warn { color: var(--amber-text); }
-/* A working account with a silent thread says so in amber under its bars ("Working · 1 thread not connected"). */
+/* A working account with a silent thread says so in amber under its bars ("Working · 1 thread offline"). */
 :root .acard .sub.snote { color: var(--amber-text); }
 
 /* main */
@@ -798,9 +798,12 @@ button.act:hover .ttl { text-decoration: underline; }
 button.act.nc { border-left: 3px double var(--amber); }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
-/* Desktop rail: "Not connected · 4m" is too wide to share a line with the title in a 290 px column (the title was
+/* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
    cut after 2 lines, "Library: video thumbnails in the…"), so it goes on its own line under the title there. */
 @media (min-width: 861px) { .act.nc .act-top { flex-direction: column; gap: 0; } }
+/* Desktop list: the same for an offline thread's row, its "Offline" goes under the title (the title was cut after
+   two lines next to it), as the working rows' step line does. */
+@media (min-width: 861px) { .trow.t1.ss-noconn .when.nc { grid-column: 2 / -1; grid-row: 2; justify-self: start; } }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
@@ -1049,7 +1052,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
      (solid = needs you, hollow = not connected, as the sidebar's filled and hollow dots), so every tab is one
      line at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two; critics 2026-11-06: a ring and a bare
      "1" read as a radio button). While it shows, the Threads column takes 1.6 shares so 12 + 12 still fit and
-     Chat and Team keep 108 px targets. The tab's aria-label says "N not connected". */
+     Chat and Team keep 108 px targets. The tab's aria-label says "N offline", the same word. */
   .tabs button { white-space: nowrap; }
   .tabs:has(.nclab:not(.hidden)) { grid-template-columns: minmax(0, 1.6fr) 1fr 1fr; }
   .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 13px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
@@ -1323,10 +1326,10 @@ function acctState(a) {
     const ts = S.threads.filter((t) => t.status === 'working' && !t.archived && (t.account === a.name || crewOf(t).includes(a.name)));
     if (ts.length && ts.every((t) => t.account === a.name && unheard(t))) {
       const late = ts.filter((t) => threadState(t)[0] === 'noconn');
-      return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
+      return late.length === ts.length ? ['noconn', `Offline · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
     }
     const nc = ts.filter((t) => t.account === a.name && isNoconn(t)).length;
-    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} not connected` : ''];
+    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} offline` : ''];
   }
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
@@ -1366,8 +1369,8 @@ const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.no
 function thinkingLine(who, since, key, state = 'working', step = '', tail = '', elapsed = '') {
   const clockHtml = elapsed || sinceSpan(since);
   if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${clockHtml} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
-  // starting: a grey ring; not connected: amber. Green stays "working" only.
-  const cls = state === 'starting' ? ' idle' : state === 'not connected' ? ' late' : '';
+  // starting: a grey ring; offline: amber. Green stays "working" only.
+  const cls = state === 'starting' ? ' idle' : state === 'offline' ? ' late' : '';
   return `<div class="thinking${cls}"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${clockHtml}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
@@ -1400,12 +1403,13 @@ const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ag
 const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
-// together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Not connected".
+// together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Offline" (one word for this
+// state everywhere a person sees it: the tab pill, the group, the row, the pill, the Team card; critics 2026-11-06).
 const NOCONN_MS = 2 * 60e3;
 const unheard = (t) => !t.archived && t.status === 'working' && !!t.account && !((t.lastAgentAt || 0) > (t.lastFireAt || 0));
 const unheardAt = (t) => t.lastFireAt || t.lastAgentAt || Date.now();
 const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - unheardAt(t)) / 60e3));
-// "Not connected · 4m" as HTML whose minutes tick in place (an .ago span counting from the session start).
+// "Offline · 4m" as HTML whose minutes tick in place (an .ago span counting from the session start).
 const minHtml = (s, at) => esc(s).replace(/\b(\d+)m\b/, `<span class="ago" data-at="${at}" data-f="m">$1m</span>`);
 const stHtml = ([, w, at]) => (at ? minHtml(w, at) : esc(w));
 const isNoconn = (t) => threadState(t)[0] === 'noconn';
@@ -1415,7 +1419,7 @@ const isRunning = (t) => !t.archived && ['working', 'new'].includes(t.status) &&
 function threadState(t) {
   if (t.archived) return ['done', 'Archived'];
   if (t.status === 'new') return ['starting', 'Starting'];
-  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Not connected · ${unheardMin(t)}m`, unheardAt(t)] : ['starting', 'Starting'];
+  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Offline · ${unheardMin(t)}m`, unheardAt(t)] : ['starting', 'Starting'];
   if (t.status === 'queued' && t.account) return ['queued', `Waiting for ${t.account}`];
   return [t.status, STATUS[t.status] || t.status];
 }
@@ -1477,9 +1481,9 @@ function activityHtml(t, msgs) {
   const [stCls] = threadState(t);
   const quiet = unheard(t) || t.status === 'new';
   const heard = quiet ? '' : ` · ${agoEl(t.lastAgentAt, 'h')}`;
-  // Not connected yet: the same whole minutes as the pill and the Team card (all redrawn together).
+  // Offline: the same whole minutes as the pill and the Team card (all redrawn together).
   const elapsed = quiet ? agoEl(unheardAt(t), 'm') : agoEl(t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), 'e');
-  const state = stCls === 'noconn' ? 'not connected' : quiet ? 'starting' : 'working';
+  const state = stCls === 'noconn' ? 'offline' : quiet ? 'starting' : 'working';
   if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, 0, `${t.id}${t.account}${t.startedAt || ''}`, state, actMin ? stepOf(t, t.account) : '', heard, elapsed));
   for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, 0, `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : '', '', agoEl(t.crew[n].startedAt || t.crew[n].at || Date.now(), 'e')));
   if (!lines.length) return '';
@@ -1521,7 +1525,7 @@ $('feed').addEventListener('click', (e) => {
   ls.set('hub-activity', actMin ? 'min' : '');
   renderFeed();
 });
-// "Starting" turns into "Not connected · Nm" with time alone. The minutes tick in place (the clock tick
+// "Starting" turns into "Offline · Nm" with time alone. The minutes tick in place (the clock tick
 // below), so this redraws only when a thread's state flips (starting -> not connected); ncKey is the
 // states the last render drew.
 let ncKey = '';
@@ -1595,7 +1599,7 @@ function threadRow(t) {
   const [ss, st] = threadState(t);
   const step = rowStep(t);
   const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? agoEl(t.lastAgentAt, 'n') : '';
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Offline</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1620,7 +1624,7 @@ function renderSide() {
   const groups = [
     ['Needs you', by((t) => t.status === 'waiting'), 'need'],
     // Started but silent: their own amber group, so WORKING counts only threads whose agent has called.
-    ['Not connected', by(isNoconn), 'noconn'],
+    ['Offline', by(isNoconn), 'noconn'],
     ['Starting', by(isStarting)],
     ['Working', by(isRunning)],
     ['Waiting', by((t) => ['queued', 'stalled'].includes(t.status))],
@@ -1631,12 +1635,12 @@ function renderSide() {
   // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
   let html;
   if (q) {
-    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
   } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
     + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
-    + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
   setHtml($('threads'), html);
@@ -1650,7 +1654,7 @@ function renderSide() {
   ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} offline` : '';
   // One spoken name for the tab: what the count badge and the amber line mean.
   const tabT = document.querySelector('#tabs [data-tab="threads"]');
-  const tabName = ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} not connected`].filter(Boolean).join(', ');
+  const tabName = ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} offline`].filter(Boolean).join(', ');
   tabT.setAttribute('aria-label', tabName); tabT.title = tabName;
 }
 
@@ -2450,7 +2454,7 @@ function activityOf(a) {
 function accountCard(a) {
   const [cls0, st0, stNote, stAt] = acctState(a);
   // "Working" is green on every card; a silent thread is named in amber on the line under the bars
-  // ("1 thread not connected") and marked on its own row, so amber means "not connected" only.
+  // ("1 thread offline") and marked on its own row, so amber means "offline" only.
   const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
@@ -2493,7 +2497,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('#pop [data-ope
 // The same groups (and counts) as the threads sidebar: Needs you, Working, Waiting, Done.
 const TASK_GROUPS = [
   ['Needs you', 'need', (t) => t.status === 'waiting'],
-  ['Not connected', 'noconn', isNoconn],
+  ['Offline', 'noconn', isNoconn],
   ['Starting', 'start', isStarting],
   ['Working on', 'work', isRunning],
   ['Not started', 'todo', (t) => ['queued', 'stalled'].includes(t.status)],
