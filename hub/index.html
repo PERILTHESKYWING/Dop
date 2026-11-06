@@ -122,6 +122,11 @@ try {
 /* sidebar: the board. Honey kaya with no background picture; frosted glass over one (tokens above). */
 :root:not([data-bg]) .app > .side, :root[data-bg=""] .app > .side { background: var(--kaya); }
 :root .app > .side { color: var(--kaya-ink); border-right-color: var(--kaya-line); }
+/* Dark with no background picture: the Filter field and the phone tab bar are the kaya darkened, a deep warm brown
+   that belongs to the sidebar's wood instead of the grey-black page (artist, 2026-11-05 r1 and r2). On #2c2016:
+   placeholder 5.4:1, tab labels 8.8:1 (soft) and 13.9:1 (current), not-connected amber 8.6:1. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-bg]), :root:not([data-theme="light"])[data-bg=""] { --deep: #2c2016; --deep-line: #45321f; } }
+:root[data-theme="dark"]:not([data-bg]), :root[data-theme="dark"][data-bg=""] { --deep: #2c2016; --deep-line: #45321f; }
 :root .app > .side .pbtn { color: var(--kaya-ink); }
 :root .app > .side .live.off { color: var(--red); }
 :root .app > .side .btn:not(.quiet) { background: color-mix(in srgb, var(--panel) 70%, var(--kaya)); border-color: var(--kaya-line); color: var(--kaya-ink); }
@@ -308,7 +313,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .newtask svg { width: 16px; height: 16px; flex: none; }
 /* Quick filter (shown once there are enough threads to need it). */
 .tfind { padding: 2px 12px 4px; }
-.tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.tfind input { width: 100%; padding: 7px 10px; font-size: 15px; border: 1px solid var(--deep-line, var(--line)); border-radius: 8px; background: var(--deep, var(--bg)); color: var(--ink); }
 .newtask[aria-pressed="true"] { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 .list { overflow-y: auto; padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 2px; }
 /* Rows keep their height in a long list (as flex items they shrank to 34 px and clipped the second title line). */
@@ -358,7 +363,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .st-starting .dot, .st-new .dot, .ss-starting > .dot { background: none; box-shadow: inset 0 0 0 2px var(--faint); }
 .st-noconn .dot, .ss-noconn > .dot { background: none; box-shadow: inset 0 0 0 2px var(--amber); }
 .state.starting { color: var(--soft); } .state.noconn, .state.busy.warn { color: var(--amber-text); }
-/* A working account with a silent thread says so in amber under its bars ("Working · 1 thread not connected"). */
+/* A working account with a silent thread says so in amber under its bars ("Working · 1 thread offline"). */
 :root .acard .sub.snote { color: var(--amber-text); }
 
 /* main */
@@ -793,6 +798,12 @@ button.act:hover .ttl { text-decoration: underline; }
 button.act.nc { border-left: 3px double var(--amber); }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
+/* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
+   cut after 2 lines, "Library: video thumbnails in the…"), so it goes on its own line under the title there. */
+@media (min-width: 861px) { .act.nc .act-top { flex-direction: column; gap: 0; } }
+/* Desktop list: the same for an offline thread's row, its "Offline" goes under the title (the title was cut after
+   two lines next to it), as the working rows' step line does. */
+@media (min-width: 861px) { .trow.t1.ss-noconn .when.nc { grid-column: 2 / -1; grid-row: 2; justify-self: start; } }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
@@ -1016,6 +1027,12 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .brand { padding-top: 10px; padding-bottom: 6px; }
   /* Mark usage reset: drawn 32 px, tapped 44 px (the ::after overhangs 6 px above and below). */
   :root .asub .btn::after { content: ''; position: absolute; inset: -7px -4px; }
+  /* Team Add and an account's Connect: the same 32 px drawn button as Mark usage reset (artist, 2026-11-05: at 44 px
+     they looked tall next to it); the ::after keeps a 46 px tap area without making the row taller. */
+  :root .team > .thead > .btn[data-open="add"], :root .ameta > .btn, :root .asub .btn { position: relative; box-sizing: border-box; height: 32px; min-height: 32px; padding: 0 12px; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; }
+  :root .team > .thead > .btn[data-open="add"]::after, :root .ameta > .btn::after { content: ''; position: absolute; inset: -7px -4px; }
+  /* Add sits on the Team heading's baseline, not centred on its taller box. */
+  .team > .thead:first-child { align-items: baseline; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -1025,17 +1042,20 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .tabs { background: var(--deep, var(--glass)); border-top-color: var(--deep-line, var(--line)); }
   html.kb .tabs { display: none; }
   .tabs button { border: 0; background: none; padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 500; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; transition: color .15s, box-shadow .15s, background-color .15s; }
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
-  /* Not connected: the same hollow amber ring as its sidebar dot, apart from the solid Needs-you badge. */
-  /* Not connected: "◦ 1 not connected" on a second line, the same hollow amber ring as its sidebar dot, in words. */
-  .tabs button { flex-wrap: wrap; align-content: center; row-gap: 0; }
-  .tabs button:has(.nclab:not(.hidden)) { padding: 4px 0; }
-  .tabs .nclab { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 5px; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--amber-text); }
-  .tabs .nclab::before { content: ''; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); }
+  /* Not connected: a hollow amber pill "1 offline" on the same line as the label and the solid Needs-you badge
+     (solid = needs you, hollow = not connected, as the sidebar's filled and hollow dots), so every tab is one
+     line at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two; critics 2026-11-06: a ring and a bare
+     "1" read as a radio button). While it shows, the Threads column takes 1.6 shares so 12 + 12 still fit and
+     Chat and Team keep 108 px targets. The tab's aria-label says "N offline", the same word. */
+  .tabs button { white-space: nowrap; }
+  .tabs:has(.nclab:not(.hidden)) { grid-template-columns: minmax(0, 1.6fr) 1fr 1fr; }
+  .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 13px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
   .tabs .nclab.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
@@ -1306,10 +1326,10 @@ function acctState(a) {
     const ts = S.threads.filter((t) => t.status === 'working' && !t.archived && (t.account === a.name || crewOf(t).includes(a.name)));
     if (ts.length && ts.every((t) => t.account === a.name && unheard(t))) {
       const late = ts.filter((t) => threadState(t)[0] === 'noconn');
-      return late.length === ts.length ? ['noconn', `Not connected · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
+      return late.length === ts.length ? ['noconn', `Offline · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
     }
     const nc = ts.filter((t) => t.account === a.name && isNoconn(t)).length;
-    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} not connected` : ''];
+    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} offline` : ''];
   }
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
@@ -1349,8 +1369,8 @@ const sinceSpan = (at) => `<span class="since" data-since="${at}">${span(Date.no
 function thinkingLine(who, since, key, state = 'working', step = '', tail = '', elapsed = '') {
   const clockHtml = elapsed || sinceSpan(since);
   if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${clockHtml} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
-  // starting: a grey ring; not connected: amber. Green stays "working" only.
-  const cls = state === 'starting' ? ' idle' : state === 'not connected' ? ' late' : '';
+  // starting: a grey ring; offline: amber. Green stays "working" only.
+  const cls = state === 'starting' ? ' idle' : state === 'offline' ? ' late' : '';
   return `<div class="thinking${cls}"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span> · ${clockHtml}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
@@ -1383,12 +1403,13 @@ const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ag
 const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
-// together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Not connected".
+// together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Offline" (one word for this
+// state everywhere a person sees it: the tab pill, the group, the row, the pill, the Team card; critics 2026-11-06).
 const NOCONN_MS = 2 * 60e3;
 const unheard = (t) => !t.archived && t.status === 'working' && !!t.account && !((t.lastAgentAt || 0) > (t.lastFireAt || 0));
 const unheardAt = (t) => t.lastFireAt || t.lastAgentAt || Date.now();
 const unheardMin = (t) => Math.max(0, Math.floor((Date.now() - unheardAt(t)) / 60e3));
-// "Not connected · 4m" as HTML whose minutes tick in place (an .ago span counting from the session start).
+// "Offline · 4m" as HTML whose minutes tick in place (an .ago span counting from the session start).
 const minHtml = (s, at) => esc(s).replace(/\b(\d+)m\b/, `<span class="ago" data-at="${at}" data-f="m">$1m</span>`);
 const stHtml = ([, w, at]) => (at ? minHtml(w, at) : esc(w));
 const isNoconn = (t) => threadState(t)[0] === 'noconn';
@@ -1398,7 +1419,7 @@ const isRunning = (t) => !t.archived && ['working', 'new'].includes(t.status) &&
 function threadState(t) {
   if (t.archived) return ['done', 'Archived'];
   if (t.status === 'new') return ['starting', 'Starting'];
-  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Not connected · ${unheardMin(t)}m`, unheardAt(t)] : ['starting', 'Starting'];
+  if (unheard(t)) return Date.now() - (t.lastFireAt || 0) >= NOCONN_MS ? ['noconn', `Offline · ${unheardMin(t)}m`, unheardAt(t)] : ['starting', 'Starting'];
   if (t.status === 'queued' && t.account) return ['queued', `Waiting for ${t.account}`];
   return [t.status, STATUS[t.status] || t.status];
 }
@@ -1460,9 +1481,9 @@ function activityHtml(t, msgs) {
   const [stCls] = threadState(t);
   const quiet = unheard(t) || t.status === 'new';
   const heard = quiet ? '' : ` · ${agoEl(t.lastAgentAt, 'h')}`;
-  // Not connected yet: the same whole minutes as the pill and the Team card (all redrawn together).
+  // Offline: the same whole minutes as the pill and the Team card (all redrawn together).
   const elapsed = quiet ? agoEl(unheardAt(t), 'm') : agoEl(t.startedAt || t.lastAgentAt || t.updatedAt || Date.now(), 'e');
-  const state = stCls === 'noconn' ? 'not connected' : quiet ? 'starting' : 'working';
+  const state = stCls === 'noconn' ? 'offline' : quiet ? 'starting' : 'working';
   if (t.account && thoughtShown(t.account)) lines.push(thinkingLine(t.account, 0, `${t.id}${t.account}${t.startedAt || ''}`, state, actMin ? stepOf(t, t.account) : '', heard, elapsed));
   for (const n of crewOf(t)) if (thoughtShown(n)) lines.push(thinkingLine(n, 0, `${t.id}${n}${t.crew[n].startedAt || ''}`, 'working', actMin ? stepOf(t, n) : '', '', agoEl(t.crew[n].startedAt || t.crew[n].at || Date.now(), 'e')));
   if (!lines.length) return '';
@@ -1504,7 +1525,7 @@ $('feed').addEventListener('click', (e) => {
   ls.set('hub-activity', actMin ? 'min' : '');
   renderFeed();
 });
-// "Starting" turns into "Not connected · Nm" with time alone. The minutes tick in place (the clock tick
+// "Starting" turns into "Offline · Nm" with time alone. The minutes tick in place (the clock tick
 // below), so this redraws only when a thread's state flips (starting -> not connected); ncKey is the
 // states the last render drew.
 let ncKey = '';
@@ -1578,7 +1599,7 @@ function threadRow(t) {
   const [ss, st] = threadState(t);
   const step = rowStep(t);
   const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? agoEl(t.lastAgentAt, 'n') : '';
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Not connected</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Offline</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1603,7 +1624,7 @@ function renderSide() {
   const groups = [
     ['Needs you', by((t) => t.status === 'waiting'), 'need'],
     // Started but silent: their own amber group, so WORKING counts only threads whose agent has called.
-    ['Not connected', by(isNoconn), 'noconn'],
+    ['Offline', by(isNoconn), 'noconn'],
     ['Starting', by(isStarting)],
     ['Working', by(isRunning)],
     ['Waiting', by((t) => ['queued', 'stalled'].includes(t.status))],
@@ -1614,12 +1635,12 @@ function renderSide() {
   // Built as one string and set only when it changed, so a poll that changes nothing here rebuilds no rows.
   let html;
   if (q) {
-    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    html = groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
   } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
     + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
-    + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}">${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
+    + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
   setHtml($('threads'), html);
@@ -1630,10 +1651,11 @@ function renderSide() {
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
   const nc = S.threads.filter(isNoconn).length, ring = $('ncRing');
-  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} not connected` : '';
+  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} offline` : '';
   // One spoken name for the tab: what the count badge and the amber line mean.
   const tabT = document.querySelector('#tabs [data-tab="threads"]');
-  tabT.setAttribute('aria-label', ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} not connected`].filter(Boolean).join(', '));
+  const tabName = ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} offline`].filter(Boolean).join(', ');
+  tabT.setAttribute('aria-label', tabName); tabT.title = tabName;
 }
 
 // Desktop: a thread opened from a row half under the list's top or bottom edge scrolls into view whole,
@@ -2021,9 +2043,11 @@ function oneStartPerAccount(list) {
 }
 function renderFeed() {
   const feed = $('feed');
-  const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   const t = S.threads.find((x) => x.id === sel);
   if (sel > 0 && !t) sel = 0;
+  // Only a view that stays open can follow new posts; a view being replaced is never measured (reading the
+  // old feed's height was a whole layout of up to 100 messages that were about to go).
+  const stick = feed.dataset.sel === String(sel) && feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   renderHead(t);
   const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
   const ctx = feedCtx();
@@ -2430,7 +2454,7 @@ function activityOf(a) {
 function accountCard(a) {
   const [cls0, st0, stNote, stAt] = acctState(a);
   // "Working" is green on every card; a silent thread is named in amber on the line under the bars
-  // ("1 thread not connected") and marked on its own row, so amber means "not connected" only.
+  // ("1 thread offline") and marked on its own row, so amber means "offline" only.
   const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
@@ -2473,7 +2497,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('#pop [data-ope
 // The same groups (and counts) as the threads sidebar: Needs you, Working, Waiting, Done.
 const TASK_GROUPS = [
   ['Needs you', 'need', (t) => t.status === 'waiting'],
-  ['Not connected', 'noconn', isNoconn],
+  ['Offline', 'noconn', isNoconn],
   ['Starting', 'start', isStarting],
   ['Working on', 'work', isRunning],
   ['Not started', 'todo', (t) => ['queued', 'stalled'].includes(t.status)],
@@ -2510,7 +2534,13 @@ function agentPanel() {
   const names = [...new Set(list.map((g) => g.account))];
   return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run ? `${run} agent${run > 1 ? 's' : ''} running` : 'None running'}</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
 }
+// Phone: the Team pane is display:none unless its tab is open, so it is drawn when the tab opens (setTab) or the
+// page leaves phone width, not on every poll and thread open behind Threads or Chat.
+let teamStale = false;
+PHONE.addEventListener?.('change', () => { if (teamStale) renderTeam(); });
 function renderTeam() {
+  if (PHONE.matches && $('app').dataset.tab !== 'team') { teamStale = true; return; }
+  teamStale = false;
   // Accounts that need XIAO come first.
   const rank = (a) => (a.problem ? -1 : a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
@@ -2558,18 +2588,20 @@ function lessonRows() {
 function fillLessons() { const el = $('lList'); if (el) setHtml(el, lessonRows()); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
 
 function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); fillLessons(); }
-function setTab(tab) {
+// drawn: render() follows at once (openThread), so the feed is not scrolled now and Team is not drawn twice.
+function setTab(tab, drawn = false) {
   const was = $('app').dataset.tab;
   // A thread opened from Threads keeps Threads marked (Chat is the project chat), as a back stack.
   const shown = tab === 'chat' && sel ? 'threads' : tab;
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === shown));
-  if (tab === 'chat' && was !== 'chat') toBottom();
+  if (tab === 'chat' && was !== 'chat' && !drawn) toBottom();
   // The Team panel says "this thread" only while that thread is on screen.
-  if (was !== tab) renderTeam();
+  if (was !== tab && !drawn) renderTeam();
 }
 const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
-function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; sel = id; delete feedEarly[id]; closePop(); setTab('chat'); render(); toBottom(); }
+// A different view goes to its end inside renderFeed; only reopening the same one needs the extra toBottom.
+function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; const same = sel === id; sel = id; delete feedEarly[id]; closePop(); setTab('chat', true); render(); if (same) toBottom(); }
 $('feed').addEventListener('click', (e) => {
   if (!e.target.closest('[data-feed-more]')) return;
   const f = $('feed'), h = f.scrollHeight - f.scrollTop;

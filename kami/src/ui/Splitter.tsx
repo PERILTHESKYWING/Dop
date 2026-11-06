@@ -3,6 +3,23 @@ import { useLayoutEffect, useRef } from 'react';
 const KEY_W = 'kami.boardWidth';
 const KEY_H = 'kami.boardHeight';
 const phone = () => window.matchMedia('(max-width: 899px)').matches;
+/**
+ * A phone's board height is a share of the small viewport (svh: the screen with the browser's
+ * bars shown), so the board does not resize while the address bar slides away; vh where svh is
+ * not known. styles.css uses the same unit for the default height.
+ */
+const SVH = typeof CSS !== 'undefined' && CSS.supports?.('height', '1svh');
+const UNIT = SVH ? 'svh' : 'vh';
+/** 1% of that height in px (measured: there is no window property for svh). */
+const unitPx = () => {
+  if (!SVH) return window.innerHeight / 100;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none';
+  document.body.appendChild(probe);
+  const h = probe.getBoundingClientRect().height;
+  probe.remove();
+  return (h || window.innerHeight) / 100;
+};
 /** The board column. Its phone height lives on it, so a drag restyles only the board. */
 const boardOf = (split: HTMLElement) => (split.querySelector('.board-panel') as HTMLElement | null) ?? split;
 /** Forget both sizes (the CSS defaults take over again). */
@@ -40,7 +57,7 @@ export function Splitter() {
   const apply = (split: HTMLElement, value: number, isPhone: boolean, total = split.clientWidth) => {
     if (isPhone) {
       const f = Math.min(0.75, Math.max(0.25, value));
-      boardOf(split).style.setProperty('--board-h', `${(f * 100).toFixed(1)}dvh`);
+      boardOf(split).style.setProperty('--board-h', `${(f * 100).toFixed(1)}${UNIT}`);
       return f;
     }
     const w = Math.round(Math.min(total - 380, Math.max(300, value)));
@@ -75,7 +92,7 @@ export function Splitter() {
     const r = split.getBoundingClientRect();
     const top = (split.querySelector('.board-panel') as HTMLElement | null)?.getBoundingClientRect().top ?? r.top;
     const total = split.clientWidth;
-    const vh = window.innerHeight;
+    const vh = unitPx() * 100;
     // Pointer events can come faster than frames: keep the newest and write it once per frame.
     let last = 0;
     let pending: number | null = null;
@@ -110,7 +127,7 @@ export function Splitter() {
     const p = phone();
     const step = e.shiftKey ? 80 : 24;
     let v: number | null = null;
-    if (p && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) v = (board.offsetHeight + (e.key === 'ArrowDown' ? step : -step)) / window.innerHeight;
+    if (p && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) v = (board.offsetHeight + (e.key === 'ArrowDown' ? step : -step)) / (unitPx() * 100);
     if (!p && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) v = board.offsetWidth + (e.key === 'ArrowLeft' ? step : -step);
     if (v === null) return;
     e.preventDefault();

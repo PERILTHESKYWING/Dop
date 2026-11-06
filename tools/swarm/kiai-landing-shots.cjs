@@ -3,7 +3,7 @@ const { chromium } = (() => { try { return require('playwright'); } catch { retu
 const path = require('path');
 const out = process.argv[2];
 const webgl = process.argv[3] === '1';
-const URL = 'http://localhost:4291/' + (process.argv[4] || '');
+const URL = (process.env.BASE || 'http://localhost:4291/') + (process.argv[4] || '');
 const vps = [
   { name: 'desktop', viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
   { name: 'phone', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
