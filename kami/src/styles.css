@@ -2908,12 +2908,20 @@ kbd {
     display: flex;
   }
   /* 8 px less than 58% of the screen, taken from the padding under the step card and inside it,
-     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room */
+     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
+     svh, the screen with the browser's bars shown: the board keeps one size while a phone's
+     address bar slides away and back (dvh resized the board on every scroll); the chat under it
+     takes the extra room. vh for a browser without svh (Splitter.tsx writes the same unit). */
   .board-panel {
     width: auto;
-    height: var(--board-h, calc(58dvh - 8px));
+    height: var(--board-h, calc(58vh - 8px));
     padding: 2px 10px 4px;
     gap: 4px;
+  }
+  @supports (height: 1svh) {
+    .board-panel {
+      height: var(--board-h, calc(58svh - 8px));
+    }
   }
   .bp-foot {
     padding: 0 6px 0;
