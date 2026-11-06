@@ -198,32 +198,84 @@ const rects = async (p) =>
       });
       await shot('7-term-focus');
     } else console.log('no term took focus');
-    // 8 (phone): a tap on a term pins its card
-    if (vp.name === 'phone') {
-      await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
-      // the chat as the answer opened (Tab in 6 and 7 may have scrolled it), so the tap is judged
-      // where a reader makes it; the tap itself must not scroll the chat
-      await page.keyboard.press('Escape');
-      await page.evaluate((y) => (document.querySelector('.messages').scrollTop = y), answerScroll);
-      await page.waitForTimeout(300);
-      const term = await page.$('.msg.kami .term');
-      if (term) {
-        const before = await page.evaluate(() => document.querySelector('.messages').scrollTop);
-        await term.tap();
-        await page.waitForTimeout(500);
-        R.termTap = await page.evaluate((before) => {
-          const t = document.querySelector('.term-tip.pinned');
-          const r = t && t.getBoundingClientRect();
-          const cut = r ? [...document.querySelectorAll('button:not(.pt):not(.chip):not(.tag), textarea, summary')].filter((b) => !t.contains(b)).map((b) => b.getBoundingClientRect()).filter((b) => b.width && b.right > r.left && b.left < r.right && ((b.top < r.top && b.bottom > r.top) || (b.top < r.bottom && b.bottom > r.bottom))).length : null;
-          return { text: t?.textContent || null, scrolled: document.querySelector('.messages').scrollTop - before, tip: r && [Math.round(r.top), Math.round(r.bottom)], halfCoveredButtons: cut };
-        }, before);
-        await shot('8-term-tap');
-        // a tap outside closes it
-        await page.touchscreen.tap(20, 430);
+    // 8 (phone): a tap on a term pins its card. 9 (desktop): a mouse over a term shows its card,
+    // and 10 (desktop) a click pins it with its close button. Both measure the answer lines the card covers.
+    await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+    // the chat as the answer opened (Tab in 6 and 7 may have scrolled it), so the tap is judged
+    // where a reader makes it; the tap itself must not scroll the chat (unless the card would
+    // end out of view)
+    await page.keyboard.press('Escape');
+    await page.mouse.move(5, 5);
+    await page.evaluate((y) => (document.querySelector('.messages').scrollTop = y), answerScroll);
+    await page.waitForTimeout(300);
+    // the first term a reader can see (one in the folded numbers is hidden)
+    const termIndex = await page.evaluate(() => {
+      const m = document.querySelector('.messages').getBoundingClientRect();
+      return [...document.querySelectorAll('.msg.kami .term')].findIndex((e) => {
+        const b = e.getBoundingClientRect();
+        return b.width > 0 && b.top >= m.top && b.bottom <= m.bottom && e.checkVisibility({ visibilityProperty: true });
+      });
+    });
+    const term = termIndex >= 0 ? (await page.$$('.msg.kami .term'))[termIndex] : null;
+    /** The card, the chat's movement, half-covered buttons and the answer lines under the card. */
+    const tipReport = (before) =>
+      page.evaluate((before) => {
+        const t = document.querySelector('.term-tip');
+        const r = t && t.getBoundingClientRect();
+        const cut = r ? [...document.querySelectorAll('button:not(.pt):not(.chip):not(.tag), textarea, summary')].filter((b) => !t.contains(b)).map((b) => b.getBoundingClientRect()).filter((b) => b.width && b.right > r.left && b.left < r.right && ((b.top < r.top && b.bottom > r.top) || (b.top < r.bottom && b.bottom > r.bottom))).length : null;
+        // text lines of the chat (outside the card) that the card's box overlaps
+        let covered = 0;
+        const samples = [];
+        if (r) {
+          const walk = document.createTreeWalker(document.querySelector('.messages'), NodeFilter.SHOW_TEXT);
+          const range = document.createRange();
+          const ys = new Set();
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            if (!n.textContent.trim() || t.contains(n) || !n.parentElement.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+            range.selectNodeContents(n);
+            for (const q of range.getClientRects()) if (q.right > r.left && q.left < r.right && q.bottom > r.top + 1 && q.top < r.bottom - 1) { ys.add(Math.round(q.top)); if (samples.length < 4) samples.push(n.textContent.trim().slice(0, 30)); }
+          }
+          covered = ys.size;
+        }
+        const term = document.querySelector('.term.on');
+        const tr = term && term.getBoundingClientRect();
+        return { text: (t && t.textContent) || null, inline: !!(t && t.classList.contains('inline')), pinned: !!(t && t.classList.contains('pinned')), scrolled: document.querySelector('.messages').scrollTop - before, tip: r && [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], term: tr && [Math.round(tr.left), Math.round(tr.top)], halfCoveredButtons: cut, coveredLines: covered, coveredSample: samples };
+      }, before);
+    const scrollNow = () => page.evaluate(() => document.querySelector('.messages').scrollTop);
+    const focusOnTerm = () => page.evaluate(() => !!(document.activeElement && document.activeElement.classList.contains('term')));
+    if (term && vp.name === 'phone') {
+      const before = await scrollNow();
+      await term.tap();
+      await page.waitForTimeout(500);
+      R.termTap = { ...(await tipReport(before)), board: (await rects(page)).square };
+      await shot('8-term-tap');
+      // the close button closes it and hands focus back to the term
+      const x = await page.$('.term-tip .term-close');
+      if (x) {
+        await x.tap();
         await page.waitForTimeout(300);
-        R.termTap.closesOnTapOutside = !(await page.$('.term-tip'));
+        R.termTap.closeButton = { closed: !(await page.$('.term-tip')), focusOnTerm: await focusOnTerm() };
       }
-    }
+      // a tap outside closes it
+      await term.tap();
+      await page.waitForTimeout(300);
+      await page.touchscreen.tap(20, 430);
+      await page.waitForTimeout(300);
+      R.termTap.closesOnTapOutside = !(await page.$('.term-tip'));
+    } else if (term) {
+      const before = await scrollNow();
+      await term.hover();
+      await page.waitForTimeout(500);
+      R.termHover = { ...(await tipReport(before)), board: (await rects(page)).square };
+      await shot('9-term-hover');
+      await term.click();
+      await page.waitForTimeout(300);
+      R.termPin = await tipReport(before);
+      await shot('10-term-pin');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+      R.termPin.escape = { closed: !(await page.$('.term-tip.pinned')), focusOnTerm: await focusOnTerm() };
+    } else console.log('no visible term');
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();
   }
