@@ -15,6 +15,8 @@
   --ink-2: #2b2722;
   --muted: #5f584d;
   --faint: #8a8173;
+  /* a Go term's dotted underline: 4.2:1 on the paper, 4.6:1 in dark (--faint was 3.5 and 3.3; a11y critic, 2026-11-06) */
+  --term-line: #7d7467;
   --line: #e4ddce;
   --line-strong: #cfc5b2;
   /* a line that must be seen (a ring round an empty dot): 3:1 or more on every surface */
@@ -71,6 +73,7 @@
     --ink-2: #d6cfc2;
     --muted: #a69d8e;
     --faint: #6f675a;
+    --term-line: #867d6f;
     --line: #2c2820;
     --line-strong: #3a352b;
     --line-ui: #857c6e;
@@ -104,6 +107,7 @@
   --ink-2: #d6cfc2;
   --muted: #a69d8e;
   --faint: #6f675a;
+  --term-line: #867d6f;
   --line: #2c2820;
   --line-strong: #3a352b;
   --line-ui: #857c6e;
@@ -997,7 +1001,7 @@ kbd {
   padding-block: 4px;
   text-decoration-line: underline;
   text-decoration-style: dotted;
-  text-decoration-color: var(--faint);
+  text-decoration-color: var(--term-line);
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
   cursor: help;

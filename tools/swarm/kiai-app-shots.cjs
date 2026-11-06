@@ -275,6 +275,18 @@ const rects = async (p) =>
       await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
       R.termPin.escape = { closed: !(await page.$('.term-tip.pinned')), focusOnTerm: await focusOnTerm() };
+      // a keyboard pin (Enter on the focused term) moves focus to the card's ×, a labelled group;
+      // Escape hands it back
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(400);
+      R.termPin.keyboard = await page.evaluate(() => {
+        const t = document.querySelector('.term-tip.pinned');
+        const lab = t && document.getElementById(t.getAttribute('aria-labelledby') || '');
+        return { role: t && t.getAttribute('role'), label: lab && lab.textContent, focusOnClose: !!(document.activeElement && document.activeElement.classList.contains('term-close')) };
+      });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+      R.termPin.keyboard.escapeBack = await focusOnTerm();
     } else console.log('no visible term');
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
-import { inlineArrow, placeTip, revealBy } from '../lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, revealTarget, type Box } from '../lib/tipPlace';
 
 /** Asks Kami a question ("What is miai?"); the chat provides it so a pinned card can link to the library. */
 export const AskContext = createContext<((text: string) => void) | null>(null);
@@ -25,20 +25,22 @@ function blockOf(el: HTMLElement, stop: Element): HTMLElement {
 const WHOLE = '.term, .pt, button, a, .chip, .tag';
 
 /**
- * A host for a phone's in-chat card, right under the term's line: at the start of the next line
- * of its paragraph. The line breaks where it already wrapped, so the lines before stay as they
- * were and the lines after move down whole. A text node is split there and joined again by
- * `undo`. On the paragraph's last line the host goes after the paragraph (inside a list item, at
- * its end).
+ * Puts an in-chat card's `host` right under the term's line: at the start of the next line of its
+ * paragraph. The line breaks where it already wrapped, so the lines before stay as they were and
+ * the lines after move down whole. A text node is split there. On the paragraph's last line the
+ * host goes after the paragraph (inside a list item, at its end).
+ *
+ * Returns the undo: the host out and the split text joined again, exactly as React drew it. The
+ * caller undoes before every one of its renders commits (a layout effect's cleanup runs in the
+ * commit's DOM pass, at the term, before React touches the text after it), so React only ever
+ * changes its own DOM.
  */
-function openSlot(el: HTMLElement, stop: Element): { host: HTMLElement; undo: () => void } {
+function placeSlot(host: HTMLElement, el: HTMLElement, stop: Element): () => void {
   const block = blockOf(el, stop);
-  const host = document.createElement('div');
-  host.className = 'term-slot';
+  host.classList.remove('after');
   const rects = el.getClientRects();
   const last = rects[rects.length - 1] ?? el.getBoundingClientRect();
   const below = last.top + last.height / 2;
-  let undo = () => host.remove();
   if (block !== el) {
     const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
@@ -72,7 +74,7 @@ function openSlot(el: HTMLElement, stop: Element): { host: HTMLElement; undo: ()
       } else {
         const rest = first.splitText(at);
         rest.before(host);
-        undo = () => {
+        return () => {
           host.remove();
           if (rest.parentNode && rest.parentNode === first.parentNode) {
             first.nodeValue = (first.nodeValue ?? '') + (rest.nodeValue ?? '');
@@ -80,44 +82,61 @@ function openSlot(el: HTMLElement, stop: Element): { host: HTMLElement; undo: ()
           }
         };
       }
-      return { host, undo };
+      return () => host.remove();
     }
   }
   host.classList.add('after');
   if (block.tagName === 'LI') block.appendChild(host);
   else block.after(host);
-  return { host, undo };
+  return () => host.remove();
+}
+
+/** The text's line boxes in a message (what is read: the answer, its sections and chips, not folded parts). */
+function messageLines(msg: Element): Box[] {
+  const range = document.createRange();
+  const out: Box[] = [];
+  for (const part of msg.querySelectorAll('.rich, .ans-section, .tags')) {
+    range.selectNodeContents(part);
+    for (const r of range.getClientRects()) if (r.width && r.height) out.push(r);
+  }
+  return out;
 }
 
 /**
  * A Go term in answer text with a dotted underline: hovering (mouse) or keyboard focus shows
- * its short definition; a tap or click pins it until the next tap elsewhere, Escape or its close
- * button (both hand focus back to the term).
+ * its short definition; a tap, click, Enter or Space pins it until the next press elsewhere,
+ * Escape or its close button (both hand focus back to the term).
  *
  * One card everywhere: the title, the Chinese and Japanese names on their own line, the
  * definition, a pointer at the term, and × when pinned. Where it goes:
- * - in the chat on a phone, inside the text: a block right under the term's line, so the text
- *   after it moves down and no answer line is covered (critics, 2026-11-05: a floating card
- *   covered 2-4 lines). The chat does not scroll, unless the card would end out of view.
- * - elsewhere (a desktop, the note under the board): floating just under the term's line (over
- *   it when there is no room; a phone's board note prefers over, so the answer stays clear),
- *   never half over a button, inside the window, and the chat never scrolls.
+ * - pinned in the chat, and on a phone also when shown by keyboard focus: inside the text, a
+ *   block right under the term's line, so the text after it moves down and no answer line or
+ *   KataGo's numbers row is covered (critics, 2026-11-05 and 11-06). The chat moves only to show
+ *   the card and the line after it, never past the term.
+ * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
+ *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
+ *   phone's board note prefers over, so the answer stays clear); never half over a button,
+ *   inside the window, and the chat never scrolls.
+ * A pinned card is a labelled group, and a keyboard pin moves focus to its ×.
  */
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
   const [pinned, setPinned] = useState(false);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number } | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
-  const [arrow, setArrow] = useState<number | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
   const tip = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
   /** Set while focus is handed back to the term, so that focus does not reopen the card. */
   const quiet = useRef(false);
+  /** A pin from the keyboard: focus goes to the card's × once it shows. */
+  const keyPin = useRef(false);
   const id = useId();
   const ask = useContext(AskContext);
   const open = pinned || hover;
   // decided as the card opens: the span exists from the first render on
-  const inline = open && !!ref.current?.closest('.messages') && narrow();
+  const inChat = open && !!ref.current?.closest('.messages');
+  const inline = inChat && (pinned || narrow());
 
   /** Close a pinned card and give focus back to its term (× and Escape). */
   const close = () => {
@@ -127,41 +146,53 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     ref.current?.focus({ preventScroll: true });
     quiet.current = false;
   };
+  const pin = (fromKey: boolean) => {
+    keyPin.current = fromKey && !pinned;
+    setPinned((p) => !p);
+  };
 
-  // In the chat on a phone: a host at the start of the line under the term (openSlot), made
-  // before the first paint so the card never shows anywhere else first.
+  // In the chat: one host element while the card is open inline (the card renders into it).
+  useLayoutEffect(() => {
+    if (!inline) return;
+    hostRef.current ??= Object.assign(document.createElement('div'), { className: 'term-slot' });
+    setSlot(hostRef.current);
+    return () => setSlot(null);
+  }, [inline]);
+
+  // ...placed under the term's line after every render and taken out (text joined) before the
+  // next one commits, so a message that re-renders while the card is open (streaming, Read
+  // longer, redo) never meets a split text node or a foreign element.
   useLayoutEffect(() => {
     const el = ref.current;
     const msg = el?.closest('.msg') ?? el?.closest('.messages');
-    if (!inline || !el || !msg) return;
-    const { host, undo } = openSlot(el, msg);
-    setSlot(host);
-    return () => {
-      undo();
-      setSlot(null);
-      setArrow(null);
-    };
-  }, [inline]);
+    if (!slot || !el || !msg) return;
+    const undo = placeSlot(slot, el, msg);
+    const t = tip.current;
+    if (t) {
+      const lines = el.getClientRects();
+      const line = lines[lines.length - 1] ?? el.getBoundingClientRect();
+      const c = t.getBoundingClientRect();
+      t.style.setProperty('--arrow', `${inlineArrow(line.left, line.right, c.left, c.width)}px`);
+    }
+    return undo;
+  });
 
-  // ...its pointer under the term, and the card in view (the chat moves only if the card would
-  // end below the pane's visible bottom)
+  // ...and once, as it opens: the card and the line after it in view (at most up to the term)
   useLayoutEffect(() => {
     const el = ref.current;
     const t = tip.current;
-    if (!slot || !el || !t) return;
-    const lines = [...el.getClientRects()];
-    const line = lines[lines.length - 1] ?? el.getBoundingClientRect();
+    const pane = el?.closest('.messages');
+    if (!slot || !el || !t || !pane) return;
+    const p = pane.getBoundingClientRect();
     const c = t.getBoundingClientRect();
-    setArrow(inlineArrow(line.left, line.right, c.left, c.width));
-    const pane = el.closest('.messages');
-    if (pane) {
-      const p = pane.getBoundingClientRect();
-      const by = revealBy(c.bottom, p.bottom, lines[0]?.top ?? line.top, p.top);
-      if (by) pane.scrollTop += by;
-    }
+    const msg = el.closest('.msg');
+    const toggle = msg?.querySelector('.facts > summary')?.getBoundingClientRect() ?? null;
+    const target = revealTarget(c.bottom, msg ? messageLines(msg) : [], p.bottom, toggle && toggle.height ? toggle : null);
+    const by = revealBy(target, p.bottom, el.getClientRects()[0]?.top ?? el.getBoundingClientRect().top, p.top, 4);
+    if (by) pane.scrollTop += by;
   }, [slot]);
 
-  // Floating (a desktop, or the board's note).
+  // Floating (a desktop's hover or focus, or the board's note).
   useLayoutEffect(() => {
     if (!open || inline) {
       setPos(null);
@@ -178,7 +209,9 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       const lines = [...(ref.current?.getClientRects() ?? [])];
       const line = lines[0] ?? r;
       const avoid = [...document.querySelectorAll<HTMLElement>('button:not(.pt):not(.chip):not(.tag), textarea, summary')].filter((b) => !t.contains(b)).map((b) => b.getBoundingClientRect()).filter((b) => b.width && b.height);
-      const { left, top, below } = placeTip(line, w, h, window.innerWidth, window.innerHeight, avoid, prefer);
+      // KataGo's numbers stay readable: the card goes over the line rather than over the list
+      const keep = [...document.querySelectorAll<HTMLElement>('.messages .facts')].map((b) => b.getBoundingClientRect()).filter((b) => b.width && b.height);
+      const { left, top, below } = placeTip(line, w, h, window.innerWidth, window.innerHeight, avoid, prefer, keep);
       // the pointer under (or over) the term's middle, kept inside the card's rounded corners
       const arrow = inlineArrow(line.left, line.right, left, w);
       setPos((p) => (p && p.left === left && p.top === top && p.below === below && p.arrow === arrow ? p : { left, top, below, arrow }));
@@ -197,6 +230,17 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       window.removeEventListener('resize', onMove);
     };
   }, [open, pinned, inline]);
+
+  // A keyboard pin hands focus to the card's × once the card is shown (Tab could not reach it
+  // first: the rest of the term's line comes before the card, and a floating card sits in <body>).
+  useEffect(() => {
+    if (!pinned || !keyPin.current) return;
+    const x = tip.current?.querySelector<HTMLElement>('.term-close');
+    if (x && (inline ? slot : pos)) {
+      keyPin.current = false;
+      x.focus({ preventScroll: true });
+    }
+  }, [pinned, inline, slot, pos]);
 
   // A pinned card closes on a press anywhere else, or on Escape (which hands focus back).
   useEffect(() => {
@@ -219,30 +263,28 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const card = termCard(entry);
   const more = pinned && ask && entry.concept;
   const names = card.names;
+  const titleId = `${id}-t`;
   const body = (
     <div
       ref={tip}
       id={id}
-      role={more ? 'dialog' : 'tooltip'}
-      aria-label={more ? card.title : undefined}
+      // a pinned card (with its ×) is a labelled group; a hover or focus card is a tooltip, no controls
+      role={pinned ? 'group' : 'tooltip'}
+      aria-labelledby={pinned ? titleId : undefined}
       className={`term-tip${inline ? ' inline' : ''}${pinned ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
-      style={
-        inline
-          ? ({ '--arrow': arrow === null ? undefined : `${arrow}px` } as React.CSSProperties)
-          : pos
-            ? ({ left: pos.left, top: pos.top, '--arrow': `${pos.arrow}px` } as React.CSSProperties)
-            : { left: 0, top: 0, visibility: 'hidden' }
-      }
+      style={inline ? undefined : pos ? ({ left: pos.left, top: pos.top, '--arrow': `${pos.arrow}px` } as React.CSSProperties) : { left: 0, top: 0, visibility: 'hidden' }}
     >
       {pinned && (
-        // a pinned card says how it closes: this button, a tap anywhere else, or Escape
-        <button type="button" className="term-close" aria-label="Close" title="Close (or tap anywhere else)" onClick={close}>
+        // a pinned card says how it closes: this button, a press anywhere else, or Escape
+        <button type="button" className="term-close" aria-label={`Close ${card.title}`} title="Close (or press anywhere else, or Escape)" onClick={close}>
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
         </button>
       )}
-      <div className="term-tip-title">{card.title}</div>
+      <div className="term-tip-title" id={titleId}>
+        {card.title}
+      </div>
       {names && (
         // the same term as Chinese and Japanese players write it, on its own line, each named
         <div className="term-tip-names">
@@ -284,19 +326,20 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
         role="button"
         tabIndex={0}
         aria-expanded={pinned}
-        aria-describedby={open ? id : undefined}
+        aria-controls={pinned ? id : undefined}
+        aria-describedby={open && !pinned ? id : undefined}
         onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(true)}
         onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(false)}
         onFocus={(e) => !quiet.current && e.currentTarget.matches(':focus-visible') && setHover(true)}
         onBlur={() => setHover(false)}
         onClick={(e) => {
           e.stopPropagation();
-          setPinned((p) => !p);
+          pin(false);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setPinned((p) => !p);
+            pin(true);
           } else if (e.key === 'Escape') {
             setPinned(false);
             setHover(false);

@@ -156,7 +156,7 @@ describe('the code checker rejects wording that contradicts KataGo', () => {
     const ex = await move34();
     const cheerful: CallLlm = async () => ({ text: "Plenty of room to play here! The hane at Q10 [[v1]] and R12 [[v2]] are both fine, so play your style. What kind of game do you feel like?", model: 'test' });
     expect(await writeAnswer(ex, 'myoshu', { callLlm: cheerful, checkAnswer })).toEqual({ by: 'engine', note: NOTES.failed });
-    const good: CallLlm = async () => ({ text: "White leads by about 11 points. White's Q11 attaches to R11, and KataGo's best try for Black is the hane at Q10 [[v1]]: White's main reply is the cut at R10, and Black continues at Q9. R12 [[v2]] is about as good.", model: 'test' });
+    const good: CallLlm = async () => ({ text: "White leads by about 11 points. White's Q11 attaches to R11, and KataGo's best move for Black is the hane at Q10 [[v1]]: White's main reply is the cut at R10, and Black continues at Q9. R12 [[v2]] is about as good.", model: 'test' });
     expect(await writeAnswer(ex, 'myoshu', { callLlm: good, checkAnswer })).toMatchObject({ by: 'gemini' });
     const none: CallLlm = async () => {
       throw new LlmUnavailable('not configured');
@@ -295,7 +295,8 @@ describe('round 2: one read on screen, each fact once', () => {
     // R12 read 0.5 points ahead in fewer visits; R8 is within 0.3 of Q10 in the same read.
     expect(ex.summary).toContain('R12 is about as good: KataGo read it less, and it came out a little ahead [[v2]].');
     expect(ex.summary).toContain('R8 is about as good too.');
-    expect(ex.summary).toContain('the hane at Q10 [[v1]].');
+    // "best move", as KataGo's numbers say it (a pro teacher, 2026-11-06: "best try" read as a guess)
+    expect(ex.summary).toContain("KataGo's best move for Black is the hane at Q10 [[v1]].");
     // No chip in the middle of a sentence.
     expect(ex.summary).not.toMatch(/\]\] [a-z]/);
   });
