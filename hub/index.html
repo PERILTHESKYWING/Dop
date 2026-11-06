@@ -2032,9 +2032,11 @@ function oneStartPerAccount(list) {
 }
 function renderFeed() {
   const feed = $('feed');
-  const stick = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   const t = S.threads.find((x) => x.id === sel);
   if (sel > 0 && !t) sel = 0;
+  // Only a view that stays open can follow new posts; a view being replaced is never measured (reading the
+  // old feed's height was a whole layout of up to 100 messages that were about to go).
+  const stick = feed.dataset.sel === String(sel) && feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   renderHead(t);
   const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
   const ctx = feedCtx();
@@ -2521,7 +2523,13 @@ function agentPanel() {
   const names = [...new Set(list.map((g) => g.account))];
   return `<div class="agents"><div class="thead"><h3>Agents</h3><span class="cap">${run ? `${run} agent${run > 1 ? 's' : ''} running` : 'None running'}</span></div>${names.map((n) => `<div class="ag-who">${esc(n)}</div>${list.filter((g) => g.account === n).slice().sort((a, b) => (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.at - a.at).slice(0, 8).map(agentRow).join('')}`).join('')}</div>`;
 }
+// Phone: the Team pane is display:none unless its tab is open, so it is drawn when the tab opens (setTab) or the
+// page leaves phone width, not on every poll and thread open behind Threads or Chat.
+let teamStale = false;
+PHONE.addEventListener?.('change', () => { if (teamStale) renderTeam(); });
 function renderTeam() {
+  if (PHONE.matches && $('app').dataset.tab !== 'team') { teamStale = true; return; }
+  teamStale = false;
   // Accounts that need XIAO come first.
   const rank = (a) => (a.problem ? -1 : a.low ? 3 : !a.models.length ? 2 : a.working ? 1 : 0) * 1000 + pctMax(a);
   const list = S.accounts.slice().sort((x, y) => rank(x) - rank(y));
@@ -2569,18 +2577,20 @@ function lessonRows() {
 function fillLessons() { const el = $('lList'); if (el) setHtml(el, lessonRows()); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
 
 function render() { assignColors(); renderSide(); renderFeed(); renderTeam(); fillLessons(); }
-function setTab(tab) {
+// drawn: render() follows at once (openThread), so the feed is not scrolled now and Team is not drawn twice.
+function setTab(tab, drawn = false) {
   const was = $('app').dataset.tab;
   // A thread opened from Threads keeps Threads marked (Chat is the project chat), as a back stack.
   const shown = tab === 'chat' && sel ? 'threads' : tab;
   $('app').dataset.tab = tab; document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === shown));
-  if (tab === 'chat' && was !== 'chat') toBottom();
+  if (tab === 'chat' && was !== 'chat' && !drawn) toBottom();
   // The Team panel says "this thread" only while that thread is on screen.
-  if (was !== tab) renderTeam();
+  if (was !== tab && !drawn) renderTeam();
 }
 const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
-function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; sel = id; delete feedEarly[id]; closePop(); setTab('chat'); render(); toBottom(); }
+// A different view goes to its end inside renderFeed; only reopening the same one needs the extra toBottom.
+function openThread(id) { drafts[sel] = $('text').value; delete feedEarly[sel]; const same = sel === id; sel = id; delete feedEarly[id]; closePop(); setTab('chat', true); render(); if (same) toBottom(); }
 $('feed').addEventListener('click', (e) => {
   if (!e.target.closest('[data-feed-more]')) return;
   const f = $('feed'), h = f.scrollHeight - f.scrollTop;
