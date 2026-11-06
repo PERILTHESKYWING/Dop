@@ -1023,15 +1023,16 @@ kbd {
   position: fixed;
   z-index: 90;
   width: max-content;
-  max-width: min(320px, calc(100vw - 16px));
-  padding: 9px 12px 10px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 10px 14px 11px;
   background: var(--raised);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 10px;
   /* a soft shadow, the card sits on the page rather than floats (critics, 2026-11-05) */
   box-shadow: 0 2px 10px rgba(20, 20, 19, 0.1);
-  font: 15px/1.45 var(--font);
+  /* a step under the answer text: 16 px beside 18 px on a desktop, 15 px beside 16 px on a phone */
+  font: 16px/1.45 var(--font);
   text-align: left;
   pointer-events: none;
   animation: fade 0.12s ease-out;
@@ -1076,11 +1077,57 @@ kbd {
 }
 .term-tip-title {
   font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 2px;
+  font-size: 1em;
+}
+/* the term as Chinese and Japanese players write it: its own line under the title, each named */
+.term-tip-names {
+  margin-top: 1px;
+  font-size: 1em;
+  color: var(--ink-2);
+}
+.term-tip-lang {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.term-tip-sep {
+  color: var(--faint);
 }
 .term-tip-text {
+  margin-top: 4px;
   color: var(--ink-2);
+}
+/* A phone's card in the chat: a block right under the term's line (Term.tsx), in the text's flow,
+   so the lines after it move down and none is covered. The same card as the floating one, without
+   the shadow it needs to sit over text; the host's top padding holds the pointer. After a
+   paragraph (the term on its last line) it takes half the paragraph's gap. */
+.term-slot {
+  display: block;
+  margin: 0 0 8px;
+  padding-top: 7px;
+}
+.term-slot.after {
+  margin: -6px 0 12px;
+}
+li > .term-slot.after {
+  margin: 2px 0 6px;
+}
+.term-tip.inline {
+  position: relative;
+  z-index: auto;
+  width: auto;
+  max-width: none;
+  box-shadow: none;
+  pointer-events: auto;
+}
+.term-tip.inline.pinned {
+  padding-right: 42px;
+}
+/* a finger's × on the phone card: 36 px, its ring inside the card */
+.term-tip.inline .term-close {
+  top: 2px;
+  right: 2px;
+  width: 36px;
+  height: 36px;
 }
 .term-more {
   display: inline-flex;
@@ -2908,12 +2955,20 @@ kbd {
     display: flex;
   }
   /* 8 px less than 58% of the screen, taken from the padding under the step card and inside it,
-     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room */
+     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
+     svh, the screen with the browser's bars shown: the board keeps one size while a phone's
+     address bar slides away and back (dvh resized the board on every scroll); the chat under it
+     takes the extra room. vh for a browser without svh (Splitter.tsx writes the same unit). */
   .board-panel {
     width: auto;
-    height: var(--board-h, calc(58dvh - 8px));
+    height: var(--board-h, calc(58vh - 8px));
     padding: 2px 10px 4px;
     gap: 4px;
+  }
+  @supports (height: 1svh) {
+    .board-panel {
+      height: var(--board-h, calc(58svh - 8px));
+    }
   }
   .bp-foot {
     padding: 0 6px 0;
@@ -3136,10 +3191,12 @@ kbd {
   .msg.kami .rich > p:last-child {
     margin-bottom: 4px;
   }
-  /* a phone's term card: the screen's width less 8 px a side, so it is short (2 or 3 lines) */
+  /* a phone's floating term card (the note under the board; the chat's opens in the text): the
+     screen's width less 8 px a side, so it is short (2 or 3 lines) */
   .term-tip {
     max-width: none;
     width: calc(100vw - 16px);
+    font-size: 15px;
   }
   /* the step buttons and the graph buttons, a little tighter */
   .step-btn {
@@ -3313,12 +3370,6 @@ kbd {
   .messages {
     padding-bottom: 12px;
   }
-}
-/* a term card's Chinese and Japanese names, after its English title */
-.term-tip-names {
-  margin-left: 8px;
-  font-weight: 400;
-  color: var(--muted);
 }
 /* a coordinate reached with Tab looks as it does under the pointer (its line is on the board) */
 .pt:focus-visible {
