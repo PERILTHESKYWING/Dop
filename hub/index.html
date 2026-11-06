@@ -798,6 +798,9 @@ button.act:hover .ttl { text-decoration: underline; }
 button.act.nc { border-left: 3px double var(--amber); }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
+/* Desktop rail: "Not connected · 4m" is too wide to share a line with the title in a 290 px column (the title was
+   cut after 2 lines, "Library: video thumbnails in the…"), so it goes on its own line under the title there. */
+@media (min-width: 861px) { .act.nc .act-top { flex-direction: column; gap: 0; } }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
@@ -1023,8 +1026,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   :root .asub .btn::after { content: ''; position: absolute; inset: -7px -4px; }
   /* Team Add and an account's Connect: the same 32 px drawn button as Mark usage reset (artist, 2026-11-05: at 44 px
      they looked tall next to it); the ::after keeps a 46 px tap area without making the row taller. */
-  :root .team > .thead > .btn[data-open="add"], :root .ameta > .btn { position: relative; min-height: 32px; padding: 0 12px; font-size: 15px; }
+  :root .team > .thead > .btn[data-open="add"], :root .ameta > .btn, :root .asub .btn { position: relative; box-sizing: border-box; height: 32px; min-height: 32px; padding: 0 12px; font-size: 15px; line-height: 1; display: inline-flex; align-items: center; }
   :root .team > .thead > .btn[data-open="add"]::after, :root .ameta > .btn::after { content: ''; position: absolute; inset: -7px -4px; }
+  /* Add sits on the Team heading's baseline, not centred on its taller box. */
+  .team > .thead:first-child { align-items: baseline; }
   /* Project chat and Team lessons: two cells on one surface, the count is a badge after its label. */
   /* Studio and Library are the same tiles as Project chat and Team lessons (they are links, so never marked open). */
   :root .app > .side .navpair .trow.tn, :root .app > .side .navrows .trow.tn { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); border-radius: 8px; box-shadow: none; }
@@ -1040,12 +1045,14 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
-  /* Not connected: "◦ 1" on the same line as the label and the solid Needs-you badge, so all three tabs are one line
-     at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two). The hollow amber ring is the sidebar's
-     not-connected dot and the Team card's double bar; the tab's aria-label and title say it in words. */
+  /* Not connected: a hollow amber pill "1 offline" on the same line as the label and the solid Needs-you badge
+     (solid = needs you, hollow = not connected, as the sidebar's filled and hollow dots), so every tab is one
+     line at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two; critics 2026-11-06: a ring and a bare
+     "1" read as a radio button). While it shows, the Threads column takes 1.6 shares so 12 + 12 still fit and
+     Chat and Team keep 108 px targets. The tab's aria-label says "N not connected". */
   .tabs button { white-space: nowrap; }
-  .tabs .nclab { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
-  .tabs .nclab::before { content: ''; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); }
+  .tabs:has(.nclab:not(.hidden)) { grid-template-columns: minmax(0, 1.6fr) 1fr 1fr; }
+  .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 13px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
   .tabs .nclab.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
@@ -1640,7 +1647,7 @@ function renderSide() {
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
   const nc = S.threads.filter(isNoconn).length, ring = $('ncRing');
-  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? String(nc) : '';
+  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} offline` : '';
   // One spoken name for the tab: what the count badge and the amber line mean.
   const tabT = document.querySelector('#tabs [data-tab="threads"]');
   const tabName = ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} not connected`].filter(Boolean).join(', ');
