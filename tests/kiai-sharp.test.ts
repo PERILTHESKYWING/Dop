@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { checkAnswer, wordingProblems } from '../src/lib/coach/answerCheck';
+import { numbersIn } from '../src/lib/coach/rubric';
 import { explain, type EngineRead, type Explanation, type ExplainPosition, type Prober } from '../src/lib/coach/explain';
 import { conceptContext, purposeHits, senteInLine } from '../src/lib/coach/explain/concepts';
 import { leansWords, plainTurn } from '../src/lib/coach/explain/consequence';
@@ -292,11 +293,25 @@ describe('round 2: one read on screen, each fact once', () => {
   it('names every move the board marks as about as good, chips at the end of the sentence', async () => {
     const ex = await move34();
     // R12 read 0.5 points ahead in fewer visits; R8 is within 0.3 of Q10 in the same read.
-    expect(ex.summary).toContain('R12 is about as good: KataGo read it less, and it came out 0.5 points ahead [[v2]].');
+    expect(ex.summary).toContain('R12 is about as good: KataGo read it less, and it came out a little ahead [[v2]].');
     expect(ex.summary).toContain('R8 is about as good too.');
     expect(ex.summary).toContain('the hane at Q10 [[v1]].');
     // No chip in the middle of a sentence.
     expect(ex.summary).not.toMatch(/\]\] [a-z]/);
+  });
+
+  it('the prose gives the idea and one number; the figures stay in KataGo’s numbers (HN critic, 2026-11-05)', async () => {
+    const ex = await move34();
+    const text = ex.summary.replace(/\[\[[vd]\d+\]\]/g, '');
+    // one number in the prose: the lead, rounded as the bar and the list round it
+    expect(numbersIn(text)).toEqual(['11']);
+    expect(text).not.toMatch(/points? ahead|\(\d/);
+    // every move the prose compares with KataGo's choice has its own row with the figures
+    const named = [...text.matchAll(/([A-HJ-T]\d{1,2}) is (?:about as good|a little worse|clearly worse)/g)].map((m) => m[1]);
+    const near = /([A-HJ-T]\d{1,2}(?:, [A-HJ-T]\d{1,2})*(?: and [A-HJ-T]\d{1,2})?) (?:is|are) about as good too/.exec(text)?.[1].split(/, | and /) ?? [];
+    const compared = [...new Set([...named, ...near])].sort();
+    expect(compared).toEqual(['R12', 'R8']);
+    for (const at of compared) expect(ex.facts.some((f) => f.text.startsWith(`${at} is `) && /\d\.\d/.test(f.text)), at).toBe(true);
   });
 
   it('the rounded lead of the first sentence is not listed again', async () => {

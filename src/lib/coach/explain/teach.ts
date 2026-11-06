@@ -622,13 +622,14 @@ export function teach(input: TeachInput): Teaching {
     const id = f.other ? f.vars.lineA : f.vars.alts[0];
     const g = best.lead - o.lead;
     // Chips at the end of the sentence. In a sharp position the words follow the numbers the
-    // board shows (one decimal): "about as good" only when they round to 0.3 or less.
+    // board shows (one decimal): "about as good" only when they round to 0.3 or less. The words
+    // give the idea and the figures stay in their rows under KataGo's numbers, which list every
+    // marked move (HN critic, 2026-11-04 and 11-05: the prose repeated the list); "a little" and
+    // "clearly" are KataGo's gap in words (under 2 points, 2 or more).
     if (sit.sharp) {
-      if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out ${fmt1(-g)} points ahead${ref(id)}.`);
+      if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out a little ahead${ref(id)}.`);
       else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
-      // with KataGo's number, the one its row under KataGo's numbers gives (a pro teacher, 2026-11-04:
-      // "a little worse" alone does not say how much)
-      else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse (${fmt1(g)} ${fmt1(g) === '1.0' ? 'point' : 'points'})${ref(id)}.`);
+      else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse${ref(id)}.`);
       nearLine([best.loc, o.loc], g < NEAR_PTS);
       return;
     }
