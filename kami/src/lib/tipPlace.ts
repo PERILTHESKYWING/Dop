@@ -10,20 +10,22 @@ export interface Box {
 /**
  * Where a floating card goes for a term at `r` (the term's line box): just under the line, else
  * just over it. `prefer: 'above'` turns that round (a phone's term in the note under the board:
- * the card covers the board for a moment rather than the answer under it). A side whose card
- * would cover a `keep` box (KataGo's numbers under the answer) gives way to the other side when
- * that one fits and keeps it clear.
+ * the card covers the board for a moment rather than the answer under it). When both sides fit,
+ * the side that covers less of the `keep` boxes wins (each counts its `weight`, 1 by default:
+ * KataGo's numbers 1, a button such as "Read longer" 2), the preferred side on a tie.
  */
-export function placeTip(r: Box, w: number, h: number, vw: number, vh: number, avoid: readonly Box[] = [], prefer: 'below' | 'above' = 'below', keep: readonly Box[] = []) {
+export function placeTip(r: Box, w: number, h: number, vw: number, vh: number, avoid: readonly Box[] = [], prefer: 'below' | 'above' = 'below', keep: readonly (Box & { weight?: number })[] = []) {
   // 3 px off the term's box (its 4 px padding): the card meets the next line's top, never slices a line
   const gap = 3;
   const left = Math.max(8, Math.min(vw - w - 8, (r.left + r.right) / 2 - w / 2));
   const fitsBelow = r.bottom + gap + h <= vh - 8;
   const fitsAbove = r.top - gap - h >= 8;
-  const covers = (top: number) => keep.some((k) => k.right > left && k.left < left + w && k.bottom > top && k.top < top + h);
+  const cost = (top: number) => keep.reduce((s, k) => s + (k.right > left && k.left < left + w && k.bottom > top && k.top < top + h ? (k.weight ?? 1) : 0), 0);
   let below = prefer === 'above' ? !fitsAbove && fitsBelow : fitsBelow;
-  if (below && fitsAbove && covers(r.bottom + gap) && !covers(r.top - gap - h)) below = false;
-  else if (!below && fitsBelow && covers(r.top - gap - h) && !covers(r.bottom + gap)) below = true;
+  if (fitsBelow && fitsAbove) {
+    const under = cost(r.bottom + gap), over = cost(r.top - gap - h);
+    if (under !== over) below = under < over;
+  }
   let top = below ? r.bottom + gap : Math.max(8, r.top - gap - h);
   // never half over a button: a button an edge of the card would cut is covered whole (the card
   // moves away from the term to take it in) or left clear; never over the term's own line
@@ -75,4 +77,31 @@ export function revealTarget(cardBottom: number, lines: readonly Box[], paneBott
     if (cut) target = cut.bottom;
   }
   return target;
+}
+
+/**
+ * A reveal scroll of `by` px, snapped so the pane's top edge falls between rows, never through
+ * one (critics, 2026-11-06: a sliver of the cut-off header and a red chip showed at the top).
+ * `rows` are what is drawn as a whole (text lines, the header, buttons, bubbles), on screen
+ * before the scroll. A cut row is scrolled out whole when that stays within `maxBy` (the tapped
+ * term stays in view), else back in whole, never above 0 (where the pane was).
+ */
+export function snapTop(by: number, paneTop: number, rows: readonly Box[], maxBy: number): number {
+  let b = by;
+  let backing = false;
+  for (let i = 0; i < 8 && b > 0; i++) {
+    const edge = paneTop + b;
+    const cut = rows.find((r) => r.top < edge - 0.5 && r.bottom > edge + 0.5);
+    if (!cut) break;
+    const out = Math.ceil(b + cut.bottom - edge);
+    const back = Math.max(0, Math.floor(b - (edge - cut.top)));
+    // out, so what the reveal wanted below stays in view, when that keeps the term in view; once
+    // moving back, only back
+    if (!backing && out <= maxBy) b = out;
+    else {
+      backing = true;
+      b = back;
+    }
+  }
+  return b;
 }

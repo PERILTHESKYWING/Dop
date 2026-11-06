@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inlineArrow, placeTip, revealBy, revealTarget } from '../kami/src/lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, revealTarget, snapTop } from '../kami/src/lib/tipPlace';
 
 const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
 
@@ -84,5 +84,32 @@ describe('what the chat shows once a card opens in the text', () => {
   });
   it('with nothing after the card, the card', () => {
     expect(revealTarget(700, [line(600)], 900)).toBe(700);
+  });
+});
+
+describe('a hover card keeps the chat’s buttons clear', () => {
+  it('a button over the line counts double against the numbers list under it', () => {
+    const list = box(80, 380, 580, 320);
+    const readLonger = { ...box(560, 200, 100, 32), weight: 2 };
+    // over the line the card would cover "Read longer": it stays under, over the list
+    expect(placeTip(box(400, 340, 60, 28), 360, 120, 1440, 900, [], 'below', [list, readLonger]).below).toBe(true);
+    // no button in the way: over the line, the list stays clear
+    expect(placeTip(box(400, 340, 60, 28), 360, 120, 1440, 900, [], 'below', [list]).below).toBe(false);
+  });
+});
+
+describe('the reveal scroll never stops through a row', () => {
+  const rows = [box(0, 530, 390, 30), box(0, 562, 390, 34), box(0, 600, 390, 24), box(0, 624, 390, 24)];
+  it('a scroll into a row takes it out whole, so what was revealed below stays in view', () => {
+    expect(snapTop(1, 530, rows, 60)).toBe(30);
+    expect(snapTop(26, 530, rows, 60)).toBe(30);
+  });
+  it('never past the tapped term: back in whole instead', () => {
+    expect(snapTop(50, 530, rows, 60)).toBe(32);
+    expect(snapTop(20, 530, [box(0, 530, 390, 80)], 40)).toBe(0);
+  });
+  it('a scroll that ends between rows stays', () => {
+    expect(snapTop(30, 530, rows, 60)).toBe(30);
+    expect(snapTop(0, 530, rows, 60)).toBe(0);
   });
 });
