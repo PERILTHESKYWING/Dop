@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inlineArrow, placeTip, revealBy } from '../kami/src/lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, revealTarget } from '../kami/src/lib/tipPlace';
 
 const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
 
@@ -52,5 +52,37 @@ describe('the phone card inside the chat (Term.tsx inline)', () => {
     expect(inlineArrow(100, 160, 16, 358)).toBe(114);
     expect(inlineArrow(0, 10, 16, 358)).toBe(14);
     expect(inlineArrow(360, 390, 16, 358)).toBe(344);
+  });
+});
+
+describe('a desktop hover card keeps KataGo’s numbers clear', () => {
+  it('goes over the line when under it would cover the numbers list', () => {
+    const list = box(80, 380, 580, 320);
+    const p = placeTip(box(400, 340, 60, 28), 360, 120, 1440, 900, [], 'below', [list]);
+    expect(p.below).toBe(false);
+    expect(p.top + 120).toBeLessThanOrEqual(340 - 3);
+  });
+
+  it('stays under the line when over it would cover the list too, or does not fit', () => {
+    const list = box(80, 100, 580, 600);
+    expect(placeTip(box(400, 340, 60, 28), 360, 120, 1440, 900, [], 'below', [list]).below).toBe(true);
+    expect(placeTip(box(400, 60, 60, 28), 360, 120, 1440, 900, [], 'below', [box(80, 100, 580, 300)]).below).toBe(true);
+  });
+});
+
+describe('what the chat shows once a card opens in the text', () => {
+  const line = (top: number) => box(16, top, 340, 24);
+  it('the card and the whole next line', () => {
+    expect(revealTarget(700, [line(600), line(708), line(732)], 900)).toBe(732);
+  });
+  it('up to the KataGo’s numbers toggle when it is close', () => {
+    expect(revealTarget(700, [line(708), line(732)], 900, box(16, 750, 200, 26))).toBe(776);
+    expect(revealTarget(700, [line(708)], 900, box(16, 900, 200, 30))).toBe(732);
+  });
+  it('a line the pane’s bottom edge cuts is shown whole when the rest fits', () => {
+    expect(revealTarget(700, [line(708), line(732), line(756)], 770)).toBe(780);
+  });
+  it('with nothing after the card, the card', () => {
+    expect(revealTarget(700, [line(600)], 900)).toBe(700);
   });
 });
