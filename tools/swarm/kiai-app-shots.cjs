@@ -248,6 +248,14 @@ const rects = async (p) =>
       await term.tap();
       await page.waitForTimeout(500);
       R.termTap = { ...(await tipReport(before)), board: (await rects(page)).square };
+      // rows the pane's top edge cuts through after the tap (the header, buttons, bubbles, chips): none
+      R.termTap.topCutRows = await page.evaluate(() => {
+        const top = document.querySelector('.messages').getBoundingClientRect().top;
+        return [...document.querySelectorAll('.messages .msg.user, .messages .who, .messages .read-row, .messages .msg-tools, .messages .pt, .messages .tags')]
+          .map((e) => [e.className, e.getBoundingClientRect()])
+          .filter(([, b]) => b.height && b.top < top - 0.5 && b.bottom > top + 0.5)
+          .map(([c, b]) => `${c} ${Math.round(b.top)}-${Math.round(b.bottom)}`);
+      });
       await shot('8-term-tap');
       // the close button closes it and hands focus back to the term
       const x = await page.$('.term-tip .term-close');
