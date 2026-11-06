@@ -20,8 +20,8 @@ describe('Kiai landing copy', () => {
     // it opens with the position, as the recorded answer does, then KataGo's move
     expect(PLAY.summary).toMatch(new RegExp(`^White leads by about ${PLAY_LEAD} points\\.`));
     expect(Math.abs(PLAY_LEAD - LEAD)).toBeLessThanOrEqual(1);
-    expect(ASK.a.startsWith(`White leads by about ${PLAY_LEAD} points. Black’s best try is ${PICK}:`)).toBe(true);
-    expect(PLAY.summary).toMatch(new RegExp(`best try for Black is the [a-z ]+ at ${PICK}\\b`));
+    expect(ASK.a.startsWith(`White leads by about ${PLAY_LEAD} points. Black’s best move is ${PICK}:`)).toBe(true);
+    expect(PLAY.summary).toMatch(new RegExp(`best move for Black is the [a-z ]+ at ${PICK}\\b`));
     expect(PLAY.summary).toContain('[[v1]]');
   });
 

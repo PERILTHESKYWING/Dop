@@ -514,7 +514,7 @@ export function teach(input: TeachInput): Teaching {
       if (last) summary.push(last);
       const trails = best.lead <= -LOPSIDED_PTS;
       // The line's chip goes at the end of its sentence, never in the middle (critics, round 2).
-      summary.push(`${trails ? `KataGo's best try for ${me} is` : big ? 'The biggest move is' : 'KataGo plays'} ${shapeName(best.loc)}${reason ? `: it ${reason}` : ''}${ref(f.vars.best)}.`);
+      summary.push(`${trails ? `KataGo's best move for ${me} is` : big ? 'The biggest move is' : 'KataGo plays'} ${shapeName(best.loc)}${reason ? `: it ${reason}` : ''}${ref(f.vars.best)}.`);
       const local = localLine();
       if (local) summary.push(local);
     } else {

@@ -86,7 +86,7 @@ export const PICKS = { first: { label: 'At first', at: FIRST_PICK }, then: { lab
 /** The question and answer the first screen shows (a plain rewording of Kiai's answer). */
 export const ASK = {
   q: PLAY.question,
-  a: `White leads by about ${PLAY_LEAD} points. Black’s best try is ${PICK}: it takes away some of White’s area on the right and makes the black stones below it safer.`,
+  a: `White leads by about ${PLAY_LEAD} points. Black’s best move is ${PICK}: it takes away some of White’s area on the right and makes the black stones below it safer.`,
 };
 
 /** The reads KataGo grew through, for the reading chart: its top moves' share of the looking. */
