@@ -35,7 +35,7 @@ function blockOf(el: HTMLElement, stop: Element): HTMLElement {
 }
 
 /** Elements a card must never open inside (a tap on the card would act on them). */
-const WHOLE = '.term, .pt, button, a, .chip, .tag';
+const WHOLE = '.term, .pt, button, a, .chip, .tag, .kg-fig';
 
 /** Marks that end a sentence or a clause, where a card may open in the text. */
 const ENDS = '.!?;:';
@@ -48,33 +48,23 @@ const ENDS = '.!?;:';
  * whole. A text node may be split there. On the paragraph's last line the host goes after the
  * paragraph (inside a list item, at its end).
  *
- * Returns the undo: the host out and the split text joined again, exactly as React drew it. The
- * caller undoes before every one of its renders commits (a layout effect's cleanup runs in the
- * commit's DOM pass, at the term, before React touches the text after it), so React only ever
- * changes its own DOM.
+ * findPlace measures (it reads the position of each character after the term, up to the next
+ * line) and says where; applyPlace puts the host there and returns the undo: the host out and
+ * the split text joined again, exactly as React drew it. The caller undoes before every one of
+ * its renders commits (a layout effect's cleanup runs in the commit's DOM pass, at the term,
+ * before React touches the text after it), so React only ever changes its own DOM.
  */
-function placeSlot(host: HTMLElement, el: HTMLElement, stop: Element): () => void {
-  const block = blockOf(el, stop);
-  host.classList.remove('after');
+type Place =
+  | { at: 'split'; node: Text; offset: number }
+  | { at: 'before' | 'after'; node: Node }
+  | { at: 'end'; node: Element }
+  | { at: 'afterBlock'; node: Element };
+
+function findPlace(el: HTMLElement, block: HTMLElement): Place {
   const rects = el.getClientRects();
   const last = rects[rects.length - 1] ?? el.getBoundingClientRect();
   const below = last.top + last.height / 2;
-  /** The host before `at` in `node`'s text (a split), or after the node at its end. */
-  const putAt = (node: Text, at: number): (() => void) => {
-    if (at >= (node.nodeValue ?? '').length) {
-      node.after(host);
-      return () => host.remove();
-    }
-    const rest = node.splitText(at);
-    rest.before(host);
-    return () => {
-      host.remove();
-      if (rest.parentNode && rest.parentNode === node.parentNode) {
-        node.nodeValue = (node.nodeValue ?? '') + (rest.nodeValue ?? '');
-        rest.remove();
-      }
-    };
-  };
+  const putAt = (node: Text, at: number): Place => (at >= (node.nodeValue ?? '').length ? { at: 'after', node } : { at: 'split', node, offset: at });
   if (block !== el) {
     const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
@@ -110,20 +100,45 @@ function placeSlot(host: HTMLElement, el: HTMLElement, stop: Element): () => voi
       if (whole && block.contains(whole)) {
         // the next line starts inside a chip or a term: the card goes before it when it starts
         // that line, else after it
-        if ((whole.getClientRects()[0]?.top ?? 0) > below) whole.before(host);
-        else whole.after(host);
-      } else if (lineStart.at === 0) {
+        return { at: (whole.getClientRects()[0]?.top ?? 0) > below ? 'before' : 'after', node: whole };
+      }
+      if (lineStart.at === 0) {
         // before the outermost element this text starts (a span, a <strong>), never inside it
         let start: Node = first;
         while (start.parentNode && start.parentNode !== block && start.parentNode.firstChild === start) start = start.parentNode;
-        start.parentNode?.insertBefore(host, start);
-      } else return putAt(first, lineStart.at);
-      return () => host.remove();
+        return { at: 'before', node: start };
+      }
+      return putAt(first, lineStart.at);
     }
   }
-  host.classList.add('after');
-  if (block.tagName === 'LI') block.appendChild(host);
-  else block.after(host);
+  return block.tagName === 'LI' ? { at: 'end', node: block } : { at: 'afterBlock', node: block };
+}
+
+/** A place found for this block is still there: its node is in the block (or is the block) as React left it. */
+function placeHolds(p: Place, block: HTMLElement): boolean {
+  if (!p.node.isConnected) return false;
+  if (p.at === 'end' || p.at === 'afterBlock') return p.node === block;
+  if (!block.contains(p.node)) return false;
+  return p.at !== 'split' || (p.node.nodeValue ?? '').length > p.offset;
+}
+
+function applyPlace(host: HTMLElement, p: Place): () => void {
+  host.classList.toggle('after', p.at === 'end' || p.at === 'afterBlock');
+  if (p.at === 'split') {
+    const node = p.node;
+    const rest = node.splitText(p.offset);
+    rest.before(host);
+    return () => {
+      host.remove();
+      if (rest.parentNode && rest.parentNode === node.parentNode) {
+        node.nodeValue = (node.nodeValue ?? '') + (rest.nodeValue ?? '');
+        rest.remove();
+      }
+    };
+  }
+  if (p.at === 'before') p.node.parentNode?.insertBefore(host, p.node);
+  else if (p.at === 'end') p.node.appendChild(host);
+  else (p.node as ChildNode).after(host);
   return () => host.remove();
 }
 
@@ -197,14 +212,26 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
 
   // ...placed under the term's line after every render and taken out (text joined) before the
   // next one commits, so a message that re-renders while the card is open (streaming, Read
-  // longer, redo) never meets a split text node or a foreign element.
+  // longer, redo) never meets a split text node or a foreign element. The place is measured
+  // only when the layout can have changed: the card first opens, the block's text changed, its
+  // nodes were redrawn, or the message's width changed (a ResizeObserver below). Any other
+  // render puts the host back where it was without reading layout (perf critic, 2026-11-06:
+  // every render re-measured while a card was open during streaming).
+  const placeMemo = useRef<{ el: HTMLElement; block: HTMLElement; text: string; place: Place } | null>(null);
+  const [, relayout] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
     const msg = el?.closest('.msg') ?? el?.closest('.messages');
     if (!slot || !el || !msg) return;
-    const undo = placeSlot(slot, el, msg);
+    const block = blockOf(el, msg);
+    const text = block.textContent ?? '';
+    const memo = placeMemo.current;
+    const same = !!memo && memo.el === el && memo.block === block && memo.text === text && placeHolds(memo.place, block);
+    const place = same ? memo.place : findPlace(el, block);
+    const undo = applyPlace(slot, place);
+    placeMemo.current = { el, block, text, place };
     const t = tip.current;
-    if (t) {
+    if (t && !same) {
       const lines = el.getClientRects();
       const line = lines[lines.length - 1] ?? el.getBoundingClientRect();
       const c = t.getBoundingClientRect();
@@ -212,6 +239,28 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     }
     return undo;
   });
+  // ...and measured again when the message's width changes (a turned phone, a dragged splitter):
+  // its lines wrap anew. Height changes (the card itself, text below) do not move the term's line.
+  useEffect(() => {
+    const msg = ref.current?.closest('.msg') ?? ref.current?.closest('.messages');
+    if (!slot || !msg || typeof ResizeObserver === 'undefined') {
+      placeMemo.current = null;
+      return;
+    }
+    let width = msg.getBoundingClientRect().width;
+    const ro = new ResizeObserver(([e]) => {
+      const w = e.contentRect.width;
+      if (Math.abs(w - width) < 0.5) return;
+      width = w;
+      placeMemo.current = null;
+      relayout((n) => n + 1);
+    });
+    ro.observe(msg);
+    return () => {
+      ro.disconnect();
+      placeMemo.current = null;
+    };
+  }, [slot]);
 
   // ...and once, as it opens: the card and the line after it in view (at most up to the term)
   useLayoutEffect(() => {
