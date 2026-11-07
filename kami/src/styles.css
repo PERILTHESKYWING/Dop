@@ -1096,6 +1096,13 @@ kbd {
 .term-tip-sep {
   color: var(--faint);
 }
+/* the pinyin beside its characters: the same size, a muted ink, never on a line of its own */
+.term-tip-zh {
+  white-space: nowrap;
+}
+.term-tip-py {
+  color: var(--muted);
+}
 .term-tip-text {
   margin-top: 4px;
   color: var(--ink-2);

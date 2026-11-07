@@ -63,7 +63,7 @@ describe('Go terms in Chinese and Japanese', () => {
   it('names only glossary terms, and the card carries them', () => {
     for (const k of Object.keys(TERM_NAMES)) expect(GLOSSARY.some((g) => g.term === k), k).toBe(true);
     const hane = GLOSSARY.find((g) => g.term === 'hane')!;
-    expect(termCard(hane).names).toEqual({ zh: '扳', ja: 'ハネ' });
+    expect(termCard(hane).names).toEqual({ zh: '扳', py: 'bān', ja: 'ハネ' });
     expect(termCard(GLOSSARY.find((g) => g.term === 'liberty')!).names).toBeUndefined();
   });
 });

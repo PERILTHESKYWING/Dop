@@ -4,6 +4,19 @@ import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
 import { inlineArrow, placeTip, revealBy, revealTarget, snapTop, type Box } from '../lib/tipPlace';
 
+/** A Chinese term and its pinyin, one unit that never breaks between them ("碰 pèng"). */
+function ZhName({ zh, py }: { zh: string; py: string }) {
+  return (
+    <span className="term-tip-zh">
+      <span lang="zh-Hans">{zh}</span>
+      {' '}
+      <span className="term-tip-py" lang="zh-Latn-pinyin">
+        {py}
+      </span>
+    </span>
+  );
+}
+
 /** Asks Kami a question ("What is miai?"); the chat provides it so a pinned card can link to the library. */
 export const AskContext = createContext<((text: string) => void) | null>(null);
 
@@ -317,15 +330,25 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
         {card.title}
       </div>
       {names && (
-        // the same term as Chinese and Japanese players write it, on its own line, each named
+        // the same term as Chinese and Japanese players write it, on its own line, each named; the
+        // Chinese with its pinyin beside it (Chinese 5d, 2026-11-06: "碰 pèng", and 靠 kào for attach)
         <div className="term-tip-names">
           {names.zh === names.ja ? (
             <>
-              <span lang="zh-Hans">{names.zh}</span> <span className="term-tip-lang">in Chinese and Japanese</span>
+              <ZhName zh={names.zh} py={names.py} /> <span className="term-tip-lang">in Chinese and Japanese</span>
             </>
           ) : (
             <>
-              <span className="term-tip-lang">Chinese</span> <span lang="zh-Hans">{names.zh}</span>
+              <span className="term-tip-lang">Chinese</span> <ZhName zh={names.zh} py={names.py} />
+              {names.also && (
+                <>
+                  <span className="term-tip-sep" aria-hidden="true">
+                    {' / '}
+                  </span>
+                  <span className="sr-only"> or </span>
+                  <ZhName zh={names.also.zh} py={names.also.py} />
+                </>
+              )}
               <span className="term-tip-sep" aria-hidden="true">
                 {' · '}
               </span>

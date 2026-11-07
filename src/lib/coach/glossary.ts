@@ -74,6 +74,8 @@ const SPECS: Spec[] = [
   // The shapes the answers name (explain/shapes.ts: "the cut at R10", "the block", "the descent")
   // (each says what the move touches: the pro teacher's rule, critics 2026-11-05)
   { term: 'cut', aliases: ['kiri'], def: "Cut: a stone on the point where the opponent's stones link only diagonally (or by a knight's move), so they can no longer join." },
+  // the longer match wins, so "crosscut" and "cross-cut" are never read as "cut" (Chinese 5d, 2026-11-06)
+  { term: 'crosscut', aliases: ['cross-cut', 'kiri-chigai', 'kirichigai'], def: "Crosscut (kiri-chigai): four stones in an X, two of each colour touching only diagonally, so each side's pair is cut." },
   { term: 'block', aliases: ['osae'], def: "Block (osae): a stone played touching the end of the opponent's stones, in their path, so they cannot go further that way." },
   { term: 'descent', aliases: ['sagari'], def: 'Descent (sagari): a stone played touching your own, straight down from it toward the nearer edge of the board.' },
   { term: 'hane', def: "Hane: a move played diagonally from your own stone that touches the end of the opponent's stone and bends around it." },
@@ -82,7 +84,8 @@ const SPECS: Spec[] = [
   { term: 'keima', aliases: ["knight's move", 'small knight', 'kogeima'], def: "Keima (knight's move): a stone one line across and two lines along from your own, like a knight in chess." },
   { term: 'ogeima', aliases: ["large knight's move", 'large knight', 'oogeima', 'ōgeima'], def: "Ogeima (large knight's move): a stone one line across and three along from your own; wider, but easier to cut." },
   { term: 'one-space jump', aliases: ['ikken tobi'], def: 'One-space jump: a stone two points from your own in a straight line, with one empty point between; quick and hard to cut.' },
-  { term: 'shoulder hit', def: "Shoulder hit: a move diagonally above an opponent's stone, pressing it low while you build outside." },
+  // diagonally next to the stone on its centre side ("above" read as a direction on the screen)
+  { term: 'shoulder hit', def: "Shoulder hit: a stone diagonally next to an opponent's stone on its centre side, pressing it low while you build outside." },
   { term: 'empty triangle', concept: 'empty-triangle' },
   { term: "tiger's mouth", concept: 'tigers-mouth' },
   { term: 'bamboo joint', concept: 'bamboo-joint' },
