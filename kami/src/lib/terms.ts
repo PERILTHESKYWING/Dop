@@ -8,7 +8,34 @@ import { conceptById } from '../../../src/lib/coach/library';
 import type { Loc } from '../../../src/lib/go/types';
 import { splitPoints } from './points';
 
-export type RichPart = { type: 'text'; text: string } | { type: 'point'; text: string; loc: Loc } | { type: 'term'; text: string; entry: GlossaryEntry };
+export type RichPart = { type: 'text'; text: string } | { type: 'point'; text: string; loc: Loc } | { type: 'term'; text: string; entry: GlossaryEntry } | { type: 'fig'; text: string };
+
+/**
+ * A KataGo figure in an answer's text: a score gap or lead in points ("10.3 points", "1 point")
+ * or a win chance ("61%", "<1%"). Move numbers, stone counts and board points are not figures.
+ */
+const FIG = /(?<![\p{L}\p{N}.,])(?:<\s?)?\d+(?:\.\d+)?(?:[  ]?%|[  ]points?(?![\p{L}\p{N}]))/gu;
+
+/** `parts` with each KataGo figure in their plain text split out (HN critic, 2026-11-05 and 11-06: which numbers are KataGo's). */
+export function splitFigures(parts: RichPart[]): RichPart[] {
+  const out: RichPart[] = [];
+  for (const p of parts) {
+    if (p.type !== 'text') {
+      out.push(p);
+      continue;
+    }
+    let last = 0;
+    FIG.lastIndex = 0;
+    for (let m = FIG.exec(p.text); m; m = FIG.exec(p.text)) {
+      if (m.index > last) out.push({ type: 'text', text: p.text.slice(last, m.index) });
+      // one unit on the line: the figure never wraps away from its unit
+      out.push({ type: 'fig', text: m[0].replace(/ /g, ' ') });
+      last = m.index + m[0].length;
+    }
+    if (last < p.text.length) out.push(last ? { type: 'text', text: p.text.slice(last) } : p);
+  }
+  return out;
+}
 
 export interface TermPick {
   /** Entries that may get a hover in this text (absent: all of them). */
@@ -21,7 +48,12 @@ export interface TermPick {
  * `text` as plain pieces, board points (when `size` is given) and glossary terms (when `terms`
  * is given). A `seen` set is filled as terms are used, so pass one set for one text.
  */
-export function splitRich(text: string, size: number | null, terms: TermPick | null): RichPart[] {
+export function splitRich(text: string, size: number | null, terms: TermPick | null, figures = false): RichPart[] {
+  const parts = splitTerms(text, size, terms);
+  return figures ? splitFigures(parts) : parts;
+}
+
+function splitTerms(text: string, size: number | null, terms: TermPick | null): RichPart[] {
   const base: RichPart[] = size ? splitPoints(text, size) : [{ type: 'text', text }];
   if (!terms) return base;
   const out: RichPart[] = [];

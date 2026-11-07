@@ -5,7 +5,7 @@ import { type ConceptHit, type Explanation, type ExplainPosition, type ThoughtSt
 import { locToGtp } from '../../../src/lib/go/coords';
 import { colorName } from '../../../src/lib/go/types';
 import { blocks, engineText, plainText, splitChips, type Inline } from '../lib/chips';
-import { boardFromPosition, hasPosition, toPlayAt, type BoardState } from '../lib/position';
+import { boardFromPosition, hasPosition, toPlayAt, type BoardState, type GameTerms } from '../lib/position';
 import type { Answer, ChatMessage } from '../lib/store';
 import { pointView } from '../lib/points';
 import { cutAbove, cutBelow } from '../lib/cutLine';
@@ -194,6 +194,12 @@ function Parts({ parts, src, link }: { parts: RichPart[]; src: PointSrc | null; 
           </Term>
         ) : p.type === 'point' && src ? (
           <PointChip key={i} text={p.text} loc={p.loc} src={src} link={link} />
+        ) : p.type === 'fig' ? (
+          // a KataGo figure: one number style in the answer, its sections and KataGo's numbers,
+          // so what KataGo measured reads apart from the wording (HN critic, 2026-11-05 and 11-06)
+          <span key={i} className="kg-fig" title="KataGo’s number">
+            {p.text}
+          </span>
         ) : (
           <span key={i}>{p.text}</span>
         ),
@@ -202,9 +208,9 @@ function Parts({ parts, src, link }: { parts: RichPart[]; src: PointSrc | null; 
   );
 }
 
-/** One line of plain text (a fact, a thought, a note) with its points and terms. */
-function Line({ text, src, link, terms }: { text: string; src: PointSrc | null; link: BoardLink; terms: Terms }) {
-  return <Parts parts={splitRich(text, src?.base.size ?? null, terms ? { allow: terms, seen: new Set() } : null)} src={src} link={link} />;
+/** One line of plain text (a fact, a thought, a note) with its points and terms; `figs` marks its KataGo figures. */
+function Line({ text, src, link, terms, figs }: { text: string; src: PointSrc | null; link: BoardLink; terms: Terms; figs?: boolean }) {
+  return <Parts parts={splitRich(text, src?.base.size ?? null, terms ? { allow: terms, seen: new Set() } : null, figs)} src={src} link={link} />;
 }
 
 /**
@@ -214,7 +220,8 @@ function Line({ text, src, link, terms }: { text: string; src: PointSrc | null; 
 function RichText({ text, ex, msgId, link, src = ex ? answerSrc(ex, msgId) : null, terms }: { text: string; ex?: Explanation; msgId: string; link: BoardLink; src?: PointSrc | null; terms: Terms }) {
   // One set for the whole text, filled in reading order: each term gets one hover.
   const seen = new Set<GlossaryEntry>();
-  const split = (t: string) => splitRich(t, src?.base.size ?? null, terms ? { allow: terms, seen } : null);
+  // an answer's figures are KataGo's (the writer's text passed the fact check); a library text's are not marked
+  const split = (t: string) => splitRich(t, src?.base.size ?? null, terms ? { allow: terms, seen } : null, !!ex);
   // "play P5 [[v1]]" or "Q12 is a little worse [[v2]]": the point already shows the line it
   // starts, so a chip that only repeats it in the same sentence is left out.
   const repeats = (prev: Inline | undefined, id: string) => {
@@ -286,7 +293,30 @@ function Elapsed({ t0, bare }: { t0: number; bare?: boolean }) {
   return bare ? <>{t}</> : <span className="meta">{t}</span>;
 }
 
-function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean; quick?: boolean }) {
+/**
+ * The game's rules and komi on the read line, as the game gave them ("· Japanese rules · komi
+ * 6.5"; Chinese 5d, 2026-11-05 and 11-06); a value the game did not give is left out. KataGo
+ * scores by area, so a territory komi it read half a point higher says so on hover.
+ */
+function GameLine({ game, engineKomi }: { game?: GameTerms; engineKomi?: number }) {
+  if (!game || (game.komi === undefined && !game.rules)) return null;
+  const k = game.komi;
+  const note = k !== undefined && engineKomi !== undefined && engineKomi !== k ? `KataGo counts by area, so komi ${k}${game.rules ? ` under ${game.rules} rules` : ''} is read as ${engineKomi}` : undefined;
+  return (
+    <span className="th-game" title={note}>
+      {game.rules && (
+        <span className="th-rules">
+          {' · '}
+          {game.rules}
+          <span className="th-rules-word">&nbsp;rules</span>
+        </span>
+      )}
+      {k !== undefined && <span className="th-komi">{` · komi ${k}`}</span>}
+    </span>
+  );
+}
+
+function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, game }: { steps: ThoughtStep[]; live: boolean; ms: number; ex?: Explanation; msgId: string; link: BoardLink; stage?: Running['stage']; ultra?: boolean; game?: GameTerms }) {
   const src = ex ? answerSrc(ex, msgId) : null;
   const plan = live ? null : firstTerms(steps.map((s) => s.text));
   // Done, it says what was done: how many positions KataGo read (its largest step's visits).
@@ -296,8 +326,9 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { s
   const positions = ex?.totalVisits || most;
   const rate = positions && ms >= 1000 ? Math.round(positions / (ms / 1000)) : 0;
   // The phone shows the same line, speed and "on this device" included (critics, 2026-11-04: the
-  // proof was desktop-only), and ends "quick read" when a longer read is offered beside it; a
-  // phone's folded row leaves out "in N reads" and the rate (styles.css .th-reads, .th-rate).
+  // proof was desktop-only), then the game's rules and komi; a phone's folded row leaves out
+  // "in N reads", the time and the rate (styles.css .th-reads, .th-rate). The depth is said once,
+  // in the header's "Reading: Low" (HN critic, 2026-11-06: "quick read" here said it twice).
   const done = positions ? (
     <span>
       KataGo read {positions.toLocaleString()}&nbsp;positions
@@ -311,7 +342,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { s
       ) : (
         ` on this device · ${secs(ms)}`
       )}
-      {quick ? <span className="th-quick"> · quick&nbsp;read</span> : null}
+      <GameLine game={game} engineKomi={ex?.position.komi} />
     </span>
   ) : (
     `Read for ${secs(ms)}`
@@ -337,7 +368,7 @@ function Thoughts({ steps, live, ms, ex, msgId, link, stage, ultra, quick }: { s
         {steps.map((s, i) => (
           <li key={i}>
             <span>
-              <Line text={s.text} src={src} link={link} terms={plan?.[i] ?? null} />
+              <Line text={s.text} src={src} link={link} terms={plan?.[i] ?? null} figs />
             </span>
             {live && i === steps.length - 1 ? (
               // The step still reading: its time ticks (a fixed "0.0 s" read as frozen).
@@ -445,10 +476,10 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   const [factsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia?.('(max-width: 899px)').matches);
   return (
     <>
-      {/* "Read longer" is an outlined button on the read's own row, which ends "· quick read", so
+      {/* "Read longer" is an outlined button on the read's own row (the header says the depth: "Reading: Low"), so
           the count shows once (critics, 2026-11-04: a caveat line and a bare link took two rows) */}
       <div className="read-row">
-        <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} quick={!!longer && ex.totalVisits > 0} />
+        <Thoughts steps={ex.thoughts} live={false} ms={ex.ms} ex={ex} msgId={msg.id} link={link} game={a.game} />
         {longer && ex.totalVisits > 0 && onReadLonger && (
           <button type="button" className="read-longer" onClick={onReadLonger} title="A longer read can change the pick">
             Read longer
@@ -474,13 +505,15 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
       {facts.length > 0 && (
         <details className="facts" open={factsOpen}>
           <summary>
-            KataGo’s numbers ({facts.length}) <Icon name="down" size={14} />
+            {/* the source, said where the figures are: these rows are KataGo's read as it came,
+                the text above is the wording (HN critic, 2026-11-05 and 11-06) */}
+            KataGo’s numbers ({facts.length})<span className="facts-src"> · not reworded</span> <Icon name="down" size={14} />
           </summary>
           <ul>
             {facts.map((f, i) =>
               alt(f.text) ? null : (
                 <li key={f.id}>
-                  <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
+                  <Line text={f.text} src={src} link={link} terms={factPlan[i]} figs />
                 </li>
               ),
             )}
@@ -494,7 +527,7 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
                 {facts.map((f, i) =>
                   alt(f.text) ? (
                     <li key={f.id}>
-                      <Line text={f.text} src={src} link={link} terms={factPlan[i]} />
+                      <Line text={f.text} src={src} link={link} terms={factPlan[i]} figs />
                     </li>
                   ) : null,
                 )}

@@ -887,6 +887,18 @@ kbd {
 .msg.kami:last-child .msg-tools {
   opacity: 1;
 }
+/* Kiai's copy and redo sit at the right end of its name row on every width, copy first, both
+   28 px (designer, 2026-11-05 and 11-06: the desktop put them under the answer, the phone on the
+   name row). They come last in the DOM, so Tab reaches them after the answer. */
+.msg.kami {
+  position: relative;
+}
+.msg.kami > .msg-tools {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  margin: 0;
+}
 .who {
   font-size: 14px;
   font-weight: 500;
@@ -1280,6 +1292,21 @@ li > .term-slot.after {
   padding-left: 22px;
   font-size: 15px;
   color: var(--ink-2);
+}
+/* KataGo's figures ("10.3 points", "61%"), one style wherever they appear: in the answer's
+   words, its sections, the read's steps and KataGo's numbers (Messages.tsx Parts). Lining,
+   tabular figures in ink at 500, so a measured number reads apart from the wording around it;
+   no fill, no colour of its own (HN critic, 2026-11-05 and 11-06). */
+.kg-fig {
+  font-family: var(--font);
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* "· not reworded" after "KataGo's numbers (6)": the rows are KataGo's read as it came */
+.facts-src {
+  font-weight: 400;
 }
 /* "Other moves for Black": whose moves the rows under it are (Messages.tsx) */
 .facts-head {
@@ -3148,15 +3175,6 @@ li > .term-slot.after {
   /* the last message ends 10 px over the pane's foot (the composer's own 8 px gap follows) */
   .msg:has(+ .msgs-tail) {
     margin-bottom: 10px;
-  }
-  .msg.kami {
-    position: relative;
-  }
-  .msg.kami > .msg-tools {
-    position: absolute;
-    top: -4px;
-    right: 0;
-    margin: 0;
   }
   .msg.user:not(.editing) {
     flex-direction: row-reverse;
