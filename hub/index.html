@@ -95,14 +95,14 @@ try {
   background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 /* Alegreya has a small x-height, so small print moves up to 14-15 px. */
 :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
-:root .use .rs, :root .hubuse .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
+:root .use .rs, :root .hubuse .rs, :root .uasof, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan,
 :root .walls button, :root .sect, :root .md pre code, :root .sheet code, :root .copyline, :root #connLog { font-size: 14px; }
 :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
 :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state, :root .pseg button { font-size: 15px; }
 /* Desktop: one step up again, since Alegreya's x-height is ~12% smaller than the old system font. */
 @media (min-width: 861px) {
   :root .group, :root .who .when, :root .task .who, :root .cp, :root .thoughts-hidden, :root .ask-h, :root .picks span, :root .att-msg, :root button.fchip, :root .sending,
-  :root .use .rs, :root .hubuse .rs, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan, :root .trow.t1 .when { font-size: 15px; }
+  :root .use .rs, :root .hubuse .rs, :root .uasof, :root .afoot .mdl, :root .afoot .upd, :root .ag-who, :root .tgroup summary, :root .act small, :root .tk small, :root .lk, :root .plan, :root .trow.t1 .when { font-size: 15px; }
   :root .note, :root .label, :root .pill, :root .who, :root .thought summary, :root .use,
   :root .nouse, :root .acard .sub, :root .act, :root .ag-step, :root .tk .ttl, :root .conn, :root .atop .state { font-size: 16px; }
 }
@@ -156,11 +156,11 @@ try {
 /* Desktop: titles wrap to two lines (full title in the tooltip), one small owner avatar per row. */
 @media (min-width: 861px) {
   :root .trow.t1 { min-height: 34px; padding: 6px 10px; }
-  :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; text-wrap: balance; }
+  :root .trow.t1 > .dot, :root .trow.t1 > .spin { margin-top: 5px; }
+  :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; }
   :root .trow.tn .ttl { font-size: 15px; }
   :root .trow.t1 .tstep { font-size: 15px; line-height: 20px; }
 }
-.trow.t1 .avs { opacity: .9; }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
@@ -244,8 +244,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .err { color: var(--red); font-size: 15px; min-height: 1em; }
 
 /* avatars: one flat colour per account */
-.av { --c: var(--faint); width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
-.av.s { width: 20px; height: 20px; font-size: 12px; }
+.av { --c: var(--faint); width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; font-size: 14px; font-weight: 700; flex: none; }
+.av.s { width: 20px; height: 20px; font-size: 13.5px; letter-spacing: -.02em; }
 .av.l { width: 38px; height: 38px; font-size: 17px; }
 .avs { display: inline-flex; }
 .avs .av + .av { margin-left: -3px; box-shadow: 0 0 0 2px var(--panel); }
@@ -326,7 +326,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .list > :first-child, .list > .navpair:first-child > :first-child { scroll-margin-top: 4px; } /* so the very top stays a resting point */
   .list.scrolled { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px); mask-image: linear-gradient(to bottom, transparent 0, #000 8px); }
 }
-.group { display: flex; gap: 6px; align-items: baseline; font-size: 13px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
+.group { display: flex; gap: 6px; align-items: baseline; font-size: 14px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
 .group.need { color: var(--amber); } .group.noconn { color: var(--amber-text); }
 :root .app > .side .group.noconn, :root .app > .side .trow .when.nc { color: var(--kaya-amber); }
@@ -338,13 +338,22 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow .tsub { display: flex; gap: 7px; align-items: center; font-size: 14px; min-width: 0; }
 .trow .tsub .when { margin-left: auto; color: var(--soft); white-space: nowrap; }
 /* Thread rows: one line (status dot, title, who, age); the group says the status. */
-.trow.t1 { grid-template-columns: 14px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px 10px; min-height: 38px; }
-.trow.t1 .when { color: var(--soft); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trow.t1 { grid-template-columns: 14px minmax(0, 1fr); align-items: start; align-content: center; column-gap: 8px; row-gap: 1px; padding: 8px 10px; min-height: 38px; }
+/* The title takes the whole row. Who and when float at the end of its last line, right-aligned, when they fit
+   there, else on the line under it (the browser's float placement chooses, nothing is measured), so a normal
+   title shows whole at 1440 px (critics 2026-11-06: designer, HN, generalist). Three lines at most; a title that
+   long is rare, and the full title is in the tooltip and opens on keyboard focus. */
+:root .trow.t1 .ttl { -webkit-line-clamp: 3; }
+.trow.t1 .tm { float: right; display: flex; align-items: center; gap: 6px; height: 1lh; margin-left: 10px; font-weight: 400; }
+.trow.t1 .when { color: var(--soft); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
-.trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; }
-/* A working thread's current step: one muted, cut-off line under the title (rows without a step keep one line). */
-.trow.t1.has-step { row-gap: 1px; }
-.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 18px; font-weight: 400; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The dot sits on the title's first line (1.3 line height), not in the middle of a two- or three-line row. */
+.trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; margin-top: 6px; }
+/* A working thread: the title (two lines at most), then its current step, one muted, cut-off line, with who and when at its end. */
+:root .trow.t1.has-step .ttl { -webkit-line-clamp: 2; }
+.trow.t1 .tline { grid-column: 2; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.trow.t1 .tline .tm { float: none; margin-left: auto; height: 20px; }
+.trow.t1 .tstep { flex: 1 1 0; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .trow.on .tstep { color: var(--soft); }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
@@ -416,7 +425,7 @@ a.opt { color: inherit; text-decoration: none; }
 .thought[open] summary::after { transform: rotate(90deg); }
 .thought summary b { color: var(--ink); font-weight: 500; }
 .thought .text { font-size: 15px; margin: 0 0 6px; }
-.thoughts-hidden { font-size: 13px; }
+.thoughts-hidden { font-size: 14px; }
 /* Clawd, Claude Code's mascot, redrawn from its terminal sprite */
 .clawd { width: 36px; height: 20px; flex: none; overflow: visible; }
 .clawd.s { width: 22px; height: 12px; }
@@ -452,13 +461,13 @@ a.opt { color: inherit; text-decoration: none; }
 /* sender line: name, kind, time, then Copy at the right */
 .who { font-size: 14px; line-height: 20px; display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; margin-bottom: 3px; color: var(--soft); }
 .who .nm { color: var(--ink); font-weight: 500; }
-.who .when { font-size: 13px; font-variant-numeric: tabular-nums; }
+.who .when { font-size: 14px; font-variant-numeric: tabular-nums; }
 .who .av.in { display: none; }
 /* A follow-on message's time + Copy never sit inside its first text line: on a computer at the row's right edge (past the 68ch text), on a phone in a small meta row above it. */
 .row.cont { position: relative; }
 .who.mini { position: absolute; right: 0; top: 0; margin: 0; }
 .feed > .cont { margin-top: -10px; }
-.label { font-size: 12px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
+.label { font-size: 14px; font-weight: 500; line-height: 18px; padding: 0 7px; border-radius: 4px; background: var(--chip); color: var(--ink); }
 .label.q { background: var(--amber); color: #fff; }
 /* message kinds: a question waiting for XIAO and a finished job carry a side bar; notes sit quieter */
 .k-question:not(.answered) > .bubble { border-left: 3px solid var(--amber); }
@@ -474,7 +483,7 @@ a.opt { color: inherit; text-decoration: none; }
 :root[data-bg]:not([data-bg=""]) .row:not(.me) > .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
 .ask { display: grid; gap: 10px; margin-top: 8px; }
 .ask-q { border-top: 1px solid var(--line); padding-top: 8px; }
-.ask-h { font-size: 13px; font-weight: 500; color: var(--soft); }
+.ask-h { font-size: 14px; font-weight: 500; color: var(--soft); }
 /* An option: a radio circle (or checkbox square) before the label. Picked = filled mark, bolder label and a 2 px edge, not colour alone. */
 .ask-o { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: start; width: 100%; text-align: left; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
 .ask-o .mk { grid-row: 1 / span 2; width: 18px; height: 18px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--soft); border-radius: 50%; display: grid; place-items: center; color: var(--on-green); }
@@ -505,7 +514,7 @@ a.opt { color: inherit; text-decoration: none; }
 .md code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .md pre { background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; overflow-x: auto; }
 @media (max-width: 860px) { :root .md pre, :root .md pre code { white-space: pre-wrap; overflow-wrap: anywhere; } }
-.md pre code { background: none; border: 0; padding: 0; font-size: 13px; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
+.md pre code { background: none; border: 0; padding: 0; font-size: 14px; line-height: 1.45; white-space: pre; overflow-wrap: normal; }
 .md blockquote { border-left: 3px solid var(--line); padding-left: 10px; color: var(--soft); }
 .showmore { display: block; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--green); font-size: 14px; font-weight: 500; }
 .showmore:hover { text-decoration: underline; }
@@ -525,7 +534,7 @@ a.opt { color: inherit; text-decoration: none; }
 .pic { display: block; max-width: 100%; border-radius: 10px; margin-top: 8px; background: var(--line); min-height: 40px; }
 .text a, .bubble a { color: var(--green); }
 .picks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
-.picks span { font-size: 13px; font-weight: 500; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
+.picks span { font-size: 14px; font-weight: 500; padding: 2px 8px; border-radius: 5px; background: var(--panel); }
 /* swipe a message left (or use its ⋯ on a computer) to show Delete */
 .sw { position: relative; overflow: hidden; flex: none; }
 /* Long feeds: skip layout and paint for messages far off screen (T3 render speed). */
@@ -547,7 +556,7 @@ a.opt { color: inherit; text-decoration: none; }
 @media (hover: none) { .sw-x { display: none; } }
 /* Copy on every prompt and reply */
 /* quiet text button; the padding makes a 32 px tap area without growing the line */
-.cp { display: inline-grid; place-items: center; border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--faint); font: inherit; font-size: 13px; font-weight: 500; line-height: 20px; cursor: pointer; }
+.cp { display: inline-grid; place-items: center; border: 0; border-radius: 6px; padding: 6px 8px; margin: -6px -8px; background: transparent; color: var(--faint); font: inherit; font-size: 14px; font-weight: 500; line-height: 20px; cursor: pointer; }
 .cp svg { display: block; }
 .cp:hover, .cp:focus-visible { color: var(--ink); background: var(--chip); }
 .cp.done { color: var(--green); }
@@ -564,11 +573,11 @@ a.opt { color: inherit; text-decoration: none; }
   .feed .sw:not(.tap):not(:focus-within) .who.mini, .feed .sw:not(.tap):not(:focus-within) .who.mine { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 /* hub notices: small and calm; an alert only gets an amber dot */
-.note { text-align: center; font-size: 13px; line-height: 1.4; color: var(--soft); text-wrap: pretty; display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
+.note { text-align: center; font-size: 14px; line-height: 1.4; color: var(--soft); text-wrap: pretty; display: flex; gap: 8px; justify-content: center; align-items: center; max-width: 62ch; margin: 0 auto; }
 .note .nt { white-space: nowrap; }
 .note.alert::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none; }
 .task { border: 1px solid var(--line); border-left: 4px solid var(--ink); background: var(--panel); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 4px 12px -6px rgba(0, 0, 0, .12); }
-.task .who { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
+.task .who { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
 /* The task card's Copy sits in its top-right corner, so it never wraps to a blank second line under the label. */
 .task { position: relative; }
 .task > .who { padding-right: 30px; }
@@ -585,11 +594,11 @@ a.opt { color: inherit; text-decoration: none; }
 .feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
 .activity .thinking { padding-right: 96px; }
 .activity.min .thinking { padding-right: 128px; }
-.act-tog { position: absolute; top: 3px; right: 0; min-height: 30px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--soft); font-size: 13px; font-weight: 500; }
+.act-tog { position: absolute; top: 3px; right: 0; min-height: 30px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--soft); font-size: 14px; font-weight: 500; }
 @media (hover: hover) { .act-tog:hover { color: var(--ink); border-color: var(--line-2); } }
 .act-body { --age: 40px; max-width: 820px; display: grid; gap: 2px; padding: 2px 0 2px 21px; font-size: 14px; line-height: 20px; }
 .act-now { margin: 0 0 2px; display: flex; gap: 10px; align-items: baseline; min-width: 0; color: var(--ink); }
-.act-k { flex: none; width: var(--age); font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+.act-k { flex: none; width: var(--age); font-size: 14px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
 .act-now .act-v { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .act-now.wait .act-v { white-space: normal; font-weight: 400; color: var(--soft); }
 .act-extra { font-weight: 400; color: var(--soft); }
@@ -681,10 +690,10 @@ a.opt { color: inherit; text-decoration: none; }
 .attach svg { width: 18px; height: 18px; }
 .cbox.over { border-color: var(--green); border-style: dashed; }
 .att { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.att-msg { font-size: 13px; font-weight: 500; color: var(--red); margin: -2px 0 6px; }
+.att-msg { font-size: 14px; font-weight: 500; color: var(--red); margin: -2px 0 6px; }
 .att-msg.info { color: var(--soft); }
-.fchip { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 240px; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 13px; line-height: 1.25; color: inherit; text-align: left; overflow: hidden; }
-button.fchip { cursor: pointer; font: inherit; font-size: 13px; }
+.fchip { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 240px; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 14px; line-height: 1.25; color: inherit; text-align: left; overflow: hidden; }
+button.fchip { cursor: pointer; font: inherit; font-size: 14px; }
 button.fchip:hover { border-color: var(--faint); }
 .fchip .th { width: 36px; height: 36px; border-radius: 7px; background: var(--chip); flex: none; display: grid; place-items: center; overflow: hidden; font: 700 10px/1 ui-monospace, Menlo, monospace; color: var(--soft); }
 .fchip .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -764,13 +773,15 @@ button.fchip:hover { border-color: var(--faint); }
 .u1 .lbl { font-weight: 500; color: var(--soft); }
 .u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
 .u1 .track { display: block; height: 4px; }
+/* "From Claude · 4 min ago" under the bars: the reading's source and age, in the card's meta size. */
+.uasof { color: var(--soft); font-size: 14px; line-height: 18px; margin-top: -2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .nmrow { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
 .conn { font-size: 14px; color: var(--soft); }
 .conn.no { color: var(--amber); }
 .bubble.pending { opacity: .7; }
-.sending { font-size: 13px; font-weight: 500; margin-top: 6px; text-align: right; }
+.sending { font-size: 14px; font-weight: 500; margin-top: 6px; text-align: right; }
 .opt.danger b { color: var(--red); }
 .group.arch { border: 0; background: none; text-align: left; cursor: pointer; width: 100%; }
 .group.arch:hover { color: var(--ink); }
@@ -783,7 +794,7 @@ button.fchip:hover { border-color: var(--faint); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
 .use .lbl { font-weight: 500; }
 .use .pct { text-align: right; font-weight: 500; font-size: 15px; font-variant-numeric: tabular-nums; }
-.use .rs { grid-column: 2 / span 2; color: var(--soft); font-size: 13px; margin-top: -2px; }
+.use .rs { grid-column: 2 / span 2; color: var(--soft); font-size: 14px; margin-top: -2px; }
 .track { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 /* Usage bars are ink; amber and red warn. Green means "working" and nothing else. */
 .fill { height: 100%; background: color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 2px; transition: width .4s ease; }
@@ -791,7 +802,7 @@ button.fchip:hover { border-color: var(--faint); }
 .act { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; font-size: 14px; border-left: 3px solid var(--green); padding-left: 8px; }
 .act-top { display: flex; gap: 8px; justify-content: space-between; }
 .act .ttl { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; }
-.act small { color: var(--soft); font-size: 12px; flex: none; white-space: nowrap; }
+.act small { color: var(--soft); font-size: 14px; flex: none; white-space: nowrap; }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
 /* Not connected: a hollow amber marker (an amber edge with a clear middle) and amber meta, never the working green. */
@@ -801,9 +812,6 @@ button.act.starting { border-left-color: var(--line-2); }
 /* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
    cut after 2 lines, "Library: video thumbnails in the…"), so it goes on its own line under the title there. */
 @media (min-width: 861px) { .act.nc .act-top { flex-direction: column; gap: 0; } }
-/* Desktop list: the same for an offline thread's row, its "Offline" goes under the title (the title was cut after
-   two lines next to it), as the working rows' step line does. */
-@media (min-width: 861px) { .trow.t1.ss-noconn .when.nc { grid-column: 2 / -1; grid-row: 2; justify-self: start; } }
 .nouse { font-size: 14px; color: var(--soft); line-height: 1.4; }
 .alist { display: grid; gap: 4px; min-width: 0; }
 /* "N more" under an account's newest threads: a quiet row lined up with the titles, opens the rest in place. */
@@ -815,11 +823,12 @@ button.act.starting { border-left-color: var(--line-2); }
 .act-more:focus-visible { outline: 2px solid var(--stone); outline-offset: 1px; }
 .agents { padding: 14px 12px 0; display: grid; gap: 6px; }
 .agents .thead { padding: 4px 4px 0; } .agents .cap { padding: 0; font-size: 14px; color: var(--soft); }
-.ag-who { font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
+.ag-who { font-weight: 500; font-size: 14px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
 .ag { display: grid; gap: 4px; padding: 7px 8px; border-radius: 8px; background: var(--sel); min-width: 0; }
 .ag-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ag-top .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.ag-top small { color: var(--soft); flex: none; }
+.ag-top small { color: var(--soft); flex: none; font-size: 14px; }
+.ag-step small { font-size: inherit; }
 .ag .dot { background: var(--green); } .ag.done .dot { background: var(--faint); } .ag.failed .dot { background: var(--red); } .ag.stale .dot { background: var(--amber); }
 .ag-step { color: var(--soft); font-size: 14px; overflow-wrap: anywhere; }
 .ag .track { height: 5px; border-radius: 3px; background: var(--line, rgba(128,128,128,.25)); overflow: hidden; }
@@ -835,7 +844,7 @@ button.act.starting { border-left-color: var(--line-2); }
 .tgroup summary::-webkit-details-marker { display: none; }
 .tgroup summary::before { content: ""; width: 0; height: 0; border: 5px solid transparent; border-left: 6px solid var(--soft); margin-right: -2px; transition: transform .15s; }
 .tgroup[open] summary::before { transform: translateX(-2px) rotate(90deg); }
-.tgroup summary b { font-weight: 500; font-size: 13px; padding: 0 7px; border-radius: 9px; background: var(--chip); font-variant-numeric: tabular-nums; }
+.tgroup summary b { font-weight: 500; font-size: 14px; padding: 0 7px; border-radius: 9px; background: var(--chip); font-variant-numeric: tabular-nums; }
 .tk { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border-radius: 8px; background: none; border: 0; }
 .tk:hover { background: var(--sel); }
 .tk .tk-dot { flex: none; width: 10px; height: 10px; margin: 0 2px; border-radius: 50%; border: 2px solid var(--faint); }
@@ -847,17 +856,17 @@ button.act.starting { border-left-color: var(--line-2); }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
 .tk .ttl { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; font-size: 14px; font-weight: 500; }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
-.tk small { color: var(--soft); font-size: 12px; }
+.tk small { color: var(--soft); font-size: 14px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
 /* The Hub row lines up with the cards' content (12 + 1 + 12 px in, 12 + 1 + 10 px from the right) and uses their .u1 grid. */
 .hubuse { display: grid; gap: 2px; margin-left: 9px; min-width: 0; font-size: 14px; }
 .hubuse .u1 { margin-right: 7px; }
-.hubuse .rs { color: var(--soft); font-size: 13px; line-height: 20px; text-wrap: pretty; }
+.hubuse .rs { color: var(--soft); font-size: 14px; line-height: 20px; text-wrap: pretty; }
 /* team lessons */
 .lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
 .lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
 .trow .lsub { color: var(--soft); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lk { font-size: 12px; font-weight: 500; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.lk { font-size: 14px; font-weight: 500; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .lk.do { background: var(--green); color: var(--on-green); }
 .lk.dont { background: var(--red); color: var(--bg); }
 .lempty { margin: 0; font-size: 15px; line-height: 1.45; }
@@ -896,7 +905,7 @@ button.act.starting { border-left-color: var(--line-2); }
 .err.ok { color: var(--green); }
 .sheet h3 { margin: 0; font-size: 20px; }
 .sheet p { margin: 0; line-height: 1.5; color: var(--soft); }
-.sheet code, .copyline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.sheet code, .copyline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; overflow-wrap: anywhere; }
 .copyline { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: block; white-space: pre-wrap; }
 ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 16px; line-height: 1.5; }
 ol.steps li { padding-left: 4px; }
@@ -918,7 +927,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 /* Setup steps folded under one quiet link, so Settings shows state first (critics, 2026-11-02). */
 .how summary { cursor: pointer; font-size: 15px; color: var(--soft); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; min-height: 28px; display: inline-flex; align-items: center; }
 .sdet > div { display: grid; gap: 8px; margin-top: 10px; }
-#connLog { white-space: pre-wrap; font-size: 12px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+#connLog { white-space: pre-wrap; font-size: 14px; max-height: 240px; overflow: auto; margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 .lacts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
 .lacts .err { flex: 1; min-height: 0; }
 .sbody .lacts .err:empty { display: block; }
@@ -931,11 +940,11 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
 .seg button { border: 0; background: none; border-radius: 7px; padding: 6px 14px; font-weight: 500; color: var(--soft); }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
 .walls { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
-.walls button { display: grid; gap: 6px; border: 0; background: none; padding: 0; font-size: 13px; font-weight: 500; color: var(--soft); text-align: center; }
+.walls button { display: grid; gap: 6px; border: 0; background: none; padding: 0; font-size: 14px; font-weight: 500; color: var(--soft); text-align: center; }
 .walls i { display: block; height: 58px; border-radius: 10px; border: 2px solid var(--line); background-color: var(--wall-bg); background-image: var(--wall); background-size: var(--wall-size); background-position: center; }
 .walls button[aria-pressed="true"] { color: var(--ink); }
 .walls button[aria-pressed="true"] i { border-color: var(--green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 30%, transparent); }
-.sect { font-size: 13px; font-weight: 500; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.sect { font-size: 14px; font-weight: 500; color: var(--faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .05em; }
 .acts { display: flex; gap: 6px; flex-wrap: wrap; }
 /* Team footer: four quiet text buttons of one style; Sign out last and muted. */
 .acts.foot { gap: 2px; margin: 0 -10px; }
@@ -1020,7 +1029,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
   :root .app > .side .navrows .trow.tn.lesn { display: flex; }
   :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
-  :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
+  :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 14px; line-height: 22px; text-align: center; }
   .navrows .trow.tn .when:empty { display: none; }
   .tfind { padding: 2px 8px 4px; }
   .navpair { display: none; }
@@ -1039,7 +1048,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The Threads list is its own screen, so no tile shows as open there; the left rule means "needs you" only. */
   :root .app > .side .navpair .trow.tn.on { background: color-mix(in srgb, var(--panel) 45%, var(--kaya)); color: inherit; box-shadow: none; }
   .navpair .trow.tn .ttl { flex: 0 1 auto; }
-  :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 13px; line-height: 22px; text-align: center; }
+  :root .app > .side .navpair .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 14px; line-height: 22px; text-align: center; }
   .row.me .bubble { max-width: 88%; }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); grid-row: 2; border-top: 1px solid var(--line); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   .tabs { background: var(--deep, var(--glass)); border-top-color: var(--deep-line, var(--line)); }
@@ -1047,7 +1056,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tabs button { border: 0; background: none; padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 500; color: var(--soft); display: flex; gap: 6px; justify-content: center; align-items: center; transition: color .15s, box-shadow .15s, background-color .15s; }
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
-  .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 12px; padding: 0 6px; }
+  .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 14px; padding: 0 6px; }
   /* Not connected: a hollow amber pill "1 offline" on the same line as the label and the solid Needs-you badge
      (solid = needs you, hollow = not connected, as the sidebar's filled and hollow dots), so every tab is one
      line at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two; critics 2026-11-06: a ring and a bare
@@ -1055,7 +1064,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
      Chat and Team keep 108 px targets. The tab's aria-label says "N offline", the same word. */
   .tabs button { white-space: nowrap; }
   .tabs:has(.nclab:not(.hidden)) { grid-template-columns: minmax(0, 1.6fr) 1fr 1fr; }
-  .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 13px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
+  .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 14px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
   .tabs .nclab.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
@@ -1400,7 +1409,9 @@ const agoHeard = (ms) => (ms < 60e3 ? 'last heard just now' : `last heard ${ago(
 const agoReport = (ms) => (ms < 60e3 ? 'step reported just now' : `step reported ${ago(ms)} ago`);
 // A working row in the thread list with no step: the same last-heard time as its Activity block.
 const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ago(ms)} ago`}`;
-const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
+// Usage readings: "just now", then "4 min ago" (the same words as the account menu).
+const agoAgo = (ms) => (ms < 60e3 ? 'just now' : `${ago(ms)} ago`);
+const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
 // together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Offline" (one word for this
@@ -1599,7 +1610,13 @@ function threadRow(t) {
   const [ss, st] = threadState(t);
   const step = rowStep(t);
   const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? agoEl(t.lastAgentAt, 'n') : '';
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title)).replace(/_/g, '_<wbr>')}</span>${avList(threadAccounts(t).slice(0, 1))}${ss === 'noconn' ? '<span class="when nc">Offline</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
+  // The title has the whole row width (two lines at most); who and when share its line when it fits, else they go
+  // right-aligned on the line under it, next to the step (critics 2026-11-06: titles were cut beside them).
+  const meta = avList(threadAccounts(t).slice(0, 1)) + (ss === 'noconn' ? '<span class="when nc">Offline</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`);
+  const tm = meta ? `<span class="tm">${meta}</span>` : '';
+  // The last short word keeps the one before it, so a wrapped title never ends on a lone "25" or "icons".
+  const ttl = esc(nb(t.title).replace(/ (\S{1,10})$/, '\u00a0$1')).replace(/_/g, '_<wbr>');
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span>${line ? `<span class="ttl">${ttl}</span><span class="tline"><span class="tstep${step ? '' : ' none'}">${line}</span>${tm}</span>` : `<span class="ttl">${ttl}${tm}</span>`}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -2416,7 +2433,22 @@ const since = (at) => { const x = ago(Date.now() - at); return x === 'just now' 
 // The card's one usage line: 5-hour and weekly bars side by side; reset times in the tooltip.
 function useLine(u) {
   const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
-  return `<div class="use1">${one('5h', '5-hour', u.five_hour_pct, u.five_hour_resets)}${one('Wk', 'Weekly', u.seven_day_pct, u.seven_day_resets)}</div>`;
+  return `<div class="use1">${one('5h', '5-hour', u.five_hour_pct, u.five_hour_resets)}${one('Wk', 'Weekly', u.seven_day_pct, u.seven_day_resets)}</div>${useAsOf(u)}`;
+}
+// Where a usage reading came from and how old it is, under the bars (critics 2026-11-05 and 11-06: HN asked
+// "as of when, says who"). Only what the hub stored with the reading: its source and its time. A typed-in
+// reading is not Claude's number, and the line says so.
+const USE_SRC = {
+  claude: ['From Claude', 'The hub read these numbers from Claude (its usage reply, or the limits sent back when a routine started).'],
+  agent: ['From its agent', 'Its agent ran hub/usage-probe.mjs, which reads the limits Claude Code gets from Claude, and reported them.'],
+  pc: ['From your PC', 'Claude Code\'s status line on your PC sent the limits it gets from Claude.'],
+  manual: ['Typed in, not read from Claude', 'Typed in by hand on this page; the hub has not read these from Claude.'],
+};
+const useSrc = (u) => USE_SRC[u?.source] || USE_SRC.claude;
+function useAsOf(u) {
+  if (!u?.at) return '';
+  const [word, tip] = useSrc(u);
+  return `<div class="uasof" title="${esc(`${tip} ${clock(u.at)}.`)}">${esc(word)} · ${agoEl(u.at, 'a')}</div>`;
 }
 // Accounts whose thread list is open in full (this tab only; the default shows the newest few).
 const ACT_SHOW = 3;
@@ -2483,7 +2515,7 @@ function acctMenu(name) {
   const a = S.accounts.find((x) => x.name === name);
   if (!a) return '<p style="margin:8px 10px">No such account.</p>';
   const u = a.usage, has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
-  const src = u?.source === 'manual' ? 'typed in' : u?.source === 'pc' ? 'from your PC' : u?.source === 'agent' ? 'reported by its agent' : 'from Claude';
+  const src = useSrc(u)[0].toLowerCase();
   const opt = (attrs, b, small) => `<button type="button" class="opt" ${attrs} data-name="${esc(a.name)}"><span></span><b>${b}</b><small>${small}</small></button>`;
   return `<h4>${esc(a.name)}</h4>
     <p class="ainfo">${esc(a.models.length ? a.models.map((m) => MODEL_NAME[m]).join(', ') + ' routines' : 'No routines')}${has ? ` · usage ${esc(since(u.at))}, ${src}` : ''}${a.usageErr ? ` · ${esc(a.usageErr)}` : ''}</p>
@@ -2557,7 +2589,7 @@ function renderTeam() {
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs">${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · 5‑hour window</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs" title="Counted by the hub at each check: the characters of its own tool traffic divided by 4, plus a fixed amount per coordinator run. Not a number from Claude.">Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · this 5‑hour window</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
@@ -2884,6 +2916,7 @@ async function openSheet(kind, name) {
     const a = S.accounts.find((x) => x.name === name); const u = a?.usage || {};
     html = sHead(`Usage for ${esc(name)}`) + `<div class="sbody">
       <p>Copy the numbers from claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% used, new work goes to other accounts.</p>
+      ${u.at ? `<p class="hint">Now in the boxes: ${esc(useSrc(u)[0].toLowerCase())}, ${esc(since(u.at))}.</p>` : ''}
       <div class="pairs">${fld('5-hour used (%)', `<input id="u5" type="number" inputmode="numeric" min="0" max="100" value="${u.five_hour_pct ?? ''}">`)}
       ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
       <div class="sgrp"><h4>Or just mark it</h4>
