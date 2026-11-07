@@ -884,7 +884,8 @@ kbd {
 }
 .msg:hover .msg-tools,
 .msg:focus-within .msg-tools,
-.msg.kami:last-child .msg-tools {
+.msg.kami:last-child .msg-tools,
+.msg.kami:has(+ .msgs-tail) .msg-tools {
   opacity: 1;
 }
 /* Kiai's copy and redo sit at the right end of its name row on every width, copy first, both
