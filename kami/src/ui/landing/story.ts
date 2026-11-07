@@ -3,7 +3,7 @@
  * taken from the recorded engine data (demo.json, see data.ts) by code, and the words are a
  * plain rewording of Kiai's own recorded answers; tests/kiai-landing.test.ts checks both.
  */
-import { answer, DEMO, FINAL, loc, SWINGS } from './data';
+import { answer, DEMO, FINAL, loc, SWINGS, type Answer } from './data';
 
 const COORD = /\b([A-HJ-T](?:1[0-9]|[1-9]))\b/g;
 /** The points an answer names, in order. */
@@ -32,16 +32,30 @@ export const FIRST = DEMO.reads[0];
 export const FIRST_PICK = FIRST.cands[0].at;
 export const LAST_PICK = FINAL.cands[0].at;
 
-/** The pick's proof, said under the first screen's answer: its visits in KataGo's longest read, out of that read's total. */
-export const PICK_VISITS = FINAL.cands.find((c) => c.at === PICK)?.visits ?? 0;
-export const READ_VISITS = FINAL.visits;
-/** The moves shorter reads of the same position preferred before the pick, in order (the app's quick read may show one). */
-export const EARLIER_PICKS: string[] = [...new Set(DEMO.reads.slice(0, -1).map((r) => r.cands[0].at))].filter((m) => m !== PICK);
 const n = (x: number) => x.toLocaleString('en-US');
-/** "KataGo read 2,048 positions, 1,515 of them after Q9. Shorter reads preferred Q10, then R12." */
-export const PROOF = PICK_VISITS
-  ? `KataGo read ${n(READ_VISITS)} positions, ${n(PICK_VISITS)} of them after ${PICK}.${EARLIER_PICKS.length ? ` Shorter reads preferred ${EARLIER_PICKS.join(', then ')}.` : ''}`
-  : '';
+
+/** Kiai's recorded answers to the same question at each level, shortest read first: the move each picked and how deep it read. */
+const LEVEL_ORDER: Answer['depth'][] = ['Low', 'Medium', 'Max', 'ultraGO'];
+export const LEVEL_PICKS = LEVEL_ORDER.map((depth) => {
+  const a = answer(PLAY.question, depth);
+  return { depth, at: a.variations.find((v) => v.id === 'v1')?.moves[0] ?? pointsIn(a.summary)[0], visits: a.visits, reads: a.reads };
+});
+/** The app's first answer: Low, its default level (kami/src/lib/levels.ts DEFAULT_LEVEL). */
+export const QUICK = LEVEL_PICKS[0];
+/** The picks the levels between the quick read and this one made, in order, without repeats. */
+const BETWEEN = [...new Set(LEVEL_PICKS.slice(1, -1).map((p) => p.at))].filter((m) => m !== QUICK.at && m !== PICK);
+
+/**
+ * The first screen's answer says how deep it read, and what the app's own first answer to the
+ * same position says (r/baduk and generalist critics, 2026-11-06: the landing said Q9 while the
+ * app's quick read said Q10). "From a long read: KataGo read 3,270 positions (Kiai's ultraGO).
+ * The app's quick first read (Low, 288 positions) picked Q10; reading longer moved the pick to
+ * R12, then Q9." Every figure and point is the recorded answers' own ("picked": recorded once,
+ * with the bundled network; a faster device's quick read may read further).
+ */
+export const PROOF = `From a long read: KataGo read ${n(PLAY.visits)} positions (Kiai’s ${LEVEL}).${
+  QUICK.at !== PICK ? ` The app’s quick first read (${QUICK.depth}, ${n(QUICK.visits)} positions) picked ${QUICK.at}; reading longer moved the pick to ${[...BETWEEN, PICK].join(', then ')}.` : ''
+}`;
 
 /** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
