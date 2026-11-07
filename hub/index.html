@@ -25,7 +25,7 @@ try {
 } catch {}
 // Signed in with nothing kept from last time: ask the hub for its state now, so the answer arrives while the page
 // script below is still being read and run (about 115 ms on a 4x-throttled phone) instead of after it.
-try { const p = localStorage.getItem('hubpw'); if (p && localStorage.getItem('hub-cache') === null) window.hubFirst = fetch('/api/hub?op=state', { headers: { 'x-hub-password': p, 'content-type': 'application/json' } }); } catch {}
+try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('hub-cached')) window.hubFirst = fetch('/api/hub?op=state', { headers: { 'x-hub-password': p, 'content-type': 'application/json' } }); } catch {}
 </script>
 <style>
 /* Kaya look: honey-kaya sidebar and page headers, cream middle, black-stone main buttons (white stones in dark), Alegreya Sans. */
@@ -1248,7 +1248,7 @@ function apply(d, t0) {
 }
 // The reload cache is written when the page is idle, not inside the refresh.
 let cacheT = 0;
-const writeCache = () => { cacheT = 0; if (!pw) return; ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) })); };
+const writeCache = () => { cacheT = 0; if (!pw) return; ls.set('hub-cached', '1'); ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) })); };
 function saveCache() { if (!cacheT) cacheT = (window.requestIdleCallback || setTimeout)(writeCache, { timeout: 2000 }); }
 addEventListener('pagehide', () => { if (cacheT) writeCache(); });
 // One request per poll: the hub answers { same } when nothing changed since
@@ -2913,7 +2913,7 @@ async function openSheet(kind, name) {
   closePop();
   const box = $('sheetBox'); let html = '';
   if (kind === 'look') { loadWalls(); return showSheet(lookHtml()); }
-  if (kind === 'logout') { if (cacheT) (window.cancelIdleCallback || clearTimeout)(cacheT); cacheT = 0; ls.del('hubpw'); ls.del('hub-cache'); ls.del('studio-last'); ls.del('library-files-list'); pw = ''; return showLogin(); }
+  if (kind === 'logout') { if (cacheT) (window.cancelIdleCallback || clearTimeout)(cacheT); cacheT = 0; ls.del('hubpw'); ls.del('hub-cache'); ls.del('hub-cached'); ls.del('studio-last'); ls.del('library-files-list'); pw = ''; return showLogin(); }
   const P = esc(proj.project);
   if (kind === 'connect') {
     const k = await api(`connect&account=${encodeURIComponent(name)}`);
