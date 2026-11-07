@@ -4,7 +4,7 @@ import { illustrateDefaults } from '../../../src/lib/coach/explain/diagrams';
 import { conceptById, type ConceptEntry } from '../../../src/lib/coach/library';
 import type { ExplainFn, ExplainPosition, IllustrateOptions, Prober, StudentProfile, ThinkingLevel, ThoughtStep } from '../../../src/lib/coach/explain/types';
 import { locToGtp } from '../../../src/lib/go/coords';
-import type { BoardState } from './position';
+import { gameTerms, type BoardState } from './position';
 import { askFor, routeQuestion } from './question';
 import type { Answer } from './store';
 import { expandConcept, NOTES, pickById, writeAnswer, type PickId, type WriterDeps } from './writer';
@@ -91,6 +91,7 @@ export async function answerQuestion(
     return { type: 'concept', ids, expansion };
   }
   const { pos, question, upTo } = askFor(board, route.parsed);
+  const game = gameTerms(board);
   ev.onStage?.('engine');
   const prober = await deps.getProber(signal);
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
@@ -104,7 +105,7 @@ export async function answerQuestion(
   if (signal?.aborted) throw new DOMException('stopped', 'AbortError');
   if (pick === 'myoshu' || pick === 'local') {
     ev.onStage?.('writing');
-    ev.onDraft?.({ type: 'explain', explanation, writing: { by: 'engine', note: pick === 'local' ? NOTES.polishingLocal : NOTES.polishing }, upTo });
+    ev.onDraft?.({ type: 'explain', explanation, writing: { by: 'engine', note: pick === 'local' ? NOTES.polishingLocal : NOTES.polishing }, upTo, game });
   }
   const checkOpts: Partial<IllustrateOptions> = { ...(illustrateDefaults(model, thinking) ?? illustrateDefaults('tesuji', 'medium')!), ...(settings || {}) };
   const verify = settings === false || deps.writerDiagrams?.() === false ? undefined : (spec: Parameters<typeof verifyDiagram>[0], id: string) => verifyDiagram(spec, prober, id, checkOpts, signal);
@@ -113,5 +114,5 @@ export async function answerQuestion(
     explanation.illustrations = [...(explanation.illustrations ?? []), writing.diagram.illustration];
     explanation.facts = [...explanation.facts, ...writing.diagram.facts];
   }
-  return { type: 'explain', explanation, writing, upTo };
+  return { type: 'explain', explanation, writing, upTo, game };
 }

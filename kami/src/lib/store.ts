@@ -2,11 +2,12 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Explanation, ThinkingLevel } from '../../../src/lib/coach/explain/types';
 import type { LevelId } from './levels';
-import { emptyBoard, type BoardState } from './position';
+import { emptyBoard, type BoardState, type GameTerms } from './position';
 import type { Expansion, PickId, Writing } from './writer';
 
 export type Answer =
-  | { type: 'explain'; explanation: Explanation; writing: Writing; upTo: number }
+  /** `game`: the game's komi and rules when asked (since 2026-11-07), for the read line. */
+  | { type: 'explain'; explanation: Explanation; writing: Writing; upTo: number; game?: GameTerms }
   /** Library entries by id (looked up again when shown), or none (the honest fallback). */
   | { type: 'concept'; ids: string[]; expansion?: Expansion }
   | { type: 'error'; text: string };
