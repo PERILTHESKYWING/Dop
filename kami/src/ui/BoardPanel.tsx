@@ -590,7 +590,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
                     angle sat two screens deep in Settings); the default stays XIAO's angled board */}
                 {want3d && <Switch on={angled} onChange={(v) => setSetting('board.tilt', v)} label="Angled view" icon="board" />}
                 <hr />
-                <div className="pop-sub">Board</div>
+                <div className="pop-sub">Wood</div>
                 <div className="board-styles" role="radiogroup" aria-label="Board">
                   {BOARD_STYLES.map((b) => (
                     <button
