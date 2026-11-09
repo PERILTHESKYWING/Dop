@@ -58,22 +58,23 @@ export default function FlatStage({ show, boxRef, onReady }: { show: Show; boxRe
     } else marks = [{ loc: loc(TURN.at), kind: 'num', label: String(TURN.n) }];
   }
   return (
-    <div className={`l-flat${smallNums ? ' no-nums' : ''}`} style={{ left, top, width: side, height: side }} aria-hidden="true">
+    <div className={`l-flat${smallNums ? ' no-nums' : ''}`} style={{ left, top, width: side, height: side, ['--cell' as string]: `${cell.toFixed(1)}px` }} aria-hidden="true">
       <Board size={19} stones={stones} candidates={candidates} candStyle="plain" marks={marks} ownership={show.kind === 'ahead' ? FINAL.own : null} skin={KIAI_SKIN} coords={false} animate={false} />
-      {flag && <Flag at={flag} label={flagLabel} side={side} />}
+      {flag && <Flag at={flag} label={flagLabel} side={side} fromLeft={show.kind !== 'review'} />}
     </div>
   );
 }
 
 /** A label over one point of the flat board (Board without coordinates: 0.6 of a line's margin). */
-function Flag({ at, label = at, side }: { at: string; label?: string; side: number }) {
+function Flag({ at, label = at, side, fromLeft }: { at: string; label?: string; side: number; fromLeft?: boolean }) {
   const [x, y] = xy(loc(at), 19);
   const px = ((x + 0.6) / 19.2) * side, py = ((y + 0.6) / 19.2) * side;
   return (
-    <div className="l-callout" style={{ transform: `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`, visibility: 'visible' }}>
+    <div className={fromLeft ? 'l-callout side' : 'l-callout'} style={{ transform: `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`, visibility: 'visible' }}>
       <span>
         <b>{label}</b>
         <i />
+        {fromLeft && <em />}
       </span>
     </div>
   );

@@ -160,6 +160,45 @@ html.kiai-landing {
     transform: translateX(-50%);
   }
 }
+/* KataGo's pick is named from the left, on its own row, so the label never covers the stones above it
+   (critics 2026-11-09: r/baduk and designer, the Q9 flag sat on White's Q11 attach). */
+.l-callout.side span {
+  bottom: auto;
+  top: 0;
+  left: auto;
+  right: 0;
+  flex-direction: row;
+  align-items: center;
+  /* the ring is about one stone across: the flat board sets --cell, the 3D board keeps 18 px; the span
+     ends half a ring past the point, so the ring's centre is on it */
+  --ring: clamp(9px, calc(var(--cell, 30px) * 0.75), 18px);
+  transform: translate(calc(var(--ring) / 2), -50%);
+  animation-name: l-callout-side;
+}
+/* a ring on the point itself, so the line ends on Q9 and not on the stone beside it (artist, designer) */
+.l-callout.side em {
+  width: var(--ring);
+  height: var(--ring);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2.5px solid var(--l-seal);
+  background: rgba(244, 239, 228, 0.55);
+  box-shadow: 0 1px 3px rgba(21, 19, 15, 0.3);
+}
+.l-callout.side i {
+  width: 26px;
+  height: 3px;
+}
+@keyframes l-callout-side {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--ring) / 2 - 10px), -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(calc(var(--ring) / 2), -50%);
+  }
+}
 
 /* ------------------------------------------------ top bar */
 .l-nav {
