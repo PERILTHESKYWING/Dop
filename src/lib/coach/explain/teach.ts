@@ -22,20 +22,11 @@ import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead,
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
-import { isQuickRead, QUICK_NOISE_PTS } from './budgets';
 import type { Budget, ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
 /** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
 export const NEAR_PTS = 0.35;
 
-/**
- * A runner-up `gap` points behind KataGo's choice that a quick read cannot tell apart from it:
- * at least NEAR_PTS (closer is plain "about as good" on any read) and under QUICK_NOISE_PTS,
- * on a quick read's budget only. Longer reads keep "a little worse".
- */
-export function quickNoise(gap: number, budget: Pick<Budget, 'visits'> | undefined): boolean {
-  return isQuickRead(budget) && gap >= NEAR_PTS && gap < QUICK_NOISE_PTS;
-}
 
 export interface Teaching {
   summary: string;
@@ -636,23 +627,18 @@ export function teach(input: TeachInput): Teaching {
     // give the idea and the figures stay in their rows under KataGo's numbers, which list every
     // marked move (HN critic, 2026-11-04 and 11-05: the prose repeated the list); "a little" and
     // "clearly" are KataGo's gap in words (under 2 points, 2 or more).
-    // On a quick read (Kiai's Low and Medium) a gap inside the read's noise is said as that,
-    // not as "a little worse" (r/baduk critic, 2026-11-05 and 11-06); longer reads keep their words.
-    const noise = quickNoise(g, f.budget);
+    // A gap is worded the same on every read, so the sentence, KataGo's numbers and the board
+    // label agree (2026-11-09: all 10 critics read "about as good on this quick read" next to a
+    // "1.3" label and "1.3 points worse" row as the words contradicting the numbers).
     if (sit.sharp) {
       if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out a little ahead${ref(id)}.`);
       else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
-      else if (noise) summary.push(`${C(o.loc)} is about as good on this quick read${ref(id)}.`);
       else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse${ref(id)}.`);
-      nearLine([best.loc, o.loc], g < NEAR_PTS || noise);
+      nearLine([best.loc, o.loc], g < NEAR_PTS);
       return;
     }
     if (g < 0.5) {
       summary.push(`${C(o.loc)} is just as good: we're splitting hairs here, so play your style${ref(id)}.`);
-      return;
-    }
-    if (noise) {
-      summary.push(`${C(o.loc)} is about as good on this quick read, so play your style${ref(id)}.`);
       return;
     }
     if (g < 2) {

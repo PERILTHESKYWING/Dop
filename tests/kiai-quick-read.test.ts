@@ -1,15 +1,15 @@
 /**
- * A quick read's gaps in honest words (r/baduk critic, 2026-11-05 and 11-06: a Low read called a
- * 1.3-point gap "a little worse"). On Kiai's quick reads (Low, Medium, Local: the levels "Read
- * longer" is offered on) a runner-up within QUICK_NOISE_PTS of KataGo's choice is "about as good
- * on this quick read"; longer reads keep "a little worse". The read is the real move-34 read of
- * tests/kiai-sharp.test.ts with one runner-up's lead moved 1.3 points below KataGo's choice.
+ * A quick read's gaps in the same words as any read. 2026-11-07 tried "about as good on this quick
+ * read" for a 1.3-point gap on Low; on 2026-11-09 all 10 critics read it as the sentence
+ * contradicting the "1.3" board label and the "1.3 points worse" row, so a gap is worded the same
+ * on every read and the sentence, KataGo's numbers and the board agree. Quick reads (Low, Medium,
+ * Local) are still exactly the levels that offer Read longer. The read is the real move-34 read of
+ * tests/kiai-sharp.test.ts with one runner-up's lead moved below KataGo's choice.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { explainWithBudget, type EngineRead, type ExplainPosition, type Prober } from '../src/lib/coach/explain';
-import { budgetFor, isQuickRead, QUICK_NOISE_PTS } from '../src/lib/coach/explain/budgets';
-import { NEAR_PTS, quickNoise } from '../src/lib/coach/explain/teach';
+import { budgetFor, isQuickRead } from '../src/lib/coach/explain/budgets';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
 import { LEVELS, LOCAL_LEVEL, longerLevel } from '../kami/src/lib/levels';
@@ -50,21 +50,12 @@ describe('quick reads (Kiai Low and Medium)', () => {
     }
   });
 
-  it('a gap within the noise band, only on a quick read', () => {
-    const quick = budgetFor('hane', 'medium');
-    const long = budgetFor('tesuji', 'high');
-    expect(quickNoise(1.3, quick)).toBe(true);
-    expect(quickNoise(1.3, long)).toBe(false);
-    expect(quickNoise(NEAR_PTS - 0.01, quick)).toBe(false); // plain "about as good" on any read
-    expect(quickNoise(QUICK_NOISE_PTS, quick)).toBe(false);
-    expect(quickNoise(2.5, quick)).toBe(false);
-  });
-
-  it('words a 1.3-point gap as about as good on this quick read; a longer read keeps "a little worse"', async () => {
-    expect(await summaryAt(1.3, 160)).toContain('R12 is about as good on this quick read.');
-    const long = await summaryAt(1.3, 320);
-    expect(long).toContain('R12 is a little worse.');
-    expect(long).not.toContain('quick read');
+  it('words a 1.3-point gap as a little worse on a quick read and on a long one', async () => {
+    for (const visits of [160, 320]) {
+      const s = await summaryAt(1.3, visits);
+      expect(s).toContain('R12 is a little worse.');
+      expect(s).not.toContain('quick read');
+    }
   });
 
   it('a gap past the noise is still worse on a quick read', async () => {

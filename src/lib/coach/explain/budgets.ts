@@ -53,16 +53,6 @@ const TABLE: Record<ModelId, Record<ThinkingLevel, Budget>> = {
 export const QUICK_READ_VISITS = 300;
 export const isQuickRead = (b: Pick<Budget, 'visits'> | undefined): boolean => !!b && b.visits < QUICK_READ_VISITS;
 
-/**
- * How far apart two moves' leads can be on a quick read and still be noise (points). On the
- * landing's position (kami/src/ui/landing/demo.json, the bundled b10) Q10's lead moved 1.2 points
- * between 32 and 128 visits, and the pick went Q10, R12, Q9 between 32 and 2,048 visits over
- * gaps of 1-3 points; at 11-19 visits leads moved 1-2 points (above). So on a quick read a gap
- * under 1.5 points is worded "about as good on this quick read", not "a little worse" (r/baduk
- * critic, 2026-11-05 and 11-06: "a 1.3-point gap on a quick read is noise").
- */
-export const QUICK_NOISE_PTS = 1.5;
-
 export function budgetFor(model: ModelId, thinking: ThinkingLevel): Budget {
   const m = TABLE[model] ?? TABLE.tesuji;
   return { ...(m[thinking] ?? m.medium) };
