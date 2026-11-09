@@ -42,19 +42,18 @@ export const LEVEL_PICKS = LEVEL_ORDER.map((depth) => {
 });
 /** The app's first answer: Low, its default level (kami/src/lib/levels.ts DEFAULT_LEVEL). */
 export const QUICK = LEVEL_PICKS[0];
-/** The picks the levels between the quick read and this one made, in order, without repeats. */
-const BETWEEN = [...new Set(LEVEL_PICKS.slice(1, -1).map((p) => p.at))].filter((m) => m !== QUICK.at && m !== PICK);
 
 /**
  * The first screen's answer says how deep it read, and what the app's own first answer to the
  * same position says (r/baduk and generalist critics, 2026-11-06: the landing said Q9 while the
- * app's quick read said Q10). "From a long read: KataGo read 3,270 positions (Kiai's ultraGO).
- * The app's quick first read (Low, 288 positions) picked Q10; reading longer moved the pick to
- * R12, then Q9." Every figure and point is the recorded answers' own ("picked": recorded once,
+ * app's quick read said Q10). "A long read: KataGo, 3,270 positions. The app's quick read (288
+ * positions) picks Q10; Read longer moves it to Q9." No level name, and no stops in between, so
+ * it stays 3 lines at 390 px and the phone hero board is not cut (five critics,
+ * 2026-11-09: "Kiai's ultraGO" read as unexplained branding). Every figure and point is the recorded answers' own ("picked": recorded once,
  * with the bundled network; a faster device's quick read may read further).
  */
-export const PROOF = `From a long read: KataGo read ${n(PLAY.visits)} positions (Kiai’s ${LEVEL}).${
-  QUICK.at !== PICK ? ` The app’s quick first read (${QUICK.depth}, ${n(QUICK.visits)} positions) picked ${QUICK.at}; reading longer moved the pick to ${[...BETWEEN, PICK].join(', then ')}.` : ''
+export const PROOF = `A long read: KataGo, ${n(PLAY.visits)} positions.${
+  QUICK.at !== PICK ? ` The app’s quick read (${n(QUICK.visits)} positions) picks ${QUICK.at}; Read longer moves it to ${PICK}.` : ''
 }`;
 
 /** The line of play Kiai showed with its pick. */

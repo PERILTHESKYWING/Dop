@@ -1305,7 +1305,13 @@ li > .term-slot.after {
   color: var(--ink);
   white-space: nowrap;
 }
-/* "· not reworded" after "KataGo's numbers (6)": the rows are KataGo's read as it came */
+/* In KataGo's numbers every row is figures, so they keep lining figures at the text's own
+   weight; only the answer's words set a figure apart (artist, designer, HN, 2026-11-09: bold on
+   every figure in the list read as shouting) */
+.facts .kg-fig {
+  font-weight: inherit;
+}
+/* "· straight from KataGo" after "KataGo's numbers (6)": the rows are KataGo's read as it came */
 .facts-src {
   font-weight: 400;
 }

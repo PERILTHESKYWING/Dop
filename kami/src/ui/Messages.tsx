@@ -304,11 +304,17 @@ function GameLine({ game, engineKomi }: { game?: GameTerms; engineKomi?: number 
   const note = k !== undefined && engineKomi !== undefined && engineKomi !== k ? `KataGo counts by area, so komi ${k}${game.rules ? ` under ${game.rules} rules` : ''} is read as ${engineKomi}` : undefined;
   return (
     <span className="th-game" title={note}>
-      {game.rules && (
+      {game.rules ? (
         <span className="th-rules">
           {' · '}
           {game.rules}
           <span className="th-rules-word">&nbsp;rules</span>
+        </span>
+      ) : (
+        // the game named no rules: say how KataGo counted instead of guessing a ruleset
+        // (Chinese 5d, HN and pro teacher, 2026-11-09: "komi 7.5" alone is ambiguous)
+        <span className="th-rules" title="The game named no rules; KataGo counts by area">
+          {' · '}area scoring
         </span>
       )}
       {k !== undefined && <span className="th-komi">{` · komi ${k}`}</span>}
@@ -507,7 +513,7 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
           <summary>
             {/* the source, said where the figures are: these rows are KataGo's read as it came,
                 the text above is the wording (HN critic, 2026-11-05 and 11-06) */}
-            KataGo’s numbers ({facts.length})<span className="facts-src"> · not reworded</span> <Icon name="down" size={14} />
+            KataGo’s numbers ({facts.length})<span className="facts-src"> · straight from KataGo</span> <Icon name="down" size={14} />
           </summary>
           <ul>
             {facts.map((f, i) =>

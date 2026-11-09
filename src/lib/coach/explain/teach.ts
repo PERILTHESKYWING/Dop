@@ -22,7 +22,7 @@ import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead,
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
-import type { Budget, ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
+import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
 /** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
 export const NEAR_PTS = 0.35;

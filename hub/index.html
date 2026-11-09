@@ -341,22 +341,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow .tsub { display: flex; gap: 7px; align-items: center; font-size: 14px; min-width: 0; }
 .trow .tsub .when { margin-left: auto; color: var(--soft); white-space: nowrap; }
 /* Thread rows: one line (status dot, title, who, age); the group says the status. */
-.trow.t1 { grid-template-columns: 14px minmax(0, 1fr); align-items: start; align-content: center; column-gap: 8px; row-gap: 1px; padding: 8px 10px; min-height: 38px; }
+.trow.t1 { grid-template-columns: 14px minmax(0, 1fr) auto; align-items: start; align-content: center; column-gap: 8px; row-gap: 1px; padding: 8px 10px; min-height: 38px; }
 /* The title takes the whole row. Who and when float at the end of its last line, right-aligned, when they fit
    there, else on the line under it (the browser's float placement chooses, nothing is measured), so a normal
    title shows whole at 1440 px (critics 2026-11-06: designer, HN, generalist). Three lines at most; a title that
    long is rare, and the full title is in the tooltip and opens on keyboard focus. */
 :root .trow.t1 .ttl { -webkit-line-clamp: 3; }
-.trow.t1 .tm { float: right; display: flex; align-items: center; gap: 6px; height: 1lh; margin-left: 10px; font-weight: 400; }
+/* Who and when sit in a fixed column on the title's first line, so every avatar lines up and no row has them alone on
+   a line of their own; the title wraps beside them (2026-11-09: artist, parent, HN, designer, generalist, r/baduk,
+   pro, Chinese 5d all marked the floated meta as a ragged right edge). */
+.trow.t1 .tm { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 6px; height: 1.3em; font-size: 15px; font-weight: 400; }
 .trow.t1 .when { color: var(--soft); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
 /* The dot sits on the title's first line (1.3 line height), not in the middle of a two- or three-line row. */
 .trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; margin-top: 6px; }
 /* A working thread: the title (two lines at most), then its current step, one muted, cut-off line, with who and when at its end. */
 :root .trow.t1.has-step .ttl { -webkit-line-clamp: 2; }
-.trow.t1 .tline { grid-column: 2; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.trow.t1 .tline .tm { float: none; margin-left: auto; height: 20px; }
-.trow.t1 .tstep { flex: 1 1 0; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The step line runs the row's width under title and meta and wraps to a second line before it would be cut
+   (designer, HN, artist, r/baduk: "No step yet · heard 12 …" ended in an ellipsis). */
+.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
 :root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .trow.on .tstep { color: var(--soft); }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
@@ -856,8 +859,10 @@ button.act.starting { border-left-color: var(--line-2); }
 .tk.st-waiting .tk-dot { border-color: var(--amber); background: var(--amber); }
 .tk.st-stalled .tk-dot { border-color: var(--red); background: var(--red); }
 .tk.st-done .tk-dot { border-color: var(--faint); background: var(--faint); }
+/* An offline task gets the list's hollow amber ring, not a working green dot (generalist, 2026-11-09). */
+.tk.ss-noconn .tk-dot { border-color: var(--amber); background: none; }
 .tk.st-done .ttl { text-decoration: line-through; color: var(--soft); }
-.tk .ttl { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; font-size: 14px; font-weight: 500; }
+.tk .ttl { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.3; font-size: 14px; font-weight: 500; }
 .tk .tw { display: flex; align-items: center; gap: 6px; flex: none; }
 .tk small { color: var(--soft); font-size: 14px; }
 .tfoot { padding: 16px 16px 24px; display: grid; gap: 10px; }
@@ -1622,7 +1627,7 @@ function threadRow(t) {
   const tm = meta ? `<span class="tm">${meta}</span>` : '';
   // The last short word keeps the one before it, so a wrapped title never ends on a lone "25" or "icons".
   const ttl = esc(nb(t.title).replace(/ (\S{1,10})$/, '\u00a0$1')).replace(/_/g, '_<wbr>');
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span>${line ? `<span class="ttl">${ttl}</span><span class="tline"><span class="tstep${step ? '' : ' none'}">${line}</span>${tm}</span>` : `<span class="ttl">${ttl}${tm}</span>`}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${ttl}</span>${tm}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -2473,8 +2478,13 @@ const USE_SRC = {
   manual: ['Typed in, not read from Claude', 'Typed in by hand on this page; the hub has not read these from Claude.'],
 };
 const useSrc = (u) => USE_SRC[u?.source] || USE_SRC.claude;
+// A fresh reading from Claude is said once, in the Team header ("usage from Claude · just now"); a card says it only
+// when its reading is older than USE_STALE or came from elsewhere (2026-11-09: artist, HN, designer, generalist,
+// r/baduk, Chinese 5d: the same line on every card pushed Settings below the fold).
+const USE_STALE = 30 * 60e3;
+const useFresh = (u) => !!u?.at && (u.source || 'claude') === 'claude' && Date.now() - u.at < USE_STALE;
 function useAsOf(u) {
-  if (!u?.at) return '';
+  if (!u?.at || useFresh(u)) return '';
   const [word, tip] = useSrc(u);
   return `<div class="uasof" title="${esc(`${tip} ${clock(u.at)}.`)}">${esc(word)} · ${agoEl(u.at, 'a')}</div>`;
 }
@@ -2565,7 +2575,7 @@ const TASK_GROUPS = [
 ];
 function taskRow(t) {
   const who = threadAccounts(t);
-  return `<button type="button" class="tk st-${t.status}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) || ['starting', 'noconn'].includes(threadState(t)[0]) ? `<small>${stHtml(threadState(t))}</small>` : ''}</span></button>`;
+  return `<button type="button" class="tk st-${t.status}${threadState(t)[0] === 'noconn' ? ' ss-noconn' : ''}" data-thread="${t.id}" title="${esc(t.title)}"><span class="tk-dot" aria-hidden="true"></span><span class="ttl">${esc(nb(t.title))}</span><span class="tw">${who.length ? avList(who) : ''}${['waiting', 'queued', 'stalled'].includes(t.status) || ['starting', 'noconn'].includes(threadState(t)[0]) ? `<small>${stHtml(threadState(t))}</small>` : ''}</span></button>`;
 }
 function taskList() {
   const live = S.threads.filter((t) => !t.archived);
@@ -2610,8 +2620,9 @@ function renderTeam() {
   // The header says only what is not routine: how many work, run low or need XIAO.
   const accts = (k) => `${k} account${k > 1 ? 's' : ''}`;
   const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
+  const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts ? `<p class="tsum">${esc(counts)}</p>` : ''}
+    ${counts || freshAt ? `<p class="tsum">${esc(counts)}${freshAt ? `${counts ? ' · ' : ''}<span title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
