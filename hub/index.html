@@ -212,7 +212,7 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
 :root .seg button[aria-pressed="true"], :root .pseg button[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); font-weight: 500; box-shadow: none; }
 /* Focus on a segment is a ring set off by a gap of the panel colour, so a focused selected segment looks unlike a
    selected one (accessibility critic, 2026-11-09, two rounds). */
-:root .seg button:focus-visible, :root .pseg button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 2px var(--panel); }
+:root .seg button:focus-visible, :root .pseg button:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 4px var(--green); }
 :root .walls i { border-radius: var(--r); }
 :root .walls button[aria-pressed="true"] i { border-color: var(--stone); box-shadow: none; }
 
@@ -359,10 +359,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    titles beside the wide "A2 12 min" column). The phone keeps them side by side. */
 @media (min-width: 861px) {
   .trow.t1 .tm { flex-direction: column; align-items: flex-end; gap: 2px; height: auto; }
-  .trow.t1 .tm .when { font-size: 13.5px; line-height: 16px; }
-  .trow.t1 .tm .when .long { display: none; }
+  .trow.t1 .tm .when { font-size: 14px; line-height: 17px; color: var(--ink); opacity: .78; }
 }
-@media (max-width: 860px) { .trow.t1 .tm .when .short { display: none; } }
 .trow.t1 .ttl, .trow.t1 .tstep { text-wrap: pretty; }
 .trow.t1 .when { color: var(--soft); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
@@ -789,7 +787,7 @@ button.fchip:hover { border-color: var(--faint); }
 @media (hover: hover) { :root .asub .btn:hover { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 35%, var(--line-2)); } }
 :root .asub .btn:focus-visible { outline: 2px solid var(--stone); outline-offset: 2px; }
 /* One usage line: 5-hour and weekly side by side. */
-.use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+.use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14.5px; }
 .u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
 .u1 .lbl { font-weight: 500; color: var(--soft); }
 .u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
@@ -806,7 +804,7 @@ button.fchip:hover { border-color: var(--faint); }
 .opt.danger b { color: var(--red); }
 .group.arch { border: 0; background: none; text-align: left; cursor: pointer; width: 100%; }
 .group.arch:hover { color: var(--ink); }
-.btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; }
+.btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; min-width: 28px; min-height: 26px; }
 .aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan { font-weight: 400; color: var(--soft); }
 .state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
@@ -1620,13 +1618,13 @@ $('feed').addEventListener('click', (e) => {
 // Filled once per renderSide: each thread's last message, its last update post (for the step), and its last non-thinking post per account (Team activity).
 let lastByThread = new Map(), lastByThreadAcct = new Map(), lastPostByThread = new Map();
 let sameWhen = false; // every row would say the same age: then rows show none
-// "12 min" on the phone, "12m" in the desktop rail (both drawn; CSS shows one).
+// A row's age, short everywhere ("12m", "3h", "now"): one style in every list slot, phone and desktop (2026-11-09:
+// four critics saw "12m" in the rail next to "12 min" on the phone).
 const rowWhen = (t) => {
   const last = lastByThread.get(t.id);
   if (!last) return '';
-  const ms = Date.now() - last.at, long = ago(ms).replace('just now', 'now');
-  const short = ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
-  return short === long ? long : `<span class="long">${long}</span><span class="short" aria-hidden="true">${short}</span>`;
+  const ms = Date.now() - last.at;
+  return ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
 };
 // The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
 function rowStep(t) {
@@ -2644,7 +2642,7 @@ function renderTeam() {
   const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum">${esc(counts)}${freshAt ? `${counts ? ' · ' : ''}<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
+    ${counts || freshAt ? `<p class="tsum">${esc(counts)}${freshAt ? `${counts ? ' ' : ''}<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">${counts ? '· ' : ''}usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
