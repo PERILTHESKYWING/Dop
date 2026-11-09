@@ -10,6 +10,8 @@ export interface BoardState {
   /** Komi as written in the game; `rules` decide what KataGo gets (engineKomi). */
   komi: number;
   rules?: string;
+  /** The SGF gave no komi (or Fox's 0 for "missing"), so `komi` is the usual one, assumed. */
+  komiAssumed?: boolean;
   setup: Move[];
   /** The whole line (a loaded game, or the moves played by clicking). */
   moves: Move[];
@@ -73,6 +75,8 @@ export function boardFromSgf(text: string): BoardState {
     size: g.size,
     komi: g.komi,
     rules: g.rules,
+    // sgf.ts readKomi: "no komi given, assuming 7.5" / "komi was 0 in an even game ... using 6.5"
+    ...(g.warnings.some((w) => /^no komi given|^komi was 0 in an even game/.test(w)) ? { komiAssumed: true } : {}),
     setup: g.setup,
     moves: g.moves,
     cursor: g.moves.length,
@@ -81,6 +85,40 @@ export function boardFromSgf(text: string): BoardState {
     black: g.black || undefined,
     white: g.white || undefined,
   };
+}
+
+/** The game's komi and rules as an answer's read line names them; a value not known is left out. */
+export interface GameTerms {
+  /** Komi as the game was played (KataGo reads by area: engineKomi may add half a point). */
+  komi?: number;
+  /** The rules' usual English name ("Japanese"). */
+  rules?: string;
+}
+
+const RULE_NAMES: [RegExp, string][] = [
+  [/jap|\bjp\b|日本/i, 'Japanese'],
+  [/kor|韓|韩|한국/i, 'Korean'],
+  [/chin|\bcn\b|中国|中國/i, 'Chinese'],
+  [/\baga\b|american/i, 'AGA'],
+  [/new ?zealand|\bnz\b/i, 'New Zealand'],
+  [/tromp/i, 'Tromp-Taylor'],
+  [/\bing\b|应氏|應氏/i, 'Ing'],
+];
+
+/** The usual name of an SGF's RU[] rules, or undefined for rules Kiai cannot name (never guessed). */
+export function rulesName(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) return undefined;
+  return RULE_NAMES.find(([re]) => re.test(raw))?.[1];
+}
+
+/**
+ * What the read line says about the game (Chinese 5d, 2026-11-05 and 11-06: "komi and rules in
+ * the read line"): the komi when the game gave it (or the board was set up here, at 7.5), the
+ * rules when the SGF named ones Kiai knows. Never an assumed komi or a guessed ruleset.
+ */
+export function gameTerms(b: BoardState): GameTerms {
+  const rules = rulesName(b.rules);
+  return { ...(b.komiAssumed ? {} : { komi: b.komi }), ...(rules ? { rules } : {}) };
 }
 
 /** A concept example (or any ExplainPosition) as a board. `komi` there is already KataGo's. */
