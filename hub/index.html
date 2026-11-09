@@ -359,7 +359,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    titles beside the wide "A2 12 min" column). The phone keeps them side by side. */
 @media (min-width: 861px) {
   .trow.t1 .tm { flex-direction: column; align-items: flex-end; gap: 2px; height: auto; }
-  .trow.t1 .tm .when { font-size: 14px; line-height: 17px; color: var(--ink); opacity: .78; }
+  .trow.t1 .tm .when { font-size: 14px; line-height: 17px; }
+  :root .app > .side .trow.t1 .tm .when:not(.nc) { color: var(--kaya-ink); }
+  :root .app > .side .trow.t1 .tm .when.nc { color: var(--amber-text); font-weight: 500; }
 }
 .trow.t1 .ttl, .trow.t1 .tstep { text-wrap: pretty; }
 .trow.t1 .when { color: var(--soft); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
