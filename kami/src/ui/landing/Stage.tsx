@@ -248,10 +248,11 @@ export default function Stage({ show, at, camRef, boxRef, onReady }: { show: Sho
       <canvas ref={canvas} className="l-stage" aria-hidden="true" />
       <div ref={marks} className="l-callouts" aria-hidden="true">
         {notes.map((n) => (
-          <div key={n.id} className="l-callout">
+          <div key={n.id} className={n.id === 'review' ? 'l-callout' : 'l-callout side'}>
             <span>
               <b>{n.label}</b>
               <i />
+              {n.id !== 'review' && <em />}
             </span>
           </div>
         ))}
