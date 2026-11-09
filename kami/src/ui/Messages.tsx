@@ -313,7 +313,7 @@ function GameLine({ game, engineKomi }: { game?: GameTerms; engineKomi?: number 
       ) : (
         // the game named no rules: say how KataGo counted instead of guessing a ruleset
         // (Chinese 5d, HN and pro teacher, 2026-11-09: "komi 7.5" alone is ambiguous)
-        <span className="th-rules" title="The game named no rules; KataGo counts by area">
+        <span className="th-rules th-area" title="The game named no rules; KataGo counts by area">
           {' · '}area scoring
         </span>
       )}

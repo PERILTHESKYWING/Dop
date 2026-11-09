@@ -1103,7 +1103,7 @@ kbd {
   color: var(--ink-2);
 }
 .term-tip-lang {
-  font-size: 0.85em;
+  font-size: 1em;
   color: var(--muted);
 }
 .term-tip-sep {
@@ -1310,6 +1310,13 @@ li > .term-slot.after {
    every figure in the list read as shouting) */
 .facts .kg-fig {
   font-weight: inherit;
+}
+/* the read line's game terms never break inside a phrase ("area scoring", "komi 7.5"): a
+   line wraps only at a "·" (eight critics, 2026-11-09: "area / scoring" on the phone); a phone's
+   folded row leaves "area scoring" for the open card */
+.th-rules,
+.th-komi {
+  white-space: nowrap;
 }
 /* "· straight from KataGo" after "KataGo's numbers (6)": the rows are KataGo's read as it came */
 .facts-src {
@@ -2932,7 +2939,8 @@ li > .term-slot.after {
      the time and the rate show when the card opens (critics, 2026-11-04: the row wrapped) */
   .read-row:has(.read-longer) .thoughts:not([open]) .th-reads,
   .read-row:has(.read-longer) .thoughts:not([open]) .th-time,
-  .thoughts:not([open]) .th-rate {
+  .thoughts:not([open]) .th-rate,
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-area {
     display: none;
   }
   .read-row {

@@ -210,6 +210,9 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
 :root .seg, :root .pseg { border-radius: var(--r); border-color: var(--line-2); }
 :root .seg button, :root .pseg button { border-radius: 4px; }
 :root .seg button[aria-pressed="true"], :root .pseg button[aria-pressed="true"] { background: var(--stone); color: var(--on-stone); font-weight: 500; box-shadow: none; }
+/* Focus on a segment is a ring set off by a gap of the panel colour, so a focused selected segment looks unlike a
+   selected one (accessibility critic, 2026-11-09, two rounds). */
+:root .seg button:focus-visible, :root .pseg button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 2px var(--panel); }
 :root .walls i { border-radius: var(--r); }
 :root .walls button[aria-pressed="true"] i { border-color: var(--stone); box-shadow: none; }
 
@@ -351,6 +354,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    a line of their own; the title wraps beside them (2026-11-09: artist, parent, HN, designer, generalist, r/baduk,
    pro, Chinese 5d all marked the floated meta as a ragged right edge). */
 .trow.t1 .tm { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 6px; height: 1.3em; font-size: 15px; font-weight: 400; }
+/* Desktop rail (about 250 px): avatar over a short age ("12m"), so the meta column is one avatar wide and a title
+   keeps nearly the whole row, two lines for an ordinary title (2026-11-09 round 2: all 10 critics saw three-line
+   titles beside the wide "A2 12 min" column). The phone keeps them side by side. */
+@media (min-width: 861px) {
+  .trow.t1 .tm { flex-direction: column; align-items: flex-end; gap: 2px; height: auto; }
+  .trow.t1 .tm .when { font-size: 13.5px; line-height: 16px; }
+  .trow.t1 .tm .when .long { display: none; }
+}
+@media (max-width: 860px) { .trow.t1 .tm .when .short { display: none; } }
+.trow.t1 .ttl, .trow.t1 .tstep { text-wrap: pretty; }
 .trow.t1 .when { color: var(--soft); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-done.t1 .ttl { font-weight: 500; color: var(--soft); }
 /* The dot sits on the title's first line (1.3 line height), not in the middle of a two- or three-line row. */
@@ -759,6 +772,8 @@ button.fchip:hover { border-color: var(--faint); }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 /* Team: no alarm borders; one red per card: the "Running low" word, so a low card's bars stay ink. */
 .tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; }
+/* the usage note never breaks mid-phrase: it wraps whole to its own line (five critics, 2026-11-09) */
+.tsum .tsrc { white-space: nowrap; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .atop .btn.more { padding: 1px 8px 5px; margin: -4px -4px -4px 0; }
@@ -1605,7 +1620,14 @@ $('feed').addEventListener('click', (e) => {
 // Filled once per renderSide: each thread's last message, its last update post (for the step), and its last non-thinking post per account (Team activity).
 let lastByThread = new Map(), lastByThreadAcct = new Map(), lastPostByThread = new Map();
 let sameWhen = false; // every row would say the same age: then rows show none
-const rowWhen = (t) => { const last = lastByThread.get(t.id); return last ? ago(Date.now() - last.at).replace('just now', 'now') : ''; };
+// "12 min" on the phone, "12m" in the desktop rail (both drawn; CSS shows one).
+const rowWhen = (t) => {
+  const last = lastByThread.get(t.id);
+  if (!last) return '';
+  const ms = Date.now() - last.at, long = ago(ms).replace('just now', 'now');
+  const short = ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
+  return short === long ? long : `<span class="long">${long}</span><span class="short" aria-hidden="true">${short}</span>`;
+};
 // The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
 function rowStep(t) {
   if (!isRunning(t)) return '';
@@ -2622,7 +2644,7 @@ function renderTeam() {
   const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum">${esc(counts)}${freshAt ? `${counts ? ' · ' : ''}<span title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
+    ${counts || freshAt ? `<p class="tsum">${esc(counts)}${freshAt ? `${counts ? ' · ' : ''}<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
