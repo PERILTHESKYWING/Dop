@@ -45,6 +45,14 @@ const TABLE: Record<ModelId, Record<ThinkingLevel, Budget>> = {
   },
 };
 
+/**
+ * A quick read: a budget under 300 root visits, which is what Kiai's Low and Medium levels (and
+ * Local) read with, the levels its "Read longer" button is offered on (kami/src/lib/levels.ts
+ * longerLevel; tests/kiai-quick-read.test.ts keeps the two in step). High and up read 320+.
+ */
+export const QUICK_READ_VISITS = 300;
+export const isQuickRead = (b: Pick<Budget, 'visits'> | undefined): boolean => !!b && b.visits < QUICK_READ_VISITS;
+
 export function budgetFor(model: ModelId, thinking: ThinkingLevel): Budget {
   const m = TABLE[model] ?? TABLE.tesuji;
   return { ...(m[thinking] ?? m.medium) };

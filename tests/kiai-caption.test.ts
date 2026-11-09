@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { moveStats, stoneNote } from '../kami/src/lib/moveCaption';
 import { DEMO } from '../kami/src/ui/landing/data';
 import { FINAL, loc } from '../kami/src/ui/landing/data';
-import { EARLIER_PICKS, PICK, PICK_VISITS, PROOF, READ_VISITS } from '../kami/src/ui/landing/story';
+import { LEVEL_PICKS, PICK, pointsIn, PROOF, QUICK } from '../kami/src/ui/landing/story';
+import { DEFAULT_LEVEL } from '../kami/src/lib/levels';
 import { TERM_NAMES, termCard } from '../kami/src/lib/terms';
 import { GLOSSARY } from '../src/lib/coach/glossary';
 
@@ -33,19 +34,23 @@ describe('the caption over a previewed move (KataGo numbers only)', () => {
 });
 
 describe('the landing hero’s proof beside its pick', () => {
-  it('is the pick’s real visits out of the read’s total', () => {
-    expect(PICK_VISITS).toBe(FINAL.cands.find((c) => c.at === PICK)?.visits);
-    expect(PICK_VISITS).toBeGreaterThan(0);
-    expect(READ_VISITS).toBe(FINAL.visits);
-    expect(PICK_VISITS).toBeLessThanOrEqual(READ_VISITS);
+  const rec = (depth: string) => DEMO.answers.find((a) => a.question === 'What should Black play here?' && a.depth === depth)!;
+  it('says how deep the shown answer read, from the recorded answer', () => {
+    const ultra = rec('ultraGO');
+    expect(PICK).toBe(ultra.variations[0].moves[0]);
+    expect(PROOF.startsWith(`A long read: KataGo, ${ultra.visits.toLocaleString('en-US')} positions.`)).toBe(true);
+    expect(PROOF).not.toMatch(/ultraGO/);
   });
-  it('says honestly what shorter reads preferred, from the recorded reads', () => {
-    expect(EARLIER_PICKS).toEqual([...new Set(DEMO.reads.slice(0, -1).map((r) => r.cands[0].at))].filter((m) => m !== PICK));
-    expect(EARLIER_PICKS[0]).toBe(DEMO.reads[0].cands[0].at);
-    expect(PROOF).toBe(`KataGo read ${READ_VISITS.toLocaleString('en-US')} positions, ${PICK_VISITS.toLocaleString('en-US')} of them after ${PICK}. Shorter reads preferred ${EARLIER_PICKS.join(', then ')}.`);
-    // the app's quick (Low) answer on this board is one of them
-    const low = DEMO.answers.find((a) => a.question === 'What should Black play here?' && a.depth === 'Low')!;
-    expect(EARLIER_PICKS).toContain(low.variations[0].moves[0]);
+  // r/baduk and generalist critics, 2026-11-06: the landing said Q9, the app's quick read Q10
+  it('names the app’s own quick read of the same position, and how the pick changed as it read longer', () => {
+    const low = rec('Low');
+    expect(QUICK).toEqual({ depth: 'Low', at: low.variations[0].moves[0], visits: low.visits, reads: low.reads });
+    expect(DEFAULT_LEVEL).toBe('low');
+    expect(LEVEL_PICKS.map((p) => p.at)).toEqual(['Low', 'Medium', 'Max', 'ultraGO'].map((d) => rec(d).variations[0].moves[0]));
+    expect(PROOF).toContain(`The app’s quick read (${low.visits.toLocaleString('en-US')} positions) picks ${QUICK.at};`);
+    expect(PROOF.endsWith(`Read longer moves it to ${PICK}.`)).toBe(true);
+    // every point it names is a recorded pick
+    for (const p of pointsIn(PROOF)) expect(LEVEL_PICKS.map((x) => x.at)).toContain(p);
   });
 });
 
@@ -63,7 +68,7 @@ describe('Go terms in Chinese and Japanese', () => {
   it('names only glossary terms, and the card carries them', () => {
     for (const k of Object.keys(TERM_NAMES)) expect(GLOSSARY.some((g) => g.term === k), k).toBe(true);
     const hane = GLOSSARY.find((g) => g.term === 'hane')!;
-    expect(termCard(hane).names).toEqual({ zh: '扳', ja: 'ハネ' });
+    expect(termCard(hane).names).toEqual({ zh: '扳', py: 'bān', ja: 'ハネ' });
     expect(termCard(GLOSSARY.find((g) => g.term === 'liberty')!).names).toBeUndefined();
   });
 });

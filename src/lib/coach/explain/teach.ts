@@ -22,10 +22,11 @@ import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead,
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
+import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
 /** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
 export const NEAR_PTS = 0.35;
-import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
+
 
 export interface Teaching {
   summary: string;
@@ -626,6 +627,9 @@ export function teach(input: TeachInput): Teaching {
     // give the idea and the figures stay in their rows under KataGo's numbers, which list every
     // marked move (HN critic, 2026-11-04 and 11-05: the prose repeated the list); "a little" and
     // "clearly" are KataGo's gap in words (under 2 points, 2 or more).
+    // A gap is worded the same on every read, so the sentence, KataGo's numbers and the board
+    // label agree (2026-11-09: all 10 critics read "about as good on this quick read" next to a
+    // "1.3" label and "1.3 points worse" row as the words contradicting the numbers).
     if (sit.sharp) {
       if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out a little ahead${ref(id)}.`);
       else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);

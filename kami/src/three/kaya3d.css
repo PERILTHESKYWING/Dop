@@ -280,8 +280,11 @@
 .k3-focus.on-chip::before {
   width: calc(var(--cell) * var(--fw) + 8px);
   height: calc(var(--cell) * var(--fh) + 8px);
-  border-width: 2px;
+  border-width: 3px;
   border-radius: 6px;
+  /* dark frame between two 2 px paper rings: 3:1 or more against the wood and the chip in both themes
+     (accessibility critic, 2026-11-09) */
+  box-shadow: 0 0 0 2px #f7f3ea, inset 0 0 0 2px #f7f3ea;
 }
 .k3-evidence::before {
   border-color: #15130f;

@@ -884,8 +884,21 @@ kbd {
 }
 .msg:hover .msg-tools,
 .msg:focus-within .msg-tools,
-.msg.kami:last-child .msg-tools {
+.msg.kami:last-child .msg-tools,
+.msg.kami:has(+ .msgs-tail) .msg-tools {
   opacity: 1;
+}
+/* Kiai's copy and redo sit at the right end of its name row on every width, copy first, both
+   28 px (designer, 2026-11-05 and 11-06: the desktop put them under the answer, the phone on the
+   name row). They come last in the DOM, so Tab reaches them after the answer. */
+.msg.kami {
+  position: relative;
+}
+.msg.kami > .msg-tools {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  margin: 0;
 }
 .who {
   font-size: 14px;
@@ -1090,11 +1103,18 @@ kbd {
   color: var(--ink-2);
 }
 .term-tip-lang {
-  font-size: 0.85em;
+  font-size: 1em;
   color: var(--muted);
 }
 .term-tip-sep {
   color: var(--faint);
+}
+/* the pinyin beside its characters: the same size, a muted ink, never on a line of its own */
+.term-tip-zh {
+  white-space: nowrap;
+}
+.term-tip-py {
+  color: var(--muted);
 }
 .term-tip-text {
   margin-top: 4px;
@@ -1273,6 +1293,34 @@ li > .term-slot.after {
   padding-left: 22px;
   font-size: 15px;
   color: var(--ink-2);
+}
+/* KataGo's figures ("10.3 points", "61%"), one style wherever they appear: in the answer's
+   words, its sections, the read's steps and KataGo's numbers (Messages.tsx Parts). Lining,
+   tabular figures in ink at 500, so a measured number reads apart from the wording around it;
+   no fill, no colour of its own (HN critic, 2026-11-05 and 11-06). */
+.kg-fig {
+  font-family: var(--font);
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* In KataGo's numbers every row is figures, so they keep lining figures at the text's own
+   weight; only the answer's words set a figure apart (artist, designer, HN, 2026-11-09: bold on
+   every figure in the list read as shouting) */
+.facts .kg-fig {
+  font-weight: inherit;
+}
+/* the read line's game terms never break inside a phrase ("area scoring", "komi 7.5"): a
+   line wraps only at a "·" (eight critics, 2026-11-09: "area / scoring" on the phone); a phone's
+   folded row leaves "area scoring" for the open card */
+.th-rules,
+.th-komi {
+  white-space: nowrap;
+}
+/* "· straight from KataGo" after "KataGo's numbers (6)": the rows are KataGo's read as it came */
+.facts-src {
+  font-weight: 400;
 }
 /* "Other moves for Black": whose moves the rows under it are (Messages.tsx) */
 .facts-head {
@@ -2891,7 +2939,8 @@ li > .term-slot.after {
      the time and the rate show when the card opens (critics, 2026-11-04: the row wrapped) */
   .read-row:has(.read-longer) .thoughts:not([open]) .th-reads,
   .read-row:has(.read-longer) .thoughts:not([open]) .th-time,
-  .thoughts:not([open]) .th-rate {
+  .thoughts:not([open]) .th-rate,
+  .read-row:has(.read-longer) .thoughts:not([open]) .th-area {
     display: none;
   }
   .read-row {
@@ -3141,15 +3190,6 @@ li > .term-slot.after {
   /* the last message ends 10 px over the pane's foot (the composer's own 8 px gap follows) */
   .msg:has(+ .msgs-tail) {
     margin-bottom: 10px;
-  }
-  .msg.kami {
-    position: relative;
-  }
-  .msg.kami > .msg-tools {
-    position: absolute;
-    top: -4px;
-    right: 0;
-    margin: 0;
   }
   .msg.user:not(.editing) {
     flex-direction: row-reverse;
