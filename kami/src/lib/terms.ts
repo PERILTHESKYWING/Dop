@@ -114,7 +114,7 @@ export interface TermNames {
   /** Pinyin with tone marks, as printed beside the characters (Chinese 5d, 2026-11-06). */
   py: string;
   ja: string;
-  /** A second Chinese word in common use for the same move (attach: 碰 and 靠). */
+  /** A second Chinese word in common use for the same move (attach: 碰 and 靠; reverse sente: 逆收 and 逆先手). */
   also?: { zh: string; py: string };
 }
 
@@ -126,10 +126,11 @@ export interface TermNames {
  * alone is not how Chinese players say it); attach is 碰 for a lone stone and 靠 when leaning on a
  * group, both in use, so the card shows both.
  * Added 2026-11-10 for the terms that had no card names: liberty 气 / ダメ (Japanese uses ダメ for
- * a liberty as well as for a neutral point), kikashi 先手利 / 利かし, vital point 要点 / 急所,
+ * a liberty as well as for a neutral point), kikashi 先手便宜 / 利かし, vital point 要点 / 急所,
  * dragon 大龙 / 大石, bamboo joint 双 / タケフ (双 is the shape in the Chinese list of basic
- * moves: 长, 立, 尖, 双, 虎, 飞), reverse sente 逆先手 in both, influence 外势 / 勢力,
- * overconcentration 重复 / 凝り形, probe 试应手 / 様子見 (yosu-miru).
+ * moves: 长, 立, 尖, 双, 虎, 飞), reverse sente 逆收 (also 逆先手) / 逆先手, influence 外势 / 勢力,
+ * overconcentration 重复 / 凝り形, probe 试应手 / 様子見 (yosu-miru). Chinese 5d, 2026-11-10: kikashi is
+ * 先手便宜 and reverse sente 逆收 in Chinese speech (先手利 and 逆先手 read as translations).
  */
 export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   hane: { zh: '扳', py: 'bān', ja: 'ハネ' },
@@ -182,11 +183,11 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   yose: { zh: '官子', py: 'guānzi', ja: 'ヨセ' },
   dame: { zh: '单官', py: 'dānguān', ja: 'ダメ' },
   liberty: { zh: '气', py: 'qì', ja: 'ダメ' },
-  kikashi: { zh: '先手利', py: 'xiānshǒulì', ja: '利かし' },
+  kikashi: { zh: '先手便宜', py: 'xiānshǒu piányi', ja: '利かし' },
   'vital point': { zh: '要点', py: 'yàodiǎn', ja: '急所' },
   dragon: { zh: '大龙', py: 'dàlóng', ja: '大石' },
   'bamboo joint': { zh: '双', py: 'shuāng', ja: 'タケフ' },
-  'reverse sente': { zh: '逆先手', py: 'nìxiānshǒu', ja: '逆先手' },
+  'reverse sente': { zh: '逆收', py: 'nìshōu', ja: '逆先手', also: { zh: '逆先手', py: 'nìxiānshǒu' } },
   influence: { zh: '外势', py: 'wàishì', ja: '勢力' },
   overconcentration: { zh: '重复', py: 'chóngfù', ja: '凝り形' },
   probe: { zh: '试应手', py: 'shìyìngshǒu', ja: '様子見' },
