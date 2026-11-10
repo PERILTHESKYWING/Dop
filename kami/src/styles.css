@@ -987,7 +987,10 @@ kbd {
   padding: 0 2px;
   margin: 0 -1px;
   border-radius: 4px;
-  border-bottom: 1.5px solid var(--accent-line);
+  /* plain coloured text at rest (designer and artist, 2026-11-10: with the terms' underlines a
+     paragraph showed about 13 decorated tokens); its box shows under the pointer, on focus and
+     while its line is on the board. The border stays, clear, so the line never moves. */
+  border-bottom: 1.5px solid transparent;
   cursor: pointer;
 }
 /* a coordinate's hover and tap area is at least 24 px each way (WCAG 2.5.8), past its letters */
@@ -1006,7 +1009,7 @@ kbd {
 .pt:hover,
 .pt.on {
   background: var(--accent-soft);
-  border-bottom-style: solid;
+  border-bottom-color: var(--accent-line);
 }
 /* Go terms with a definition on hover or tap (glossary) */
 .term {
@@ -3436,4 +3439,5 @@ li > .term-slot.after {
 /* a coordinate reached with Tab looks as it does under the pointer (its line is on the board) */
 .pt:focus-visible {
   background: var(--accent-soft);
+  border-bottom-color: var(--accent-line);
 }

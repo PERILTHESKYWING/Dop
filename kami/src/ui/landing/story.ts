@@ -101,7 +101,9 @@ export const ASK = {
   q: PLAY.question,
   // the group by the point the recorded long read names ("the black group at P6 safer"; r/baduk,
   // 2026-11-09: "the black stones below it" named nothing)
-  a: `White leads by about ${PLAY_LEAD} points. Black’s best move is ${PICK}: it takes away some of White’s area on the right side and makes the black group at ${GROUP} safer.`,
+  // the read's depth in the sentence itself, so it never reads as contradicting the app's first
+  // (quick) answer, Q10 (r/baduk, HN and generalist, 2026-11-10)
+  a: `White leads by about ${PLAY_LEAD} points. On a long read, Black’s best move is ${PICK}: it takes away some of White’s area on the right side and makes the black group at ${GROUP} safer.`,
 };
 
 /** The reads KataGo grew through, for the reading chart: its top moves' share of the looking. */
