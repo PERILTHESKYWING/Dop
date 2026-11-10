@@ -166,7 +166,6 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
   /* The rail keeps a working row to three lines: title (two at most), then the step on one line, cut with an
      ellipsis; the whole step is its tooltip and shows on keyboard focus (2026-11-09: designer saw 4-line rows). */
   :root .trow.t1 .tstep { -webkit-line-clamp: 1; }
-  :root .trow.t1:focus-visible .tstep { -webkit-line-clamp: unset; }
 }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
@@ -805,7 +804,7 @@ button.fchip:hover { border-color: var(--faint); }
 .u1 .lbl { font-weight: 500; color: var(--soft); }
 .u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
 .u1 .track { display: block; height: 4px; }
-/* "From Claude · 4 min ago" under the bars: the reading's source and age, in the card's meta size. */
+/* "From Claude · 4m" under the bars: the reading's source and age, in the card's meta size. */
 .uasof { color: var(--soft); font-size: 14px; line-height: 18px; margin-top: -2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
@@ -1202,9 +1201,10 @@ const CLOCK_DAY = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digi
 const CLOCK_DATE = new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const clock = (t) => { const d = new Date(t); return (new Date().toDateString() === d.toDateString() ? CLOCK_DAY : CLOCK_DATE).format(d); };
 // One short age everywhere in the hub: "now", "4m", "3h", "2d" (thread rows, Team cards, usage, Activity). Words
-// around it stay plain: "4m ago", "last heard 4m ago" (2026-11-09: r/baduk saw "2 min ago" on Team cards beside "2m").
+// around it stay plain and never say "ago": "last heard 4m", "usage from Claude · now" (2026-11-09: r/baduk saw "2 min
+// ago" on Team cards beside "2m"; 2026-11-10: HN, parent, generalist saw "heard 4m ago" beside a bare "4m").
 const ageShort = (ms) => ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
-const ago = (ms) => (ms < 60e3 ? 'just now' : ageShort(ms));
+const ago = ageShort;
 const until = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const ms = d - Date.now(); if (ms <= 0) return 'resets now'; const sameDay = d.toDateString() === new Date().toDateString(); return 'resets ' + (sameDay ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })); };
 const ls = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1458,12 +1458,12 @@ const actOpenRows = new Set();
 const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
 // Elapsed on the working line: seconds only in the first minute, then whole minutes (the text changes once a minute).
 const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
-const agoHeard = (ms) => (ms < 60e3 ? 'last heard just now' : `last heard ${ago(ms)} ago`);
-const agoReport = (ms) => (ms < 60e3 ? 'step reported just now' : `step reported ${ago(ms)} ago`);
+const agoHeard = (ms) => `last heard ${ageShort(ms)}`;
+const agoReport = (ms) => `step reported ${ageShort(ms)}`;
 // A working row in the thread list with no step: the same last-heard time as its Activity block.
-const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ago(ms)} ago`}`;
-// Usage readings: "just now", then "4m ago" (the same words as the account menu).
-const agoAgo = (ms) => (ms < 60e3 ? 'just now' : `${ago(ms)} ago`);
+const agoNoStep = (ms) => `No step yet · heard ${ageShort(ms)}`;
+// Usage readings: "now", then "4m" (the same words as the account menu).
+const agoAgo = (ms) => ageShort(ms);
 const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
@@ -1541,7 +1541,7 @@ function waitingFor(t) {
   const who = t.account || 'an account';
   if (t.status === 'new' || !t.account) return t.account ? `Waiting for ${who}'s session to start. Nothing reported yet.` : 'Waiting for an account with usage left to take it.';
   if (unheard(t)) {
-    if (threadState(t)[0] === 'noconn') return `${who}'s session was started ${unheardMin(t)}m ago and has not called the hub yet.`;
+    if (threadState(t)[0] === 'noconn') return `${who}'s session has not called the hub in the ${unheardMin(t)}m since it started.`;
     return `Waiting for ${who} to connect. Its first step shows here once it reports one.`;
   }
   return `${who} is connected but has not reported a step yet.`;
@@ -2547,7 +2547,7 @@ function usageRow(label, pct, resets) {
   if (typeof pct !== 'number') return '';
   return `<div class="use"><span class="lbl">${label}</span><div class="track"><div class="fill ${useCls(pct)}" style="width:${barW(pct)}%"></div></div><span class="pct">${Math.round(pct)}%</span>${resets ? `<span class="rs">${esc(until(resets))}</span>` : ''}</div>`;
 }
-const since = (at) => { const x = ago(Date.now() - at); return x === 'just now' ? x : x + ' ago'; };
+const since = (at) => ageShort(Date.now() - at);
 // The card's one usage line: 5-hour and weekly bars side by side; reset times in the tooltip.
 function useLine(u) {
   const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
@@ -3049,7 +3049,7 @@ async function openSheet(kind, name) {
     const a = S.accounts.find((x) => x.name === name); const u = a?.usage || {};
     html = sHead(`Usage for ${esc(name)}`) + `<div class="sbody">
       <p>Copy the numbers from claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% used, new work goes to other accounts.</p>
-      ${u.at ? `<p class="hint">Now in the boxes: ${esc(useSrc(u)[0].toLowerCase())}, ${esc(since(u.at))}.</p>` : ''}
+      ${u.at ? `<p class="hint">Now in the boxes: ${esc(useSrc(u)[0].toLowerCase())} · ${esc(since(u.at))}.</p>` : ''}
       <div class="pairs">${fld('5-hour used (%)', `<input id="u5" type="number" inputmode="numeric" min="0" max="100" value="${u.five_hour_pct ?? ''}">`)}
       ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
       <div class="sgrp"><h4>Or just mark it</h4>

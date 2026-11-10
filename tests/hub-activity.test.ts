@@ -86,7 +86,7 @@ describe('hub thread state while a session connects', () => {
     const old = Date.now() - 4.5 * 60e3;
     // The third item is the session start the "4m" counts from, so the minutes can tick in place.
     expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toEqual(['noconn', 'Offline · 4m', old]);
-    expect(waitingFor({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toMatch(/^Alt 2's session was started 4m ago/);
+    expect(waitingFor({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old })).toMatch(/^Alt 2's session has not called the hub in the 4m since it started/);
     expect(threadState({ status: 'working', account: 'Alt 2', lastFireAt: old, lastAgentAt: old + 1 })).toEqual(['working', 'Working']);
     expect(threadState({ status: 'new', account: 'Alt 2' })).toEqual(['starting', 'Starting']);
   });
