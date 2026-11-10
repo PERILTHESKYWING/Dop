@@ -173,6 +173,8 @@ function messageLines(msg: Element): Box[] {
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
   const [pinned, setPinned] = useState(false);
   const [hover, setHover] = useState(false);
+  /** Shown by keyboard focus: the card shows × too, and Escape closes it (critics r2, 2026-11-09). */
+  const [keyed, setKeyed] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number } | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
@@ -185,6 +187,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const id = useId();
   const ask = useContext(AskContext);
   const open = pinned || hover;
+  const withX = pinned || (hover && keyed);
   // decided as the card opens: the span exists from the first render on
   const inChat = open && !!ref.current?.closest('.messages');
   const inline = inChat && (pinned || narrow());
@@ -193,6 +196,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const close = () => {
     setPinned(false);
     setHover(false);
+    setKeyed(false);
     quiet.current = true;
     ref.current?.focus({ preventScroll: true });
     quiet.current = false;
@@ -256,8 +260,16 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       relayout((n) => n + 1);
     });
     ro.observe(msg);
+    // a font arriving re-wraps the lines at the same width: measure once more (perf critic, 2026-11-07)
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    const onFonts = () => {
+      placeMemo.current = null;
+      relayout((n) => n + 1);
+    };
+    fonts?.addEventListener?.('loadingdone', onFonts);
     return () => {
       ro.disconnect();
+      fonts?.removeEventListener?.('loadingdone', onFonts);
       placeMemo.current = null;
     };
   }, [slot]);
@@ -362,14 +374,16 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       ref={tip}
       id={id}
       // a pinned card (with its ×) is a labelled group; a hover or focus card is a tooltip, no controls
-      role={pinned ? 'group' : 'tooltip'}
-      aria-labelledby={pinned ? titleId : undefined}
-      className={`term-tip${inline ? ' inline' : ''}${pinned ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
+      role={withX ? 'group' : 'tooltip'}
+      aria-labelledby={withX ? titleId : undefined}
+      className={`term-tip${inline ? ' inline' : ''}${withX ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
       style={inline ? undefined : pos ? ({ left: pos.left, top: pos.top, '--arrow': `${pos.arrow}px` } as React.CSSProperties) : { left: 0, top: 0, visibility: 'hidden' }}
     >
-      {pinned && (
-        // a pinned card says how it closes: this button, a press anywhere else, or Escape
-        <button type="button" className="term-close" aria-label={`Close ${card.title}`} title="Close (or press anywhere else, or Escape)" onClick={close}>
+      {withX && (
+        // a pinned card says how it closes: this button, a press anywhere else, or Escape; a card
+        // shown by keyboard focus too (a press on × keeps the focus on the term, so the card stays
+        // until the click)
+        <button type="button" className="term-close" aria-label={`Close ${card.title}`} title="Close (or press anywhere else, or Escape)" onPointerDown={(e) => !pinned && e.preventDefault()} onClick={close}>
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
@@ -432,9 +446,16 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
         aria-controls={pinned ? id : undefined}
         aria-describedby={open && !pinned ? id : undefined}
         onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(true)}
-        onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(false)}
-        onFocus={(e) => !quiet.current && e.currentTarget.matches(':focus-visible') && setHover(true)}
-        onBlur={() => setHover(false)}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && !keyed && setHover(false)}
+        onFocus={(e) => {
+          if (quiet.current || !e.currentTarget.matches(':focus-visible')) return;
+          setHover(true);
+          setKeyed(true);
+        }}
+        onBlur={() => {
+          setHover(false);
+          setKeyed(false);
+        }}
         onClick={(e) => {
           e.stopPropagation();
           pin(false);
@@ -444,8 +465,10 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
             e.preventDefault();
             pin(true);
           } else if (e.key === 'Escape') {
+            // focus stays on the term: the card closes, and the next Tab goes on from here
             setPinned(false);
             setHover(false);
+            setKeyed(false);
           }
         }}
       >

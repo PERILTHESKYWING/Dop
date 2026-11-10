@@ -1,15 +1,15 @@
 /**
- * A quick read's gaps in the same words as any read. 2026-11-07 tried "about as good on this quick
- * read" for a 1.3-point gap on Low; on 2026-11-09 all 10 critics read it as the sentence
- * contradicting the "1.3" board label and the "1.3 points worse" row, so a gap is worded the same
- * on every read and the sentence, KataGo's numbers and the board agree. Quick reads (Low, Medium,
- * Local) are still exactly the levels that offer Read longer. The read is the real move-34 read of
- * tests/kiai-sharp.test.ts with one runner-up's lead moved below KataGo's choice.
+ * The other moves in the words the board and KataGo's numbers use (critics r1 and r2, 2026-11-07/09):
+ * "about as good" only for gaps the board marks ≈ (under 0.35 points); worse moves by their numbers,
+ * closest first and grouped, never one named past a closer one; a quick read (Low, Medium, Local: the
+ * levels "Read longer" is offered on) says once, at the end, that reading longer can change them. The
+ * read is the real move-34 read of tests/kiai-sharp.test.ts with R12's lead moved.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { explainWithBudget, type EngineRead, type ExplainPosition, type Prober } from '../src/lib/coach/explain';
 import { budgetFor, isQuickRead } from '../src/lib/coach/explain/budgets';
+import { QUICK_LINE } from '../src/lib/coach/explain/teach';
 import { gtpToLoc } from '../src/lib/go/coords';
 import type { Move } from '../src/lib/go/types';
 import { LEVELS, LOCAL_LEVEL, longerLevel } from '../kami/src/lib/levels';
@@ -23,10 +23,11 @@ type Rec = { key: string; read: Omit<EngineRead, 'ownership'> & { ownership: num
 const [rec] = JSON.parse(readFileSync(new URL('tests/fixtures/kiai-move34-reads.json', root), 'utf8')) as Rec[];
 const R12 = gtpToLoc('R12', 19);
 
-/** The recorded read with R12 (KataGo's second most-read move) 1.3 points below its choice. */
-function prober(gap: number): Prober {
+/** The recorded read with R12 (KataGo's second most-read move) `gap` points below its choice. */
+function prober(gap: number, more: Record<string, number> = {}): Prober {
   const best = rec.read.candidates[0];
-  const candidates = rec.read.candidates.map((c) => (c.loc === R12 ? { ...c, scoreLead: best.scoreLead - gap } : c));
+  const gaps = new Map([[R12, gap], ...Object.entries(more).map(([k, v]) => [gtpToLoc(k, 19), v] as [number, number])]);
+  const candidates = rec.read.candidates.map((c) => (gaps.has(c.loc) ? { ...c, scoreLead: best.scoreLead - gaps.get(c.loc)! } : c));
   return {
     async read(p) {
       if (p.moves.length !== POS.moves.length || p.toPlay !== POS.toPlay) return null;
@@ -36,9 +37,9 @@ function prober(gap: number): Prober {
 }
 
 const ask = { kind: 'best' as const, text: 'What should Black play here?' };
-const summaryAt = async (gap: number, visits: number) => {
+const summaryAt = async (gap: number, visits: number, more?: Record<string, number>) => {
   const budget = { ...budgetFor('hane', 'medium'), visits };
-  const ex = await explainWithBudget(POS, ask, prober(gap), budget, { model: 'hane', thinking: 'medium' });
+  const ex = await explainWithBudget(POS, ask, prober(gap, more), budget, { model: 'hane', thinking: 'medium' });
   return ex.summary.replace(/\s*\[\[[vd]\d+\]\]/g, '');
 };
 
@@ -49,18 +50,42 @@ describe('quick reads (Kiai Low and Medium)', () => {
       expect(isQuickRead(b), l.id).toBe(longerLevel(l.id) !== null);
     }
   });
+});
 
-  it('words a 1.3-point gap as a little worse on a quick read and on a long one', async () => {
-    for (const visits of [160, 320]) {
-      const s = await summaryAt(1.3, visits);
-      expect(s).toContain('R12 is a little worse.');
-      expect(s).not.toContain('quick read');
-    }
+describe('the other moves in the board’s words', () => {
+  it('names every marked move closer than the runner-up, closest first, grouped, the caveat once at the end', async () => {
+    const q = await summaryAt(1.3, 160);
+    expect(q).toContain('R8 is about as good as Q10.');
+    expect(q).toContain(
+      "N8 and Q12 lose 0.4 to 0.5 points; R10, taking White's crosscut point first, loses 0.5 points; R12 loses 1.3 points.",
+    );
+    expect(q).not.toMatch(/a little worse|about as good on/);
+    expect(q.endsWith(QUICK_LINE)).toBe(true);
+    expect(q.split('reading longer').length).toBe(2);
+    const l = await summaryAt(1.3, 320);
+    expect(l).toContain('R12 loses 1.3 points.');
+    expect(l).not.toContain('quick read');
   });
 
-  it('a gap past the noise is still worse on a quick read', async () => {
-    const s = await summaryAt(1.8, 160);
-    expect(s).toContain('R12 is a little worse.');
-    expect(s).not.toContain('quick read');
+  it("the opponent's point goes last in its group, with its own clause", async () => {
+    const q = await summaryAt(1.3, 320, { N8: 0.9, Q12: 0.9, R10: 0.9, R8: 0.9 });
+    expect(q).toContain("Q12, N8 and R8 lose 0.9 points each; so does R10, taking White's crosscut point first; R12 loses 1.3 points.");
+  });
+
+  it('never names a worse move while skipping a closer one, and only moves the board marks', async () => {
+    const q = await summaryAt(2.4, 320);
+    for (const m of ['R10', 'N8', 'Q12']) expect(q.indexOf(m), m).toBeGreaterThan(-1);
+    expect(q).toContain('R12 is clearly worse, losing 2.4 points');
+    // O9 and S8 lose about as much as Q12 but are past the board's six marks
+    expect(q).not.toMatch(/O9|S8/);
+  });
+
+  it('a gap the board marks ≈ is about as good on any read; ≥ is ahead on a shorter read', async () => {
+    const t = await summaryAt(0.2, 160);
+    expect(t).toContain('R12 and R8 are about as good as Q10.');
+    expect(t).not.toMatch(/ lose|quick read/);
+    const a = await summaryAt(-0.5, 160);
+    expect(a).toContain('R12 came out 0.5 points ahead on a shorter read.');
+    expect(a.endsWith(QUICK_LINE)).toBe(true);
   });
 });

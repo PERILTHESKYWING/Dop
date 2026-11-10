@@ -14,6 +14,7 @@ export type ShapeId =
   | 'atari'
   | 'connect'
   | 'cut'
+  | 'crosscut'
   | 'hane'
   | 'block'
   | 'descent'
@@ -47,6 +48,8 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
   atari: { name: 'the atari', term: 'atari', style: 'fighting' },
   connect: { name: 'the connection', style: 'solid' },
   cut: { name: 'the cut', style: 'fighting' },
+  // a cut that makes the 2x2 crossing (Chinese 5d, pro teacher, r/baduk, 2026-11-07): the word links the 扭断/キリチガイ card
+  crosscut: { name: 'the crosscut', style: 'fighting' },
   hane: { name: 'the hane', term: 'hane', style: 'fighting' },
   block: { name: 'the block', term: 'osae', style: 'solid' },
   descent: { name: 'the descent', term: 'sagari', style: 'solid' },
@@ -67,6 +70,22 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
 };
 
 const shape = (id: ShapeId, style?: MoveStyle): Shape => ({ id, ...SHAPES[id], ...(style ? { style } : {}) });
+
+/**
+ * A move at `move` for `color` that completes a crosscut: in one 2x2 square with it, its own
+ * stone on the diagonal and the opponent's on the two other points, so each side's pair touches
+ * only diagonally (kiri-chigai). Checked on the stones, never guessed.
+ */
+export function crossing(board: Board, move: Loc, color: Color): boolean {
+  const n = board.size;
+  const x = move % n, y = Math.floor(move / n);
+  const opp = other(color);
+  const st = (cx: number, cy: number) => (cx < 0 || cy < 0 || cx >= n || cy >= n ? -1 : board.stones[cy * n + cx]);
+  for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    if (st(x + dx, y + dy) === color && st(x + dx, y) === opp && st(x, y + dy) === opp) return true;
+  }
+  return false;
+}
 
 /** Stones of `color` at offsets (dx, dy) from `loc`, in any of the 8 orientations. */
 function at(board: Board, loc: Loc, dx: number, dy: number): Loc[] {
@@ -173,6 +192,7 @@ export function shapeOf(board: Board, move: Loc, color: Color): Shape | null {
   }
   const ownChains = new Set(ownN.map((q) => Math.min(...chain(q).stones)));
   if (ownChains.size >= 2) return shape('connect');
+  if (crossing(board, move, color)) return shape('crosscut');
   if (oppChains.size >= 2) return shape('cut');
 
   // Contact shapes.
