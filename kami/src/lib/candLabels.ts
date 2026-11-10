@@ -172,7 +172,16 @@ export function keyText(cands: readonly Cand[] | null | undefined, side: 'Black'
   const shown = new Set(cands!.map(label));
   // plain teacher wording a beginner can read in one go (critics, 2026-11-04 round 1)
   // `compact` (a phone): the shortest true words, so the key keeps to its two lines
-  const marks = [compact ? 'Numbers: points lost' : 'Numbers: points lost by playing there', shown.has(SAME) ? '≈\u00a0about the\u00a0same' : '', shown.has(AHEAD) ? '≥\u00a0ahead on a shorter\u00a0read' : ''].filter(Boolean).join(' · ');
+  // With both signs on a phone the long words took a third line, which the row clipped top and
+  // bottom (2026-11-10, after Read longer): the signs then get their shortest true words.
+  const tight = compact && shown.has(AHEAD);
+  const marks = [
+    tight ? 'Points\u00a0lost' : compact ? 'Numbers: points lost' : 'Numbers: points lost by playing there',
+    shown.has(SAME) ? (tight ? '≈\u00a0same' : '≈\u00a0about the\u00a0same') : '',
+    shown.has(AHEAD) ? (tight ? '≥\u00a0ahead, read\u00a0less' : '≥\u00a0ahead on a shorter\u00a0read') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const pick = book ? 'Underlined: KataGo’s move' : 'KataGo’s move';
   return `${pick}. ${status}. ${marks}.`;
 }

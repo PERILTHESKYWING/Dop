@@ -249,6 +249,8 @@ describe('candidate labels in a lopsided game', () => {
     expect(keyText(ahead, 'Black')).toBe('KataGo’s move. Black is far ahead (White 1%). Numbers: points lost by playing there · ≈\u00a0about the\u00a0same · ≥\u00a0ahead on a shorter\u00a0read.');
     // a phone: short enough for the key's two lines at 390 px
     expect(keyText(close, 'Black', false, undefined, true)).toBe('KataGo’s move. White is far ahead (Black 1%). Numbers: points lost · ≈ about the same.');
+    // a phone with both signs (after Read longer): the shortest words, so it never takes a third line
+    expect(keyText(ahead, 'Black', false, undefined, true)).toBe('KataGo’s move. Black is far ahead (White 1%). Points\u00a0lost · ≈\u00a0same · ≥\u00a0ahead, read\u00a0less.');
     // a win chance under half a percent is "<1%", never "0%"
     expect(keyText([c(0.003, -30, 0), c(0.001, -31, 1)], 'Black')).toMatch(/\(Black <1%\)/);
   });
