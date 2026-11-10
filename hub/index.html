@@ -776,12 +776,13 @@ button.fchip:hover { border-color: var(--faint); }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 /* Team: no alarm borders; one red per card: the "Running low" word, so a low card's bars stay ink. */
 .tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; overflow: hidden; flex: none; }
-/* the usage note never breaks mid-phrase: it wraps whole to its own line (five critics, 2026-11-09). The "·" between
-   the counts and the note sits in the note's left padding; a part that starts a line has that padding pulled out of
-   the box (the -0.75em margin) and clipped, so no line begins with a stray "·". */
-.tsum-in { display: flex; flex-wrap: wrap; margin-left: -.75em; }
-.tsum-in > span { position: relative; min-width: 0; padding-left: .75em; }
-.tsum-in > span + span::before { content: '·'; position: absolute; left: .25em; }
+/* Parts separated by "·" (the Team header, the Hub estimate line): each "·" sits in the next part's left padding; a
+   part that starts a line has that padding pulled out of the box (the -0.75em margin) and clipped by the parent's
+   overflow, so no line begins with a stray "·". The parent needs overflow: hidden. */
+.dots { display: flex; flex-wrap: wrap; margin-left: -.75em; }
+.dots > span { position: relative; min-width: 0; padding-left: .75em; }
+.dots > span + span::before { content: '·'; position: absolute; left: .25em; }
+/* the usage note never breaks mid-phrase: it wraps whole to its own line (five critics, 2026-11-09) */
 .tsum .tsrc { white-space: nowrap; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
@@ -893,7 +894,7 @@ button.act.starting { border-left-color: var(--line-2); }
 /* The Hub row lines up with the cards' content (12 + 1 + 12 px in, 12 + 1 + 10 px from the right) and uses their .u1 grid. */
 .hubuse { display: grid; gap: 2px; margin-left: 9px; min-width: 0; font-size: 14px; }
 .hubuse .u1 { margin-right: 7px; }
-.hubuse .rs { color: var(--soft); font-size: 14px; line-height: 20px; text-wrap: pretty; }
+.hubuse .rs { color: var(--soft); font-size: 14px; line-height: 20px; text-wrap: pretty; overflow: hidden; }
 /* team lessons */
 .lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
 .lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
@@ -2684,13 +2685,13 @@ function renderTeam() {
   const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum"><span class="tsum-in">${counts ? `<span>${esc(counts)}</span>` : ''}${freshAt ? `<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</span></p>` : ''}
+    ${counts || freshAt ? `<p class="tsum"><span class="dots">${counts ? `<span>${esc(counts)}</span>` : ''}${freshAt ? `<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</span></p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs" title="Counted by the hub at each check: the characters of its own tool traffic divided by 4, plus a fixed amount per coordinator run. Not a number from Claude.">Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens · ${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} · this 5‑hour window</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs" title="Counted by the hub at each check: the characters of its own tool traffic divided by 4, plus a fixed amount per coordinator run. Not a number from Claude."><span class="dots"><span>Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens</span><span>${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'}</span><span>this 5‑hour window</span></span></span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
