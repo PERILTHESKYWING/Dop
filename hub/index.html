@@ -313,7 +313,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
 .navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
-.navrows .lesn { display: none; }
+/* Studio comes last, after the work tools (2026-11-10, artist): on the desktop it follows Team lessons in the list, on
+   the phone it is the third tile after Library and Lessons. */
+.navrows .lesn, .navrows .studio-p { display: none; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -636,10 +638,8 @@ a.opt { color: inherit; text-decoration: none; }
 /* Detail capped near 72 characters so a wide screen never stretches a row into a long grey line. */
 .act-t { flex: 0 1 auto; max-width: 72ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-row.open .act-t { white-space: normal; }
-.age-pad { flex: none; width: var(--age); }
 .act-up .act-t { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); }
 .act-up u { text-decoration-color: var(--line-2); text-underline-offset: 3px; }
-.act-up .act-latest { color: var(--soft); white-space: pre; }
 .act-up .act-t svg { flex: none; color: var(--soft); }
 @media (hover: hover) { .act-up:hover u { text-decoration-color: currentColor; } }
 .act-t b { font-weight: 500; color: var(--ink); }
@@ -778,8 +778,9 @@ button.fchip:hover { border-color: var(--faint); }
 /* Parts separated by "·" (the Team header, the Hub estimate line): each "·" sits in the next part's left padding; a
    part that starts a line has that padding pulled out of the box (the -0.75em margin) and clipped by the parent's
    overflow, so no line begins with a stray "·". The parent needs overflow: hidden. */
+.dotbox { display: block; overflow: hidden; }
 .dots { display: flex; flex-wrap: wrap; margin-left: -.75em; }
-.dots > span { position: relative; min-width: 0; padding-left: .75em; }
+.dots > span { position: relative; min-width: 0; padding-left: .75em; white-space: nowrap; }
 .dots > span + span::before { content: '·'; position: absolute; left: .25em; }
 /* the usage note never breaks mid-phrase: it wraps whole to its own line (five critics, 2026-11-09) */
 .tsum .tsrc { white-space: nowrap; }
@@ -843,7 +844,6 @@ button.act.nc::before { content: ''; position: absolute; left: -6px; top: 5px; w
 .hubuse .est:hover::after, .hubuse .est:focus-visible::after { content: attr(data-tip); position: absolute; left: 0; right: -8px; bottom: calc(100% + 6px); z-index: 5; padding: 8px 10px; white-space: pre-line; font-size: 14px; line-height: 1.4; color: var(--ink); background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--shadow); }
 .state .ncw { color: var(--amber-text); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.nw { white-space: nowrap; }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
 /* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
@@ -900,7 +900,7 @@ button.act.starting { border-left-color: var(--line-2); }
 /* The Hub row lines up with the cards' content (12 + 1 + 12 px in, 12 + 1 + 10 px from the right) and uses their .u1 grid. */
 .hubuse { display: grid; gap: 2px; margin-left: 9px; min-width: 0; font-size: 14px; }
 .hubuse .u1 { margin-right: 7px; }
-.hubuse .rs { color: var(--soft); font-size: 14px; line-height: 20px; text-wrap: pretty; overflow: hidden; }
+.hubuse .rs { color: var(--soft); font-size: 14px; line-height: 20px; text-wrap: pretty; }
 /* team lessons */
 .lrow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 15px; line-height: 1.4; border-top: 1px solid var(--line); padding-top: 10px; }
 .lrow .lt { white-space: pre-wrap; word-wrap: break-word; }
@@ -1068,7 +1068,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
      Chat tab, so its tile goes and the first thread sits about 220 CSS px down. */
   .navrows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding-bottom: 2px; }
   .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
-  :root .app > .side .navrows .trow.tn.lesn { display: flex; }
+  :root .app > .side .navrows .trow.tn.lesn, :root .app > .side .navrows .trow.tn.studio-p { display: flex; }
   :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
   :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 14px; line-height: 22px; text-align: center; }
   .navrows .trow.tn .when:empty { display: none; }
@@ -1135,9 +1135,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
     </div>
     <div class="navrows">
-      <a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
       <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
       <button class="trow tn lesn" type="button" data-open="lessons" title="Team lessons: what one agent learns, every agent knows"><i data-ico="lightbulb" data-size="16"></i><span class="ttl">Lessons</span><span class="when" id="lesN"></span></button>
+      <a class="trow tn studio-p" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -1458,13 +1458,12 @@ const actOpenRows = new Set();
 const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
 // Elapsed on the working line: seconds only in the first minute, then whole minutes (the text changes once a minute).
 const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
-const agoHeard = (ms) => `last heard ${ageShort(ms)}`;
-const agoReport = (ms) => `step reported ${ageShort(ms)}`;
+const agoHeard = (ms) => `heard ${ageShort(ms)}`;
 // A working row in the thread list with no step: the same last-heard time as its Activity block.
 const agoNoStep = (ms) => `No step yet · heard ${ageShort(ms)}`;
 // Usage readings: "now", then "4m" (the same words as the account menu).
 const agoAgo = (ms) => ageShort(ms);
-const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
+const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
 // together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Offline" (one word for this
@@ -1565,11 +1564,11 @@ function activityHtml(t, msgs) {
   const ups = sessionUpdates(t, msgs);
   if (ups.length) {
     const newest = ups.at(-1);
-    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}"><span class="age-pad"></span><span class="act-t">${icon('arrow-up', 14)}<u>${ups.length} update${ups.length > 1 ? 's' : ''} above</u><span class="act-latest">· latest ${agoEl(newest.at)}</span></span></button></li>` });
+    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}">${agoEl(newest.at)}<span class="act-t">${icon('arrow-up', 14)}<u>${ups.length} update${ups.length > 1 ? 's' : ''} above</u></span></button></li>` });
   }
   rows.sort((a, b) => b.at - a.at);
   const now = step
-    ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}% done`, step.at && agoEl(step.at, 'r')].filter(Boolean).join(' · ')}</span>` : ''}</p>`
+    ? `<p class="act-now"${step.at ? ` title="Step reported at ${esc(clock(step.at))}"` : ''}><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null ? `<span class="act-pct">${step.pct}% done</span>` : ''}</p>`
     : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${minHtml(waitingFor(t), unheardAt(t))}</span></p>${stCls === 'noconn' ? `<div class="act-acts"><button type="button" class="btn small" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>${t.sessionUrl ? `<a class="btn small act-sess" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}</div>` : ''}`;
   const list = rows.length ? `<ol class="act-list" aria-label="Recent, newest first">${rows.map((r) => r.h).join('')}</ol>` : '';
   return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
@@ -1723,7 +1722,7 @@ function renderSide() {
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
   } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + `<a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code">${icon('clapperboard', 16)}<span class="ttl">Studio</span></a></div>`)
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
@@ -2710,16 +2709,16 @@ function renderTeam() {
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
   // The header says only what is not routine: how many work, run low or need XIAO.
   const accts = (k) => `${k} account${k > 1 ? 's' : ''}`;
-  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
+  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean);
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum">${counts ? `<span class="nw">${esc(counts)}${freshAt ? ' ·' : ''}</span>` : ''}${freshAt ? `${counts ? ' ' : ''}<span class="tsrc nw" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
+    ${counts.length || freshAt ? `<p class="tsum"><span class="dots">${counts.map((c) => `<span>${esc(c)}</span>`).join('')}${freshAt ? `<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</span></p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs est" tabindex="0" data-tip="${esc(estTip(ov))}" aria-describedby="estTip"><span class="nw">Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens ·</span> <span class="nw">${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} ·</span> <span class="nw">this 5‑hour window</span></span><span id="estTip" class="sr-only">${esc(estTip(ov))}</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs est" tabindex="0" data-tip="${esc(estTip(ov))}" aria-describedby="estTip"><span class="dotbox"><span class="dots"><span>Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens</span><span>${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'}</span><span>this 5‑hour window</span></span></span></span><span id="estTip" class="sr-only">${esc(estTip(ov))}</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
