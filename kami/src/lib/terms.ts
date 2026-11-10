@@ -114,7 +114,7 @@ export interface TermNames {
   /** Pinyin with tone marks, as printed beside the characters (Chinese 5d, 2026-11-06). */
   py: string;
   ja: string;
-  /** A second Chinese word in common use for the same move (attach: 碰 and 靠; reverse sente: 逆收 and 逆先手). */
+  /** A second Chinese word in common use for the same move (attach: 碰 and 靠; reverse sente: 逆收 and 逆先手; double sente: 双先手 and 双先). */
   also?: { zh: string; py: string };
 }
 
@@ -148,7 +148,7 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   gote: { zh: '后手', py: 'hòushǒu', ja: '後手' },
   joseki: { zh: '定式', py: 'dìngshì', ja: '定石' },
   aji: { zh: '味道', py: 'wèidao', ja: '味' },
-  'double sente': { zh: '双先', py: 'shuāngxiān', ja: '両先手' },
+  'double sente': { zh: '双先手', py: 'shuāngxiānshǒu', ja: '両先手', also: { zh: '双先', py: 'shuāngxiān' } },
   miai: { zh: '见合', py: 'jiànhé', ja: '見合い' },
   honte: { zh: '本手', py: 'běnshǒu', ja: '本手' },
   eye: { zh: '眼', py: 'yǎn', ja: '眼' },

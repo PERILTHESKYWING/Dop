@@ -56,20 +56,25 @@ describe('the other moves in the board’s words', () => {
   it('names every marked move closer than the runner-up, closest first, grouped, the caveat once at the end', async () => {
     const q = await summaryAt(1.3, 160);
     expect(q).toContain('R8 is about as good as Q10.');
-    expect(q).toContain(
-      "N8 and Q12 lose 0.4 to 0.5 points; R10, taking White's crosscut point first, loses 0.5 points; R12 loses 1.3 points.",
-    );
+    // all within 1.5 points: one clause, every marked move named, no figures (7 critics and the
+    // pro teacher, 2026-11-10); their rows under KataGo's numbers give each one
+    expect(q).toContain("N8, R10, Q12 and R12 each lose up to about a point.");
+    expect(q).not.toMatch(/crosscut point/);
     expect(q).not.toMatch(/a little worse|about as good on/);
     expect(q.endsWith(QUICK_LINE)).toBe(true);
     expect(q.split('reading longer').length).toBe(2);
     const l = await summaryAt(1.3, 320);
-    expect(l).toContain('R12 loses 1.3 points.');
+    expect(l).toContain("N8, R10, Q12 and R12 each lose up to about a point.");
     expect(l).not.toContain('quick read');
   });
 
-  it("the opponent's point goes last in its group, with its own clause", async () => {
-    const q = await summaryAt(1.3, 320, { N8: 0.9, Q12: 0.9, R10: 0.9, R8: 0.9 });
-    expect(q).toContain("Q12, N8 and R8 lose 0.9 points each; so does R10, taking White's crosscut point first; R12 loses 1.3 points.");
+  it("the opponent's point goes last in its group, with its own clause, said from the mover's side", async () => {
+    const q = await summaryAt(3.0, 320, { N8: 2.4, Q12: 2.4, R10: 2.4, R8: 2.4 });
+    expect(q).toContain('Q12, N8 and R8 lose 2.4 points each; so does R10, which takes the crosscut point before White can; R12 is clearly worse, losing 3.0 points.');
+    // a spread past 1.5 points keeps each move's figure
+    const m = await summaryAt(2.4, 320);
+    expect(m).toContain('N8 and Q12 lose 0.4 to 0.5 points; R10, which takes the crosscut point before White can, loses 0.5 points; R12 is clearly worse, losing 2.4 points.');
+    expect(m).not.toMatch(/White's crosscut point/);
   });
 
   it('never names a worse move while skipping a closer one, and only moves the board marks', async () => {
