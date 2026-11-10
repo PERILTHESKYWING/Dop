@@ -30,7 +30,7 @@ describe('Kiai landing copy', () => {
     expect(PLAY.summary).toMatch(/trims White's area on the right side/);
     expect(PLAY.summary).toMatch(new RegExp(`black group at ${GROUP} safer`));
     expect(ASK.a).toMatch(/White’s area on the right/);
-    expect(ASK.a).toMatch(/the black stones below it safer/);
+    expect(ASK.a).toContain(`the black group at ${GROUP} safer`);
     // the group it names is Black's, and it is below the move (a lower row number)
     const g = DEMO.stones.find(([at]) => at === GROUP);
     expect(g?.[1]).toBe(1);
@@ -96,7 +96,7 @@ describe('Kiai landing copy', () => {
     expect(all).not.toMatch(/offline|leaves your device|AI-powered|smart|assistant|chatbot|coach/i);
     // what does what: KataGo reads, a language model (never named) only words it, and it is optional
     expect(COLOPHON).toMatch(/^Made by a professional Go player\./);
-    expect(HOW).toMatch(/only turns KataGo’s numbers into words/);
+    expect(HOW).toMatch(/writes the words from KataGo’s numbers and adds no analysis of its own/);
     expect(HOW).toMatch(/works without it/);
     expect(HOW).toMatch(/No AI images/);
     expect(HOW).not.toMatch(/gemini|google|openai|gpt|claude/i);

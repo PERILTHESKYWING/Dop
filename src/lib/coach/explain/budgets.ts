@@ -53,6 +53,11 @@ const TABLE: Record<ModelId, Record<ThinkingLevel, Budget>> = {
 export const QUICK_READ_VISITS = 300;
 export const isQuickRead = (b: Pick<Budget, 'visits'> | undefined): boolean => !!b && b.visits < QUICK_READ_VISITS;
 
+// Why a quick read says it can change: on the landing's position (kami/src/ui/landing/demo.json,
+// the bundled b10) Q10's lead moved 1.2 points between 32 and 128 visits, and the pick went Q10,
+// R12, Q9 between 32 and 2,048 visits over gaps of 1-3 points. The words still give KataGo's
+// number as the board shows it (teach.ts alternativesLine; critics, 2026-11-07).
+
 export function budgetFor(model: ModelId, thinking: ThinkingLevel): Budget {
   const m = TABLE[model] ?? TABLE.tesuji;
   return { ...(m[thinking] ?? m.medium) };

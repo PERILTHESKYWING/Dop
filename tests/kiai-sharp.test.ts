@@ -15,7 +15,7 @@ import { explain, type EngineRead, type Explanation, type ExplainPosition, type 
 import { conceptContext, purposeHits, senteInLine } from '../src/lib/coach/explain/concepts';
 import { leansWords, plainTurn } from '../src/lib/coach/explain/consequence';
 import { DEFAULT_LEVEL, longerLevel } from '../kami/src/lib/levels';
-import { shapeOf } from '../src/lib/coach/explain/shapes';
+import { crossing, shapeOf } from '../src/lib/coach/explain/shapes';
 import { gameDecided } from '../src/lib/coach/explain/situation';
 import { replay } from '../src/lib/go/board';
 import { gtpToLoc } from '../src/lib/go/coords';
@@ -64,10 +64,20 @@ describe('shape words follow the geometry', () => {
     after.play(P('R10'), 2);
     expect(shapeOf(after, P('Q9'), 1)).toMatchObject({ id: 'extend', name: 'the stretch', term: 'nobi' });
   });
-  it('after Black Q10, White R10 is the cut', () => {
+  it('after Black Q10, White R10 is the crosscut (White Q11 diagonal, Black Q10 and R11 across)', () => {
     const after = b.clone();
     after.play(P('Q10'), 1);
-    expect(shapeOf(after, P('R10'), 2)?.id).toBe('cut');
+    expect(shapeOf(after, P('R10'), 2)).toMatchObject({ id: 'crosscut', name: 'the crosscut' });
+  });
+  it('a cut is a crosscut only when the stones form the 2x2 crossing', () => {
+    const S = 9;
+    const q = (s: string) => gtpToLoc(s, S);
+    const cut = replay(S, [{ color: 1, loc: q('C3') }, { color: 1, loc: q('D4') }], []);
+    expect(shapeOf(cut, q('D3'), 2)?.id).toBe('cut');
+    const cross = replay(S, [{ color: 1, loc: q('C3') }, { color: 1, loc: q('D4') }, { color: 2, loc: q('C4') }], []);
+    expect(crossing(cross, q('D3'), 2)).toBe(true);
+    expect(crossing(cut, q('D3'), 2)).toBe(false);
+    expect(shapeOf(cross, q('D3'), 2)?.id).toBe('crosscut');
   });
   it('a step toward the edge on the second line is a descent; into an opponent stone it is a block', () => {
     const S = 9;
@@ -112,7 +122,7 @@ describe('the move-34 answer (engine text, no LLM)', () => {
     expect(ex.summary.startsWith('White leads by about 11 points.')).toBe(true);
     expect(ex.summary).toContain("White's Q11 attaches to the black stone at R11.");
     expect(ex.summary).toContain('the hane at Q10 [[v1]]');
-    expect(ex.summary).toContain('the cut at R10');
+    expect(ex.summary).toContain('the crosscut at R10');
     for (const bad of [/plenty of room/i, /play (to )?your style/i, /no single correct/i, /!/, /\?/, /extension at R10/]) expect(ex.summary).not.toMatch(bad);
   });
 
@@ -292,27 +302,32 @@ describe('round 2: one read on screen, each fact once', () => {
 
   it('names every move the board marks as about as good, chips at the end of the sentence', async () => {
     const ex = await move34();
-    // R12 read 0.5 points ahead in fewer visits; R8 is within 0.3 of Q10 in the same read.
-    expect(ex.summary).toContain('R12 is about as good: KataGo read it less, and it came out a little ahead [[v2]].');
-    expect(ex.summary).toContain('R8 is about as good too.');
+    // R12 read 0.5 points ahead in fewer visits (the board marks it ≥, not ≈): its number, as the
+    // list says it; R8 is within 0.3 of Q10 in the same read (≈): about as good (critics, 2026-11-07)
+    expect(ex.summary).toContain('R12 came out 0.5 points ahead on a shorter read [[v2]].');
+    expect(ex.summary).toContain('R8 is about as good as Q10.');
     // "best move", as KataGo's numbers say it (a pro teacher, 2026-11-06: "best try" read as a guess)
     expect(ex.summary).toContain("KataGo's best move for Black is the hane at Q10 [[v1]].");
     // No chip in the middle of a sentence.
     expect(ex.summary).not.toMatch(/\]\] [a-z]/);
   });
 
-  it('the prose gives the idea and one number; the figures stay in KataGo’s numbers (HN critic, 2026-11-05)', async () => {
+  it('the prose says about as good only for a move the board marks ≈; any other move it names gets its number (critics, 2026-11-05 and 11-07)', async () => {
     const ex = await move34();
     const text = ex.summary.replace(/\[\[[vd]\d+\]\]/g, '');
-    // one number in the prose: the lead, rounded as the bar and the list round it
-    expect(numbersIn(text)).toEqual(['11']);
-    expect(text).not.toMatch(/points? ahead|\(\d/);
+    // the lead, rounded as the bar and the list round it, and R12's gap as its list row says it
+    expect(numbersIn(text)).toEqual(['11', '0.5']);
+    expect(ex.facts.some((f) => f.text.startsWith('R12 is 0.5 points ahead of Q10 on a shorter read'))).toBe(true);
+    // one row a move
+    const rows = ex.facts.map((f) => /^([A-HJ-T]\d{1,2}) (?:is|came out) /.exec(f.text)?.[1]).filter(Boolean);
+    expect(new Set(rows).size).toBe(rows.length);
+    expect(text).not.toMatch(/a little worse|about as good on/);
     // every move the prose compares with KataGo's choice has its own row with the figures
-    const named = [...text.matchAll(/([A-HJ-T]\d{1,2}) is (?:about as good|a little worse|clearly worse)/g)].map((m) => m[1]);
-    const near = /([A-HJ-T]\d{1,2}(?:, [A-HJ-T]\d{1,2})*(?: and [A-HJ-T]\d{1,2})?) (?:is|are) about as good too/.exec(text)?.[1].split(/, | and /) ?? [];
+    const named = [...text.matchAll(/([A-HJ-T]\d{1,2}) (?:is about as good|is [\d.]+ points? worse|is clearly worse|came out [\d.]+ points? ahead)/g)].map((m) => m[1]);
+    const near = /([A-HJ-T]\d{1,2}(?:, [A-HJ-T]\d{1,2})*(?: and [A-HJ-T]\d{1,2})?) (?:is|are) about as good (?:too|as [A-HJ-T]\d{1,2})/.exec(text)?.[1].split(/, | and /) ?? [];
     const compared = [...new Set([...named, ...near])].sort();
     expect(compared).toEqual(['R12', 'R8']);
-    for (const at of compared) expect(ex.facts.some((f) => f.text.startsWith(`${at} is `) && /\d\.\d/.test(f.text)), at).toBe(true);
+    for (const at of compared) expect(ex.facts.some((f) => (f.text.startsWith(`${at} is `) || f.text.startsWith(`${at} came out `)) && /\d\.\d/.test(f.text)), at).toBe(true);
   });
 
   it('the rounded lead of the first sentence is not listed again', async () => {

@@ -8,7 +8,7 @@
 import { other, PASS, type Loc } from '../../go/types';
 import { keyPointOf } from './concepts';
 import { ownerWords, plainTurn, turnPhrase, type LineStarts, type TurningPoint } from './consequence';
-import { colorWord, coord, fmt1, leadPhrase, sideLead, winPct } from './geometry';
+import { colorWord, coord, fmt1, leadPhrase, markOf, sideLead, winPct } from './geometry';
 import { EQUAL_PTS, sideLeadPhrase, type Findings } from './planner';
 import type { ConceptHit, Fact } from './types';
 
@@ -67,10 +67,13 @@ export function buildText(f: Findings, concepts: ConceptHit[]): TextOut {
       id,
       alt,
       loss,
+      // in the board's marks (markOf): its number, ≈ "about as good", or ≥ "ahead on a shorter read"
       text: fact(
-        loss >= 0.05
+        markOf(loss) === 'worse'
           ? `${C(alt.loc)} is ${fmt1(loss)} points worse than ${C(best.loc)} (${me}'s win chance ${winPct(alt.win)}).`
-          : `${C(alt.loc)} is about as good as ${C(best.loc)} (${fmt1(Math.abs(loss))} points apart).`,
+          : markOf(loss) === 'ahead'
+            ? `${C(alt.loc)} is ${fmt1(-loss)} points ahead of ${C(best.loc)} on a shorter read (${me}'s win chance ${winPct(alt.win)}).`
+            : `${C(alt.loc)} is about as good as ${C(best.loc)} (${fmt1(Math.abs(loss))} points apart).`,
       ),
     };
   });

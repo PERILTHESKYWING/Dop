@@ -26,9 +26,13 @@ export default function FlatStage({ show, boxRef, onReady }: { show: Show; boxRe
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  if (show.kind === 'start') return null;
   const W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
-  const b = boxRef.current(SHOW_INDEX[show.kind], W / Math.max(1, H) < 0.9);
+  const tall = W / Math.max(1, H) < 0.9;
+  // the last screen: a phone ends on its words alone; a wide screen keeps the hero position in the
+  // first screen's place, so the page ends where it began (critics, 2026-11-09: the right half
+  // was empty paper)
+  if (show.kind === 'start' && tall) return null;
+  const b = boxRef.current(show.kind === 'start' ? 0 : SHOW_INDEX[show.kind], tall);
   const side = Math.min((b[2] - b[0]) * W, (b[3] - b[1]) * H);
   const left = ((b[0] + b[2]) / 2) * W - side / 2, top = ((b[1] + b[3]) / 2) * H - side / 2;
   const cand = (at: string, rank: number, winrate: number): CandidateMark => ({ loc: loc(at), rank, winrate, scoreLead: 0, visits: 0, share: 1, badness: 0 });
