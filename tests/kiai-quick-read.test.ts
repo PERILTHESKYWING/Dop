@@ -58,13 +58,13 @@ describe('the other moves in the board’s words', () => {
     expect(q).toContain('R8 is about as good as Q10.');
     // all within 1.5 points: one clause, every marked move named, no figures (7 critics and the
     // pro teacher, 2026-11-10); their rows under KataGo's numbers give each one
-    expect(q).toContain("N8, R10, Q12 and R12 each lose up to about a point.");
+    expect(q).toContain("N8, R10, Q12 and R12 each lose a point or so."); // the largest is 1.3 (5 critics, r3)
     expect(q).not.toMatch(/crosscut point/);
     expect(q).not.toMatch(/a little worse|about as good on/);
     expect(q.endsWith(QUICK_LINE)).toBe(true);
     expect(q.split('reading longer').length).toBe(2);
     const l = await summaryAt(1.3, 320);
-    expect(l).toContain("N8, R10, Q12 and R12 each lose up to about a point.");
+    expect(l).toContain("N8, R10, Q12 and R12 each lose a point or so.");
     expect(l).not.toContain('quick read');
   });
 

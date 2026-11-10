@@ -707,7 +707,9 @@ export function teach(input: TeachInput): Teaching {
       // move repeated the list and ran the phone's answer under the composer; the pro teacher's
       // own words: "the rest are within about a point")
       if (worse.length > 1 && worse[worse.length - 1].gap <= NEAR_PTS) {
-        summary.push(`${list(worse.map((a) => C(a.loc)))} each lose up to about a point${ref(id)}.`);
+        // the wording covers the largest figure: never "about a point" for a 1.3 (5 critics, 2026-11-10 r3)
+        const most = worse[worse.length - 1].gap > 1.1 ? 'a point or so' : 'up to about a point';
+        summary.push(`${list(worse.map((a) => C(a.loc)))} each lose ${most}${ref(id)}.`);
         for (const a of worse) row(a, `${C(a.loc)} is ${pts(a.gap)} worse than ${C(best.loc)}`);
         compared += worse.length;
         if (compared && isQuickRead(f.budget)) summary.push(QUICK_LINE);

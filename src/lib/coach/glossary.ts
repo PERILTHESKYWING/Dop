@@ -75,7 +75,7 @@ const SPECS: Spec[] = [
   // (each says what the move touches: the pro teacher's rule, critics 2026-11-05)
   { term: 'cut', aliases: ['kiri'], def: "Cut: a stone on the point where the opponent's stones link only diagonally (or by a knight's move), so they can no longer join." },
   // the longer match wins, so "crosscut" and "cross-cut" are never read as "cut" (Chinese 5d, 2026-11-06)
-  { term: 'crosscut', aliases: ['cross-cut', 'kiri-chigai', 'kirichigai'], def: "Crosscut (kiri-chigai): four stones in an X, two of each colour touching only diagonally, so each side's pair is cut." },
+  { term: 'crosscut', aliases: ['cross-cut', 'kiri-chigai', 'kirichigai'], def: "Crosscut (kiri-chigai): four stones in a 2x2 square, each colour on one diagonal, so neither side's two stones are connected." },
   { term: 'block', aliases: ['osae'], def: "Block (osae): a stone played touching the end of the opponent's stones, in their path, so they cannot go further that way." },
   { term: 'descent', aliases: ['sagari'], def: 'Descent (sagari): a stone played touching your own, straight down from it toward the nearer edge of the board.' },
   { term: 'hane', def: "Hane: a move played diagonally from your own stone that touches the end of the opponent's stone and bends around it." },
