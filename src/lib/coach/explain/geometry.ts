@@ -24,6 +24,18 @@ export function fmt1(x: number): string {
   const r = Math.round(x * 10) / 10;
   return (r === 0 ? 0 : r).toFixed(1);
 }
+
+/**
+ * The board's noise band (kami candLabels NOISE, lossLabel): a gap that rounds to under 0.3 points
+ * either way is marked ≈ and called "about as good"; one that rounds to 0.3 or more ahead is ≥.
+ */
+export const NEAR_PTS = 0.3;
+/** The board's mark for a move `gap` points behind KataGo's choice, as lossLabel rounds it. */
+export function markOf(gap: number): 'ahead' | 'same' | 'worse' {
+  const n = Number(fmt1(gap));
+  return n <= -NEAR_PTS ? 'ahead' : n < NEAR_PTS ? 'same' : 'worse';
+}
+
 export const pct = (x: number) => `${Math.round(x * 100)}%`;
 /**
  * A win chance, rounded as Kiai's header rounds it, but never a flat "0%" or "100%" while the

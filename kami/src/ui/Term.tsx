@@ -164,16 +164,17 @@ function messageLines(msg: Element): Box[] {
  *   block right under the term's line, so the text after it moves down and no answer line or
  *   KataGo's numbers row is covered (critics, 2026-11-05 and 11-06). The chat moves only to show
  *   the card and the line after it, never past the term.
- * - a mouse's hover (a phone-width window too), a desktop's focus, and the note under the board:
- *   floating as a tooltip just under the term's line, or over it when under would cover KataGo's
- *   numbers or there is no room (a phone's board note prefers over, so the answer stays clear);
- *   never half over a button, inside the window, and the chat never scrolls.
+ * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
+ *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
+ *   phone's board note prefers over, so the answer stays clear); never half over a button,
+ *   inside the window, and the chat never scrolls.
  * A pinned card is a labelled group, and a keyboard pin moves focus to its ×.
  */
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
   const [pinned, setPinned] = useState(false);
-  /** Shown unpinned, and how: a mouse over the term, or keyboard focus. */
-  const [hover, setHover] = useState<false | 'mouse' | 'focus'>(false);
+  const [hover, setHover] = useState(false);
+  /** Shown by keyboard focus: the card shows × too, and Escape closes it (critics r2, 2026-11-09). */
+  const [keyed, setKeyed] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number } | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
@@ -185,17 +186,17 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const keyPin = useRef(false);
   const id = useId();
   const ask = useContext(AskContext);
-  const open = pinned || !!hover;
+  const open = pinned || hover;
+  const withX = pinned || (hover && keyed);
   // decided as the card opens: the span exists from the first render on
   const inChat = open && !!ref.current?.closest('.messages');
-  // a phone's keyboard focus opens the card in the text; a mouse's hover floats (a block opening
-  // under a resting pointer moved the text under it: after Read longer a card opened by itself)
-  const inline = inChat && (pinned || (narrow() && hover === 'focus'));
+  const inline = inChat && (pinned || (narrow() && keyed));
 
   /** Close a pinned card and give focus back to its term (× and Escape). */
   const close = () => {
     setPinned(false);
     setHover(false);
+    setKeyed(false);
     quiet.current = true;
     ref.current?.focus({ preventScroll: true });
     quiet.current = false;
@@ -216,28 +217,20 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   // ...placed under the term's line after every render and taken out (text joined) before the
   // next one commits, so a message that re-renders while the card is open (streaming, Read
   // longer, redo) never meets a split text node or a foreign element. The place is measured
-  // only when the card opens or the layout really changed: the block's text changed other than
-  // by growing at its end, its nodes were redrawn, or the block itself changed size (a new line,
-  // a turned phone, a dragged splitter: the ResizeObserver below). A paragraph that streams more
-  // words after the term keeps the card where it is without reading layout, and the block is
-  // found again (getComputedStyle) only for a new term (perf critic, 2026-11-06 to 11-09: the
-  // card re-measured on every streamed chunk).
+  // only when the layout can have changed: the card first opens, the block's text changed, its
+  // nodes were redrawn, or the message's width changed (a ResizeObserver below). Any other
+  // render puts the host back where it was without reading layout (perf critic, 2026-11-06:
+  // every render re-measured while a card was open during streaming).
   const placeMemo = useRef<{ el: HTMLElement; block: HTMLElement; text: string; place: Place } | null>(null);
-  const watch = useRef<{ ro: ResizeObserver; block: Element; size: [number, number] | null } | null>(null);
   const [, relayout] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!slot || !el) return;
-    const memo = placeMemo.current;
-    let block = memo && memo.el === el && memo.block.isConnected && memo.block.contains(el) ? memo.block : null;
-    if (!block) {
-      const msg = el.closest('.msg') ?? el.closest('.messages');
-      if (!msg) return;
-      block = blockOf(el, msg);
-    }
+    const msg = el?.closest('.msg') ?? el?.closest('.messages');
+    if (!slot || !el || !msg) return;
+    const block = blockOf(el, msg);
     const text = block.textContent ?? '';
-    // grown at its end only: the place found before is still the place (a new line is a resize)
-    const same = !!memo && memo.el === el && memo.block === block && text.startsWith(memo.text) && placeHolds(memo.place, block);
+    const memo = placeMemo.current;
+    const same = !!memo && memo.el === el && memo.block === block && memo.text === text && placeHolds(memo.place, block);
     const place = same ? memo.place : findPlace(el, block);
     const undo = applyPlace(slot, place);
     placeMemo.current = { el, block, text, place };
@@ -248,37 +241,35 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       const c = t.getBoundingClientRect();
       t.style.setProperty('--arrow', `${inlineArrow(line.left, line.right, c.left, c.width)}px`);
     }
-    // the block's own size is watched: a change of width rewraps its lines, a change of its
-    // text's height is a new line, and either measures the place again
-    if (typeof ResizeObserver !== 'undefined' && watch.current?.block !== block) {
-      watch.current?.ro.disconnect();
-      const w: { ro: ResizeObserver; block: Element; size: [number, number] | null } = {
-        block,
-        size: null,
-        ro: new ResizeObserver(([e]) => {
-          // the text's own height: an open card in the block (this one or another term's) is
-          // not a new line; under 10 px is a card's margin, never a line of text
-          let height = e.contentRect.height;
-          for (const s of block.querySelectorAll<HTMLElement>('.term-slot')) height -= s.offsetHeight;
-          const width = e.contentRect.width;
-          const prev = w.size;
-          w.size = [width, height];
-          if (!prev || (Math.abs(prev[0] - width) < 0.5 && Math.abs(prev[1] - height) < 10)) return;
-          placeMemo.current = null;
-          relayout((n) => n + 1);
-        }),
-      };
-      w.ro.observe(block);
-      watch.current = w;
-    }
     return undo;
   });
-  // ...and forgotten when the card closes
+  // ...and measured again when the message's width changes (a turned phone, a dragged splitter):
+  // its lines wrap anew. Height changes (the card itself, text below) do not move the term's line.
   useEffect(() => {
-    if (!slot) return;
+    const msg = ref.current?.closest('.msg') ?? ref.current?.closest('.messages');
+    if (!slot || !msg || typeof ResizeObserver === 'undefined') {
+      placeMemo.current = null;
+      return;
+    }
+    let width = msg.getBoundingClientRect().width;
+    const ro = new ResizeObserver(([e]) => {
+      const w = e.contentRect.width;
+      if (Math.abs(w - width) < 0.5) return;
+      width = w;
+      placeMemo.current = null;
+      relayout((n) => n + 1);
+    });
+    ro.observe(msg);
+    // a font arriving re-wraps the lines at the same width: measure once more (perf critic, 2026-11-07)
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    const onFonts = () => {
+      placeMemo.current = null;
+      relayout((n) => n + 1);
+    };
+    fonts?.addEventListener?.('loadingdone', onFonts);
     return () => {
-      watch.current?.ro.disconnect();
-      watch.current = null;
+      ro.disconnect();
+      fonts?.removeEventListener?.('loadingdone', onFonts);
       placeMemo.current = null;
     };
   }, [slot]);
@@ -383,14 +374,16 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       ref={tip}
       id={id}
       // a pinned card (with its ×) is a labelled group; a hover or focus card is a tooltip, no controls
-      role={pinned ? 'group' : 'tooltip'}
-      aria-labelledby={pinned ? titleId : undefined}
-      className={`term-tip${inline ? ' inline' : ''}${pinned ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
+      role={withX ? 'group' : 'tooltip'}
+      aria-labelledby={withX ? titleId : undefined}
+      className={`term-tip${inline ? ' inline' : ''}${withX ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
       style={inline ? undefined : pos ? ({ left: pos.left, top: pos.top, '--arrow': `${pos.arrow}px` } as React.CSSProperties) : { left: 0, top: 0, visibility: 'hidden' }}
     >
-      {pinned && (
-        // a pinned card says how it closes: this button, a press anywhere else, or Escape
-        <button type="button" className="term-close" aria-label={`Close ${card.title}`} title="Close (or press anywhere else, or Escape)" onClick={close}>
+      {withX && (
+        // a pinned card says how it closes: this button, a press anywhere else, or Escape; a card
+        // shown by keyboard focus too (a press on × keeps the focus on the term, so the card stays
+        // until the click)
+        <button type="button" className="term-close" aria-label={`Close ${card.title}`} title="Close (or press anywhere else, or Escape)" onPointerDown={(e) => !pinned && e.preventDefault()} onClick={close}>
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
@@ -452,10 +445,17 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
         aria-expanded={pinned}
         aria-controls={pinned ? id : undefined}
         aria-describedby={open && !pinned ? id : undefined}
-        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover((h) => h || 'mouse')}
-        onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(false)}
-        onFocus={(e) => !quiet.current && e.currentTarget.matches(':focus-visible') && setHover('focus')}
-        onBlur={() => setHover(false)}
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(true)}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && !keyed && setHover(false)}
+        onFocus={(e) => {
+          if (quiet.current || !e.currentTarget.matches(':focus-visible')) return;
+          setHover(true);
+          setKeyed(true);
+        }}
+        onBlur={() => {
+          setHover(false);
+          setKeyed(false);
+        }}
         onClick={(e) => {
           e.stopPropagation();
           pin(false);
@@ -465,8 +465,10 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
             e.preventDefault();
             pin(true);
           } else if (e.key === 'Escape') {
+            // focus stays on the term: the card closes, and the next Tab goes on from here
             setPinned(false);
             setHover(false);
+            setKeyed(false);
           }
         }}
       >

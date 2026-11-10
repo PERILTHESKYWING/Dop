@@ -1106,6 +1106,18 @@ kbd {
   font-size: 1em;
   color: var(--muted);
 }
+/* a desktop: the glyphs and pinyin at the answer's own 18 px, the labels 15 px (a11y, Chinese 5d,
+   artist, 2026-11-09: the line read smaller than the body) */
+@media (min-width: 900px) {
+  .term-tip-names [lang='zh-Hans'],
+  .term-tip-names [lang='ja'],
+  .term-tip-names .term-tip-py {
+    font-size: 18px;
+  }
+  .term-tip-lang {
+    font-size: 15px;
+  }
+}
 .term-tip-sep {
   color: var(--faint);
 }

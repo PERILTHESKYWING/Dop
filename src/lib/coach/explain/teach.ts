@@ -18,15 +18,24 @@ import { replay } from '../../go/board';
 import { other, PASS, type Color, type Loc } from '../../go/types';
 import { boardPicture, purposes, strongNear, type Purpose } from './effects';
 import { keyPointOf, localR, movePurposes, type ConceptContext } from './concepts';
-import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, pct, sideLead, winPct, zoneName } from './geometry';
+import { colorAdj, colorWord, coord, fmt1, groupOwn, looseGroups, markOf, pct, sideLead, winPct, zoneName } from './geometry';
+export { markOf, NEAR_PTS } from './geometry';
 import type { Findings } from './planner';
 import { shapeOf, STYLE_WORDS, styleOf, type MoveStyle } from './shapes';
 import { LOPSIDED_PTS } from './situation';
+import { isQuickRead } from './budgets';
 import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } from './types';
 
-/** Two moves this close in points (one read) are "about as good": their labels round to 0.3 or less. */
-export const NEAR_PTS = 0.35;
+/** Candidate marks the board shows by default (kami settings 'board.bestCount'). */
+const BOARD_MARKS = 6;
+/** Worse moves this close to the closest of a group are named in one clause ("lose 0.4 to 0.6 points"). */
+const GROUP_PTS = 0.25;
 
+/**
+ * Said once, after every move compared by its number, on a quick read (Kiai's Low and Medium;
+ * critics r2, 2026-11-09: the caveat belongs at the end of the comparisons, not inside one).
+ */
+export const QUICK_LINE = 'This was a quick read: reading longer can change these numbers.';
 
 export interface Teaching {
   summary: string;
@@ -579,9 +588,8 @@ export function teach(input: TeachInput): Teaching {
       case 'hane':
         return `${W} is a hane against ${whose}.`;
       case 'cut':
-        return `${W} cuts ${whose}.`;
       case 'crosscut':
-        return `${W} crosscuts ${whose}.`;
+        return `${W} cuts ${whose}.`;
       case 'atari':
         return `${W} puts ${whose} in atari.`;
       case 'block':
@@ -618,59 +626,106 @@ export function teach(input: TeachInput): Teaching {
     return `${them}'s main reply in KataGo's line is ${named[0]}${named[1] ? `, and ${me} continues with ${named[1]}` : ''}.`;
   }
 
-  /** The runner-up, in words that match the gap (never a tenth-of-a-point comparison). */
+  /**
+   * The other moves against KataGo's choice, in the board's words (critics, 2026-11-07, r1 and r2):
+   * - a move KataGo read ahead on a shorter read: "R12 came out 0.5 points ahead on a shorter
+   *   read" (the board's ≥);
+   * - every move the board marks ≈ (under 0.3 points as it rounds): "R8 and N8 are about as good
+   *   as Q10";
+   * - worse moves by their numbers, closest first, up to the runner-up the answer shows a line for,
+   *   so no move is named past a closer one left out; grouped when within 0.25 points ("N8, R10
+   *   and Q12 lose 0.4 to 0.5 points; R12 loses 1.3 points"); a move that is also the opponent's
+   *   reply in KataGo's line says so ("R10, taking White's crosscut point first, loses 0.4 points",
+   *   last in its group: "N8 and Q12 lose 0.4 points each; so does R10, taking White's crosscut
+   *   point first"); only moves the board marks;
+   * - on a quick read, one caveat after all the comparisons.
+   * Each named move has its own row under KataGo's numbers.
+   */
   function alternativesLine() {
     const o = f.other ?? f.alternatives[0];
     if (!o || f.moveOrder) return;
     const id = f.other ? f.vars.lineA : f.vars.alts[0];
-    const g = best.lead - o.lead;
-    // Chips at the end of the sentence. In a sharp position the words follow the numbers the
-    // board shows (one decimal): "about as good" only when they round to 0.3 or less. The words
-    // give the idea and the figures stay in their rows under KataGo's numbers, which list every
-    // marked move (HN critic, 2026-11-04 and 11-05: the prose repeated the list); "a little" and
-    // "clearly" are KataGo's gap in words (under 2 points, 2 or more).
-    // A gap is worded the same on every read, so the sentence, KataGo's numbers and the board
-    // label agree (2026-11-09: all 10 critics read "about as good on this quick read" next to a
-    // "1.3" label and "1.3 points worse" row as the words contradicting the numbers).
-    if (sit.sharp) {
-      if (g <= -NEAR_PTS) summary.push(`${C(o.loc)} is about as good: KataGo read it less, and it came out a little ahead${ref(id)}.`);
-      else if (g < NEAR_PTS) summary.push(`${C(o.loc)} is about as good${ref(id)}.`);
-      else summary.push(`${C(o.loc)} is ${g < 2 ? 'a little' : 'clearly'} worse${ref(id)}.`);
-      nearLine([best.loc, o.loc], g < NEAR_PTS);
-      return;
+    const all = f.root?.candidates.filter((c) => c.loc !== PASS) ?? [];
+    const top = all[0]?.visits || 1;
+    // the moves the board marks by default (candidateMarks, 'board.bestCount' 6): a move the
+    // board does not show is never named beside the ones it does
+    const marked = all
+      .filter((c, i) => i < 3 || c.visits >= Math.max(2, top * 0.02))
+      .slice(0, BOARD_MARKS)
+      .filter((c) => c.loc !== best.loc);
+    type Alt = { loc: Loc; gap: number; win?: number };
+    const alts: Alt[] = marked.map((c) => ({ loc: c.loc, gap: best.lead - c.scoreLead, win: c.winrate }));
+    if (!alts.some((a) => a.loc === o.loc)) alts.push({ loc: o.loc, gap: best.lead - o.lead });
+    const og = alts.find((a) => a.loc === o.loc)!.gap;
+    const pts = (x: number) => `${fmt1(x)} ${fmt1(x) === '1.0' ? 'point' : 'points'}`;
+    const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0]);
+    const row = (a: Alt, text: string, apart?: string) => {
+      const inner = [apart, a.win !== undefined ? `${me}'s win chance ${winPct(a.win)}` : ''].filter(Boolean);
+      // one row a move: text.ts's evidence may already have it
+      const said = (x: Fact) => x.text.startsWith(`${C(a.loc)} is `) || x.text.startsWith(`${C(a.loc)} came out `);
+      if (!facts.some(said) && !input.facts.some(said)) fact(`${text}${inner.length ? ` (${inner.join('; ')})` : ''}.`);
+    };
+    // the opponent's reply in KataGo's line: a move there takes that point first
+    const line = f.variations.find((v) => v.id === f.vars.best)?.moves ?? [];
+    let reply: { loc: Loc; words: string } | null = null;
+    if (line[0]?.loc === best.loc && line[1] && line[1].loc !== PASS) {
+      const b = f.board.clone();
+      b.play(best.loc, mover, true);
+      const sh = shapeOf(b, line[1].loc, line[1].color);
+      reply = { loc: line[1].loc, words: `taking ${them}'s ${sh ? `${sh.name.replace(/^the /, '')} point` : 'reply point'} first` };
     }
-    if (g < 0.5) {
-      summary.push(`${C(o.loc)} is just as good: we're splitting hairs here, so play your style${ref(id)}.`);
-      return;
+    const named = (a: Alt) => (reply && reply.loc === a.loc ? `${C(a.loc)}, ${reply.words},` : C(a.loc));
+    let compared = 0;
+    const ahead = alts.filter((x) => markOf(x.gap) === 'ahead').sort((p, q) => p.gap - q.gap);
+    if (ahead.length) {
+      const chip = ahead.some((a) => a.loc === o.loc) ? ref(id) : '';
+      summary.push(`${ahead.map((a) => `${C(a.loc)} came out ${pts(-a.gap)} ahead`).join(' and ')} on a shorter read${chip}.`);
+      for (const a of ahead) row(a, `${C(a.loc)} is ${pts(-a.gap)} ahead of ${C(best.loc)} on a shorter read`);
+      compared += ahead.length;
     }
-    if (g < 2) {
-      summary.push(`${C(o.loc)} is fine too, just a little less efficient${ref(id)}.`);
-      return;
+    const ties = alts.filter((x) => markOf(x.gap) === 'same').sort((p, q) => Math.abs(p.gap) - Math.abs(q.gap));
+    if (ties.length) {
+      const chip = ties.some((a) => a.loc === o.loc) ? ref(id) : '';
+      summary.push(
+        !sit.sharp && ties.length === 1 && chip
+          ? `${C(ties[0].loc)} is just as good: we're splitting hairs here, so play your style${chip}.`
+          : `${list(ties.map((a) => C(a.loc)))} ${ties.length > 1 ? 'are' : 'is'} about as good as ${C(best.loc)}${chip}.`,
+      );
+      for (const a of ties) row(a, `${C(a.loc)} is about as good as ${C(best.loc)}`, `${fmt1(Math.abs(a.gap))} points apart`);
     }
-    const tp = f.consequence?.turning;
-    summary.push(`${C(o.loc)} is clearly worse${tp ? `: by move ${tp.moveNumber} it costs ${me} ${inRegion(tp.region)}` : ''}${ref(id)}.`);
-  }
-
-  /**
-   * Every other move the board marks as about as good as KataGo's choice (within 0.3 points
-   * in the same read), named so the board never shows a tie the text leaves out.
-   */
-  function nearLine(named: Loc[], tieSaid: boolean) {
-    const cands = f.root?.candidates.filter((c) => c.loc !== PASS) ?? [];
-    const top = cands[0]?.visits || 1;
-    const near = cands
-      .filter((c, i) => (i < 3 || c.visits >= Math.max(2, top * 0.02)) && !named.includes(c.loc))
-      .slice(0, 10)
-      .filter((c) => Math.abs(best.lead - c.scoreLead) < NEAR_PTS);
-    // each move the text calls about as good gets its own row under KataGo's numbers (critics,
-    // 2026-11-04: the list showed Q10 and Q12 while the text judged R12)
-    for (const c of near) {
-      const at = `${C(c.loc)} is `;
-      if (!facts.some((x) => x.text.startsWith(at)))
-        fact(`${C(c.loc)} is about as good as ${C(best.loc)} (${fmt1(Math.abs(best.lead - c.scoreLead))} points apart; ${me}'s win chance ${winPct(c.winrate)}).`);
+    if (markOf(og) === 'worse') {
+      const worse = alts.filter((x) => markOf(x.gap) === 'worse' && x.gap <= og + 1e-9).sort((p, q) => p.gap - q.gap);
+      // moves within GROUP_PTS of each other share one clause, so a long list stays one line
+      const groups: Alt[][] = [];
+      for (const a of worse) {
+        const g = groups[groups.length - 1];
+        if (g && a.gap - g[0].gap <= GROUP_PTS && (g[0].gap >= 2) === (a.gap >= 2)) g.push(a);
+        else groups.push([a]);
+      }
+      const span = (g: Alt[]) => {
+        const lo = fmt1(g[0].gap), hi = fmt1(g[g.length - 1].gap);
+        return lo === hi ? pts(g[0].gap) : `${lo} to ${hi} points`;
+      };
+      const one = (a: Alt) => `${named(a)} ${a.gap >= 2 ? 'is clearly worse, losing' : 'loses'} ${pts(a.gap)}`;
+      const many = (g: Alt[]) =>
+        g.length === 1 ? one(g[0]) : `${list(g.map((a) => C(a.loc)))} lose ${span(g)}${fmt1(g[0].gap) === fmt1(g[g.length - 1].gap) ? ' each' : ''}`;
+      // the opponent's point goes last in its group with a clause of its own, so its note never
+      // reads as covering the others (HN, r3 2026-11-09): "R8 and N8 lose 0.4 points each; so does
+      // R10, taking White's crosscut point first"
+      const parts = groups.map((g) => {
+        const r = g.length > 1 ? g.find((a) => reply && a.loc === reply.loc) : undefined;
+        if (!r) return many(g);
+        const rest = g.filter((a) => a !== r);
+        const same = rest.every((a) => fmt1(a.gap) === fmt1(r.gap));
+        return `${many(rest)}; ${same ? `so does ${named(r).replace(/,$/, '')}` : one(r)}`;
+      });
+      const tp = og >= 2 ? f.consequence?.turning : undefined;
+      const tail = tp ? `: by move ${tp.moveNumber}, ${C(o.loc)} costs ${me} ${inRegion(tp.region)}` : '';
+      summary.push(`${parts.join('; ')}${tail}${ref(id)}.`);
+      for (const a of worse) row(a, `${C(a.loc)} is ${pts(a.gap)} worse than ${C(best.loc)}`);
+      compared += worse.length;
     }
-    const names = near.map((c) => C(c.loc));
-    if (names.length) summary.push(`${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are` : `${names[0]} is`} about as good${tieSaid ? ' too' : ` as ${C(best.loc)}`}.`);
+    if (compared && isQuickRead(f.budget)) summary.push(QUICK_LINE);
   }
 
   /** Where the game stands, in a line (XIAO, item 14: "give the player some context"). */

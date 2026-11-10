@@ -786,7 +786,8 @@ button.fchip:hover { border-color: var(--faint); }
 .tsum .tsrc { white-space: nowrap; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
 .atop { display: flex; gap: 8px; align-items: center; min-width: 0; }
-.atop .btn.more { padding: 1px 8px 5px; margin: -4px -4px -4px 0; }
+.atop .btn.more { display: inline-grid; place-items: center; padding: 0 0 4px; }
+@media (min-width: 861px) { .atop .btn.more { min-width: 32px; min-height: 32px; margin: -6px -6px -6px 0; } }
 .ameta { display: flex; gap: 8px; align-items: center; min-width: 0; font-size: 14px; }
 .ameta .btn { padding: 3px 10px; }
 .ameta .state { margin-left: auto; font-size: 14px; font-weight: 500; white-space: nowrap; }
@@ -837,7 +838,13 @@ button.fchip:hover { border-color: var(--faint); }
 button.act { font: inherit; color: inherit; text-align: left; background: none; border: 0; border-left: 3px solid var(--green); border-radius: 0; width: 100%; cursor: pointer; }
 button.act:hover .ttl { text-decoration: underline; }
 /* Not connected: a hollow amber marker (an amber edge with a clear middle) and amber meta, never the working green. */
-button.act.nc { border-left: 3px double var(--amber); }
+button.act.nc { position: relative; border-left-color: transparent; }
+button.act.nc::before { content: ''; position: absolute; left: -6px; top: 5px; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); }
+.hubuse .est { position: relative; cursor: help; border-radius: 4px; }
+.hubuse .est:hover::after, .hubuse .est:focus-visible::after { content: attr(data-tip); position: absolute; left: 0; right: -8px; bottom: calc(100% + 6px); z-index: 5; padding: 8px 10px; white-space: pre-line; font-size: 14px; line-height: 1.4; color: var(--ink); background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--shadow); }
+.state .ncw { color: var(--amber-text); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.nw { white-space: nowrap; }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
 /* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
@@ -857,7 +864,7 @@ button.act.starting { border-left-color: var(--line-2); }
 .ag-who { font-weight: 500; font-size: 14px; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 6px 4px 0; }
 .ag { display: grid; gap: 4px; padding: 7px 8px; border-radius: 8px; background: var(--sel); min-width: 0; }
 .ag-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ag-top .ttl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.ag-top .ttl { flex: 1; min-width: 0; overflow-wrap: break-word; font-weight: 500; }
 .ag-top small { color: var(--soft); flex: none; font-size: 14px; }
 .ag-step small { font-size: inherit; }
 .ag .dot { background: var(--green); } .ag.done .dot { background: var(--faint); } .ag.failed .dot { background: var(--red); } .ag.stale .dot { background: var(--amber); }
@@ -1035,8 +1042,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   /* The green bar sits on the text (one line or two), not on the whole 44 px row. */
   .alist .act { min-height: 44px; align-content: center; border-left: 0; padding-left: 0; }
   .alist .act .act-top { border-left: 3px solid var(--green); padding-left: 8px; }
-  .alist .act.nc { border-left: 0; }
-  .alist .act.nc .act-top { border-left: 3px double var(--amber); }
+  .alist .act.nc .act-top { position: relative; border-left-color: transparent; }
+  .alist .act.nc::before { display: none; }
+  .alist .act.nc .act-top::before { content: ''; position: absolute; left: -6px; top: 5px; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--amber); }
   .alist .act.starting .act-top { border-left-color: var(--line-2); }
   .act-more { min-height: 32px; font-size: 15px; }
   .act-more::after { content: ''; position: absolute; inset: -7px -4px; }
@@ -1044,9 +1052,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .acard { padding: 6px 10px 6px 12px; gap: 2px; }
   .acards { gap: 6px; }
   /* ...and sits above the row under it, which otherwise took the bottom-left corner of that 44 px square. */
-  .atop .btn.more { margin: -6px -8px -6px 0; position: relative; z-index: 1; }
+  .atop { min-height: 44px; }
+  .atop .btn.more { margin: 0 -8px 0 0; position: relative; z-index: 1; }
   /* Its focus ring is drawn inside the 44 px square so it never lands on the usage row below. */
-  :root .atop .btn.more:focus-visible { outline-offset: -8px; }
+  :root .atop .btn.more:focus-visible { outline-offset: -2px; }
   /* The Look sheet's segments are 44 px tall; the Team footer (Settings, Look, Read usage, Sign out) keeps its
      31 px boxes and gets a 45 px tap area from an overhanging ::after. */
   .seg button { min-height: 44px; }
@@ -1281,7 +1290,12 @@ function apply(d, t0) {
 }
 // The reload cache is written when the page is idle, not inside the refresh.
 let cacheT = 0;
-const writeCache = () => { cacheT = 0; if (!pw) return; ls.set('hub-cached', '1'); ls.set('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) })); };
+// The flag tells the head prefetch a cache exists: set only once the write worked, cleared if it failed.
+const writeCache = () => {
+  cacheT = 0; if (!pw) return;
+  try { localStorage.setItem('hub-cache', JSON.stringify({ ...S, messages: S.messages.filter((m) => !m.pending).slice(-300) })); localStorage.setItem('hub-cached', '1'); }
+  catch { ls.del('hub-cached'); }
+};
 function saveCache() { if (!cacheT) cacheT = (window.requestIdleCallback || setTimeout)(writeCache, { timeout: 2000 }); }
 addEventListener('pagehide', () => { if (cacheT) writeCache(); });
 // One request per poll: the hub answers { same } when nothing changed since
@@ -1377,7 +1391,7 @@ function acctState(a) {
       return late.length === ts.length ? ['noconn', `Offline · ${Math.min(...late.map(unheardMin))}m`, '', Math.max(...late.map(unheardAt))] : ['starting', 'Starting'];
     }
     const nc = ts.filter((t) => t.account === a.name && isNoconn(t)).length;
-    return ['busy', 'Working', nc ? `${nc} thread${nc > 1 ? 's' : ''} offline` : ''];
+    return ['busy', 'Working', '', 0, nc];
   }
   if (!a.models.length) return ['chat', a.plan === 'free' ? 'Chat helper' : 'No routines'];
   return ['ready', 'Ready'];
@@ -1502,13 +1516,21 @@ function sessionUpdates(t, msgs) {
 // The current step: a running sub-agent's report, else the handover's next step if it is the newest
 // word, else the last sentence of the newest update (labelled as such). null: nothing reported yet.
 const isUpdatePost = (m) => m.from !== 'XIAO' && m.from !== 'hub' && ['progress', 'note', 'answer'].includes(m.kind);
+// One label for a running sub-agent on the row, the NOW line and the Agents card: its name once, then
+// the count ("Run throttled benchmark ×5 · 4 of 5", not "Run 4 of 5 · Run throttled benchmark x5").
+function runLabel(g) {
+  const m = /^(\S+) (\d+ of \d+)$/.exec(g.step || '');
+  const step = m && g.title.toLowerCase().startsWith(m[1].toLowerCase() + ' ') ? m[2] : g.step;
+  const name = g.title.replace(/(^|\s)x(\d+)\b/g, '$1×$2');
+  return step ? `${name} · ${step}` : name;
+}
 function currentStep(t, msgs, post = msgs.filter(isUpdatePost).at(-1)) {
   const run = runningOn(t);
   if (run.length) {
     const g = run[0];
     // A percent next to "Run 4 of 5" reads as a second, different count: shown only when the step has none.
     const pct = g.pct != null && !/\b\d+\s*(of|\/)\s*\d+\b/.test(g.step || '') ? g.pct : null;
-    return { k: 'Now', v: g.step ? `${g.title} · ${g.step}` : g.title, pct, at: g.at, more: run.length - 1 };
+    return { k: 'Now', v: runLabel(g), pct, at: g.at, more: run.length - 1 };
   }
   const cp = t.checkpoint;
   if (cp?.next && (!post || cp.at >= post.at)) return { k: 'Next', v: plainLine(cp.next) };
@@ -1643,9 +1665,8 @@ const rowWhen = (t) => {
 // The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
 function rowStep(t) {
   if (!isRunning(t)) return '';
-  // The progress goes first so an ellipsis cuts the task name, never "Run 4 of 5".
   const g = runningOn(t)[0];
-  if (g) return g.step ? `${g.step} · ${g.title}` : g.title;
+  if (g) return runLabel(g);
   const s = currentStep(t, null, lastPostByThread.get(t.id) ?? null);
   return !s || s.k === 'Latest' ? '' : s.k === 'Next' ? `Next: ${s.v}` : s.v;
 }
@@ -1654,7 +1675,8 @@ function rowStep(t) {
 function threadRow(t) {
   const [ss, st] = threadState(t);
   const step = rowStep(t);
-  const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? agoEl(t.lastAgentAt, 'n') : '';
+  // When the row already shows its time, "heard 4 min ago" would say it twice (critics 2026-11-10): just "No step yet".
+  const line = step ? esc(nb(step)) : isRunning(t) && t.lastAgentAt ? (sameWhen || ss === 'noconn' ? agoEl(t.lastAgentAt, 'n') : 'No step yet') : '';
   // The title has the whole row width (two lines at most); who and when share its line when it fits, else they go
   // right-aligned on the line under it, next to the step (critics 2026-11-06: titles were cut beside them).
   const meta = avList(threadAccounts(t).slice(0, 1)) + (ss === 'noconn' ? '<span class="when nc">Offline</span>' : sameWhen ? '' : `<span class="when">${rowWhen(t)}</span>`);
@@ -2585,9 +2607,9 @@ function activityOf(a) {
   return `<div class="alist">${shown.map(row).join('')}${more}</div>`;
 }
 function accountCard(a) {
-  const [cls0, st0, stNote, stAt] = acctState(a);
-  // "Working" is green on every card; a silent thread is named in amber on the line under the bars
-  // ("1 thread offline") and marked on its own row, so amber means "offline" only.
+  const [cls0, st0, stNote, stAt, ncN] = acctState(a);
+  // "Working" is green on every card; a silent thread adds "· 1 offline" in amber to the state and a
+  // hollow amber ring on its own row, so amber means "offline" only.
   const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
@@ -2603,7 +2625,7 @@ function accountCard(a) {
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${stAt ? minHtml(st, stAt) : esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${stAt ? minHtml(st, stAt) : esc(st)}${ncN ? ` · <span class="ncw">${ncN} offline</span>` : ''}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${usage}
     ${conn}
     ${stNote && !sub ? `<div class="asub"><div class="sub snote">${esc(stNote)}</div></div>` : ''}
@@ -2650,15 +2672,21 @@ function taskList() {
   }).join('')}</div>`;
 }
 const AGENT_STALE = 30 * 60_000;
+// How the Hub bar's estimate is counted, from the hub's own numbers only.
+function estTip(ov) {
+  const k = (n) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n || 0)));
+  const runs = ov.coordinatorSessions || 0, per = runs ? ((ov.used || 0) - (ov.traffic || 0)) / runs : 0;
+  return `Counted by the hub, not read from Claude, for this 5-hour window:\n${k(ov.traffic)} tokens of hub tool traffic (characters ÷ 4)\n+ ${runs} coordinator run${runs === 1 ? '' : 's'}${runs ? ` × ${k(per)} each = ${k(per * runs)}` : ''}\n= ${k(ov.used)} of a ${k(ov.budget)} budget`;
+}
 function agentRow(g) {
   const t = Date.now();
   const stale = g.status === 'running' && t - g.at > AGENT_STALE;
   const cls = stale ? 'stale' : g.status;
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
-  if (th && th.id === sel && $('app').dataset.tab === 'chat' && g.status === 'running' && !stale) {
-    return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>running ${agoEl(g.started)}</small></div><div class="ag-step">${g.step ? esc(g.step) + ' · ' : ''}this thread</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
-  }
-  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(times(g.title))}</span><small>${stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done'}</small></div>${g.step || g.note || th ? `<div class="ag-step">${esc(g.step || '')}${g.note ? (g.step ? ' · ' : '') + esc(g.note) : ''}${th ? ` <small>#${th.id}</small>` : ''}</div>` : ''}${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
+  const here = th && th.id === sel && $('app').dataset.tab === 'chat' && g.status === 'running' && !stale;
+  const when = stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done';
+  const sub = [g.note && esc(g.note), here ? 'this thread' : th && `#${th.id} ${esc(nb(th.title))}`, when].filter(Boolean).join(' · ');
+  return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(runLabel(g))}</span></div><div class="ag-step">${sub}</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
 function agentPanel() {
   const list = S.agents || [];
@@ -2685,13 +2713,13 @@ function renderTeam() {
   const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum"><span class="dots">${counts ? `<span>${esc(counts)}</span>` : ''}${freshAt ? `<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</span></p>` : ''}
+    ${counts || freshAt ? `<p class="tsum">${counts ? `<span class="nw">${esc(counts)}${freshAt ? ' ·' : ''}</span>` : ''}${freshAt ? `${counts ? ' ' : ''}<span class="tsrc nw" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs" title="Counted by the hub at each check: the characters of its own tool traffic divided by 4, plus a fixed amount per coordinator run. Not a number from Claude."><span class="dots"><span>Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens</span><span>${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'}</span><span>this 5‑hour window</span></span></span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs est" tabindex="0" data-tip="${esc(estTip(ov))}" aria-describedby="estTip"><span class="nw">Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens ·</span> <span class="nw">${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} ·</span> <span class="nw">this 5‑hour window</span></span><span id="estTip" class="sr-only">${esc(estTip(ov))}</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();

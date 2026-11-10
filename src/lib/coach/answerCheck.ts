@@ -263,7 +263,7 @@ function stems(text: string): Set<string> {
 
 const GO_TERMS = [
   'sente', 'gote', 'miai', 'weak group', 'dead', 'alive', 'life and death', 'eye', 'thickness', 'thick', 'territory', 'influence', 'moyo',
-  'framework', 'overconcentration', 'overconcentrated', 'aji', 'ladder', 'net', 'snapback', 'tenuki', 'big point', 'urgent', 'shape', 'cut',
+  'framework', 'overconcentration', 'overconcentrated', 'aji', 'ladder', 'net', 'snapback', 'tenuki', 'big point', 'urgent', 'shape', 'cut', 'crosscut',
   'connect', 'invasion', 'invade', 'reduce', 'reduction', 'ko', 'liberties', 'liberty', 'seki', 'endgame', 'yose', 'joseki', 'initiative',
   'attack', 'defend', 'pincer', 'approach', 'enclosure', 'extension', 'capture', 'atari', 'hane', 'tesuji', 'fuseki', 'wall', 'connection',
 ];
@@ -359,9 +359,8 @@ const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
   [/^(?:block|blocks|osae)$/i, ['block']],
   [/^(?:descent|descends|sagari)$/i, ['descent']],
   [/^(?:attachment|attach(?:es)?|tsuke|contact play)$/i, ['attach']],
-  // a crosscut is a cut too, so "the cut at R10" stays true where R10 crosscuts
   [/^(?:cut|cuts)$/i, ['cut', 'crosscut']],
-  [/^(?:cross-?cut|cross-?cuts|kiri-?chigai)$/i, ['crosscut']],
+  [/^(?:crosscuts?|cross-cuts?|kiri-chigai)$/i, ['crosscut']],
   [/^atari$/i, ['atari']],
   [/^(?:connection|connects?)$/i, ['connect']],
   [/^(?:capture|captures)$/i, ['capture']],

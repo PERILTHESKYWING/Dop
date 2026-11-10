@@ -48,7 +48,8 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
   atari: { name: 'the atari', term: 'atari', style: 'fighting' },
   connect: { name: 'the connection', style: 'solid' },
   cut: { name: 'the cut', style: 'fighting' },
-  crosscut: { name: 'the crosscut', term: 'crosscut', style: 'fighting' },
+  // a cut that makes the 2x2 crossing (Chinese 5d, pro teacher, r/baduk, 2026-11-07): the word links the 扭断/キリチガイ card
+  crosscut: { name: 'the crosscut', style: 'fighting' },
   hane: { name: 'the hane', term: 'hane', style: 'fighting' },
   block: { name: 'the block', term: 'osae', style: 'solid' },
   descent: { name: 'the descent', term: 'sagari', style: 'solid' },
@@ -69,6 +70,22 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
 };
 
 const shape = (id: ShapeId, style?: MoveStyle): Shape => ({ id, ...SHAPES[id], ...(style ? { style } : {}) });
+
+/**
+ * A move at `move` for `color` that completes a crosscut: in one 2x2 square with it, its own
+ * stone on the diagonal and the opponent's on the two other points, so each side's pair touches
+ * only diagonally (kiri-chigai). Checked on the stones, never guessed.
+ */
+export function crossing(board: Board, move: Loc, color: Color): boolean {
+  const n = board.size;
+  const x = move % n, y = Math.floor(move / n);
+  const opp = other(color);
+  const st = (cx: number, cy: number) => (cx < 0 || cy < 0 || cx >= n || cy >= n ? -1 : board.stones[cy * n + cx]);
+  for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    if (st(x + dx, y + dy) === color && st(x + dx, y) === opp && st(x, y + dy) === opp) return true;
+  }
+  return false;
+}
 
 /** Stones of `color` at offsets (dx, dy) from `loc`, in any of the 8 orientations. */
 function at(board: Board, loc: Loc, dx: number, dy: number): Loc[] {
@@ -145,33 +162,6 @@ const stonesIn = (board: Board, corner: number, c: Color) => {
 };
 
 /**
- * A cut that makes a crosscut (kiri-chigai): with the move, four stones in a 2x2 square, two of
- * each colour on its diagonals. The mover's own stone diagonally next to the move, both points
- * between them (the crossing points) the opponent's, and each side's pair cut: the opponent's two
- * stones in different chains, and the mover's diagonal stone not in a chain that touches the
- * move. A plain cut (the opponent's stones apart, any crossing point empty or the mover's) is
- * not one (pro teacher and Chinese 5d, 2026-11-09: 扭断, not 断, for the X at R10 in the
- * move-34 demo).
- */
-function crosscuts(board: Board, move: Loc, color: Color, ownN: Loc[]): boolean {
-  const n = board.size;
-  const opp = other(color);
-  const [mx, my] = xy(move, n);
-  const touching = new Set(ownN.map((q) => Math.min(...board.groupAt(q)!.stones)));
-  for (const d of of(board, at(board, move, 1, 1), color)) {
-    const [dx, dy] = xy(d, n);
-    const a = my * n + dx;
-    const b = dy * n + mx;
-    if (board.stones[a] !== opp || board.stones[b] !== opp) continue;
-    const ga = board.groupAt(a)!;
-    if (ga.stones.includes(b)) continue;
-    if (touching.has(Math.min(...board.groupAt(d)!.stones))) continue;
-    return true;
-  }
-  return false;
-}
-
-/**
  * The shape of `move` for `color` on `board` (the board before the move), or null when it has
  * no clear name. The first rule that fits wins: tactics (capture, atari, connect, cut) before
  * contact shapes, before the distance shapes from the player's own stones.
@@ -202,7 +192,8 @@ export function shapeOf(board: Board, move: Loc, color: Color): Shape | null {
   }
   const ownChains = new Set(ownN.map((q) => Math.min(...chain(q).stones)));
   if (ownChains.size >= 2) return shape('connect');
-  if (oppChains.size >= 2) return shape(crosscuts(board, move, color, ownN) ? 'crosscut' : 'cut');
+  if (crossing(board, move, color)) return shape('crosscut');
+  if (oppChains.size >= 2) return shape('cut');
 
   // Contact shapes.
   const diagOwn = of(board, at(board, move, 1, 1), color);

@@ -72,7 +72,7 @@ export const WHAT = 'The open-source Go engine, running in your browser.';
 // (no line break inside the name)
 export const COLOPHON = 'Made by a professional Go player. The engine: KataGo, open source, by David\u00a0J.\u00a0Wu.';
 /** What does what, said once on the last screen (the language model is never named: XIAO's rule). */
-export const HOW = 'A language model only turns KataGo’s numbers into words, and Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
+export const HOW = 'A language model writes the words from KataGo’s numbers and adds no analysis of its own; Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
 
 export interface Chapter {
   id: string;
@@ -99,7 +99,9 @@ export const PICKS = { first: { label: 'At first', at: FIRST_PICK }, then: { lab
 /** The question and answer the first screen shows (a plain rewording of Kiai's answer). */
 export const ASK = {
   q: PLAY.question,
-  a: `White leads by about ${PLAY_LEAD} points. Black’s best move is ${PICK}: it takes away some of White’s area on the right and makes the black stones below it safer.`,
+  // the group by the point the recorded long read names ("the black group at P6 safer"; r/baduk,
+  // 2026-11-09: "the black stones below it" named nothing)
+  a: `White leads by about ${PLAY_LEAD} points. Black’s best move is ${PICK}: it takes away some of White’s area on the right side and makes the black group at ${GROUP} safer.`,
 };
 
 /** The reads KataGo grew through, for the reading chart: its top moves' share of the looking. */
