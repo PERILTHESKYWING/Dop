@@ -399,7 +399,8 @@ const ls = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : new Date(t).toLocaleDateString(); };
+// The hub's short age ("4m ago", "3h ago"), so Studio reads like the rest of the hub.
+const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m ago` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h ago` : new Date(t).toLocaleDateString(); };
 // Run an action with its button shown as busy (disabled, "Sending…"), then put it back.
 async function busy(btn, label, fn) {
   if (btn.getAttribute('aria-busy') === 'true') return;
