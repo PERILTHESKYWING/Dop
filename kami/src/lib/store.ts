@@ -2,6 +2,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Explanation, ThinkingLevel } from '../../../src/lib/coach/explain/types';
 import type { LevelId } from './levels';
+import type { ShorterRead } from './longerRead';
 import { emptyBoard, type BoardState, type GameTerms } from './position';
 import type { Expansion, PickId, Writing } from './writer';
 
@@ -22,6 +23,8 @@ export interface ChatMessage {
   /** The thinking level picked (since 2026-10-20); older answers have only pick and thinking. */
   level?: LevelId;
   answer?: Answer;
+  /** A "Read longer" answer: KataGo's pick on the shorter read it replaced, to say if it moved. */
+  shorter?: ShorterRead;
 }
 
 export interface Conversation {

@@ -580,6 +580,8 @@ export function teach(input: TeachInput): Teaching {
         return `${W} is a hane against ${whose}.`;
       case 'cut':
         return `${W} cuts ${whose}.`;
+      case 'crosscut':
+        return `${W} crosscuts ${whose}.`;
       case 'atari':
         return `${W} puts ${whose} in atari.`;
       case 'block':
@@ -812,7 +814,7 @@ export function teach(input: TeachInput): Teaching {
     if (sit.phase !== 'opening' && lead <= -15) return pick(["It's a tough spot, but let's make the most of it.", 'Not an easy position! Let\'s find the best try.']);
     if (sit.phase !== 'opening' && lead >= 15) return pick(["You're in great shape here.", 'Things look good for you!']);
     const sh = shapeOf(f.board, best.loc, mover)?.id;
-    const fight = (sh === 'cut' || sh === 'atari' || sh === 'hane' || sh === 'pincer' || sh === 'attach') && bestPs.some((p) => p.kind === 'press');
+    const fight = (sh === 'cut' || sh === 'crosscut' || sh === 'atari' || sh === 'hane' || sh === 'pincer' || sh === 'attach') && bestPs.some((p) => p.kind === 'press');
     if (fight) return pick(['Time for some action! ⚔️', 'Ooh, a fighting moment ⚔️.']);
     return '';
   }

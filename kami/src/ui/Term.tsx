@@ -213,20 +213,28 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   // ...placed under the term's line after every render and taken out (text joined) before the
   // next one commits, so a message that re-renders while the card is open (streaming, Read
   // longer, redo) never meets a split text node or a foreign element. The place is measured
-  // only when the layout can have changed: the card first opens, the block's text changed, its
-  // nodes were redrawn, or the message's width changed (a ResizeObserver below). Any other
-  // render puts the host back where it was without reading layout (perf critic, 2026-11-06:
-  // every render re-measured while a card was open during streaming).
+  // only when the card opens or the layout really changed: the block's text changed other than
+  // by growing at its end, its nodes were redrawn, or the block itself changed size (a new line,
+  // a turned phone, a dragged splitter: the ResizeObserver below). A paragraph that streams more
+  // words after the term keeps the card where it is without reading layout, and the block is
+  // found again (getComputedStyle) only for a new term (perf critic, 2026-11-06 to 11-09: the
+  // card re-measured on every streamed chunk).
   const placeMemo = useRef<{ el: HTMLElement; block: HTMLElement; text: string; place: Place } | null>(null);
+  const watch = useRef<{ ro: ResizeObserver; block: Element; size: [number, number] | null } | null>(null);
   const [, relayout] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
-    const msg = el?.closest('.msg') ?? el?.closest('.messages');
-    if (!slot || !el || !msg) return;
-    const block = blockOf(el, msg);
-    const text = block.textContent ?? '';
+    if (!slot || !el) return;
     const memo = placeMemo.current;
-    const same = !!memo && memo.el === el && memo.block === block && memo.text === text && placeHolds(memo.place, block);
+    let block = memo && memo.el === el && memo.block.isConnected && memo.block.contains(el) ? memo.block : null;
+    if (!block) {
+      const msg = el.closest('.msg') ?? el.closest('.messages');
+      if (!msg) return;
+      block = blockOf(el, msg);
+    }
+    const text = block.textContent ?? '';
+    // grown at its end only: the place found before is still the place (a new line is a resize)
+    const same = !!memo && memo.el === el && memo.block === block && text.startsWith(memo.text) && placeHolds(memo.place, block);
     const place = same ? memo.place : findPlace(el, block);
     const undo = applyPlace(slot, place);
     placeMemo.current = { el, block, text, place };
@@ -237,27 +245,37 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       const c = t.getBoundingClientRect();
       t.style.setProperty('--arrow', `${inlineArrow(line.left, line.right, c.left, c.width)}px`);
     }
+    // the block's own size is watched: a change of width rewraps its lines, a change of its
+    // text's height is a new line, and either measures the place again
+    if (typeof ResizeObserver !== 'undefined' && watch.current?.block !== block) {
+      watch.current?.ro.disconnect();
+      const w: { ro: ResizeObserver; block: Element; size: [number, number] | null } = {
+        block,
+        size: null,
+        ro: new ResizeObserver(([e]) => {
+          // the text's own height: an open card in the block (this one or another term's) is
+          // not a new line; under 10 px is a card's margin, never a line of text
+          let height = e.contentRect.height;
+          for (const s of block.querySelectorAll<HTMLElement>('.term-slot')) height -= s.offsetHeight;
+          const width = e.contentRect.width;
+          const prev = w.size;
+          w.size = [width, height];
+          if (!prev || (Math.abs(prev[0] - width) < 0.5 && Math.abs(prev[1] - height) < 10)) return;
+          placeMemo.current = null;
+          relayout((n) => n + 1);
+        }),
+      };
+      w.ro.observe(block);
+      watch.current = w;
+    }
     return undo;
   });
-  // ...and measured again when the message's width changes (a turned phone, a dragged splitter):
-  // its lines wrap anew. Height changes (the card itself, text below) do not move the term's line.
+  // ...and forgotten when the card closes
   useEffect(() => {
-    const msg = ref.current?.closest('.msg') ?? ref.current?.closest('.messages');
-    if (!slot || !msg || typeof ResizeObserver === 'undefined') {
-      placeMemo.current = null;
-      return;
-    }
-    let width = msg.getBoundingClientRect().width;
-    const ro = new ResizeObserver(([e]) => {
-      const w = e.contentRect.width;
-      if (Math.abs(w - width) < 0.5) return;
-      width = w;
-      placeMemo.current = null;
-      relayout((n) => n + 1);
-    });
-    ro.observe(msg);
+    if (!slot) return;
     return () => {
-      ro.disconnect();
+      watch.current?.ro.disconnect();
+      watch.current = null;
       placeMemo.current = null;
     };
   }, [slot]);

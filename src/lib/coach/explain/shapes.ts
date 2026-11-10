@@ -14,6 +14,7 @@ export type ShapeId =
   | 'atari'
   | 'connect'
   | 'cut'
+  | 'crosscut'
   | 'hane'
   | 'block'
   | 'descent'
@@ -47,6 +48,7 @@ const SHAPES: Record<ShapeId, Omit<Shape, 'id'>> = {
   atari: { name: 'the atari', term: 'atari', style: 'fighting' },
   connect: { name: 'the connection', style: 'solid' },
   cut: { name: 'the cut', style: 'fighting' },
+  crosscut: { name: 'the crosscut', term: 'crosscut', style: 'fighting' },
   hane: { name: 'the hane', term: 'hane', style: 'fighting' },
   block: { name: 'the block', term: 'osae', style: 'solid' },
   descent: { name: 'the descent', term: 'sagari', style: 'solid' },
@@ -143,6 +145,33 @@ const stonesIn = (board: Board, corner: number, c: Color) => {
 };
 
 /**
+ * A cut that makes a crosscut (kiri-chigai): with the move, four stones in a 2x2 square, two of
+ * each colour on its diagonals. The mover's own stone diagonally next to the move, both points
+ * between them (the crossing points) the opponent's, and each side's pair cut: the opponent's two
+ * stones in different chains, and the mover's diagonal stone not in a chain that touches the
+ * move. A plain cut (the opponent's stones apart, any crossing point empty or the mover's) is
+ * not one (pro teacher and Chinese 5d, 2026-11-09: 扭断, not 断, for the X at R10 in the
+ * move-34 demo).
+ */
+function crosscuts(board: Board, move: Loc, color: Color, ownN: Loc[]): boolean {
+  const n = board.size;
+  const opp = other(color);
+  const [mx, my] = xy(move, n);
+  const touching = new Set(ownN.map((q) => Math.min(...board.groupAt(q)!.stones)));
+  for (const d of of(board, at(board, move, 1, 1), color)) {
+    const [dx, dy] = xy(d, n);
+    const a = my * n + dx;
+    const b = dy * n + mx;
+    if (board.stones[a] !== opp || board.stones[b] !== opp) continue;
+    const ga = board.groupAt(a)!;
+    if (ga.stones.includes(b)) continue;
+    if (touching.has(Math.min(...board.groupAt(d)!.stones))) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
  * The shape of `move` for `color` on `board` (the board before the move), or null when it has
  * no clear name. The first rule that fits wins: tactics (capture, atari, connect, cut) before
  * contact shapes, before the distance shapes from the player's own stones.
@@ -173,7 +202,7 @@ export function shapeOf(board: Board, move: Loc, color: Color): Shape | null {
   }
   const ownChains = new Set(ownN.map((q) => Math.min(...chain(q).stones)));
   if (ownChains.size >= 2) return shape('connect');
-  if (oppChains.size >= 2) return shape('cut');
+  if (oppChains.size >= 2) return shape(crosscuts(board, move, color, ownN) ? 'crosscut' : 'cut');
 
   // Contact shapes.
   const diagOwn = of(board, at(board, move, 1, 1), color);

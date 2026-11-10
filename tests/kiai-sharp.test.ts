@@ -64,10 +64,29 @@ describe('shape words follow the geometry', () => {
     after.play(P('R10'), 2);
     expect(shapeOf(after, P('Q9'), 1)).toMatchObject({ id: 'extend', name: 'the stretch', term: 'nobi' });
   });
-  it('after Black Q10, White R10 is the cut', () => {
+  // pro teacher and Chinese 5d, 2026-11-09: the X at Q10, R10, Q11, R11 is a crosscut (扭断), and
+  // KataGo's Q9 after it is the proverb's "extend from a crosscut"
+  it('after Black Q10, White R10 is the crosscut: the X of Q11, R10 against R11, Q10', () => {
     const after = b.clone();
     after.play(P('Q10'), 1);
-    expect(shapeOf(after, P('R10'), 2)?.id).toBe('cut');
+    expect(shapeOf(after, P('R10'), 2)).toMatchObject({ id: 'crosscut', name: 'the crosscut', term: 'crosscut' });
+    // after Q9 and White's hane at R10, Black's Q10 makes the same X
+    const hane = b.clone();
+    hane.play(P('Q9'), 1);
+    expect(shapeOf(hane, P('R10'), 2)?.id).toBe('hane');
+    hane.play(P('R10'), 2);
+    expect(shapeOf(hane, P('Q10'), 1)?.id).toBe('crosscut');
+  });
+  it('a cut is a crosscut only with the X: both crossing points the opponent\'s', () => {
+    const S = 9;
+    const q = (s: string) => gtpToLoc(s, S);
+    const st = (b: string[], w: string[]) => replay(S, [...b.map((s) => ({ color: 1 as const, loc: q(s) })), ...w.map((s) => ({ color: 2 as const, loc: q(s) }))], []);
+    // the X: White's D4 against Black's D5 and E4, with White's E5 on the other diagonal
+    expect(shapeOf(st(['D5', 'E4'], ['E5']), q('D4'), 2)?.id).toBe('crosscut');
+    // the same cut with no white stone in the square: a plain cut
+    expect(shapeOf(st(['D5', 'E4'], []), q('D4'), 2)?.id).toBe('cut');
+    // a white stone diagonal on the other side (C3), its crossing points C4 and D3 empty: a plain cut
+    expect(shapeOf(st(['D5', 'E4'], ['C3']), q('D4'), 2)?.id).toBe('cut');
   });
   it('a step toward the edge on the second line is a descent; into an opponent stone it is a block', () => {
     const S = 9;
@@ -112,7 +131,7 @@ describe('the move-34 answer (engine text, no LLM)', () => {
     expect(ex.summary.startsWith('White leads by about 11 points.')).toBe(true);
     expect(ex.summary).toContain("White's Q11 attaches to the black stone at R11.");
     expect(ex.summary).toContain('the hane at Q10 [[v1]]');
-    expect(ex.summary).toContain('the cut at R10');
+    expect(ex.summary).toContain('the crosscut at R10');
     for (const bad of [/plenty of room/i, /play (to )?your style/i, /no single correct/i, /!/, /\?/, /extension at R10/]) expect(ex.summary).not.toMatch(bad);
   });
 
@@ -143,6 +162,13 @@ describe('the move-34 answer (engine text, no LLM)', () => {
 });
 
 describe('the code checker rejects wording that contradicts KataGo', () => {
+  it('"crosscut" only where the X is on the board; "cut" there too', async () => {
+    const ex = await move34();
+    expect(wordingProblems(ex, 'White answers with the crosscut at R10 [[v1]].').filter((p) => p.includes('R10'))).toEqual([]);
+    expect(wordingProblems(ex, 'White answers with the cut at R10 [[v1]].').filter((p) => p.includes('R10'))).toEqual([]);
+    expect(wordingProblems(ex, 'Black plays the crosscut at Q12.').some((p) => p.startsWith('"crosscut" at Q12'))).toBe(true);
+  });
+
   it('who leads, "close", "decided" and sente', async () => {
     const ex = await move34();
     expect(wordingProblems(ex, 'Black is ahead, so Q10 [[v1]] keeps it simple.').some((p) => p.startsWith('wrong side ahead'))).toBe(true);

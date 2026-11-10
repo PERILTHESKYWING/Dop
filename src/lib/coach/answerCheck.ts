@@ -359,7 +359,9 @@ const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
   [/^(?:block|blocks|osae)$/i, ['block']],
   [/^(?:descent|descends|sagari)$/i, ['descent']],
   [/^(?:attachment|attach(?:es)?|tsuke|contact play)$/i, ['attach']],
-  [/^(?:cut|cuts)$/i, ['cut']],
+  // a crosscut is a cut too, so "the cut at R10" stays true where R10 crosscuts
+  [/^(?:cut|cuts)$/i, ['cut', 'crosscut']],
+  [/^(?:cross-?cut|cross-?cuts|kiri-?chigai)$/i, ['crosscut']],
   [/^atari$/i, ['atari']],
   [/^(?:connection|connects?)$/i, ['connect']],
   [/^(?:capture|captures)$/i, ['capture']],
@@ -373,10 +375,10 @@ const SHAPE_WORDS: [RegExp, ShapeId[]][] = [
   [/^(?:corner )?enclosure$|^shimari$/i, ['enclosure']],
   [/^3-3 invasion$/i, ['three-three']],
 ];
-const SHAPE_ALT = "hane|stretch(?:es)?|extension|extends?|nobi|block|blocks|osae|descent|descends|sagari|attachment|attach(?:es)?|tsuke|contact play|cut|cuts|atari|connection|connects?|capture|captures|diagonal move|kosumi|large knight'?s move|knight'?s move|keima|ogeima|one-space jump|two-space (?:jump|extension)|pincer|hasami|approach|kakari|(?:corner )?enclosure|shimari|3-3 invasion";
+const SHAPE_ALT = "hane|stretch(?:es)?|extension|extends?|nobi|block|blocks|osae|descent|descends|sagari|attachment|attach(?:es)?|tsuke|contact play|cross-?cuts?|kiri-?chigai|cut|cuts|atari|connection|connects?|capture|captures|diagonal move|kosumi|large knight'?s move|knight'?s move|keima|ogeima|one-space jump|two-space (?:jump|extension)|pincer|hasami|approach|kakari|(?:corner )?enclosure|shimari|3-3 invasion";
 const COORD = '[A-HJ-Za-hj-z](?:2[0-5]|1\\d|[1-9])';
 /** Shapes in contact with other stones: never an extension (a hiraki). */
-const CONTACT: ShapeId[] = ['capture', 'atari', 'connect', 'cut', 'hane', 'block', 'descent', 'extend', 'attach'];
+const CONTACT: ShapeId[] = ['capture', 'atari', 'connect', 'cut', 'crosscut', 'hane', 'block', 'descent', 'extend', 'attach'];
 
 /**
  * Where a point is played in the explanation and what shape each play makes there: as the
@@ -457,7 +459,7 @@ export function wordingProblems(ex: Explanation, text: string): string[] {
     if (!grounded) out.push('"sente" without KataGo evidence');
   }
   const size = ex.position.size;
-  const shapeAt = new RegExp(`\\b(?:the |a |an )?(${SHAPE_ALT})\\s+(?:at|on|of)\\s+(${COORD})\\b|\\b(${COORD})\\s+(?:is|was|would be)\\s+(?:a|an|the)\\s+(?:\\w+\\s+)?(${SHAPE_ALT})\\b|\\b(${COORD})\\s+(attaches|cuts|blocks|descends|extends|connects|captures)\\b`, 'gi');
+  const shapeAt = new RegExp(`\\b(?:the |a |an )?(${SHAPE_ALT})\\s+(?:at|on|of)\\s+(${COORD})\\b|\\b(${COORD})\\s+(?:is|was|would be)\\s+(?:a|an|the)\\s+(?:\\w+\\s+)?(${SHAPE_ALT})\\b|\\b(${COORD})\\s+(attaches|crosscuts|cuts|blocks|descends|extends|connects|captures)\\b`, 'gi');
   for (const m of plain.matchAll(shapeAt)) {
     const word = (m[1] ?? m[4] ?? m[6]).toLowerCase();
     const at = (m[2] ?? m[3] ?? m[5]).toUpperCase();

@@ -9,20 +9,15 @@ describe('Go terms in Chinese and Japanese (lib/terms.ts)', () => {
     for (const k of Object.keys(TERM_NAMES)) expect(terms.has(k), k).toBe(true);
   });
 
-  it('shows the names on listed terms only', () => {
+  // Chinese 5d, three rounds to 2026-11-09: every card with Chinese, pinyin and Japanese
+  it('gives every glossary term its card names', () => {
     for (const g of GLOSSARY) {
-      const card = termCard(g);
-      if (g.term in TERM_NAMES) expect(card.names, g.term).toEqual(TERM_NAMES[g.term]);
-      else expect(card.names, g.term).toBeUndefined();
+      expect(TERM_NAMES[g.term], g.term).toBeDefined();
+      expect(termCard(g).names, g.term).toEqual(TERM_NAMES[g.term]);
     }
     expect(termCard(GLOSSARY.find((g) => g.term === 'hane')!).names).toEqual({ zh: '扳', py: 'bān', ja: 'ハネ' });
-  });
-
-  it('leaves out the terms with no single standard pair', () => {
-    for (const t of ['liberty', 'kikashi', 'vital point', 'dragon', 'bamboo joint', 'reverse sente', 'influence', 'overconcentration', 'probe']) {
-      expect(terms.has(t), t).toBe(true);
-      expect(t in TERM_NAMES, t).toBe(false);
-    }
+    expect(TERM_NAMES.stretch).toEqual({ zh: '长', py: 'cháng', ja: 'ノビ' });
+    expect(TERM_NAMES['bamboo joint']).toEqual({ zh: '双', py: 'shuāng', ja: 'タケフ' });
   });
 
   it('writes Chinese in Han characters and Japanese in Han or kana', () => {

@@ -119,13 +119,17 @@ export interface TermNames {
 }
 
 /**
- * The standard Chinese and Japanese names of a few common terms, shown on their cards (critics,
- * round 3: "bilingual hover on Go terms"). Only names that are certain; keyed by the glossary's term.
- * Terms with no single standard pair (liberty, kikashi, vital point, dragon, bamboo joint, reverse
- * sente, influence, overconcentration, probe) are left out on purpose. Add nothing without a source.
+ * The standard Chinese and Japanese names of every glossary term, shown on its card (critics,
+ * round 3: "bilingual hover on Go terms"; Chinese 5d, three rounds to 2026-11-09: every card with
+ * Chinese, pinyin and Japanese). Keyed by the glossary's term; add nothing without a source.
  * Checked 2026-11-07 against Chinese and Japanese usage: aji is 味道 in Chinese (the Japanese 味
  * alone is not how Chinese players say it); attach is 碰 for a lone stone and 靠 when leaning on a
  * group, both in use, so the card shows both.
+ * Added 2026-11-10 for the terms that had no card names: liberty 气 / ダメ (Japanese uses ダメ for
+ * a liberty as well as for a neutral point), kikashi 先手利 / 利かし, vital point 要点 / 急所,
+ * dragon 大龙 / 大石, bamboo joint 双 / タケフ (双 is the shape in the Chinese list of basic
+ * moves: 长, 立, 尖, 双, 虎, 飞), reverse sente 逆先手 in both, influence 外势 / 勢力,
+ * overconcentration 重复 / 凝り形, probe 试应手 / 様子見 (yosu-miru).
  */
 export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   hane: { zh: '扳', py: 'bān', ja: 'ハネ' },
@@ -177,4 +181,13 @@ export const TERM_NAMES: Readonly<Record<string, TermNames>> = {
   'big point': { zh: '大场', py: 'dàchǎng', ja: '大場' },
   yose: { zh: '官子', py: 'guānzi', ja: 'ヨセ' },
   dame: { zh: '单官', py: 'dānguān', ja: 'ダメ' },
+  liberty: { zh: '气', py: 'qì', ja: 'ダメ' },
+  kikashi: { zh: '先手利', py: 'xiānshǒulì', ja: '利かし' },
+  'vital point': { zh: '要点', py: 'yàodiǎn', ja: '急所' },
+  dragon: { zh: '大龙', py: 'dàlóng', ja: '大石' },
+  'bamboo joint': { zh: '双', py: 'shuāng', ja: 'タケフ' },
+  'reverse sente': { zh: '逆先手', py: 'nìxiānshǒu', ja: '逆先手' },
+  influence: { zh: '外势', py: 'wàishì', ja: '勢力' },
+  overconcentration: { zh: '重复', py: 'chóngfù', ja: '凝り形' },
+  probe: { zh: '试应手', py: 'shìyìngshǒu', ja: '様子見' },
 };

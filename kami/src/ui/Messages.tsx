@@ -14,6 +14,7 @@ import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage, longerLevel } from '../lib/levels';
 import { NOTES } from '../lib/writer';
 import { markFacts } from '../lib/markFacts';
+import { pickMoveLine } from '../lib/longerRead';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
 import { Icon } from './Icon';
@@ -477,6 +478,8 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...sections.map((s) => s.text)]);
   const factPlan = firstTerms(facts.map((f) => f.text));
   const longer = longerLevel(msg.level ?? levelOfMessage(msg)?.id);
+  // after "Read longer": whether KataGo's pick moved from the shorter read's (engine picks only)
+  const moved = pickMoveLine(msg.shorter, a);
   // A phone opens KataGo's numbers folded under their count, so the whole answer fits the pane
   // under the board; a tap opens them (critics, 2026-11-04). A desktop opens them.
   const [factsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia?.('(max-width: 899px)').matches);
@@ -492,6 +495,11 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
           </button>
         )}
       </div>
+      {moved && (
+        <p className="read-moved">
+          <Line text={moved} src={src} link={link} terms={null} />
+        </p>
+      )}
       {w.text ? (
         <RichText text={w.text} ex={ex} msgId={msg.id} link={link} terms={plan[0]} />
       ) : (

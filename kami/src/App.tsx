@@ -21,6 +21,7 @@ import { Sidebar as SidebarView } from './ui/Sidebar';
 import { Boundary, LoadFailed } from './ui/Boundary';
 import { Splitter } from './ui/Splitter';
 import { markReady } from './lib/ready';
+import { shorterRead, type ShorterRead } from './lib/longerRead';
 import { getSetting, useSetting } from './lib/settings';
 import { observeMove, studentProfile } from './lib/style';
 import { gtpToLoc } from '../../src/lib/go/coords';
@@ -332,7 +333,7 @@ export function App() {
   });
 
   /** Run the last question again (regenerate), or with new words (edit), or at another level ("Read longer"). */
-  const rerun = useEvent((newText?: string, lv?: Level) => {
+  const rerun = useEvent((newText?: string, lv?: Level, shorter?: ShorterRead | null) => {
     if (running) return;
     const msgs = current.messages;
     let i = msgs.length - 1;
@@ -340,7 +341,7 @@ export function App() {
     if (i < 0) return;
     const text = (newText ?? msgs[i].text).trim();
     if (!text) return;
-    const kami: ChatMessage = lv ? { id: newId(), role: 'kami', text: '', at: Date.now(), pick: lv.pick, thinking: lv.thinking, level: lv.id } : { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
+    const kami: ChatMessage = lv ? { id: newId(), role: 'kami', text: '', at: Date.now(), pick: lv.pick, thinking: lv.thinking, level: lv.id, ...(shorter ? { shorter } : {}) } : { id: newId(), role: 'kami', text: '', at: Date.now(), pick, thinking, level };
     update(current.id, (c) => ({
       ...c,
       title: i === 0 && newText ? titleFrom(text) : c.title,
@@ -409,7 +410,7 @@ export function App() {
   const readLonger = useEvent(() => {
     const last = [...current.messages].reverse().find((m) => m.role === 'kami');
     const lv = longerLevel(last?.level ?? levelOfMessage(last ?? {})?.id);
-    if (lv) rerun(undefined, lv);
+    if (lv) rerun(undefined, lv, shorterRead(last?.answer));
   });
   const editLast = useCallback((text: string) => rerun(text), [rerun]);
   const showBoard = useCallback(
