@@ -163,6 +163,9 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
   :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; }
   :root .trow.tn .ttl { font-size: 15px; }
   :root .trow.t1 .tstep { font-size: 15px; line-height: 20px; }
+  /* The rail keeps a working row to three lines: title (two at most), then the step on one line, cut with an
+     ellipsis; the whole step is its tooltip and shows on keyboard focus (2026-11-09: designer saw 4-line rows). */
+  :root .trow.t1 .tstep { -webkit-line-clamp: 1; }
 }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
@@ -310,7 +313,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .side > .navrows { min-width: calc(var(--sw) - 1px); }
 .navpair { display: contents; }
 .trow.tn { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 12px; text-decoration: none; color: inherit; }
-.navrows .lesn { display: none; }
+/* Studio comes last, after the work tools (2026-11-10, artist): on the desktop it follows Team lessons in the list, on
+   the phone it is the third tile after Library and Lessons. */
+.navrows .lesn, .navrows .studio-p { display: none; }
 .trow.tn .ico { opacity: .8; }
 .trow.tn .ttl { flex: 1; min-width: 0; font-weight: 500; }
 .trow.tn .when { color: var(--soft); font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -371,7 +376,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* A working thread: the title (two lines at most), then its current step, one muted, cut-off line, with who and when at its end. */
 :root .trow.t1.has-step .ttl { -webkit-line-clamp: 2; }
 /* The step line runs the row's width under title and meta and wraps to a second line before it would be cut
-   (designer, HN, artist, r/baduk: "No step yet · heard 12 …" ended in an ellipsis). */
+   (designer, HN, artist, r/baduk: "No step yet · heard 12 …" ended in an ellipsis). The desktop rail keeps it to one line (below). */
 .trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
 :root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .trow.on .tstep { color: var(--soft); }
@@ -633,10 +638,8 @@ a.opt { color: inherit; text-decoration: none; }
 /* Detail capped near 72 characters so a wide screen never stretches a row into a long grey line. */
 .act-t { flex: 0 1 auto; max-width: 72ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-row.open .act-t { white-space: normal; }
-.age-pad { flex: none; width: var(--age); }
 .act-up .act-t { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); }
 .act-up u { text-decoration-color: var(--line-2); text-underline-offset: 3px; }
-.act-up .act-latest { color: var(--soft); white-space: pre; }
 .act-up .act-t svg { flex: none; color: var(--soft); }
 @media (hover: hover) { .act-up:hover u { text-decoration-color: currentColor; } }
 .act-t b { font-weight: 500; color: var(--ink); }
@@ -771,7 +774,14 @@ button.fchip:hover { border-color: var(--faint); }
 .acards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 0 12px; }
 .acard { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 9px 12px; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 /* Team: no alarm borders; one red per card: the "Running low" word, so a low card's bars stay ink. */
-.tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; }
+.tsum { margin: -4px 16px 8px; color: var(--soft); font-size: 15px; overflow: hidden; flex: none; }
+/* Parts separated by "·" (the Team header, the Hub estimate line): each "·" sits in the next part's left padding; a
+   part that starts a line has that padding pulled out of the box (the -0.75em margin) and clipped by the parent's
+   overflow, so no line begins with a stray "·". The parent needs overflow: hidden. */
+.dotbox { display: block; overflow: hidden; }
+.dots { display: flex; flex-wrap: wrap; margin-left: -.75em; }
+.dots > span { position: relative; min-width: 0; padding-left: .75em; white-space: nowrap; }
+.dots > span + span::before { content: '·'; position: absolute; left: .25em; }
 /* the usage note never breaks mid-phrase: it wraps whole to its own line (five critics, 2026-11-09) */
 .tsum .tsrc { white-space: nowrap; }
 .atop .state { margin-left: auto; font-size: 15px; font-weight: 500; white-space: nowrap; }
@@ -795,7 +805,7 @@ button.fchip:hover { border-color: var(--faint); }
 .u1 .lbl { font-weight: 500; color: var(--soft); }
 .u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
 .u1 .track { display: block; height: 4px; }
-/* "From Claude · 4 min ago" under the bars: the reading's source and age, in the card's meta size. */
+/* "From Claude · 4m" under the bars: the reading's source and age, in the card's meta size. */
 .uasof { color: var(--soft); font-size: 14px; line-height: 18px; margin-top: -2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
@@ -834,7 +844,6 @@ button.act.nc::before { content: ''; position: absolute; left: -6px; top: 5px; w
 .hubuse .est:hover::after, .hubuse .est:focus-visible::after { content: attr(data-tip); position: absolute; left: 0; right: -8px; bottom: calc(100% + 6px); z-index: 5; padding: 8px 10px; white-space: pre-line; font-size: 14px; line-height: 1.4; color: var(--ink); background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--shadow); }
 .state .ncw { color: var(--amber-text); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.nw { white-space: nowrap; }
 .act.nc small { color: var(--amber-text); }
 button.act.starting { border-left-color: var(--line-2); }
 /* Desktop rail: "Offline · 4m" is too wide to share a line with the title in a 290 px column (the title was
@@ -1059,7 +1068,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
      Chat tab, so its tile goes and the first thread sits about 220 CSS px down. */
   .navrows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding-bottom: 2px; }
   .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
-  :root .app > .side .navrows .trow.tn.lesn { display: flex; }
+  :root .app > .side .navrows .trow.tn.lesn, :root .app > .side .navrows .trow.tn.studio-p { display: flex; }
   :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
   :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 14px; line-height: 22px; text-align: center; }
   .navrows .trow.tn .when:empty { display: none; }
@@ -1126,9 +1135,9 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
       <button class="btn newtask" id="newChat" type="button" aria-pressed="false" title="A clean chat with one agent, no coordinator"><i data-ico="pencil" data-size="16"></i>New chat</button>
     </div>
     <div class="navrows">
-      <a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
       <a class="trow tn" href="/library.html" title="Library: upload files, reference pictures and videos, link repos and add skills; every agent can read them"><i data-ico="library" data-size="16"></i><span class="ttl">Library</span></a>
       <button class="trow tn lesn" type="button" data-open="lessons" title="Team lessons: what one agent learns, every agent knows"><i data-ico="lightbulb" data-size="16"></i><span class="ttl">Lessons</span><span class="when" id="lesN"></span></button>
+      <a class="trow tn studio-p" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code"><i data-ico="clapperboard" data-size="16"></i><span class="ttl">Studio</span></a>
     </div>
     <div class="tfind hidden"><input id="tFind" type="search" placeholder="Filter threads" aria-label="Filter threads" autocomplete="off"></div>
     <nav class="list" id="threads"></nav>
@@ -1191,7 +1200,11 @@ const mdHtml = (s) => (MD ? MD.md(s) : `<p style="white-space:pre-wrap">${linkif
 const CLOCK_DAY = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
 const CLOCK_DATE = new Intl.DateTimeFormat([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const clock = (t) => { const d = new Date(t); return (new Date().toDateString() === d.toDateString() ? CLOCK_DAY : CLOCK_DATE).format(d); };
-const ago = (ms) => ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h` : `${Math.round(ms / 86400e3)} d`;
+// One short age everywhere in the hub: "now", "4m", "3h", "2d" (thread rows, Team cards, usage, Activity). Words
+// around it stay plain and never say "ago": "last heard 4m", "usage from Claude · now" (2026-11-09: r/baduk saw "2 min
+// ago" on Team cards beside "2m"; 2026-11-10: HN, parent, generalist saw "heard 4m ago" beside a bare "4m").
+const ageShort = (ms) => ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
+const ago = ageShort;
 const until = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const ms = d - Date.now(); if (ms <= 0) return 'resets now'; const sameDay = d.toDateString() === new Date().toDateString(); return 'resets ' + (sameDay ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })); };
 const ls = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1445,13 +1458,12 @@ const actOpenRows = new Set();
 const agoShort = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : s < 86400 ? `${Math.floor(s / 3600)}h` : `${Math.floor(s / 86400)}d`; };
 // Elapsed on the working line: seconds only in the first minute, then whole minutes (the text changes once a minute).
 const agoElapsed = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
-const agoHeard = (ms) => (ms < 60e3 ? 'last heard just now' : `last heard ${ago(ms)} ago`);
-const agoReport = (ms) => (ms < 60e3 ? 'step reported just now' : `step reported ${ago(ms)} ago`);
+const agoHeard = (ms) => `heard ${ageShort(ms)}`;
 // A working row in the thread list with no step: the same last-heard time as its Activity block.
-const agoNoStep = (ms) => `No step yet · heard ${ms < 60e3 ? 'just now' : `${ago(ms)} ago`}`;
-// Usage readings: "just now", then "4 min ago" (the same words as the account menu).
-const agoAgo = (ms) => (ms < 60e3 ? 'just now' : `${ago(ms)} ago`);
-const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, r: agoReport, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
+const agoNoStep = (ms) => `No step yet · heard ${ageShort(ms)}`;
+// Usage readings: "now", then "4m" (the same words as the account menu).
+const agoAgo = (ms) => ageShort(ms);
+const AGO_FMT = { s: agoShort, e: agoElapsed, h: agoHeard, n: agoNoStep, a: agoAgo, m: (ms) => `${Math.max(0, Math.floor(ms / 60e3))}m` };
 const agoEl = (at, f = 's') => `<span class="ago" data-at="${at}" data-f="${f}">${AGO_FMT[f](Date.now() - at)}</span>`;
 // A started session whose agent has not called the hub yet: dispatch sets lastAgentAt and lastFireAt
 // together, and the agent's first call moves lastAgentAt on. After NOCONN_MS it is "Offline" (one word for this
@@ -1528,7 +1540,7 @@ function waitingFor(t) {
   const who = t.account || 'an account';
   if (t.status === 'new' || !t.account) return t.account ? `Waiting for ${who}'s session to start. Nothing reported yet.` : 'Waiting for an account with usage left to take it.';
   if (unheard(t)) {
-    if (threadState(t)[0] === 'noconn') return `${who}'s session was started ${unheardMin(t)}m ago and has not called the hub yet.`;
+    if (threadState(t)[0] === 'noconn') return `${who}'s session has not called the hub in the ${unheardMin(t)}m since it started.`;
     return `Waiting for ${who} to connect. Its first step shows here once it reports one.`;
   }
   return `${who} is connected but has not reported a step yet.`;
@@ -1552,11 +1564,11 @@ function activityHtml(t, msgs) {
   const ups = sessionUpdates(t, msgs);
   if (ups.length) {
     const newest = ups.at(-1);
-    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}"><span class="age-pad"></span><span class="act-t">${icon('arrow-up', 14)}<u>${ups.length} update${ups.length > 1 ? 's' : ''} above</u><span class="act-latest">· latest ${agoEl(newest.at)}</span></span></button></li>` });
+    rows.push({ at: newest.at, h: `<li><button type="button" class="act-row act-up" data-act-goto="${ups[0].id}">${agoEl(newest.at)}<span class="act-t">${icon('arrow-up', 14)}<u>${ups.length} update${ups.length > 1 ? 's' : ''} above</u></span></button></li>` });
   }
   rows.sort((a, b) => b.at - a.at);
   const now = step
-    ? `<p class="act-now"><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null || step.at ? `<span class="act-pct">${[step.pct != null && `${step.pct}% done`, step.at && agoEl(step.at, 'r')].filter(Boolean).join(' · ')}</span>` : ''}</p>`
+    ? `<p class="act-now"${step.at ? ` title="Step reported at ${esc(clock(step.at))}"` : ''}><span class="act-k">${step.k}</span><span class="act-v">${esc(nb(step.v))}${step.more ? ` <span class="act-extra">+${step.more} more</span>` : ''}</span>${step.pct != null ? `<span class="act-pct">${step.pct}% done</span>` : ''}</p>`
     : `<p class="act-now wait"><span class="act-k"></span><span class="act-v">${minHtml(waitingFor(t), unheardAt(t))}</span></p>${stCls === 'noconn' ? `<div class="act-acts"><button type="button" class="btn small" data-act="retry" title="Ask the hub for a new session on this thread (the same retry as a stopped thread)">Start again</button>${t.sessionUrl ? `<a class="btn small act-sess" href="${esc(t.sessionUrl)}" target="_blank" rel="noopener" title="Open this thread's Claude session in a new tab">Open session</a>` : ''}</div>` : ''}`;
   const list = rows.length ? `<ol class="act-list" aria-label="Recent, newest first">${rows.map((r) => r.h).join('')}</ol>` : '';
   return `<section class="activity" aria-label="Activity">${tog}${lines.join('')}<div class="act-body" id="actBody">${now}${list}</div></section>`;
@@ -1647,8 +1659,7 @@ let sameWhen = false; // every row would say the same age: then rows show none
 const rowWhen = (t) => {
   const last = lastByThread.get(t.id);
   if (!last) return '';
-  const ms = Date.now() - last.at;
-  return ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : `${Math.floor(ms / 86400e3)}d`;
+  return ageShort(Date.now() - last.at);
 };
 // The step a working row shows: the same Now / Next as its Activity block, never the "Latest" sentence.
 function rowStep(t) {
@@ -1671,7 +1682,7 @@ function threadRow(t) {
   const tm = meta ? `<span class="tm">${meta}</span>` : '';
   // The last short word keeps the one before it, so a wrapped title never ends on a lone "25" or "icons".
   const ttl = esc(nb(t.title).replace(/ (\S{1,10})$/, '\u00a0$1')).replace(/_/g, '_<wbr>');
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${ttl}</span>${tm}${line ? `<span class="tstep${step ? '' : ' none'}">${line}</span>` : ''}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${ttl}</span>${tm}${line ? `<span class="tstep${step ? '' : ' none'}"${step ? ` title="${esc(step)}"` : ''}>${line}</span>` : ''}</button>`;
 }
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
@@ -1711,7 +1722,7 @@ function renderSide() {
       + (archived.length ? `<div class="group">Archived <i>${archived.length}</i></div>${archived.map(threadRow).join('')}` : '')
       || '<p class="tnone">No threads match.</p>';
   } else html = (lesN(), `<div class="navpair"><button class="trow tn" data-thread="0" title="${esc(last ? 'You: ' + (last.text.split('\n')[0] || '').slice(0, 120) : 'Start here')}">${icon('message-square', 16)}<span class="ttl">Project chat</span></button>`
-    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + '</div>')
+    + (S.accounts.length ? `<button class="trow tn" data-open="lessons" title="${esc(S.lessons.at(-1)?.text || 'What one agent learns, every agent knows')}">${icon('lightbulb', 16)}<span class="ttl">Team lessons</span><span class="when">${S.lessons.length}</span></button>` : '') + `<a class="trow tn" href="/studio.html" title="Storytime studio: short cartoon stories your Claude team writes and draws in code">${icon('clapperboard', 16)}<span class="ttl">Studio</span></a></div>`)
     + groups.filter((g) => g[1].length).map((g) => `<div class="group ${g[2] || ''}"${g[2] === 'noconn' ? ' title="Started, but its agent has not called the hub yet"' : ''}>${g[0]} <i>${g[1].length}</i></div>${g[1].map(threadRow).join('')}`).join('')
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
@@ -1982,7 +1993,7 @@ let feedItems = [];
 // Only the newest messages are drawn at first; a long thread opens fast and
 // "Show earlier" adds a page at a time.
 // A view opens on its newest FEED_FIRST messages; the page then draws earlier ones while idle, FEED_STEP at a
-// time above the view (scroll anchoring keeps it still), until FEED_SHOW are drawn, as before. Drawing all 100 at
+// time above the view (fillFeed keeps it still), until FEED_SHOW are drawn, as before. Drawing all 100 at
 // once was most of a long thread's open time on a slow phone (parse and first layout; 156 ms median at 4x CPU).
 const FEED_SHOW = 100, FEED_FIRST = 30, FEED_STEP = 10, feedEarly = {}, feedFill = {};
 // Rebuilding the HTML of every message on every poll was the biggest cost, so
@@ -2108,27 +2119,49 @@ function warmFeed() {
 }
 // The earlier messages of a view that opened on its newest FEED_FIRST: FEED_STEP per idle slice, never while
 // the user scrolls, and only for the view that started it. "Show earlier messages" still works meanwhile.
+// A slice only builds its own messages and puts them in above the first one drawn; the rest of the feed, the
+// header and the tools are not redrawn. The view keeps its place by the measured growth of the feed (not by
+// scroll anchoring), so it holds still even at the very top. If the drawn list no longer starts where the slice
+// expects (a message was deleted, the view changed), the slice falls back to a full renderFeed.
 let fillRun = 0, filling = false;
 function fillFeed() {
   const run = ++fillRun, view = sel;
   const later = (ms) => setTimeout(() => idleCall(step), ms);
   const step = () => {
     if (run !== fillRun || sel !== view) return;
-    const f = $('feed');
-    // Not while the reader scrolls, nor near the top, where a slice would land under their eyes.
-    if (performance.now() - feedScrollAt < 600 || f.scrollTop < 200) return later(300);
-    const to = feedFill[view] ?? 0;
-    if (!(feedEarly[view] > to)) return;
-    feedEarly[view] = Math.max(to, feedEarly[view] - FEED_STEP);
-    // Keep the view pinned by its distance from the bottom, not by CSS scroll anchoring.
-    const fromEnd = f.scrollHeight - f.scrollTop;
-    filling = true;
-    try { renderFeed(); } finally { filling = false; }
-    const want = f.scrollHeight - fromEnd;
-    if (Math.abs(f.scrollTop - want) >= 1) f.scrollTop = want;
+    if (performance.now() - feedScrollAt < 600) return later(300);
+    const to = feedFill[view] ?? 0, from = feedEarly[view];
+    if (!(from > to)) return;
+    const next = Math.max(to, from - FEED_STEP);
+    if (!prependFeed(view, from, next)) {
+      feedEarly[view] = next;
+      filling = true;
+      try { renderFeed(); } finally { filling = false; }
+    }
     if (feedEarly[view] > to) idleCall(step);
   };
   requestAnimationFrame(() => requestAnimationFrame(() => later(50)));
+}
+function prependFeed(view, from, next) {
+  const feed = $('feed');
+  if (feed.dataset.sel !== String(view)) return false;
+  const more = feedItems[0]?.k === 'more' ? 1 : 0, first = feedItems[more];
+  const msgs = feedMsgs(view);
+  if (!more || !first?.nodes?.[0] || msgs[from]?.id !== first.k) return false;
+  const ctx = feedCtx();
+  const add = msgs.slice(next, from).map((m) => ({ k: m.id, h: msgItem(m, ctx) }));
+  // Each message keeps its own nodes (as patchFeed does), so later patches can replace or remove it.
+  const fr = document.createDocumentFragment();
+  for (const x of add) { const t = document.createElement('template'); t.innerHTML = x.h; x.nodes = [...t.content.childNodes]; fr.append(t.content); }
+  const keep = feed.scrollHeight - feed.scrollTop;
+  feed.insertBefore(fr, first.nodes[0]);
+  if (!next) { for (const n of feedItems[0].nodes) n.remove(); feedItems.splice(0, 1, ...add); }
+  else feedItems.splice(1, 0, ...add);
+  feedEarly[view] = next;
+  feed.scrollTop = feed.scrollHeight - keep;
+  for (const x of add) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
+  warmFeed();
+  return true;
 }
 // Project chat: "Coordinator started on X" shows once per change of account, not before every prompt.
 function oneStartPerAccount(list) {
@@ -2140,6 +2173,7 @@ function oneStartPerAccount(list) {
     last = who; return true;
   });
 }
+const feedMsgs = (v) => (v === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === v));
 function renderFeed() {
   const feed = $('feed');
   const t = S.threads.find((x) => x.id === sel);
@@ -2148,7 +2182,7 @@ function renderFeed() {
   // old feed's height was a whole layout of up to 100 messages that were about to go).
   const stick = feed.dataset.sel === String(sel) && feed.scrollHeight - feed.scrollTop - feed.clientHeight < 140;
   renderHead(t);
-  const msgs = sel === 0 ? oneStartPerAccount(S.messages.filter((m) => m.thread === 0)) : S.messages.filter((m) => m.thread === sel);
+  const msgs = feedMsgs(sel);
   const ctx = feedCtx();
   // The first message drawn stays put while new ones arrive, so the old ones keep their nodes.
   if (feedEarly[sel] === undefined) { feedEarly[sel] = Math.max(0, msgs.length - FEED_FIRST); feedFill[sel] = Math.max(0, msgs.length - FEED_SHOW); }
@@ -2512,7 +2546,7 @@ function usageRow(label, pct, resets) {
   if (typeof pct !== 'number') return '';
   return `<div class="use"><span class="lbl">${label}</span><div class="track"><div class="fill ${useCls(pct)}" style="width:${barW(pct)}%"></div></div><span class="pct">${Math.round(pct)}%</span>${resets ? `<span class="rs">${esc(until(resets))}</span>` : ''}</div>`;
 }
-const since = (at) => { const x = ago(Date.now() - at); return x === 'just now' ? x : x + ' ago'; };
+const since = (at) => ageShort(Date.now() - at);
 // The card's one usage line: 5-hour and weekly bars side by side; reset times in the tooltip.
 function useLine(u) {
   const one = (lbl, name, pct, resets) => typeof pct === 'number' ? `<span class="u1" title="${esc(`${name}: ${Math.round(pct)}% used${resets ? ', ' + until(resets) : ''}`)}"><span class="lbl">${lbl}</span><span class="track"><span class="fill ${useCls(pct)}" style="display:block;width:${barW(pct)}%"></span></span><b>${Math.round(pct)}%</b></span>` : '<span></span>';
@@ -2560,7 +2594,7 @@ function activityOf(a) {
     // Every row has the same meta slot: when this account last spoke there (or the
     // thread last changed); "member" only when it isn't the lead.
     const [ss, sw] = threadState(t);
-    const meta = ss === 'starting' || ss === 'noconn' ? sw : [t.account === a.name ? '' : 'member', at ? since(at) : ''].filter(Boolean).join(' · ');
+    const meta = ss === 'starting' || ss === 'noconn' ? sw : [t.account === a.name ? '' : 'member', at ? ageShort(Date.now() - at) : ''].filter(Boolean).join(' · ');
     return `<button type="button" class="act${ss === 'noconn' ? ' nc' : ss === 'starting' ? ' starting' : ''}" data-thread="${t.id}" title="${esc(last ? `${last.text.replace(/\s+/g, ' ').slice(0, 200)} (${since(last.at)})` : t.title)}"><div class="act-top"><span class="ttl">#${t.id} ${esc(nb(t.title))}</span><small>${ss === 'noconn' ? stHtml(threadState(t)) : esc(meta)}</small></div></button>`;
   };
   if (!ts.length) return '';
@@ -2675,16 +2709,16 @@ function renderTeam() {
   const ovPct = ov.budget ? (100 * (ov.used || 0)) / ov.budget : 0;
   // The header says only what is not routine: how many work, run low or need XIAO.
   const accts = (k) => `${k} account${k > 1 ? 's' : ''}`;
-  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean).join(' · ');
+  const counts = [n('fix') && `${accts(n('fix'))} need${n('fix') > 1 ? '' : 's'} you`, n('busy') && `${accts(n('busy'))} working`, n('low') + n('paused') && `${accts(n('low') + n('paused'))} running low`].filter(Boolean);
   const freshAt = Math.max(0, ...S.accounts.map((a) => (useFresh(a.usage) ? a.usage.at : 0)));
   setHtml($('team'), `<div class="thead"><h3>Team</h3><button class="btn small" data-open="add">Add</button>${panelBtn('team')}</div>
-    ${counts || freshAt ? `<p class="tsum">${counts ? `<span class="nw">${esc(counts)}${freshAt ? ' ·' : ''}</span>` : ''}${freshAt ? `${counts ? ' ' : ''}<span class="tsrc nw" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</p>` : ''}
+    ${counts.length || freshAt ? `<p class="tsum"><span class="dots">${counts.map((c) => `<span>${esc(c)}</span>`).join('')}${freshAt ? `<span class="tsrc" title="${esc(`${USE_SRC.claude[1]} Newest reading ${clock(freshAt)}.`)}">usage from Claude · ${agoEl(freshAt, 'a')}</span>` : ''}</span></p>` : ''}
     ${S.accounts.length ? '' : '<p class="cap">No accounts yet. Press Add to start.</p>'}
     <div class="acards">${list.map(accountCard).join('')}</div>
     ${agentPanel()}
     ${taskList()}
     <div class="tfoot">
-      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs est" tabindex="0" data-tip="${esc(estTip(ov))}" aria-describedby="estTip"><span class="nw">Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens ·</span> <span class="nw">${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'} ·</span> <span class="nw">this 5‑hour window</span></span><span id="estTip" class="sr-only">${esc(estTip(ov))}</span></div>
+      <div class="hubuse"><span class="u1" title="The hub's own token budget for the coordinator in this 5-hour window"><span class="lbl">Hub</span><span class="track"><span class="fill ${useCls(ovPct)}" style="display:block;width:${ovPct > 0 ? Math.min(100, Math.max(2, ovPct)) : 0}%"></span></span><b>${Math.round(ovPct)}%</b></span><span class="rs est" tabindex="0" data-tip="${esc(estTip(ov))}" aria-describedby="estTip"><span class="dotbox"><span class="dots"><span>Estimate: ${Math.round((ov.used || 0) / 1000)}k of ${Math.round((ov.budget || 0) / 1000)}k tokens</span><span>${ov.coordinatorSessions || 0} coordinator run${ov.coordinatorSessions === 1 ? '' : 's'}</span><span>this 5‑hour window</span></span></span></span><span id="estTip" class="sr-only">${esc(estTip(ov))}</span></div>
       <div class="acts foot"><button class="btn small quiet" data-open="settings">Settings</button><button class="btn small quiet" data-open="look">Look</button><button class="btn small quiet" data-refresh title="Read usage from Claude now">Read usage</button><button class="btn small quiet so" data-open="logout">Sign out</button></div>
     </div>`);
   applyPanels();
@@ -2709,7 +2743,7 @@ function lessonRows() {
   return S.lessons.slice().reverse().map((l) => {
     const th = l.thread && S.threads.find((t) => t.id === l.thread);
     const who = l.by === 'XIAO' ? 'You' : l.by;
-    return `<div class="lrow">${kindTag(l)}<div><div class="lt">${linkify(l.text)}</div>${l.why ? `<div class="lt">Why: ${linkify(l.why)}</div>` : ''}<div class="lby">${l.by === 'XIAO' ? '' : av(l.by, 's')}<span>${esc(who)}${th ? ` in ${esc(th.title)}` : ''} · ${ago(Date.now() - l.at)}${ago(Date.now() - l.at) === 'just now' ? '' : ' ago'}</span></div></div><button class="btn small quiet" data-dellesson="${Number(l.id)}">Delete</button></div>`;
+    return `<div class="lrow">${kindTag(l)}<div><div class="lt">${linkify(l.text)}</div>${l.why ? `<div class="lt">Why: ${linkify(l.why)}</div>` : ''}<div class="lby">${l.by === 'XIAO' ? '' : av(l.by, 's')}<span>${esc(who)}${th ? ` in ${esc(th.title)}` : ''} · ${since(l.at)}</span></div></div><button class="btn small quiet" data-dellesson="${Number(l.id)}">Delete</button></div>`;
   }).join('');
 }
 function fillLessons() { const el = $('lList'); if (el) setHtml(el, lessonRows()); const c = $('lCount'); if (c) c.textContent = `${S.lessons.length} of 100 lessons`; }
@@ -3014,7 +3048,7 @@ async function openSheet(kind, name) {
     const a = S.accounts.find((x) => x.name === name); const u = a?.usage || {};
     html = sHead(`Usage for ${esc(name)}`) + `<div class="sbody">
       <p>Copy the numbers from claude.ai › Settings › Usage, signed in as ${esc(name)}. At ${lowAt()}% used, new work goes to other accounts.</p>
-      ${u.at ? `<p class="hint">Now in the boxes: ${esc(useSrc(u)[0].toLowerCase())}, ${esc(since(u.at))}.</p>` : ''}
+      ${u.at ? `<p class="hint">Now in the boxes: ${esc(useSrc(u)[0].toLowerCase())} · ${esc(since(u.at))}.</p>` : ''}
       <div class="pairs">${fld('5-hour used (%)', `<input id="u5" type="number" inputmode="numeric" min="0" max="100" value="${u.five_hour_pct ?? ''}">`)}
       ${fld('Weekly used (%)', `<input id="u7" type="number" inputmode="numeric" min="0" max="100" value="${u.seven_day_pct ?? ''}">`)}</div>
       <div class="sgrp"><h4>Or just mark it</h4>

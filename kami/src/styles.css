@@ -987,7 +987,10 @@ kbd {
   padding: 0 2px;
   margin: 0 -1px;
   border-radius: 4px;
-  border-bottom: 1.5px solid var(--accent-line);
+  /* plain coloured text at rest (designer and artist, 2026-11-10: with the terms' underlines a
+     paragraph showed about 13 decorated tokens); its box shows under the pointer, on focus and
+     while its line is on the board. The border stays, clear, so the line never moves. */
+  border-bottom: 1.5px solid transparent;
   cursor: pointer;
 }
 /* a coordinate's hover and tap area is at least 24 px each way (WCAG 2.5.8), past its letters */
@@ -1006,7 +1009,7 @@ kbd {
 .pt:hover,
 .pt.on {
   background: var(--accent-soft);
-  border-bottom-style: solid;
+  border-bottom-color: var(--accent-line);
 }
 /* Go terms with a definition on hover or tap (glossary) */
 .term {
@@ -2921,6 +2924,11 @@ li > .term-slot.after {
   flex: 1;
   min-width: 0;
 }
+/* after "Read longer": one line, in the text's own size and ink, on whether KataGo's pick moved */
+.read-moved {
+  margin: 2px 0 6px;
+  color: var(--ink);
+}
 .read-longer {
   flex: none;
   min-height: 36px;
@@ -3059,8 +3067,9 @@ li > .term-slot.after {
     cursor: row-resize;
   }
   /* On a phone the board is about 300 px wide (a line every ~14 px), so text sized in board units
-     came out at 5 to 7 px. Coordinates are 1.2 of a line here (17 px, capitals and lining
-     figures about 11 px tall on a 390 px screen) in a wider margin (BoardPanel PHONE_COORD_M),
+     came out at 5 to 7 px. Coordinates are one line here (about 14 px, figures about 10 px
+     tall on a 390 px screen, so neighbours keep 3.5 px or more of wood between them; at 1.2
+     the side numbers were 1 px apart: designer and a11y, 2026-11-09) in a wider margin (BoardPanel PHONE_COORD_M),
      with air to the edge stones and the wood's edge (critics, 2026-11-03: 13 px letters read as
      one squeezed string against the edge). KataGo's marks are larger than a point (Board
      candBig, every one numbered, crowded ones moved apart and shrunk, lib/candLabels.ts
@@ -3069,7 +3078,7 @@ li > .term-slot.after {
      shrunk mark's a little smaller. The book's printed numbers stay 0.9. */
   .board-panel svg.board .bd-coords text,
   .board-panel svg.board.book .bd-coords text {
-    font-size: 1.2px;
+    font-size: 1px;
   }
   .board-panel svg.board .cand.plain .cand-wr {
     font-size: 1.22px;
@@ -3430,4 +3439,5 @@ li > .term-slot.after {
 /* a coordinate reached with Tab looks as it does under the pointer (its line is on the board) */
 .pt:focus-visible {
   background: var(--accent-soft);
+  border-bottom-color: var(--accent-line);
 }

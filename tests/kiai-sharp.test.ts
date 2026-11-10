@@ -153,6 +153,13 @@ describe('the move-34 answer (engine text, no LLM)', () => {
 });
 
 describe('the code checker rejects wording that contradicts KataGo', () => {
+  it('"crosscut" only where the X is on the board; "cut" there too', async () => {
+    const ex = await move34();
+    expect(wordingProblems(ex, 'White answers with the crosscut at R10 [[v1]].').filter((p) => p.includes('R10'))).toEqual([]);
+    expect(wordingProblems(ex, 'White answers with the cut at R10 [[v1]].').filter((p) => p.includes('R10'))).toEqual([]);
+    expect(wordingProblems(ex, 'Black plays the crosscut at Q12.').some((p) => p.startsWith('"crosscut" at Q12'))).toBe(true);
+  });
+
   it('who leads, "close", "decided" and sente', async () => {
     const ex = await move34();
     expect(wordingProblems(ex, 'Black is ahead, so Q10 [[v1]] keeps it simple.').some((p) => p.startsWith('wrong side ahead'))).toBe(true);
@@ -233,6 +240,8 @@ describe('candidate labels in a lopsided game', () => {
     expect(keyText(ahead, 'Black')).toBe('KataGo’s move. Black is far ahead (White 1%). Numbers: points lost by playing there · ≈\u00a0about the\u00a0same · ≥\u00a0ahead on a shorter\u00a0read.');
     // a phone: short enough for the key's two lines at 390 px
     expect(keyText(close, 'Black', false, undefined, true)).toBe('KataGo’s move. White is far ahead (Black 1%). Numbers: points lost · ≈ about the same.');
+    // a phone with both signs (after Read longer): the shortest words, so it never takes a third line
+    expect(keyText(ahead, 'Black', false, undefined, true)).toBe('KataGo’s move. Black is far ahead (White 1%). Points\u00a0lost · ≈\u00a0same · ≥\u00a0ahead, read\u00a0less.');
     // a win chance under half a percent is "<1%", never "0%"
     expect(keyText([c(0.003, -30, 0), c(0.001, -31, 1)], 'Black')).toMatch(/\(Black <1%\)/);
   });

@@ -399,7 +399,8 @@ const ls = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)} min ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)} h ago` : new Date(t).toLocaleDateString(); };
+// The hub's short age ("now", "4m", "3h"), so Studio reads like the rest of the hub.
+const ago = (t) => { const ms = Date.now() - t; return ms < 60e3 ? 'now' : ms < 3600e3 ? `${Math.floor(ms / 60e3)}m` : ms < 86400e3 ? `${Math.floor(ms / 3600e3)}h` : new Date(t).toLocaleDateString(); };
 // Run an action with its button shown as busy (disabled, "Sending…"), then put it back.
 async function busy(btn, label, fn) {
   if (btn.getAttribute('aria-busy') === 'true') return;
@@ -680,10 +681,10 @@ function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
   // every frame says how it was made: drawn in code by the Claude team, never a picture model
-  // Said plainly: lines and shapes written as code by Claude, no image generator. On a narrow screen the badge
-  // stays short so it never covers the drawing; the status line under the video carries the full sentence.
+  // Said plainly: lines and shapes written as code by Claude, no image generator. A narrow screen gets the same words,
+  // only shorter where they repeat (2026-11-10: artist asked for the whole badge on the phone).
   const narrow = matchMedia('(max-width: 700px)').matches;
-  $('badge').textContent = narrow ? 'Drawn in code by Claude' : S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
+  $('badge').textContent = narrow ? (S.demo ? 'Demo · drawn in code by Claude, no image generator' : 'Drawn in code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }

@@ -30,12 +30,15 @@ import type { ConceptHit, Fact, LifeDeathVerdict, Situation, StudentProfile } fr
 const BOARD_MARKS = 6;
 /** Worse moves this close to the closest of a group are named in one clause ("lose 0.4 to 0.6 points"). */
 const GROUP_PTS = 0.25;
+/** Worse moves all within this many points of KataGo's choice are named together, without figures. */
+const NEAR_PTS = 1.5;
 
 /**
  * Said once, after every move compared by its number, on a quick read (Kiai's Low and Medium;
  * critics r2, 2026-11-09: the caveat belongs at the end of the comparisons, not inside one).
  */
-export const QUICK_LINE = 'This was a quick read: reading longer can change these numbers.';
+// short enough to end the phone's move-34 answer above the composer (2026-11-10)
+export const QUICK_LINE = 'Quick read: reading longer can change it.';
 
 export interface Teaching {
   summary: string;
@@ -634,10 +637,12 @@ export function teach(input: TeachInput): Teaching {
    *   as Q10";
    * - worse moves by their numbers, closest first, up to the runner-up the answer shows a line for,
    *   so no move is named past a closer one left out; grouped when within 0.25 points ("N8, R10
-   *   and Q12 lose 0.4 to 0.5 points; R12 loses 1.3 points"); a move that is also the opponent's
-   *   reply in KataGo's line says so ("R10, taking White's crosscut point first, loses 0.4 points",
-   *   last in its group: "N8 and Q12 lose 0.4 points each; so does R10, taking White's crosscut
-   *   point first"); only moves the board marks;
+   *   and Q12 lose 0.4 to 0.5 points; R12 loses 2.3 points"); a move that is also the opponent's
+   *   reply in KataGo's line says so ("R10, which takes the crosscut point before White can, loses
+   *   2.4 points", last in its group: "N8 and Q12 lose 2.4 points each; so does R10, which takes
+   *   the crosscut point before White can"); only moves the board marks;
+   * - when two or more worse moves are all within NEAR_PTS, one clause without figures instead:
+   *   "R8, N8, R10 and Q12 each lose up to about a point";
    * - on a quick read, one caveat after all the comparisons.
    * Each named move has its own row under KataGo's numbers.
    */
@@ -672,7 +677,9 @@ export function teach(input: TeachInput): Teaching {
       const b = f.board.clone();
       b.play(best.loc, mover, true);
       const sh = shapeOf(b, line[1].loc, line[1].color);
-      reply = { loc: line[1].loc, words: `taking ${them}'s ${sh ? `${sh.name.replace(/^the /, '')} point` : 'reply point'} first` };
+      // said from the mover's side: the point is the opponent's to play, so a move there takes it
+      // before they can (r/baduk and Chinese 5d, 2026-11-10: never "White's crosscut point" for Black)
+      reply = { loc: line[1].loc, words: `which takes the ${sh ? `${sh.name.replace(/^the /, '')} point` : 'point of the reply'} before ${them} can` };
     }
     const named = (a: Alt) => (reply && reply.loc === a.loc ? `${C(a.loc)}, ${reply.words},` : C(a.loc));
     let compared = 0;
@@ -695,6 +702,19 @@ export function teach(input: TeachInput): Teaching {
     }
     if (markOf(og) === 'worse') {
       const worse = alts.filter((x) => markOf(x.gap) === 'worse' && x.gap <= og + 1e-9).sort((p, q) => p.gap - q.gap);
+      // all close (within NEAR_PTS): one short clause names every marked move without figures, and
+      // their rows under KataGo's numbers give each one (7 critics, 2026-11-10: a figure for each
+      // move repeated the list and ran the phone's answer under the composer; the pro teacher's
+      // own words: "the rest are within about a point")
+      if (worse.length > 1 && worse[worse.length - 1].gap <= NEAR_PTS) {
+        // the wording covers the largest figure: never "about a point" for a 1.3 (5 critics, 2026-11-10 r3)
+        const most = worse[worse.length - 1].gap > 1.1 ? 'a point or so' : 'up to about a point';
+        summary.push(`${list(worse.map((a) => C(a.loc)))} each lose ${most}${ref(id)}.`);
+        for (const a of worse) row(a, `${C(a.loc)} is ${pts(a.gap)} worse than ${C(best.loc)}`);
+        compared += worse.length;
+        if (compared && isQuickRead(f.budget)) summary.push(QUICK_LINE);
+        return;
+      }
       // moves within GROUP_PTS of each other share one clause, so a long list stays one line
       const groups: Alt[][] = [];
       for (const a of worse) {
@@ -710,8 +730,8 @@ export function teach(input: TeachInput): Teaching {
       const many = (g: Alt[]) =>
         g.length === 1 ? one(g[0]) : `${list(g.map((a) => C(a.loc)))} lose ${span(g)}${fmt1(g[0].gap) === fmt1(g[g.length - 1].gap) ? ' each' : ''}`;
       // the opponent's point goes last in its group with a clause of its own, so its note never
-      // reads as covering the others (HN, r3 2026-11-09): "R8 and N8 lose 0.4 points each; so does
-      // R10, taking White's crosscut point first"
+      // reads as covering the others (HN, r3 2026-11-09): "R8 and N8 lose 2.4 points each; so does
+      // R10, which takes the crosscut point before White can"
       const parts = groups.map((g) => {
         const r = g.length > 1 ? g.find((a) => reply && a.loc === reply.loc) : undefined;
         if (!r) return many(g);

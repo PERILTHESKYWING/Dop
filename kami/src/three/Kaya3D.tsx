@@ -228,13 +228,17 @@ export default function Kaya3D(p: Kaya3DProps) {
         const pt = v.project(L.loc, L.lift, L.dx ?? 0, L.dy ?? 0);
         k.style.transform = `translate(${pt.x.toFixed(1)}px, ${pt.y.toFixed(1)}px)`;
         // a phone's side numbers: sized to their own row's height, which the lean shrinks toward
-        // the far edge, so 19, 18, 17 keep about 3 px apart instead of touching (critics, 2026-11-03)
+        // the far edge, so neighbours keep 4 px of clear wood between them (about 2.5 on the far
+        // rows of the angled board, where 11 px is the floor). Sized by measured ink, not the em
+        // box: a figure with its overshoot (8, 9, 6) is 0.74 em tall in this face and sits about
+        // 1 px off its row's middle; the old (pitch - 3) / 0.66 left 9 and 8 under 1 px apart
+        // (designer and a11y, 2026-11-09).
         if (big && L.dx) {
           const row = Math.floor(L.loc / size);
           const q = v.project(row < size - 1 ? L.loc + size : L.loc - size, L.lift, L.dx, 0);
           const pitch = Math.abs(q.y - pt.y);
           const b = k.firstElementChild as HTMLElement | null;
-          if (b) setFont(b, `${Math.max(11, Math.min(16, (pitch - 3) / 0.66)).toFixed(1)}px`);
+          if (b) setFont(b, `${Math.max(11, Math.min(16, (pitch - 5) / 0.74)).toFixed(1)}px`);
         } else if (big && L.dy && !L.dx) {
           // and its letters the same way, to their own column's width there: the far (top) row's
           // columns are about 12 px apart, so M and N keep 4 px between them instead of touching

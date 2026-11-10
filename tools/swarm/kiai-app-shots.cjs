@@ -296,6 +296,24 @@ const rects = async (p) =>
       await page.waitForTimeout(300);
       R.termPin.keyboard.escapeBack = await focusOnTerm();
     } else console.log('no visible term');
+    // 11: a fixed state for the Go-term check: the crosscut's card pinned in the move-34 answer
+    //     (pro teacher, 2026-11-10: 扭断 · キリチガイ never showed in a shot)
+    await page.keyboard.press('Escape');
+    const cross = await page.evaluateHandle(() => [...[...document.querySelectorAll('.msg.kami')].pop().querySelectorAll('.term')].find((e) => /cross-?cut/i.test(e.textContent)) || null);
+    const crossEl = cross.asElement();
+    if (crossEl) {
+      await crossEl.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      if (vp.name === 'phone') await crossEl.tap();
+      else await crossEl.click();
+      await page.waitForTimeout(600);
+      R.crosscutCard = await page.evaluate(() => {
+        const t = document.querySelector('.term-tip.pinned');
+        return t ? { text: t.textContent, zh: t.querySelector('[lang="zh-Hans"]')?.textContent, py: t.querySelector('[lang="zh-Latn-pinyin"]')?.textContent, ja: t.querySelector('[lang="ja"]')?.textContent } : null;
+      });
+      await shot('11-crosscut-card');
+      await page.keyboard.press('Escape');
+    } else console.log('no crosscut term in the answer');
     console.log(vp.name, scheme, JSON.stringify(R));
     await ctx.close();
   }

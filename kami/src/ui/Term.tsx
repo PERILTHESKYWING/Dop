@@ -190,7 +190,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const withX = pinned || (hover && keyed);
   // decided as the card opens: the span exists from the first render on
   const inChat = open && !!ref.current?.closest('.messages');
-  const inline = inChat && (pinned || narrow());
+  const inline = inChat && (pinned || (narrow() && keyed));
 
   /** Close a pinned card and give focus back to its term (× and Escape). */
   const close = () => {
