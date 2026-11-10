@@ -164,15 +164,16 @@ function messageLines(msg: Element): Box[] {
  *   block right under the term's line, so the text after it moves down and no answer line or
  *   KataGo's numbers row is covered (critics, 2026-11-05 and 11-06). The chat moves only to show
  *   the card and the line after it, never past the term.
- * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
- *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
- *   phone's board note prefers over, so the answer stays clear); never half over a button,
- *   inside the window, and the chat never scrolls.
+ * - a mouse's hover (a phone-width window too), a desktop's focus, and the note under the board:
+ *   floating as a tooltip just under the term's line, or over it when under would cover KataGo's
+ *   numbers or there is no room (a phone's board note prefers over, so the answer stays clear);
+ *   never half over a button, inside the window, and the chat never scrolls.
  * A pinned card is a labelled group, and a keyboard pin moves focus to its ×.
  */
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
   const [pinned, setPinned] = useState(false);
-  const [hover, setHover] = useState(false);
+  /** Shown unpinned, and how: a mouse over the term, or keyboard focus. */
+  const [hover, setHover] = useState<false | 'mouse' | 'focus'>(false);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number } | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
@@ -184,10 +185,12 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const keyPin = useRef(false);
   const id = useId();
   const ask = useContext(AskContext);
-  const open = pinned || hover;
+  const open = pinned || !!hover;
   // decided as the card opens: the span exists from the first render on
   const inChat = open && !!ref.current?.closest('.messages');
-  const inline = inChat && (pinned || narrow());
+  // a phone's keyboard focus opens the card in the text; a mouse's hover floats (a block opening
+  // under a resting pointer moved the text under it: after Read longer a card opened by itself)
+  const inline = inChat && (pinned || (narrow() && hover === 'focus'));
 
   /** Close a pinned card and give focus back to its term (× and Escape). */
   const close = () => {
@@ -449,9 +452,9 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
         aria-expanded={pinned}
         aria-controls={pinned ? id : undefined}
         aria-describedby={open && !pinned ? id : undefined}
-        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(true)}
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover((h) => h || 'mouse')}
         onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(false)}
-        onFocus={(e) => !quiet.current && e.currentTarget.matches(':focus-visible') && setHover(true)}
+        onFocus={(e) => !quiet.current && e.currentTarget.matches(':focus-visible') && setHover('focus')}
         onBlur={() => setHover(false)}
         onClick={(e) => {
           e.stopPropagation();
