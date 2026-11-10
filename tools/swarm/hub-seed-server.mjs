@@ -84,7 +84,7 @@ at(2.2);
 await hub.agentPost(await A('Main'), { thread: t1.id, kind: 'progress', text: 'Runs 1-3 after the split: first paint **0.94 s, 0.92 s, 0.91 s** (was 2.84 s), review ready 2.3 s. Two runs left, then the full test suite.' });
 at(1.6);
 await hub.learn({ text: 'Push once per thread when the work is done, never after each edit.', kind: 'do', why: 'Vercel Hobby allows about 100 deployments a day.', by: 'XIAO' });
-await hub.learn({ text: 'Never name Gemini in the Kiai app.', kind: 'dont', why: 'Product rule.', by: 'Main', thread: t1.id });
+await hub.learn({ text: 'Report speed from 5 throttled runs as median and p90, never from one run.', kind: 'do', why: 'One run on this sandbox can be 40% off the next.', by: 'Main', thread: t1.id });
 // Alt has connected before (it is only low on usage now).
 await hub.touchAccount('Alt');
 await hub.learn({ text: 'Bump ENGINE_FILES whenever public/engine changes.', kind: 'do', why: 'Vercel caches /engine for a week.', by: 'Alt' });
