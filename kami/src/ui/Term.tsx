@@ -155,8 +155,8 @@ function messageLines(msg: Element): Box[] {
 
 /**
  * What a desktop's floating card for a term in a chat answer should leave uncovered, weighted
- * for placeTip: the answer's lines (1 each), its read row, KataGo's numbers, the question bubbles
- * and the copy and redo buttons (3 each). The card stays next to its word, under or over its
+ * for placeTip: the answer's lines (3 each), KataGo's numbers (3), the question bubbles and the
+ * copy and redo row (2), the read row (1): the prose being read is covered last (Chinese 5d). The card stays next to its word, under or over its
  * line, on the side that covers less (artist, designer, generalist, 2026-11-11). Empty on a phone.
  */
 function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
@@ -164,7 +164,11 @@ function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
   const pane = term.closest('.messages');
   const msg = term.closest('.msg.kami');
   if (!pane || !msg) return [];
-  const heavy = [...msg.querySelectorAll('.read-row, .read-moved, .msg-tools'), ...pane.querySelectorAll('.msg.user .bubble')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 3 }));
+  // the prose is what is being read, so a line of it counts most; the read row is a quiet label
+  const heavy = [
+    ...[...msg.querySelectorAll('.read-row, .read-moved')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 1 })),
+    ...[...msg.querySelectorAll('.msg-tools'), ...pane.querySelectorAll('.msg.user .bubble')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 2 })),
+  ];
   // one box a line (a line's words, coordinates and terms come as many rects)
   const lines = new Map<number, Box>();
   for (const r of messageLines(msg)) {
@@ -172,7 +176,7 @@ function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
     const b = lines.get(k);
     lines.set(k, b ? { left: Math.min(b.left, r.left), right: Math.max(b.right, r.right), top: Math.min(b.top, r.top), bottom: Math.max(b.bottom, r.bottom) } : { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
   }
-  return [...heavy, ...lines.values()];
+  return [...heavy, ...[...lines.values()].map((l) => ({ ...l, weight: 3 }))];
 }
 
 /**
