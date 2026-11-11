@@ -44,40 +44,6 @@ export function placeTip(r: Box, w: number, h: number, vw: number, vh: number, a
 }
 
 /**
- * A desktop's floating card for a term in the chat, placed where it covers none of the `cover`
- * boxes (the answer's lines, its read row, KataGo's numbers; Chinese 5d, 2026-11-10: the hover
- * card hid two lines of the answer) and stays inside `area` (the chat pane, 8 px in). Tried in
- * this order, the first clear one wins: just under the term's line, just over it, beside the
- * text column when the pane has the room, then the clear place nearest the term's line among
- * the edges of the cover boxes (over the answer's first row or under its last, as a rule).
- * `attached` is false when the card is not next to the term's line (it then shows no pointer).
- * Null when no place is clear: the caller falls back to placeTip.
- */
-export function placeClear(line: Box, w: number, h: number, area: Box, cover: readonly Box[], column?: { left: number; right: number }) {
-  const gap = 3;
-  const minL = area.left + 8, maxL = area.right - 8 - w;
-  const minT = area.top + 8, maxT = area.bottom - 8 - h;
-  if (maxL < minL || maxT < minT) return null;
-  const left = Math.max(minL, Math.min(maxL, (line.left + line.right) / 2 - w / 2));
-  const clear = (l: number, t: number) => t >= minT - 0.5 && t <= maxT + 0.5 && l >= minL - 0.5 && l <= maxL + 0.5 && !cover.some((c) => c.right > l + 0.5 && c.left < l + w - 0.5 && c.bottom > t + 0.5 && c.top < t + h - 0.5);
-  const under = line.bottom + gap, over = line.top - gap - h;
-  if (clear(left, under)) return { left, top: under, below: true, attached: true };
-  if (clear(left, over)) return { left, top: over, below: false, attached: true };
-  if (column) {
-    const t = Math.max(minT, Math.min(maxT, line.top - 10));
-    for (const l of [column.right + 12, column.left - 12 - w]) if (clear(l, t)) return { left: l, top: t, below: true, attached: false };
-  }
-  const mid = (line.top + line.bottom) / 2;
-  let best: { top: number; d: number } | null = null;
-  for (const t of [minT, maxT, ...cover.flatMap((c) => [c.bottom + gap, c.top - gap - h])]) {
-    if (!clear(left, t)) continue;
-    const d = Math.abs(t + h / 2 - mid);
-    if (!best || d < best.d) best = { top: t, d };
-  }
-  return best ? { left, top: best.top, below: best.top > mid, attached: false } : null;
-}
-
-/**
  * A phone opens a term's card inside the chat, as a block under the paragraph (Term.tsx): the
  * text after it moves down and nothing is covered. The chat stays put unless the card would end
  * below the pane's visible bottom; then it scrolls by just enough to show the card, and never so

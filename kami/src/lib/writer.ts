@@ -83,9 +83,9 @@ export const NOTES = {
  */
 export function wordsLine(w: Pick<Writing, 'by' | 'text' | 'note'>): string | null {
   if (w.note === NOTES.polishing || w.note === NOTES.polishingLocal) return null;
-  if (w.text && w.by === 'gemini') return 'Words: a language model, from KataGo’s numbers, fact-checked';
-  if (w.text && w.by === 'local') return 'Words: a small language model on this device, from KataGo’s numbers, fact-checked';
-  return 'Words: Kiai, from KataGo’s numbers, no language model';
+  if (w.text && w.by === 'gemini') return 'Written by a language model, fact-checked';
+  if (w.text && w.by === 'local') return 'Written by a small language model on this device, fact-checked';
+  return 'Written by Kiai, no language model';
 }
 
 /**

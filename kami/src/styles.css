@@ -1079,11 +1079,6 @@ kbd {
   bottom: -6px;
   transform: rotate(225deg);
 }
-/* a desktop card moved clear of the answer (over its first row or beside the column) is not
-   next to its term, so it has no pointer (Term.tsx clearPlace) */
-.term-tip.detached::before {
-  display: none;
-}
 /* the pinned card's close button: 28 px to the finger, in the corner */
 .term-close {
   position: absolute;
@@ -1299,14 +1294,27 @@ li > .term-slot.after {
   margin: 6px 0;
   font-family: var(--font);
 }
+/* one quiet line: who wrote the words, then KataGo's numbers and their fold (Messages.tsx); a
+   block, so on a phone it wraps between words rather than between its two parts */
 .facts summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 15px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  line-height: 1.4;
+  display: block;
   list-style: none;
+}
+.facts summary .icon {
+  vertical-align: -2px;
+}
+.facts summary .words-by {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
+}
+.facts-name {
+  white-space: nowrap;
 }
 .facts ul {
   margin: 6px 0;
@@ -2209,9 +2217,9 @@ li > .term-slot.after {
 .step-btn:active:not(:disabled) {
   background: var(--press);
 }
+/* a step that cannot be taken: the faint ink, 3:1 or more on the card (a11y, 2026-11-11) */
 .step-btn:disabled {
-  color: var(--muted);
-  opacity: 0.6;
+  color: var(--faint);
 }
 /* The move slider: drag (or click anywhere on it) to go to any move; the count follows. */
 .bp-scrub {
@@ -3246,11 +3254,15 @@ li > .term-slot.after {
   .read-row .thoughts {
     margin-bottom: 0;
   }
+  /* 8 px or more of paper between the answer's last line and the quiet line under it */
   .facts {
-    margin: 2px 0 0;
+    margin: 6px 0 0;
   }
   .facts summary {
     min-height: 24px;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 2px 0;
   }
   .thoughts {
     border: 0;
@@ -3272,10 +3284,11 @@ li > .term-slot.after {
   .msg.kami .rich > p:last-child {
     margin-bottom: 2px;
   }
-  .words-by {
+  p.words-by {
+    display: block;
     font-size: 14px;
     line-height: 18px;
-    margin: 0;
+    margin: 6px 0 0;
   }
   /* a phone's floating term card (the note under the board; the chat's opens in the text): the
      screen's width less 8 px a side, so it is short (2 or 3 lines) */
@@ -3284,9 +3297,16 @@ li > .term-slot.after {
     width: calc(100vw - 16px);
     font-size: 15px;
   }
-  /* the step buttons and the graph buttons, a little tighter */
+  /* the step buttons and the graph buttons, a little tighter; a step button is 32 px to the eye
+     and 44 px tall to a finger (a11y, 2026-11-11) */
   .step-btn {
     height: 32px;
+    position: relative;
+  }
+  .step-btn::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
   }
   .bp-row {
     min-height: 34px;
@@ -3306,24 +3326,21 @@ li > .term-slot.after {
     text-align: left;
     white-space: nowrap;
   }
+  /* the players' row: one segmented set of short names, "Chance · Mistakes · Strength" */
   .bp-head .bp-tabs {
     flex: none;
     gap: 0;
-    padding: 0;
-    background: none;
+    padding: 2px;
+    margin-left: auto;
   }
   .bp-head .bp-tabs button {
-    width: 34px;
-    height: 30px;
-    padding: 0;
-    color: var(--ink-2);
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+    border-radius: 7px;
   }
-  .bp-head .bp-tabs button svg {
-    display: block;
-  }
-  .bp-head .bp-tabs button.on {
-    background: var(--hover);
-    box-shadow: none;
+  .bp-head .bp-tabs button:disabled {
+    color: var(--muted);
   }
   .menu-pop {
     min-width: 250px;

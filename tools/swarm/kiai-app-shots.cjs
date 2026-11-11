@@ -97,11 +97,16 @@ const rects = async (p) =>
       const prose = card.querySelector('.rich');
       const proseTop = prose ? Math.round(prose.getBoundingClientRect().top) : null;
       const rows = {};
+      const meta = {};
+      for (const s of ['.thoughts > summary', '.facts > summary', '.facts-head']) {
+        const e = card.querySelector(s);
+        if (e) meta[s] = getComputedStyle(e).fontSize + ' ' + getComputedStyle(e).color;
+      }
       for (const s of ['.who', '.read-row', '.rich', '.words-by', '.note', '.facts > summary']) {
         const e = card.querySelector(s);
         if (e) { const b = e.getBoundingClientRect(); rows[s] = [Math.round(b.top), Math.round(b.bottom)]; }
       }
-      return { top: Math.round(k.top), bottom: Math.round(k.bottom), h: Math.round(k.height), paneTop: Math.round(m.top), paneBottom: Math.round(m.bottom), whole: k.top >= m.top - 0.5 && k.bottom <= m.bottom + 0.5, proseTop, lastText: Math.round(last), gapToComposer: Math.round(c.top - last), rows };
+      return { top: Math.round(k.top), bottom: Math.round(k.bottom), h: Math.round(k.height), paneTop: Math.round(m.top), paneBottom: Math.round(m.bottom), whole: k.top >= m.top - 0.5 && k.bottom <= m.bottom + 0.5, proseTop, lastText: Math.round(last), gapToComposer: Math.round(c.top - last), rows, meta };
     });
     R.chipText = await page.evaluate(() => document.querySelector('.engine-slot')?.textContent || '');
     R.players = await page.evaluate(() => [...document.querySelectorAll('.pl-name')].map((e) => ({ t: e.textContent, clipped: e.scrollWidth > e.clientWidth })));

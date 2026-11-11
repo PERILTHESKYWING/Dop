@@ -518,15 +518,21 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {/* who wrote the words, in the read line's quiet style, never a vendor's name (writer.ts wordsLine) */}
-      {words && <p className="words-by">{words}</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
+      {/* who wrote the words, never a vendor's name (writer.ts wordsLine), and KataGo's numbers in
+          one quiet line, KataGo named once: "Written by Kiai, no language model · KataGo's numbers
+          (6)" (designer, generalist, artist, parent, 2026-11-11: two grey lines said it twice) */}
+      {words && !facts.length && <p className="words-by">{words}</p>}
       {facts.length > 0 && (
         <details className="facts" open={factsOpen}>
           <summary>
-            {/* the source, said where the figures are: these rows are KataGo's read as it came,
-                the text above is the wording (HN critic, 2026-11-05 and 11-06) */}
-            KataGo’s numbers ({facts.length})<span className="facts-src"> · straight from KataGo</span> <Icon name="down" size={14} />
+            {words && (
+              <>
+                <span className="words-by">{words}</span>
+                <span className="facts-sep"> · </span>
+              </>
+            )}
+            <span className="facts-name">KataGo’s numbers ({facts.length})</span> <Icon name="down" size={14} />
           </summary>
           <ul>
             {facts.map((f, i) =>
@@ -605,7 +611,7 @@ function ConceptAnswer({
         <section className="ans-section">
           <h4>In more depth</h4>
           <RichText text={a.expansion.text} msgId={msg.id} link={link} terms={plan[1]} />
-          <p className="words-by">Words: a language model, from the library entry</p>
+          <p className="words-by">Written by a language model from the library entry</p>
         </section>
       )}
       {a.expansion?.note && <p className="note">{a.expansion.note}</p>}

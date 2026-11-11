@@ -56,6 +56,14 @@ export const PROOF = `A long read: KataGo, ${n(PLAY.visits)} positions.${
   QUICK.at !== PICK ? ` The app’s quick read (${n(QUICK.visits)} positions) picks ${QUICK.at}; Read longer moves it to ${PICK}.` : ''
 }`;
 
+/**
+ * Who writes the app's words, under the hero's proof line (artist, HN, 2026-11-11). True by the
+ * code: the default level (Low) and every level but ultraGO and Local word the answer with Kiai's
+ * own engine text (levels.ts, writer.ts); a language model writes only when the reader picks one.
+ * The model is never named (XIAO's rule).
+ */
+export const WORDS = 'Kiai writes the words from KataGo’s numbers; a language model only if you turn one on.';
+
 /** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
 

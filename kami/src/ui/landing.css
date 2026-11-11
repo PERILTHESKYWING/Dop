@@ -996,3 +996,7 @@ html.kiai-landing {
   font-variant-numeric: lining-nums tabular-nums;
   text-wrap: pretty;
 }
+/* who writes the words, right under the proof */
+.l-words-by {
+  margin-top: 4px;
+}
