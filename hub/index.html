@@ -452,9 +452,8 @@ a.opt { color: inherit; text-decoration: none; }
 .thinking.late .wdot { border-color: var(--amber); background: none; }
 /* The verb breathes by opacity only, which the compositor runs without repainting the text each frame (perf,
    2026-11-11 r2: the old moving background-clip gradient repainted the line 60 times a second). */
-.thinking .verb { display: inline-block; font-weight: 500; color: var(--clay); animation: verb-pulse 1.1s ease-in-out infinite alternate; will-change: opacity; }
+.thinking .verb { display: inline-block; font-weight: 500; color: var(--clay); }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-@keyframes verb-pulse { from { opacity: 1; } to { opacity: .72; } }
 /* agents' thinking notes, folded like Claude's "Thought process" */
 .thought { border-left: 2px solid var(--line); padding: 0 0 0 12px; color: var(--soft); }
 .thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; min-height: 32px; }
