@@ -137,6 +137,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .screen canvas { display: block; width: 100%; height: 100%; }
 .badge { position: absolute; left: 10px; top: 10px; max-width: calc(100% - 20px); background: rgba(29, 27, 24, .78); color: #fff; font-size: 14px; padding: 4px 9px; border-radius: 99px; pointer-events: none; }
 .badge:empty { display: none; }
+/* On a phone the label sits under the picture, never on it. */
+@media (max-width: 700px) { .screen { aspect-ratio: auto; } .screen canvas { aspect-ratio: 16 / 9; height: auto; } .badge { position: static; display: block; max-width: none; background: none; color: var(--soft); padding: 6px 16px 0; border-radius: 0; font-size: 14px; } }
 .controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
 .controls .bar { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
 .controls input[type=range] { flex: 1; min-width: 100px; height: 44px; margin: 0; accent-color: var(--green); }
@@ -275,7 +277,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
             <p class="hint">This is the built-in demo, so there is nothing to send or rate here. With your own story:</p>
             <ol class="steps">
               <li><b>Describe the idea</b><span>One or two sentences under “New story”.</span></li>
-              <li><b>The team draws a sample</b><span>A short first cut, drawn in code, appears here by itself.</span></li>
+              <li><b>The team makes a sample</b><span>A short first cut, made with code, appears here by itself.</span></li>
               <li><b>Say what to change</b><span>Type feedback in your own words, or rate a version Good or Not yet.</span></li>
               <li><b>Approve the sample</b><span>The team keeps the characters and moves and makes the whole story.</span></li>
             </ol>
@@ -680,11 +682,11 @@ function setStatus() {
   // Said plainly: lines and shapes written as code by Claude, no image generator. A narrow screen gets the same words,
   // only shorter where they repeat (2026-11-10: artist asked for the whole badge on the phone).
   const narrow = matchMedia('(max-width: 700px)').matches;
-  $('badge').textContent = narrow ? (S.demo ? 'Demo · drawn in code by Claude, no image generator' : 'Drawn in code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
+  $('badge').textContent = narrow ? (S.demo ? 'Demo · made with code by Claude, no image generator' : 'Made with code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first version · made with code by Claude, no image generator' : 'Demo story · made with code by Claude, no image generator') : 'Made with code by your Claude team, no image generator';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, drawn in code by Claude with no image generator. Press “New story” and your Claude team writes your own and draws every frame the same way.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, made with code (shapes and paths) by Claude, no image generator. Press “New story” and your Claude team writes your own and makes every frame the same way.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
