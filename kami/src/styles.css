@@ -3326,7 +3326,7 @@ li > .term-slot.after {
     text-align: left;
     white-space: nowrap;
   }
-  /* the players' row: one segmented set of short names, "Chance · Mistakes · Strength" */
+  /* the players' row: one segmented set of names, "Chance · Mistakes · Strength" ("Win chance" does not fit beside the players at 390 px) */
   .bp-head .bp-tabs {
     flex: none;
     gap: 0;
@@ -3337,6 +3337,7 @@ li > .term-slot.after {
     height: 26px;
     padding: 0 6px;
     font-size: 12px;
+    color: var(--ink);
     border-radius: 7px;
   }
   .bp-head .bp-tabs button:disabled {
