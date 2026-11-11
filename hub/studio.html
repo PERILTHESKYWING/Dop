@@ -36,10 +36,10 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
-  --kaya: #ecddbe; --kaya-2: #d7b782; --kaya-ink: #2b1d0e; --kaya-line: #d3bc92; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --kaya: #e8ddc7; --kaya-2: #d3b88d; --kaya-ink: #2b1d0e; --kaya-line: #cfbd9c; --kaya-amber: #6e3c00; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
-  --me: #f1e4cb; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --me: #efe5d1; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
   font-family: var(--font);
 }
@@ -646,6 +646,14 @@ $('pick').onchange = async (e) => {
   S.id = v; S.demoPick = ''; ls.set('studio-id', S.id); buildSliders(); refresh(true);
 };
 
+// Polls every 3 s while the team works on a story, every 12 s when nothing is running, and at once when the tab
+// comes back into view (perf, 2026-11-11 r2: a 3 s poll ran all day on an idle story).
+let pollT = 0, pollMs = 0;
+function poll(ms) {
+  clearTimeout(pollT); pollMs = ms;
+  pollT = setTimeout(async () => { if (!document.hidden) await refresh().catch(() => {}); poll(S.waiting ? 3000 : 12000); }, ms);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && pollT) poll(0); });
 async function refresh(full = false) {
   if (!S.id) { S.demo = true; setStatus(); return; }
   const q = full || S.rev < 0 ? `&id=${S.id}` : `&id=${S.id}&since=${S.rev}&seen=${S.seen}`;
@@ -656,6 +664,7 @@ async function refresh(full = false) {
   S.seen = S.notes.length ? S.notes[S.notes.length - 1].at : 0;
   const lastFb = S.feedback.filter((f) => f.kind !== 'rate').slice(-1)[0];
   S.waiting = !g.project || (lastFb && lastFb.rev >= g.meta.rev);
+  if (S.waiting && pollT && pollMs > 3000) poll(3000);
   if (g.project && g.meta.rev !== prevRev) {
     const v = validateProject(g.project);
     S.demo = !v.ok;
@@ -1000,7 +1009,7 @@ async function start() {
     } else { await loadList(); await refresh(true); }
     loadRules();
   } catch (e) { $('statusText').textContent = e.message; }
-  setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+  poll(S.waiting ? 3000 : 12000);
   setInterval(() => { if (!document.hidden) loadList().catch(() => {}); }, 30000);
 }
 if (pw) start(); else showLogin();

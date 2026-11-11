@@ -35,11 +35,11 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
-  --kaya: #ecddbe; --kaya-2: #d7b782; --kaya-ink: #2b1d0e; --kaya-line: #d3bc92; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --kaya: #e8ddc7; --kaya-2: #d3b88d; --kaya-ink: #2b1d0e; --kaya-line: #cfbd9c; --kaya-amber: #6e3c00; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --nt: var(--stone); --on-nt: var(--on-stone); --nt-edge: var(--stone-edge); --nt-hi: color-mix(in srgb, var(--stone) 85%, var(--kaya));
-  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --amber-text: #8a4f00; --on-amber: #fff; --red: #b3352b;
-  --me: #f1e4cb; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --amber-text: #7a4500; --on-amber: #fff; --red: #b3352b;
+  --me: #efe5d1; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
   --clay: rgb(217, 119, 87); --clay-hi: rgb(245, 149, 117); --clay-eye: #1d1b18;
   font-family: var(--font);
@@ -173,14 +173,11 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
   :root .trow.t1 .ttl { font-size: 15px; font-weight: 500; }
   :root .trow.tn .ttl { font-size: 15px; }
   :root .trow.t1 .tstep { font-size: 15px; line-height: 20px; }
-  /* The rail keeps a working row to three lines: title (two at most), then the step on one line, cut with an
-     ellipsis; the whole step is its tooltip and shows on keyboard focus (2026-11-09: designer saw 4-line rows). */
-  :root .trow.t1 .tstep { -webkit-line-clamp: 1; }
 }
 :root .app > .side .st-working .stx, :root .app > .side .st-new .stx { color: var(--kaya-green); }
 :root .app > .side .st-stalled .stx { color: color-mix(in srgb, var(--red) 70%, var(--kaya-ink)); }
 :root .app > .side .trow.on .tsub .when, :root .app > .side .trow.on .st-done .stx, :root .app > .side .trow.on .lsub { color: var(--soft); }
-:root .app > .side .trow.on.st-waiting .stx, :root .app > .side .trow.on.st-queued .stx { color: var(--amber); }
+:root .app > .side .trow.on.st-waiting .stx, :root .app > .side .trow.on.st-queued .stx { color: var(--amber-text); }
 :root .app > .side .trow.on.st-working .stx, :root .app > .side .trow.on.st-new .stx { color: var(--green); }
 :root .app > .side .trow.on.st-stalled .stx { color: var(--red); }
 
@@ -349,7 +346,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .group { display: flex; gap: 6px; align-items: baseline; font-size: 14px; font-weight: 500; color: var(--soft); padding: 12px 10px 3px; text-transform: uppercase; letter-spacing: .05em; }
 .group i { font-style: normal; font-variant-numeric: tabular-nums; }
-.group.need { color: var(--amber); } .group.noconn { color: var(--amber-text); }
+.group.need { color: var(--amber-text); } .group.noconn { color: var(--amber-text); }
 :root .app > .side .group.noconn, :root .app > .side .trow .when.nc { color: var(--kaya-amber); }
 :root .app > .side .trow.on .when.nc { color: var(--amber-text); }
 .trow { text-align: left; border: 0; background: none; border-radius: 6px; padding: 9px 10px; display: grid; gap: 4px; width: 100%; }
@@ -385,15 +382,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .trow.t1 > .dot, .trow.t1 > .spin { justify-self: center; margin-top: 6px; }
 /* A working thread: the title (two lines at most), then its current step, one muted, cut-off line, with who and when at its end. */
 :root .trow.t1.has-step .ttl { -webkit-line-clamp: 2; }
-/* The step line runs the row's width under title and meta and wraps to a second line before it would be cut
-   (designer, HN, artist, r/baduk: "No step yet · heard 12 …" ended in an ellipsis). The desktop rail keeps it to one line (below). */
-.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
+/* The step line runs the row's width under title and meta on exactly one line, on every width, so a new step never
+   changes the row's height (perf, 2026-11-11 r2) and a working row stays at three lines at most (designer). fitSteps()
+   cuts it after a whole word with "…" (a CSS ellipsis cut "fake cloc…"; r/baduk, generalist, designer, a11y, Chinese
+   5d); the whole step is the row's tooltip, is read out from a hidden copy, and shows in full on keyboard focus. */
+.trow.t1 .tstep { grid-column: 2 / -1; min-width: 0; font-size: 14px; line-height: 20px; height: 20px; font-weight: 400; color: var(--soft); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.trow.t1:focus-visible .tstep { height: auto; white-space: normal; }
+.trow.t1:focus-visible .tstep .tsv { display: none; }
+.trow.t1:focus-visible .tstep .sr-only { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
 :root .app > .side .trow .tstep { color: color-mix(in srgb, var(--kaya-ink) 80%, var(--kaya)); }
 :root .app > .side .trow.on .tstep { color: var(--soft); }
 .tnone { padding: 14px 10px; color: var(--soft); font-size: 14px; }
 .stx { font-weight: 500; white-space: nowrap; }
 .st-working .stx, .st-new .stx { color: var(--green); }
-.st-waiting .stx { color: var(--amber); }
+.st-waiting .stx { color: var(--amber-text); }
 .st-queued .stx { color: var(--soft); }
 .st-stalled .stx { color: var(--red); }
 .st-done .stx { color: var(--soft); }
@@ -448,9 +450,11 @@ a.opt { color: inherit; text-decoration: none; }
 .thinking.idle .tstate { color: var(--soft); } .thinking.late .tstate { color: var(--amber-text); }
 .thinking.idle .wdot { border-color: var(--faint); background: none; }
 .thinking.late .wdot { border-color: var(--amber); background: none; }
-.thinking .verb { font-weight: 500; background: linear-gradient(90deg, var(--clay) 0 40%, var(--clay-hi) 50%, var(--clay) 60% 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+/* The verb breathes by opacity only, which the compositor runs without repainting the text each frame (perf,
+   2026-11-11 r2: the old moving background-clip gradient repainted the line 60 times a second). */
+.thinking .verb { display: inline-block; font-weight: 500; color: var(--clay); animation: verb-pulse 1.1s ease-in-out infinite alternate; will-change: opacity; }
 .thinking .tmeta { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes verb-pulse { from { opacity: 1; } to { opacity: .72; } }
 /* agents' thinking notes, folded like Claude's "Thought process" */
 .thought { border-left: 2px solid var(--line); padding: 0 0 0 12px; color: var(--soft); }
 .thought summary { cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: center; list-style: none; min-height: 32px; }
@@ -809,18 +813,21 @@ button.fchip:hover { border-color: var(--faint); }
 @media (hover: hover) { :root .asub .btn:hover { background: var(--sel); border-color: color-mix(in srgb, var(--ink) 35%, var(--line-2)); } }
 :root .asub .btn:focus-visible { outline: 2px solid var(--stone); outline-offset: 2px; }
 /* One usage line: 5-hour and weekly side by side. */
-.use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14.5px; }
-.u1 { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; min-width: 0; }
-.u1 .lbl { font-weight: 500; color: var(--soft); }
-.u1 b { font-weight: 500; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
-.u1 .track { display: block; height: 4px; }
+.use1 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 14.5px; }
+/* Label and percent on one line, the bar under them across the whole half (2026-11-11 r2, designer: beside "5 hours"
+   the bar shrank to ~35 px and the two bars started at different x). Every bar now starts at its half's left edge, the
+   same x on every card, and is the half's full width (about 130 px in the desktop rail, 160 px on a phone). */
+.u1 { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l p" "t t"; column-gap: 6px; row-gap: 2px; align-items: baseline; min-width: 0; }
+.u1 .lbl { grid-area: l; font-weight: 500; color: var(--soft); }
+.u1 b { grid-area: p; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+.u1 .track { grid-area: t; display: block; height: 4px; }
 /* "From Claude · 4m" under the bars: the reading's source and age, in the card's meta size. */
 .uasof { color: var(--soft); font-size: 14px; line-height: 18px; margin-top: -2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pop .ainfo { margin: 2px 10px 6px; font-size: 14px; color: var(--soft); }
 .aname { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .nmrow { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
 .conn { font-size: 14px; color: var(--soft); }
-.conn.no { color: var(--amber); }
+.conn.no { color: var(--amber-text); }
 .bubble.pending { opacity: .7; }
 .sending { font-size: 14px; font-weight: 500; margin-top: 6px; text-align: right; }
 .opt.danger b { color: var(--red); }
@@ -829,7 +836,7 @@ button.fchip:hover { border-color: var(--faint); }
 .btn.more { font-size: 18px; line-height: 1; padding: 3px 10px 7px; min-width: 28px; min-height: 26px; }
 .aname .nm { font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan { font-weight: 400; color: var(--soft); }
-.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
+.state.busy { color: var(--green); } .state.low { color: var(--red); } .state.fix { color: var(--amber-text); } .state.ready, .state.chat, .state.paused { color: var(--soft); }
 .acard .sub { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -2px; }
 .acard .sub.wrap { white-space: normal; } .acard .sub.fix { color: var(--red); }
 .use { display: grid; grid-template-columns: 58px 1fr 42px; gap: 2px 8px; align-items: center; font-size: 14px; }
@@ -1077,6 +1084,11 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
      Chat tab, so its tile goes and the first thread sits about 220 CSS px down. */
   .navrows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding-bottom: 2px; }
   .navrows .trow.tn { gap: 8px; padding-left: 10px; padding-right: 10px; }
+  /* Compact tiles (2026-11-11 r2, designer, parent: the 44 px tiles pushed the list down): drawn 34 px, centred,
+     15 px labels; the ::after keeps a 44 px tap area over the gaps above and below, so the first thread sits 10 px higher. */
+  :root .app > .side .navrows .trow.tn { position: relative; min-height: 34px; padding-top: 3px; padding-bottom: 3px; justify-content: center; }
+  :root .app > .side .navrows .trow.tn::after { content: ''; position: absolute; inset: -5px 0; }
+  :root .app > .side .navrows .trow.tn .ttl { flex: 0 1 auto; font-size: 15px; }
   :root .app > .side .navrows .trow.tn.lesn, :root .app > .side .navrows .trow.tn.studio-p { display: flex; }
   :root .app > .side .navrows .trow.tn.lesn[hidden] { display: none; }
   :root .app > .side .navrows .trow.tn .when { min-width: 22px; padding: 0 7px; border-radius: 11px; background: var(--kaya-line); color: var(--kaya-ink); font-size: 14px; line-height: 22px; text-align: center; }
@@ -1102,15 +1114,10 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   .tabs button:active { background: var(--sel); }
   .tabs button[aria-current="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--green); }
   .tabs .badge { background: var(--amber); color: #fff; border-radius: 9px; font-size: 14px; padding: 0 6px; }
-  /* Not connected: a hollow amber pill "1 offline" on the same line as the label and the solid Needs-you badge
-     (solid = needs you, hollow = not connected, as the sidebar's filled and hollow dots), so every tab is one
-     line at 390 px (designer, 2026-11-05: "1 not connected" wrapped to two; critics 2026-11-06: a ring and a bare
-     "1" read as a radio button). While it shows, the Threads column takes 1.6 shares so 12 + 12 still fit and
-     Chat and Team keep 108 px targets. The tab's aria-label says "N offline", the same word. */
+  /* One badge per tab (2026-11-11 r2, HN, pro teacher, designer, parent): the solid Needs-you count only. Offline
+     threads have their own amber OFFLINE group at the top of the list and say "N offline" in the tab's spoken name.
+     Three equal columns, so the current-tab rule is exactly one third wide and centred on its tab. */
   .tabs button { white-space: nowrap; }
-  .tabs:has(.nclab:not(.hidden)) { grid-template-columns: minmax(0, 1.6fr) 1fr 1fr; }
-  .tabs .nclab { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 11px; box-shadow: inset 0 0 0 1.5px var(--amber); font-size: 14px; font-weight: 600; color: var(--amber-text); font-variant-numeric: tabular-nums; }
-  .tabs .nclab.hidden { display: none; }
 }
 /* press: instant on touch-down, eases back on release */
 .btn:active, .chip:active, .attach:active, .tcard:active, .cp:active, .pbtn:active, .ask-o:active, .ask-go:active, .tk:active, .opt:active, .trow:active, .seg button:active, .walls button:active, .tabs button:active, .fchip .x:active, .sw-del:active, .sw-x:active { transform: translateY(1px); transition-duration: 0s; }
@@ -1162,7 +1169,7 @@ ol.steps li > .copyline, ol.steps li > .acts, ol.steps li > div { margin-top: 8p
   </main>
   <aside class="col team" id="team"></aside>
   <nav class="tabs" id="tabs" aria-label="Sections">
-    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span><span class="nclab hidden" id="ncRing"></span></button>
+    <button type="button" data-tab="threads">Threads <span class="badge hidden" id="needBadge"></span></button>
     <button type="button" data-tab="chat">Chat</button>
     <button type="button" data-tab="team">Team</button>
   </nav>
@@ -1438,8 +1445,8 @@ function thinkingLine(who, since, key, state = 'working', step = '', tail = '', 
   if (lively()) return `<div class="thinking lively">${clawd('s anim busy')}<span class="spin" data-spin>${SPIN_LOOP[spinI]}</span><span class="verb" data-verb="${verbSeed(key)}">${esc(verbAt(verbSeed(key)))}…</span><span class="tmeta">(${clockHtml} · ${esc(who)}${step ? ' · ' + esc(step) : ''}${tail})</span></div>`;
   // starting: a grey ring; offline: amber. Green stays "working" only.
   const cls = state === 'starting' ? ' idle' : state === 'offline' ? ' late' : '';
-  // "working for 9m": a duration says what it counts, so it never reads as an age next to a sub-agent's
-  // "running for 4m" or a row's "1m" (2026-11-11, generalist: "10m" on the thread beside "5m" on its agent).
+  // "Main working for 9m": a duration says whose it is, so it never reads as an age next to the Agents card's
+  // "sub-agent working for 4m" (one verb, two subjects) or a row's "1m" (2026-11-11, generalist, Chinese 5d).
   return `<div class="thinking${cls}"><span class="wdot" aria-hidden="true"></span><b>${esc(who)}</b><span class="tmeta"><span class="tstate">${state}</span>${state === 'starting' ? ' · ' : ' for '}${clockHtml}${step ? ' · ' + esc(step) : ''}${tail}</span></div>`;
 }
 // The step of a sub-agent this account is running for this thread, if it reported one.
@@ -1690,8 +1697,28 @@ function threadRow(t) {
   const tm = meta ? `<span class="tm">${meta}</span>` : '';
   // The last short word keeps the one before it, so a wrapped title never ends on a lone "25" or "icons".
   const ttl = esc(nb(t.title).replace(/ (\S{1,10})$/, '\u00a0$1')).replace(/_/g, '_<wbr>');
-  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${ttl}</span>${tm}${line ? `<span class="tstep${step ? '' : ' none'}"${step ? ` title="${esc(step)}"` : ''}>${line}</span>` : ''}</button>`;
+  return `<button class="trow t1 st-${t.status}${ss === 'starting' || ss === 'noconn' ? ' ss-' + ss : ''}${line ? ' has-step' : ''}" data-thread="${t.id}" title="#${t.id} ${esc(t.title)} · ${esc(st)}${step ? ' · ' + esc(step) : ''}"><span class="dot" aria-hidden="true"></span><span class="ttl">${ttl}</span>${tm}${line ? `<span class="tstep${step ? '' : ' none'}">${step ? `<span class="sr-only">${line}</span><span class="tsv" aria-hidden="true">${line}</span>` : line}</span>` : ''}</button>`;
 }
+// One-line step lines cut after a whole word: the longest run of words that fits, then "…". Only rows whose text
+// or width changed are measured (a poll that changes nothing measures nothing); a hidden list (phone Chat tab) waits.
+function fitSteps() {
+  const box = $('threads');
+  if (!box.clientWidth) return;
+  for (const el of box.querySelectorAll('.tstep .tsv')) {
+    const line = el.parentElement, w = line.clientWidth;
+    if (el.__w === w) continue;
+    const full = el.__full ??= el.textContent;
+    el.textContent = full; el.__w = w;
+    if (line.scrollWidth <= w) continue;
+    const words = full.split(' ');
+    let lo = 1, hi = words.length - 1;
+    const fits = (n) => { el.textContent = words.slice(0, n).join(' ').replace(/[\s,;:·–-]+$/, '') + '…'; return line.scrollWidth <= w; };
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (fits(mid)) lo = mid; else hi = mid - 1; }
+    fits(lo);
+  }
+}
+addEventListener('resize', () => requestAnimationFrame(fitSteps), { passive: true });
+document.fonts?.ready.then(() => { for (const el of $('threads').querySelectorAll('.tstep .tsv')) el.__w = 0; fitSteps(); });
 // Quick filter: by title or #number. Shown once the list is long enough to need it.
 const FIND_AT = 8;
 $('tFind').addEventListener('input', () => renderSide());
@@ -1733,6 +1760,7 @@ function renderSide() {
     + (archived.length ? `<button type="button" class="group arch" data-archived>${icon(showArchived ? 'chevron-down' : 'chevron-right', 14)} Archived <i>${archived.length}</i></button>${showArchived ? archived.map(threadRow).join('') : ''}` : '');
   // The open thread is marked on the built rows, so switching threads rebuilds none of them (64 two-line rows cost ~30 ms at 4x CPU).
   setHtml($('threads'), html);
+  fitSteps();
   // Project chat, Library, Lessons and Studio are one fixed group above Filter (desktop list, phone tiles); their
   // tooltips follow the newest prompt and lesson.
   lesN();
@@ -1745,8 +1773,7 @@ function renderSide() {
   if (cur && !cur.classList.contains('on')) { cur.classList.add('on'); cur.setAttribute('aria-current', 'true'); if (box.contains(cur)) rowWhole(box, cur); }
   const need = S.threads.filter((t) => !t.archived && t.status === 'waiting').length;
   $('needBadge').textContent = need; $('needBadge').classList.toggle('hidden', !need);
-  const nc = S.threads.filter(isNoconn).length, ring = $('ncRing');
-  ring.classList.toggle('hidden', !nc); ring.textContent = nc ? `${nc} offline` : '';
+  const nc = S.threads.filter(isNoconn).length;
   // One spoken name for the tab: what the count badge and the amber line mean.
   const tabT = document.querySelector('#tabs [data-tab="threads"]');
   const tabName = ['Threads', need && `${need} need${need === 1 ? 's' : ''} you`, nc && `${nc} offline`].filter(Boolean).join(', ');
@@ -2704,7 +2731,7 @@ function agentRow(g) {
   const cls = stale ? 'stale' : g.status;
   const th = g.thread ? S.threads.find((x) => x.id === g.thread) : null;
   const here = th && th.id === sel && $('app').dataset.tab === 'chat' && g.status === 'running' && !stale;
-  const when = stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'running for ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done';
+  const when = stale ? 'quiet ' + esc(ago(t - g.at)) : g.status === 'running' ? 'sub-agent working for ' + agoEl(g.started) : g.status === 'failed' ? 'failed' : 'done';
   const sub = [g.note && esc(g.note), here ? 'this thread' : th && `#${th.id} ${esc(nb(th.title))}`, when].filter(Boolean).join(' · ');
   return `<div class="ag ${cls}"><div class="ag-top"><span class="dot" aria-hidden="true"></span><span class="ttl">${esc(runLabel(g))}</span></div><div class="ag-step">${sub}</div>${g.pct != null ? `<div class="track"><div class="fill" style="width:${g.pct}%"></div></div>` : ''}</div>`;
 }
@@ -2779,6 +2806,7 @@ function setTab(tab, drawn = false) {
   if (tab === 'chat' && was !== 'chat' && !drawn) toBottom();
   // The Team panel says "this thread" only while that thread is on screen.
   if (was !== tab && !drawn) renderTeam();
+  if (tab === 'threads') fitSteps();
 }
 const toBottom = () => feedToBottom($('feed'));
 function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); toBottom(); }
