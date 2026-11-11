@@ -12,8 +12,8 @@ import { cutAbove, cutBelow } from '../lib/cutLine';
 import { useSetting } from '../lib/settings';
 import { firstTerms, splitRich, type RichPart } from '../lib/terms';
 import { levelOfMessage, longerLevel } from '../lib/levels';
-import { NOTES } from '../lib/writer';
-import { markFacts } from '../lib/markFacts';
+import { NOTES, wordsLine } from '../lib/writer';
+import { markFacts, quietWinChances } from '../lib/markFacts';
 import { pickMoveLine } from '../lib/longerRead';
 import { LevelName, UltraGo } from './UltraGo';
 import type { Preview } from './BoardPanel';
@@ -471,9 +471,13 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
   // every marked move has its row, so each mark on the board can be checked (critics, 2026-11-04)
   const bestCount = useSetting<number>('board.bestCount');
   const listed = ex.facts.filter((f) => !f.quiet);
-  const facts = [...listed, ...markFacts(ex, listed, bestCount).map((text, i) => ({ id: `mark${i}`, text }))];
   // a row about another move for the side to play, against KataGo's choice
   const alt = (t: string) => /^[A-HJ-T]\d{1,2} is (about as good as|[\d.]+ points? (worse than|ahead of)) /.test(t);
+  const rows = [...listed, ...markFacts(ex, listed, bestCount).map((text, i) => ({ id: `mark${i}`, text }))];
+  // the win chance once, on the pick's row, when the other moves' only repeat it (markFacts.ts)
+  const quiet = quietWinChances(rows.map((f) => f.text), alt);
+  const facts = quiet ? rows.map((f, i) => ({ ...f, text: quiet.rows[i] })) : rows;
+  const words = wordsLine(w);
   // Each Go term is underlined once: where it first appears in the answer, then in the facts.
   const plan = firstTerms(w.text ? [w.text] : [ex.summary, ...sections.map((s) => s.text)]);
   const factPlan = firstTerms(facts.map((f) => f.text));
@@ -514,7 +518,8 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
         </>
       )}
       {w.note && <p className="note">{w.note}</p>}
-      {w.text && <p className="note">{w.by === 'local' ? 'Worded by Kiai’s local model' : 'Worded by ultraGO'}, checked against KataGo’s facts.</p>}
+      {/* who wrote the words, in the read line's quiet style, never a vendor's name (writer.ts wordsLine) */}
+      {words && <p className="words-by">{words}</p>}
       <ConceptTags hits={ex.concepts} ex={ex} msgId={msg.id} link={link} />
       {facts.length > 0 && (
         <details className="facts" open={factsOpen}>
@@ -536,7 +541,10 @@ function ExplainAnswer({ a, msg, link, onReadLonger }: { a: Extract<Answer, { ty
               reply in KataGo's line ("the cut at R10") never reads as having two owners */}
           {facts.some((f) => alt(f.text)) && (
             <>
-              <p className="facts-head">Other moves for {colorName(ex.position.toPlay)}</p>
+              <p className="facts-head">
+                Other moves for {colorName(ex.position.toPlay)}
+                {quiet && <span className="facts-src"> · each about the same win chance as {quiet.pick}</span>}
+              </p>
               <ul>
                 {facts.map((f, i) =>
                   alt(f.text) ? (
@@ -597,7 +605,7 @@ function ConceptAnswer({
         <section className="ans-section">
           <h4>In more depth</h4>
           <RichText text={a.expansion.text} msgId={msg.id} link={link} terms={plan[1]} />
-          <p className="note">Worded by ultraGO from the library entry.</p>
+          <p className="words-by">Words: a language model, from the library entry</p>
         </section>
       )}
       {a.expansion?.note && <p className="note">{a.expansion.note}</p>}
