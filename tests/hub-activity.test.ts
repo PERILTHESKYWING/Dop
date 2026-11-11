@@ -66,11 +66,11 @@ describe('hub thread list step line', () => {
     `${code}${rowCode}return { rowStep };`)(S, () => '', { mode: 'fold', hide: [] }, () => true, { working: 'Working' },
     new Map([[3, msgs.filter(isPost).at(-1)]])) as { rowStep: (t: object) => string };
   const working = { id: 3, account: 'Main', status: 'working', lastFireAt: T0, lastAgentAt: T0 + 1 };
-  it('shows the running sub-agent step, else the handover next step, and nothing for a bare update', () => {
+  it('shows the running sub-agent step, else the handover next step, else the latest update', () => {
     expect(rows({ agents: [bench] }).rowStep(working)).toBe('Benchmark · Run 4 of 5');
     expect(rows({ agents: [{ ...bench, title: 'Run throttled benchmark x5' }] }).rowStep(working)).toBe('Run throttled benchmark ×5 · 4 of 5');
     expect(rows({ agents: [] }).rowStep({ ...working, checkpoint: { at: T0 + 120e3, next: 'Benchmark 5 runs.' } })).toBe('Next: Benchmark 5 runs.');
-    expect(rows({ agents: [] }).rowStep(working)).toBe('');
+    expect(rows({ agents: [] }).rowStep(working)).toBe('Latest: Splitting the three.js chunk now.');
   });
   it('shows nothing for a thread that is done or offline', () => {
     expect(rows({ agents: [bench] }).rowStep({ ...working, status: 'done' })).toBe('');

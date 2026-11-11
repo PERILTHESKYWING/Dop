@@ -157,7 +157,7 @@ export function webTools(f = fetch, hub = null) {
           else {
             const name = `images/${hub.now()}.${mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1].replace(/[^a-z0-9]/g, '') || 'img'}`;
             await saveImage(hub, a.name, name, buf, mimeType);
-            await hub.post({ thread: Number(x.thread), from: a.name, kind: 'progress', text: `Image: ${String(x.prompt).slice(0, 200)}`, meta: { image: { account: a.name, name } } });
+            await hub.post({ thread: Number(x.thread), from: a.name, kind: 'progress', text: `Image: ${String(x.prompt).slice(0, 200)}`, meta: { image: { account: a.name, name, w: dim(x.width), h: dim(x.height) } } });
           }
         }
         return { content: [{ type: 'image', data: buf.toString('base64'), mimeType }, { type: 'text', text: `Image for: ${x.prompt}${note}` }] };
