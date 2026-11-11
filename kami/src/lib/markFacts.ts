@@ -40,3 +40,36 @@ export function markFacts(ex: Pick<Explanation, 'root' | 'position'>, facts: rea
   }
   return out;
 }
+
+/** "Black's win chance 1%" in a row of KataGo's numbers: the side and the figure as printed. */
+const WIN = /(?:Black|White)['’]s win chance ([<>]?)(\d+)%/;
+const winOf = (t: string): number | null => {
+  const m = WIN.exec(t);
+  return m ? Number(m[2]) + (m[1] === '<' ? -0.5 : m[1] === '>' ? 0.5 : 0) : null;
+};
+
+/**
+ * The other-move rows of "KataGo's numbers" without a win chance that only repeats the pick's
+ * (r/baduk 3 dan, 2026-11-10: "Black's win chance <1%" on every row of a one-sided game). The
+ * win chance is shown once, on the pick's row, and the rows keep their points; when any other
+ * move's win chance is more than a point (1%) from the pick's, every row keeps its own, since
+ * it then says something. Nothing is recomputed: the rows lose only a repeated figure.
+ * `alt` tells an other-move row; returns the rows and the pick (for the heading), or null when
+ * nothing was taken out.
+ */
+export function quietWinChances(rows: readonly string[], alt: (t: string) => boolean): { rows: string[]; pick: string } | null {
+  const pickRow = rows.find((t) => !alt(t) && winOf(t) !== null);
+  const alts = rows.filter(alt);
+  const pickWin = pickRow ? winOf(pickRow) : null;
+  const withWin = alts.filter((t) => winOf(t) !== null);
+  if (pickWin === null || !withWin.length || withWin.some((t) => Math.abs(winOf(t)! - pickWin) > 1)) return null;
+  const pick = /(?:than|as good as|ahead of) ([A-HJ-T]\d{1,2})\b/.exec(alts[0])?.[1];
+  if (!pick) return null;
+  const strip = (t: string) =>
+    alt(t)
+      ? t
+          .replace(/ \((?:Black|White)['’]s win chance [<>]?\d+%\)/, '')
+          .replace(/; (?:Black|White)['’]s win chance [<>]?\d+%\)/, ')')
+      : t;
+  return { rows: rows.map(strip), pick };
+}

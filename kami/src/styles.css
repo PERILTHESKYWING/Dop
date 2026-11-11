@@ -1079,6 +1079,11 @@ kbd {
   bottom: -6px;
   transform: rotate(225deg);
 }
+/* a desktop card moved clear of the answer (over its first row or beside the column) is not
+   next to its term, so it has no pointer (Term.tsx clearPlace) */
+.term-tip.detached::before {
+  display: none;
+}
 /* the pinned card's close button: 28 px to the finger, in the corner */
 .term-close {
   position: absolute;
@@ -1341,6 +1346,15 @@ li > .term-slot.after {
 .facts-head {
   margin: 10px 0 0;
   font-size: 15px;
+  color: var(--muted);
+}
+/* "Words: Kiai, from KataGo's numbers, no language model": who wrote the answer's words, in the
+   read line's quiet style (Messages.tsx, writer.ts wordsLine) */
+.words-by {
+  margin: 0 0 6px;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.4;
   color: var(--muted);
 }
 .concept h3 {
@@ -3027,20 +3041,21 @@ li > .term-slot.after {
   .conv-tools {
     display: flex;
   }
-  /* 8 px less than 58% of the screen, taken from the padding under the step card and inside it,
-     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
+  /* 44 px less than 58% of the screen: 8 px taken from the padding under the step card and inside
+     it, and 36 px from the step card's second row (its count and graph buttons moved, see .bp-nav
+     .bp-count), so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
      svh, the screen with the browser's bars shown: the board keeps one size while a phone's
      address bar slides away and back (dvh resized the board on every scroll); the chat under it
      takes the extra room. vh for a browser without svh (Splitter.tsx writes the same unit). */
   .board-panel {
     width: auto;
-    height: var(--board-h, calc(58vh - 8px));
+    height: var(--board-h, calc(58vh - 44px));
     padding: 2px 10px 4px;
     gap: 4px;
   }
   @supports (height: 1svh) {
     .board-panel {
-      height: var(--board-h, calc(58svh - 8px));
+      height: var(--board-h, calc(58svh - 44px));
     }
   }
   .bp-foot {
@@ -3199,7 +3214,7 @@ li > .term-slot.after {
   }
   /* the answer's first lines come right under its name: the read count is a plain line */
   .who {
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
   /* The whole answer fits the pane under the board (critics, 2026-11-04: it scrolled). The copy and
      redo buttons sit at the right end of Kiai's name row instead of a row of their own; the
@@ -3208,9 +3223,10 @@ li > .term-slot.after {
   .msg {
     margin-bottom: 18px;
   }
-  /* the last message ends 10 px over the pane's foot (the composer's own 8 px gap follows) */
+  /* the last message ends 5 px over the pane's foot and the composer's own 8 px gap follows, so the
+     answer's last line has about 14 px of clear paper above the box (critics, 2026-11-10: 12-24) */
   .msg:has(+ .msgs-tail) {
-    margin-bottom: 10px;
+    margin-bottom: 5px;
   }
   .msg.user:not(.editing) {
     flex-direction: row-reverse;
@@ -3231,7 +3247,7 @@ li > .term-slot.after {
     margin-bottom: 0;
   }
   .facts {
-    margin: 4px 0 0;
+    margin: 2px 0 0;
   }
   .facts summary {
     min-height: 24px;
@@ -3254,7 +3270,12 @@ li > .term-slot.after {
     line-height: 1.5;
   }
   .msg.kami .rich > p:last-child {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+  }
+  .words-by {
+    font-size: 14px;
+    line-height: 18px;
+    margin: 0;
   }
   /* a phone's floating term card (the note under the board; the chat's opens in the text): the
      screen's width less 8 px a side, so it is short (2 or 3 lines) */
@@ -3275,6 +3296,34 @@ li > .term-slot.after {
   }
   .bp-tabs button {
     height: 30px;
+  }
+  /* The step card is one row: the move count, then first, back, the slider, forward, last. The
+     graph buttons sit in the players' row as plain icons beside the gear (BoardPanel), so the
+     answer under the board starts a row higher (critics, 2026-11-10). */
+  .bp-nav .bp-count {
+    min-width: 0;
+    padding: 0 4px 0 6px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .bp-head .bp-tabs {
+    flex: none;
+    gap: 0;
+    padding: 0;
+    background: none;
+  }
+  .bp-head .bp-tabs button {
+    width: 34px;
+    height: 30px;
+    padding: 0;
+    color: var(--ink-2);
+  }
+  .bp-head .bp-tabs button svg {
+    display: block;
+  }
+  .bp-head .bp-tabs button.on {
+    background: var(--hover);
+    box-shadow: none;
   }
   .menu-pop {
     min-width: 250px;
