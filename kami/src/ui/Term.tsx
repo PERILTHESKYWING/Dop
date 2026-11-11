@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
-import { inlineArrow, placeClear, placeTip, revealBy, revealTarget, snapTop, type Box } from '../lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, snapTop, type Box } from '../lib/tipPlace';
 
 /** A Chinese term and its pinyin, one unit that never breaks between them ("碰 pèng"). */
 function ZhName({ zh, py }: { zh: string; py: string }) {
@@ -154,21 +154,25 @@ function messageLines(msg: Element): Box[] {
 }
 
 /**
- * A desktop's clear place for a floating card of a term in a chat answer (tipPlace placeClear):
- * the answer's text lines (widened to its column), read row, notes and KataGo's numbers stay
- * uncovered (its name row "Kiai · Reading: Low" may be),
- * and the card stays in the chat pane. Null on a phone, outside the chat, or with no clear place.
+ * What a desktop's floating card for a term in a chat answer should leave uncovered, weighted
+ * for placeTip: the answer's lines (1 each), its read row, KataGo's numbers, the question bubbles
+ * and the copy and redo buttons (3 each). The card stays next to its word, under or over its
+ * line, on the side that covers less (artist, designer, generalist, 2026-11-11). Empty on a phone.
  */
-function clearPlace(term: HTMLElement, line: Box, w: number, h: number) {
-  if (narrow()) return null;
+function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
+  if (narrow()) return [];
   const pane = term.closest('.messages');
   const msg = term.closest('.msg.kami');
-  if (!pane || !msg) return null;
-  const col = msg.getBoundingClientRect();
-  const rows = [...msg.querySelectorAll('.read-row, .read-moved, .note, .words-by, .facts, .diagram, figure')].map((e) => e.getBoundingClientRect() as Box);
-  const lines = messageLines(msg).map((r) => ({ left: col.left, right: col.right, top: r.top, bottom: r.bottom }));
-  const cover = [...rows, ...lines].filter((b) => b.bottom > b.top);
-  return placeClear(line, w, h, pane.getBoundingClientRect(), cover, { left: col.left, right: col.right });
+  if (!pane || !msg) return [];
+  const heavy = [...msg.querySelectorAll('.read-row, .read-moved, .msg-tools'), ...pane.querySelectorAll('.msg.user .bubble')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 3 }));
+  // one box a line (a line's words, coordinates and terms come as many rects)
+  const lines = new Map<number, Box>();
+  for (const r of messageLines(msg)) {
+    const k = Math.round((r.top + r.bottom) / 2 / 4);
+    const b = lines.get(k);
+    lines.set(k, b ? { left: Math.min(b.left, r.left), right: Math.max(b.right, r.right), top: Math.min(b.top, r.top), bottom: Math.max(b.bottom, r.bottom) } : { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  }
+  return [...heavy, ...lines.values()];
 }
 
 /**
@@ -185,10 +189,8 @@ function clearPlace(term: HTMLElement, line: Box, w: number, h: number) {
  * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
  *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
  *   phone's board note prefers over, so the answer stays clear); never half over a button,
- *   inside the window, and the chat never scrolls. A desktop's card for a term in a chat answer
- *   first looks for a place that covers no line of that answer, its read row or KataGo's numbers
- *   (clearPlace: under or over the line, beside the column, else over the answer's name row or
- *   under its end, wider if that makes it fit) and uses the rule above only when there is none.
+ *   inside the window, and the chat never scrolls. A desktop's card in a chat answer weighs the
+ *   answer's lines, its read row, the question and the copy and redo buttons too (chatKeep).
  * A pinned card is a labelled group, and a keyboard pin moves focus to its ×.
  */
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
@@ -196,7 +198,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
   const [hover, setHover] = useState(false);
   /** Shown by keyboard focus: the card shows × too, and Escape closes it (critics r2, 2026-11-09). */
   const [keyed, setKeyed] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number; attached: boolean } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; below: boolean; arrow: number } | null>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
   const tip = useRef<HTMLDivElement>(null);
@@ -295,7 +297,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     };
   }, [slot]);
 
-  // ...and once, as it opens: the card and the line after it in view (at most up to the term)
+  // ...and once, as it opens: the card in view (at most up to the term)
   useLayoutEffect(() => {
     const el = ref.current;
     const t = tip.current;
@@ -303,9 +305,10 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     if (!slot || !el || !t || !pane) return;
     const p = pane.getBoundingClientRect();
     const c = t.getBoundingClientRect();
-    const msg = el.closest('.msg');
-    const toggle = msg?.querySelector('.facts > summary')?.getBoundingClientRect() ?? null;
-    const target = revealTarget(c.bottom, msg ? messageLines(msg) : [], p.bottom, toggle && toggle.height ? toggle : null);
+    // only the card itself: the tapped line stays where it was when the card fits above the pane's
+    // foot, and the chat scrolls just enough when it would go under the composer (perf critic,
+    // 2026-11-11: it scrolled 67 px to show the line after the card too)
+    const target = c.bottom;
     const termTop = el.getClientRects()[0]?.top ?? el.getBoundingClientRect().top;
     // ...with the pane's top edge between rows, never through the header, a chip or a line
     const rows: Box[] = [...pane.querySelectorAll('.msg.user, .msg.kami > .who, .read-row, .msg-tools, .tags, .facts > summary, .rich .pt, .rich .chip')].map((x) => x.getBoundingClientRect() as Box);
@@ -325,10 +328,8 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       const r = ref.current?.getBoundingClientRect();
       const t = tip.current;
       if (!r || !t) return;
-      // measured at the card's own width first (a wider card from the last placement is undone)
-      t.style.maxWidth = '';
-      let w = t.offsetWidth;
-      let h = t.offsetHeight;
+      const w = t.offsetWidth;
+      const h = t.offsetHeight;
       // the term's own line (a wrapped term: the line tapped or the first)
       const lines = [...(ref.current?.getClientRects() ?? [])];
       const line = lines[0] ?? r;
@@ -336,26 +337,14 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       // KataGo's numbers stay readable and the chat's buttons ("Read longer") stay clear: the
       // card takes the side of the line that covers less of them (a button counts double)
       const keep = [
-        ...[...document.querySelectorAll<HTMLElement>('.messages .facts')].map((b) => b.getBoundingClientRect()),
+        ...[...document.querySelectorAll<HTMLElement>('.messages .facts')].map((b) => Object.assign(b.getBoundingClientRect().toJSON() as Box, { weight: 3 })),
+        ...chatKeep(ref.current!),
         ...[...document.querySelectorAll<HTMLElement>('.messages button:not(.pt):not(.chip):not(.tag)')].filter((b) => !t.contains(b)).map((b) => Object.assign(b.getBoundingClientRect().toJSON() as Box, { weight: 2 })),
       ].filter((b) => b.right > b.left && b.bottom > b.top);
-      // A desktop's card for a term in the chat covers none of its answer: no line of the text,
-      // the read row or KataGo's numbers (Chinese 5d, 2026-11-10), else it falls back to the rule above
-      let clear = clearPlace(ref.current!, line, w, h);
-      // no clear place at its width: the card as wide as the answer's column is shorter, so it
-      // fits over the answer's first row more often (a keyboard card with its × is taller)
-      const col = clear || narrow() ? null : ref.current!.closest('.msg.kami')?.getBoundingClientRect();
-      if (col && col.width > w + 40) {
-        t.style.maxWidth = `${Math.round(col.width)}px`;
-        clear = clearPlace(ref.current!, line, t.offsetWidth, t.offsetHeight);
-        if (clear) (w = t.offsetWidth), (h = t.offsetHeight);
-        else t.style.maxWidth = '';
-      }
-      const { left, top, below } = clear ?? placeTip(line, w, h, window.innerWidth, window.innerHeight, avoid, prefer, keep);
-      const attached = clear ? clear.attached : true;
+      const { left, top, below } = placeTip(line, w, h, window.innerWidth, window.innerHeight, avoid, prefer, keep);
       // the pointer under (or over) the term's middle, kept inside the card's rounded corners
       const arrow = inlineArrow(line.left, line.right, left, w);
-      setPos((p) => (p && p.left === left && p.top === top && p.below === below && p.arrow === arrow && p.attached === attached ? p : { left, top, below, arrow, attached }));
+      setPos((p) => (p && p.left === left && p.top === top && p.below === below && p.arrow === arrow ? p : { left, top, below, arrow }));
     };
     place();
     // at most one placement per frame while scrolling (it measures the page's buttons)
@@ -412,7 +401,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       // a pinned card (with its ×) is a labelled group; a hover or focus card is a tooltip, no controls
       role={withX ? 'group' : 'tooltip'}
       aria-labelledby={withX ? titleId : undefined}
-      className={`term-tip${inline ? ' inline' : ''}${withX ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}${!inline && pos && !pos.attached ? ' detached' : ''}`}
+      className={`term-tip${inline ? ' inline' : ''}${withX ? ' pinned' : ''}${!inline && pos && !pos.below ? ' above' : ''}`}
       style={inline ? undefined : pos ? ({ left: pos.left, top: pos.top, '--arrow': `${pos.arrow}px` } as React.CSSProperties) : { left: 0, top: 0, visibility: 'hidden' }}
     >
       {withX && (

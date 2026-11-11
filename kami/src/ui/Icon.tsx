@@ -48,7 +48,9 @@ const PATHS: Record<string, string> = {
   territory: 'M4.5 4.5h7v7h-7zM12.5 12.5h7v7h-7zM14.5 4.5h5v5M4.5 14.5v5h5',
   // Report tabs: a line through points, a warning mark, three bars on a base line.
   trend: 'M4 18.5l5-6 4 3.5 7-9M4 4v15.5h16.5',
-  blunder: 'M12 4.5l8.5 15h-17zM12 10v4M12 17h.01',
+  // a line that drops a step and comes back: a calm mark for the moves that cost (the alert
+  // triangle read as an app error, critics 2026-11-11)
+  blunder: 'M3.5 8.5h5l3.5 8 3-4.5h5.5',
   performance: 'M4 20h16M7 20v-6M12 20V7M17 20v-9',
   // Account menu
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0',

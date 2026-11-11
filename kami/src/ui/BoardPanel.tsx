@@ -127,9 +127,9 @@ const UNDER_DESKTOP = 46;
 const UNDER_PHONE = 40;
 
 const TABS = [
-  { id: 'trend', label: 'Win chance', icon: 'trend' },
-  { id: 'blunder', label: 'Mistakes', icon: 'blunder' },
-  { id: 'performance', label: 'Strength', icon: 'performance' },
+  { id: 'trend', label: 'Win chance', short: 'Chance', icon: 'trend' },
+  { id: 'blunder', label: 'Mistakes', short: 'Mistakes', icon: 'blunder' },
+  { id: 'performance', label: 'Strength', short: 'Strength', icon: 'performance' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 const SIZES = [19, 13, 9];
@@ -540,6 +540,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
       {n > 0 && <span className="of"> / {n}</span>}
     </span>
   );
+  // A phone names them in short words with no icons, one segmented set, there from the first
+  // paint (off until a game is loaded or while a line is shown), so the players' row never changes
+  // width (seven critics, 2026-11-11: three bare icons, the triangle read as an error)
+  const tabsOff = n === 0 || (phone && !!preview);
   const tabs = (
     <div className="bp-tabs" role="tablist" aria-label="Game graphs">
       {TABS.map((t) => (
@@ -549,12 +553,13 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           role="tab"
           aria-label={t.label}
           aria-selected={tab === t.id}
+          disabled={tabsOff}
           className={tab === t.id ? 'on' : ''}
           title={tab === t.id ? `Close ${t.label}` : t.label}
           onClick={() => setTab(tab === t.id ? null : t.id)}
         >
-          <Icon name={t.icon} size={phone ? 18 : 16} />
-          {!phone && <span>{t.label}</span>}
+          {!phone && <Icon name={t.icon} size={16} />}
+          <span>{phone ? t.short : t.label}</span>
         </button>
       ))}
     </div>
@@ -584,7 +589,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             </span>
           )}
         </span>
-        {phone && n > 0 && !preview && tabs}
+        {phone && tabs}
         {zoomable && (
           <button
             className={`icon-btn${crop ? ' on' : ''}`}
