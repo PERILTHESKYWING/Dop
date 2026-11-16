@@ -40,7 +40,19 @@ export function placeTip(r: Box, w: number, h: number, vw: number, vh: number, a
     if (pick === undefined || pick === top) break;
     top = pick;
   }
-  return { left, top, below };
+  // slide sideways off a control the card would cover (a button such as "Read longer", weight 2+),
+  // keeping the term under the card so its pointer still reaches it (six critics, 2026-11-16)
+  const mid = (r.left + r.right) / 2;
+  const hits = (l: number) => keep.filter((k) => (k.weight ?? 1) >= 2 && k.right > l && k.left < l + w && k.bottom > top && k.top < top + h);
+  let best = left;
+  if (hits(left).length) {
+    const tries = hits(left).flatMap((k) => [k.left - 6 - w, k.right + 6]);
+    for (const l of tries) {
+      if (l < 8 || l + w > vw - 8 || mid < l + 14 || mid > l + w - 14) continue;
+      if (hits(l).length < hits(best).length) best = l;
+    }
+  }
+  return { left: best, top, below };
 }
 
 /**
