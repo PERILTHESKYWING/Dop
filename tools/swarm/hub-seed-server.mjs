@@ -108,6 +108,25 @@ if (process.env.BIG === '1') {
   const n = Number(process.env.LONG) || 200;
   const lt = await hub.createThread({ title: `Long thread: ${n} messages`, brief: lorem, model: 'sonnet', account: 'Main' });
   const lw = await owner(lt, 'Main');
-  for (let j = 0; j < n; j++) await hub.agentPost(lw, { thread: lt.id, kind: j % 10 === 9 ? 'thinking' : 'progress', text: `${j + 1}. ${lorem}` });
+  // IMGS=k: every k-th message of the long thread is a 768x512 picture, as image_gen posts it (for prepend/layout-shift checks).
+  const every = Number(process.env.IMGS) || 0;
+  const pic = every ? await (async () => {
+    const { deflateSync, crc32 } = await import('node:zlib');
+    const W = 768, H = 512, raw = Buffer.alloc((W * 3 + 1) * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) raw.set(((x >> 5) + (y >> 5)) % 2 ? [220, 182, 118] : [43, 29, 14], y * (W * 3 + 1) + 1 + x * 3);
+    const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc32(td)); return Buffer.concat([len, td, c]); };
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr.set([8, 2, 0, 0, 0], 8);
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  })() : null;
+  const { saveImage } = await import(new URL('../../hub/lib/tools-files.js', import.meta.url));
+  for (let j = 0; j < n; j++) {
+    if (every && j % every === every - 1) {
+      const name = `images/seed-${j}.png`;
+      await saveImage(hub, 'Main', name, pic, 'image/png');
+      await hub.post({ thread: lt.id, from: 'Main', kind: 'progress', text: `${j + 1}. Image: the board after the split`, meta: { image: { account: 'Main', name, w: 768, h: 512 } } });
+      continue;
+    }
+    await hub.agentPost(lw, { thread: lt.id, kind: j % 10 === 9 ? 'thinking' : 'progress', text: `${j + 1}. ${lorem}` });
+  }
   console.log('BIG seeded', (await hub.threads()).length);
 }

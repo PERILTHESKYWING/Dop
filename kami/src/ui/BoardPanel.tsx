@@ -127,9 +127,9 @@ const UNDER_DESKTOP = 46;
 const UNDER_PHONE = 40;
 
 const TABS = [
-  { id: 'trend', label: 'Win chance', icon: 'trend' },
-  { id: 'blunder', label: 'Mistakes', icon: 'blunder' },
-  { id: 'performance', label: 'Strength', icon: 'performance' },
+  { id: 'trend', label: 'Win chance', short: 'Chance', icon: 'trend' },
+  { id: 'blunder', label: 'Mistakes', short: 'Mistakes', icon: 'blunder' },
+  { id: 'performance', label: 'Strength', short: 'Strength', icon: 'performance' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 const SIZES = [19, 13, 9];
@@ -529,6 +529,41 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
     </span>
   );
   const tabInfo = TABS.find((t) => t.id === tab);
+  // Where you are in the game. A phone puts it at the start of the step row and the graph buttons
+  // in the players' row (named only by their icons, labels for touch and screen readers), so the
+  // step card is one row and the answer under the board gets that row's height (designer, parent,
+  // r/baduk, artist, 2026-11-10: the answer started in the bottom third)
+  const count = (
+    <span className="bp-count">
+      <span className={phone ? 'sr-only' : 'mv'}>Move{phone ? ' ' : ''}</span>
+      {board.cursor}
+      {n > 0 && <span className="of"> / {n}</span>}
+    </span>
+  );
+  // A phone names them in short words with no icons, one segmented set, there from the first
+  // paint (off until a game is loaded or while a line is shown), so the players' row never changes
+  // width (seven critics, 2026-11-11: three bare icons, the triangle read as an error)
+  const tabsOff = n === 0 || (phone && !!preview);
+  const tabs = (
+    <div className="bp-tabs" role="tablist" aria-label="Game graphs">
+      {TABS.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-label={t.label}
+          aria-selected={tab === t.id}
+          disabled={tabsOff}
+          className={tab === t.id ? 'on' : ''}
+          title={tab === t.id ? `Close ${t.label}` : t.label}
+          onClick={() => setTab(tab === t.id ? null : t.id)}
+        >
+          {!phone && <Icon name={t.icon} size={16} />}
+          <span>{phone ? t.short : t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <section className={`board-panel${preview ? ' previewing' : ''}${panel ? ' with-graph' : ''}`} aria-label="Board">
@@ -554,6 +589,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
             </span>
           )}
         </span>
+        {phone && tabs}
         {zoomable && (
           <button
             className={`icon-btn${crop ? ' on' : ''}`}
@@ -826,6 +862,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
 
         <div className={`bp-foot${preview ? ' dim' : ''}`} inert={!!preview}>
           <div className="bp-nav" role="group" aria-label="Step through the game">
+            {phone && n > 0 && count}
             <button type="button" className="step-btn" aria-label="First move" title="First move (Home)" disabled={!board.cursor} onClick={() => go(0)}>
               <Icon name="first" size={20} />
             </button>
@@ -854,32 +891,12 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
               <Icon name="last" size={20} />
             </button>
           </div>
-          <div className="bp-row">
-            <span className="bp-count">
-              <span className="mv">Move</span>
-              {board.cursor}
-              {n > 0 && <span className="of"> / {n}</span>}
-            </span>
-            {n > 0 && (
-              <div className="bp-tabs" role="tablist" aria-label="Game graphs">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-label={t.label}
-                    aria-selected={tab === t.id}
-                    className={tab === t.id ? 'on' : ''}
-                    title={tab === t.id ? `Close ${t.label}` : t.label}
-                    onClick={() => setTab(tab === t.id ? null : t.id)}
-                  >
-                    <Icon name={t.icon} size={16} />
-                    <span>{t.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {!phone && (
+            <div className="bp-row">
+              {count}
+              {n > 0 && tabs}
+            </div>
+          )}
         </div>
 
       {paste !== null && (

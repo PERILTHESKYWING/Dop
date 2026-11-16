@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
-import { inlineArrow, placeTip, revealBy, revealTarget, snapTop, type Box } from '../lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, snapTop, type Box } from '../lib/tipPlace';
 
 /** A Chinese term and its pinyin, one unit that never breaks between them ("碰 pèng"). */
 function ZhName({ zh, py }: { zh: string; py: string }) {
@@ -154,6 +154,32 @@ function messageLines(msg: Element): Box[] {
 }
 
 /**
+ * What a desktop's floating card for a term in a chat answer should leave uncovered, weighted
+ * for placeTip: the answer's lines (3 each), KataGo's numbers (3), the question bubbles and the
+ * copy and redo row (2), the read row (1): the prose being read is covered last (Chinese 5d). The card stays next to its word, under or over its
+ * line, on the side that covers less (artist, designer, generalist, 2026-11-11). Empty on a phone.
+ */
+function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
+  if (narrow()) return [];
+  const pane = term.closest('.messages');
+  const msg = term.closest('.msg.kami');
+  if (!pane || !msg) return [];
+  // the prose is what is being read, so a line of it counts most; the read row is a quiet label
+  const heavy = [
+    ...[...msg.querySelectorAll('.read-row, .read-moved')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 1 })),
+    ...[...msg.querySelectorAll('.msg-tools'), ...pane.querySelectorAll('.msg.user .bubble')].map((e) => Object.assign(e.getBoundingClientRect().toJSON() as Box, { weight: 2 })),
+  ];
+  // one box a line (a line's words, coordinates and terms come as many rects)
+  const lines = new Map<number, Box>();
+  for (const r of messageLines(msg)) {
+    const k = Math.round((r.top + r.bottom) / 2 / 4);
+    const b = lines.get(k);
+    lines.set(k, b ? { left: Math.min(b.left, r.left), right: Math.max(b.right, r.right), top: Math.min(b.top, r.top), bottom: Math.max(b.bottom, r.bottom) } : { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  }
+  return [...heavy, ...[...lines.values()].map((l) => ({ ...l, weight: 3 }))];
+}
+
+/**
  * A Go term in answer text with a dotted underline: hovering (mouse) or keyboard focus shows
  * its short definition; a tap, click, Enter or Space pins it until the next press elsewhere,
  * Escape or its close button (both hand focus back to the term).
@@ -167,7 +193,8 @@ function messageLines(msg: Element): Box[] {
  * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
  *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
  *   phone's board note prefers over, so the answer stays clear); never half over a button,
- *   inside the window, and the chat never scrolls.
+ *   inside the window, and the chat never scrolls. A desktop's card in a chat answer weighs the
+ *   answer's lines, its read row, the question and the copy and redo buttons too (chatKeep).
  * A pinned card is a labelled group, and a keyboard pin moves focus to its ×.
  */
 export function Term({ entry, children }: { entry: GlossaryEntry; children: ReactNode }) {
@@ -274,7 +301,7 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     };
   }, [slot]);
 
-  // ...and once, as it opens: the card and the line after it in view (at most up to the term)
+  // ...and once, as it opens: the card in view (at most up to the term)
   useLayoutEffect(() => {
     const el = ref.current;
     const t = tip.current;
@@ -282,9 +309,10 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     if (!slot || !el || !t || !pane) return;
     const p = pane.getBoundingClientRect();
     const c = t.getBoundingClientRect();
-    const msg = el.closest('.msg');
-    const toggle = msg?.querySelector('.facts > summary')?.getBoundingClientRect() ?? null;
-    const target = revealTarget(c.bottom, msg ? messageLines(msg) : [], p.bottom, toggle && toggle.height ? toggle : null);
+    // only the card itself: the tapped line stays where it was when the card fits above the pane's
+    // foot, and the chat scrolls just enough when it would go under the composer (perf critic,
+    // 2026-11-11: it scrolled 67 px to show the line after the card too)
+    const target = c.bottom;
     const termTop = el.getClientRects()[0]?.top ?? el.getBoundingClientRect().top;
     // ...with the pane's top edge between rows, never through the header, a chip or a line
     const rows: Box[] = [...pane.querySelectorAll('.msg.user, .msg.kami > .who, .read-row, .msg-tools, .tags, .facts > summary, .rich .pt, .rich .chip')].map((x) => x.getBoundingClientRect() as Box);
@@ -313,7 +341,8 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       // KataGo's numbers stay readable and the chat's buttons ("Read longer") stay clear: the
       // card takes the side of the line that covers less of them (a button counts double)
       const keep = [
-        ...[...document.querySelectorAll<HTMLElement>('.messages .facts')].map((b) => b.getBoundingClientRect()),
+        ...[...document.querySelectorAll<HTMLElement>('.messages .facts')].map((b) => Object.assign(b.getBoundingClientRect().toJSON() as Box, { weight: 3 })),
+        ...chatKeep(ref.current!),
         ...[...document.querySelectorAll<HTMLElement>('.messages button:not(.pt):not(.chip):not(.tag)')].filter((b) => !t.contains(b)).map((b) => Object.assign(b.getBoundingClientRect().toJSON() as Box, { weight: 2 })),
       ].filter((b) => b.right > b.left && b.bottom > b.top);
       const { left, top, below } = placeTip(line, w, h, window.innerWidth, window.innerHeight, avoid, prefer, keep);

@@ -36,10 +36,10 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root {
   --font: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --bg: #faf6ee; --panel: #ffffff; --line: #e8dfcf; --line-2: #d3c4a8; --ink: #22190f; --soft: #5e5040; --faint: #6a5a46;
-  --kaya: #f0dcb3; --kaya-2: #dcb676; --kaya-ink: #2b1d0e; --kaya-line: #d8bb85; --kaya-amber: #7a4300; --kaya-green: #1d5e37;
+  --kaya: #e8ddc7; --kaya-2: #d3b88d; --kaya-ink: #2b1d0e; --kaya-line: #cfbd9c; --kaya-amber: #6e3c00; --kaya-green: #1d5e37;
   --stone: #1f1b17; --on-stone: #fbf7f0; --stone-edge: #000;
   --green: #2c7a4b; --on-green: #fff; --amber: #9a5a00; --on-amber: #fff; --red: #b3352b;
-  --me: #f4e4c4; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
+  --me: #efe5d1; --sel: #f3ead9; --chip: #f6efe2; --r: 6px;
   --shadow: 0 8px 28px rgba(60, 40, 10, .16);
   font-family: var(--font);
 }
@@ -62,7 +62,9 @@ try { const l = JSON.parse(localStorage.getItem('hub-look') || '{}'); if (l.them
 :root .btn { border-radius: var(--r); border-color: var(--line-2); border-bottom-width: 2px; font-weight: 500; }
 :root .btn.go { background: var(--stone); color: var(--on-stone); border: 1px solid var(--stone-edge); border-bottom-width: 2px; }
 :root .btn.go:hover { background: color-mix(in srgb, var(--stone) 85%, var(--bg)); filter: none; }
-:root .btn.go:disabled:hover { background: var(--stone); }
+/* A control that cannot act now is outlined (1 px all round, no fill) with the soft ink, never faded: its text stays
+   at 5.8:1 or more in light and dark and it still reads as a control (accessibility, 2026-11-10, three rounds). */
+:root .btn:disabled, :root .btn.go:disabled, :root .btn:disabled:hover, :root .btn.go:disabled:hover { opacity: 1; background: transparent; color: var(--soft); border: 1px solid var(--line-2); box-shadow: none; filter: none; transform: none; cursor: default; }
 :root .btn.seg[aria-pressed="true"] { border-color: var(--stone); background: var(--sel); }
 :root .top { background: var(--kaya); color: var(--kaya-ink); border-bottom-color: var(--kaya-line); min-height: 56px; padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 6px; }
 :root .top h1, :root dialog h2 { font: 700 22px/1.1 var(--font); }
@@ -112,12 +114,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.danger:hover { background: color-mix(in srgb, var(--red) 10%, var(--panel)); }
 .btn.quiet { border-color: transparent; background: transparent; }
 .btn.quiet:hover { background: var(--sel); }
-.btn:disabled, .btn[aria-busy="true"] { opacity: .5; cursor: not-allowed; transform: none; }
-.btn:disabled:hover { background: var(--panel); }
-/* a main button that cannot act yet is an outline, not a grey slab (the demo has no story to send to) */
-.btn.go:disabled { background: none; color: var(--soft); border: 1px solid var(--line-2); border-bottom-width: 1px; box-shadow: none; opacity: .6; }
-.btn.go:disabled:hover { background: none; }
-.btn.go:disabled:hover { background: var(--green); }
 .btn.seg[aria-pressed="true"] { background: var(--sel); border-color: var(--ink); }
 .btn.seg[aria-pressed="true"]::before { content: "✓"; }
 .btn .ic { font-size: 14px; line-height: 1; }
@@ -141,6 +137,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .screen canvas { display: block; width: 100%; height: 100%; }
 .badge { position: absolute; left: 10px; top: 10px; max-width: calc(100% - 20px); background: rgba(29, 27, 24, .78); color: #fff; font-size: 14px; padding: 4px 9px; border-radius: 99px; pointer-events: none; }
 .badge:empty { display: none; }
+/* On a phone the label sits under the picture, never on it. */
+@media (max-width: 700px) { .screen { aspect-ratio: auto; } .screen canvas { aspect-ratio: 16 / 9; height: auto; } .badge { position: static; display: block; max-width: none; background: none; color: var(--soft); padding: 6px 16px 0; border-radius: 0; font-size: 14px; } }
 .controls { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
 .controls .bar { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
 .controls input[type=range] { flex: 1; min-width: 100px; height: 44px; margin: 0; accent-color: var(--green); }
@@ -279,7 +277,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
             <p class="hint">This is the built-in demo, so there is nothing to send or rate here. With your own story:</p>
             <ol class="steps">
               <li><b>Describe the idea</b><span>One or two sentences under “New story”.</span></li>
-              <li><b>The team draws a sample</b><span>A short first cut, drawn in code, appears here by itself.</span></li>
+              <li><b>The team makes a sample</b><span>A short first cut, made with code, appears here by itself.</span></li>
               <li><b>Say what to change</b><span>Type feedback in your own words, or rate a version Good or Not yet.</span></li>
               <li><b>Approve the sample</b><span>The team keeps the characters and moves and makes the whole story.</span></li>
             </ol>
@@ -648,6 +646,14 @@ $('pick').onchange = async (e) => {
   S.id = v; S.demoPick = ''; ls.set('studio-id', S.id); buildSliders(); refresh(true);
 };
 
+// Polls every 3 s while the team works on a story, every 12 s when nothing is running, and at once when the tab
+// comes back into view (perf, 2026-11-11 r2: a 3 s poll ran all day on an idle story).
+let pollT = 0, pollMs = 0;
+function poll(ms) {
+  clearTimeout(pollT); pollMs = ms;
+  pollT = setTimeout(async () => { if (!document.hidden) await refresh().catch(() => {}); poll(S.waiting ? 3000 : 12000); }, ms);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && pollT) poll(0); });
 async function refresh(full = false) {
   if (!S.id) { S.demo = true; setStatus(); return; }
   const q = full || S.rev < 0 ? `&id=${S.id}` : `&id=${S.id}&since=${S.rev}&seen=${S.seen}`;
@@ -658,6 +664,7 @@ async function refresh(full = false) {
   S.seen = S.notes.length ? S.notes[S.notes.length - 1].at : 0;
   const lastFb = S.feedback.filter((f) => f.kind !== 'rate').slice(-1)[0];
   S.waiting = !g.project || (lastFb && lastFb.rev >= g.meta.rev);
+  if (S.waiting && pollT && pollMs > 3000) poll(3000);
   if (g.project && g.meta.rev !== prevRev) {
     const v = validateProject(g.project);
     S.demo = !v.ok;
@@ -684,11 +691,11 @@ function setStatus() {
   // Said plainly: lines and shapes written as code by Claude, no image generator. A narrow screen gets the same words,
   // only shorter where they repeat (2026-11-10: artist asked for the whole badge on the phone).
   const narrow = matchMedia('(max-width: 700px)').matches;
-  $('badge').textContent = narrow ? (S.demo ? 'Demo · drawn in code by Claude, no image generator' : 'Drawn in code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first drawing · drawn in code by Claude, no image generator' : 'Demo story · drawn in code by Claude, no image generator') : 'Drawn in code by your Claude team, no image generator';
+  $('badge').textContent = narrow ? (S.demo ? 'Demo · made with code by Claude, no image generator' : 'Made with code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first version · made with code by Claude, no image generator' : 'Demo story · made with code by Claude, no image generator') : 'Made with code by your Claude team, no image generator';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, drawn in code by Claude with no image generator. Press “New story” and your Claude team writes your own and draws every frame the same way.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, made with code (shapes and paths) by Claude, no image generator. Press “New story” and your Claude team writes your own and makes every frame the same way.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';
@@ -1002,7 +1009,7 @@ async function start() {
     } else { await loadList(); await refresh(true); }
     loadRules();
   } catch (e) { $('statusText').textContent = e.message; }
-  setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 3000);
+  poll(S.waiting ? 3000 : 12000);
   setInterval(() => { if (!document.hidden) loadList().catch(() => {}); }, 30000);
 }
 if (pw) start(); else showLogin();

@@ -1294,14 +1294,27 @@ li > .term-slot.after {
   margin: 6px 0;
   font-family: var(--font);
 }
+/* one quiet line: who wrote the words, then KataGo's numbers and their fold (Messages.tsx); a
+   block, so on a phone it wraps between words rather than between its two parts */
 .facts summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 15px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  line-height: 1.4;
+  display: block;
   list-style: none;
+}
+.facts summary .icon {
+  vertical-align: -2px;
+}
+.facts summary .words-by {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
+}
+.facts-name {
+  white-space: nowrap;
 }
 .facts ul {
   margin: 6px 0;
@@ -1341,6 +1354,15 @@ li > .term-slot.after {
 .facts-head {
   margin: 10px 0 0;
   font-size: 15px;
+  color: var(--muted);
+}
+/* "Words: Kiai, from KataGo's numbers, no language model": who wrote the answer's words, in the
+   read line's quiet style (Messages.tsx, writer.ts wordsLine) */
+.words-by {
+  margin: 0 0 6px;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.4;
   color: var(--muted);
 }
 .concept h3 {
@@ -2195,9 +2217,9 @@ li > .term-slot.after {
 .step-btn:active:not(:disabled) {
   background: var(--press);
 }
+/* a step that cannot be taken: the faint ink, 3:1 or more on the card (a11y, 2026-11-11) */
 .step-btn:disabled {
-  color: var(--muted);
-  opacity: 0.6;
+  color: var(--faint);
 }
 /* The move slider: drag (or click anywhere on it) to go to any move; the count follows. */
 .bp-scrub {
@@ -3027,20 +3049,21 @@ li > .term-slot.after {
   .conv-tools {
     display: flex;
   }
-  /* 8 px less than 58% of the screen, taken from the padding under the step card and inside it,
-     so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
+  /* 44 px less than 58% of the screen: 8 px taken from the padding under the step card and inside
+     it, and 36 px from the step card's second row (its count and graph buttons moved, see .bp-nav
+     .bp-count), so the board keeps its size (304 px at 390 x 844) and the answer under it gets the room.
      svh, the screen with the browser's bars shown: the board keeps one size while a phone's
      address bar slides away and back (dvh resized the board on every scroll); the chat under it
      takes the extra room. vh for a browser without svh (Splitter.tsx writes the same unit). */
   .board-panel {
     width: auto;
-    height: var(--board-h, calc(58vh - 8px));
+    height: var(--board-h, calc(58vh - 44px));
     padding: 2px 10px 4px;
     gap: 4px;
   }
   @supports (height: 1svh) {
     .board-panel {
-      height: var(--board-h, calc(58svh - 8px));
+      height: var(--board-h, calc(58svh - 44px));
     }
   }
   .bp-foot {
@@ -3199,7 +3222,7 @@ li > .term-slot.after {
   }
   /* the answer's first lines come right under its name: the read count is a plain line */
   .who {
-    margin-bottom: 2px;
+    margin-bottom: 0;
   }
   /* The whole answer fits the pane under the board (critics, 2026-11-04: it scrolled). The copy and
      redo buttons sit at the right end of Kiai's name row instead of a row of their own; the
@@ -3208,9 +3231,10 @@ li > .term-slot.after {
   .msg {
     margin-bottom: 18px;
   }
-  /* the last message ends 10 px over the pane's foot (the composer's own 8 px gap follows) */
+  /* the last message ends 5 px over the pane's foot and the composer's own 8 px gap follows, so the
+     answer's last line has about 14 px of clear paper above the box (critics, 2026-11-10: 12-24) */
   .msg:has(+ .msgs-tail) {
-    margin-bottom: 10px;
+    margin-bottom: 5px;
   }
   .msg.user:not(.editing) {
     flex-direction: row-reverse;
@@ -3230,11 +3254,15 @@ li > .term-slot.after {
   .read-row .thoughts {
     margin-bottom: 0;
   }
+  /* 8 px or more of paper between the answer's last line and the quiet line under it */
   .facts {
-    margin: 4px 0 0;
+    margin: 6px 0 0;
   }
   .facts summary {
     min-height: 24px;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 2px 0;
   }
   .thoughts {
     border: 0;
@@ -3254,7 +3282,13 @@ li > .term-slot.after {
     line-height: 1.5;
   }
   .msg.kami .rich > p:last-child {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+  }
+  p.words-by {
+    display: block;
+    font-size: 14px;
+    line-height: 18px;
+    margin: 6px 0 0;
   }
   /* a phone's floating term card (the note under the board; the chat's opens in the text): the
      screen's width less 8 px a side, so it is short (2 or 3 lines) */
@@ -3263,9 +3297,16 @@ li > .term-slot.after {
     width: calc(100vw - 16px);
     font-size: 15px;
   }
-  /* the step buttons and the graph buttons, a little tighter */
+  /* the step buttons and the graph buttons, a little tighter; a step button is 32 px to the eye
+     and 44 px tall to a finger (a11y, 2026-11-11) */
   .step-btn {
     height: 32px;
+    position: relative;
+  }
+  .step-btn::before {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
   }
   .bp-row {
     min-height: 34px;
@@ -3275,6 +3316,32 @@ li > .term-slot.after {
   }
   .bp-tabs button {
     height: 30px;
+  }
+  /* The step card is one row: the move count, then first, back, the slider, forward, last. The
+     graph buttons sit in the players' row as plain icons beside the gear (BoardPanel), so the
+     answer under the board starts a row higher (critics, 2026-11-10). */
+  .bp-nav .bp-count {
+    min-width: 0;
+    padding: 0 4px 0 6px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  /* the players' row: one segmented set of names, "Chance · Mistakes · Strength" ("Win chance" does not fit beside the players at 390 px) */
+  .bp-head .bp-tabs {
+    flex: none;
+    gap: 0;
+    padding: 2px;
+    margin-left: auto;
+  }
+  .bp-head .bp-tabs button {
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+    color: var(--ink);
+    border-radius: 7px;
+  }
+  .bp-head .bp-tabs button:disabled {
+    color: var(--muted);
   }
   .menu-pop {
     min-width: 250px;

@@ -76,6 +76,19 @@ export const NOTES = {
 } as const;
 
 /**
+ * Who wrote the words of an answer, said under it in the read line's quiet style (HN critic,
+ * 2026-11-10: disclose the language model on the answer screen). A model's words are always
+ * checked against KataGo's facts first; the engine's are Kiai's own sentences from the numbers.
+ * Never a vendor's name. Null while a draft waits for the model (its note says so).
+ */
+export function wordsLine(w: Pick<Writing, 'by' | 'text' | 'note'>): string | null {
+  if (w.note === NOTES.polishing || w.note === NOTES.polishingLocal) return null;
+  if (w.text && w.by === 'gemini') return 'Written by a language model, fact-checked';
+  if (w.text && w.by === 'local') return 'Written by a small language model on this device, fact-checked';
+  return 'Written by Kiai, no language model';
+}
+
+/**
  * The writer's own DIAGRAM block: parsed, checked (KataGo last) and kept, or removed together
  * with every sentence that refers to it. Returns the explanation the text is checked against.
  */

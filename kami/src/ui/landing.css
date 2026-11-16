@@ -996,3 +996,21 @@ html.kiai-landing {
   font-variant-numeric: lining-nums tabular-nums;
   text-wrap: pretty;
 }
+/* who writes the words, right under the proof */
+.l-words-by {
+  margin-top: 4px;
+}
+.l-words-short {
+  display: none;
+}
+
+/* phone: the words line folds into the proof's last line, so the hero board keeps its height (parent,
+   2026-11-11); after the base rules so it wins */
+@media (max-width: 860px), (max-aspect-ratio: 9/10) {
+  .l-words-by {
+    display: none;
+  }
+  .l-words-short {
+    display: inline;
+  }
+}

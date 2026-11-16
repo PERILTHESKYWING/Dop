@@ -86,7 +86,27 @@ const rects = async (p) =>
     R.answerCard = await page.evaluate(() => {
       const m = document.querySelector('.messages').getBoundingClientRect();
       const k = [...document.querySelectorAll('.msg.kami')].pop().getBoundingClientRect();
-      return { top: Math.round(k.top), bottom: Math.round(k.bottom), h: Math.round(k.height), paneTop: Math.round(m.top), paneBottom: Math.round(m.bottom), whole: k.top >= m.top - 0.5 && k.bottom <= m.bottom + 0.5 };
+      // the last line of text in the card (prose, notes, KataGo's numbers' row) and its clear
+      // space to the composer; proseTop: the first line of the answer's prose
+      const card = [...document.querySelectorAll('.msg.kami')].pop();
+      const c = document.querySelector('.composer').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(card);
+      let last = 0;
+      for (const r of range.getClientRects()) if (r.height && r.width && r.bottom > last && r.top < m.bottom && r.bottom <= k.bottom + 1) last = r.bottom;
+      const prose = card.querySelector('.rich');
+      const proseTop = prose ? Math.round(prose.getBoundingClientRect().top) : null;
+      const rows = {};
+      const meta = {};
+      for (const s of ['.thoughts > summary', '.facts > summary', '.facts-head']) {
+        const e = card.querySelector(s);
+        if (e) meta[s] = getComputedStyle(e).fontSize + ' ' + getComputedStyle(e).color;
+      }
+      for (const s of ['.who', '.read-row', '.rich', '.words-by', '.note', '.facts > summary']) {
+        const e = card.querySelector(s);
+        if (e) { const b = e.getBoundingClientRect(); rows[s] = [Math.round(b.top), Math.round(b.bottom)]; }
+      }
+      return { top: Math.round(k.top), bottom: Math.round(k.bottom), h: Math.round(k.height), paneTop: Math.round(m.top), paneBottom: Math.round(m.bottom), whole: k.top >= m.top - 0.5 && k.bottom <= m.bottom + 0.5, proseTop, lastText: Math.round(last), gapToComposer: Math.round(c.top - last), rows, meta };
     });
     R.chipText = await page.evaluate(() => document.querySelector('.engine-slot')?.textContent || '');
     R.players = await page.evaluate(() => [...document.querySelectorAll('.pl-name')].map((e) => ({ t: e.textContent, clipped: e.scrollWidth > e.clientWidth })));
