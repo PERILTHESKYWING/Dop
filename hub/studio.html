@@ -277,7 +277,7 @@ button, a, summary, label { -webkit-tap-highlight-color: transparent; touch-acti
             <p class="hint">This is the built-in demo, so there is nothing to send or rate here. With your own story:</p>
             <ol class="steps">
               <li><b>Describe the idea</b><span>One or two sentences under “New story”.</span></li>
-              <li><b>The team makes a sample</b><span>A short first cut, made with code, appears here by itself.</span></li>
+              <li><b>The team makes a sample</b><span>A short first cut appears here by itself.</span></li>
               <li><b>Say what to change</b><span>Type feedback in your own words, or rate a version Good or Not yet.</span></li>
               <li><b>Approve the sample</b><span>The team keeps the characters and moves and makes the whole story.</span></li>
             </ol>
@@ -688,14 +688,14 @@ function setStatus() {
   const m = S.meta;
   const dot = $('liveDot');
   // every frame says how it was made: drawn in code by the Claude team, never a picture model
-  // Said plainly: lines and shapes written as code by Claude, no image generator. A narrow screen gets the same words,
+  // Said plainly: lines and shapes written as code by Claude, not by an artist or an image generator. A narrow screen gets the same words,
   // only shorter where they repeat (2026-11-10: artist asked for the whole badge on the phone).
   const narrow = matchMedia('(max-width: 700px)').matches;
-  $('badge').textContent = narrow ? (S.demo ? 'Demo · made with code by Claude, no image generator' : 'Made with code by Claude, no image generator') : S.demo ? (S.id ? 'Demo until the first version · made with code by Claude, no image generator' : 'Demo story · made with code by Claude, no image generator') : 'Made with code by your Claude team, no image generator';
+  $('badge').textContent = narrow ? (S.demo ? 'Demo · code by Claude, not an artist or image generator' : 'Code by Claude, not an artist or image generator') : S.demo ? (S.id ? 'Demo until the first version · made with code by Claude, not by an artist or an image generator' : 'Demo story · made with code by Claude, not by an artist or an image generator') : 'Made with code by your Claude team, not by an artist or an image generator';
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story. Press “New story” and your Claude team writes your own and makes every frame in code.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story. Press “New story” and your Claude team writes your own story and animates it like this demo.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';

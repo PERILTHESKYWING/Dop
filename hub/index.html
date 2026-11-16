@@ -2656,8 +2656,8 @@ function activityOf(a) {
 }
 function accountCard(a) {
   const [cls0, st0, stNote, stAt, ncN] = acctState(a);
-  // "Working" is green on every card; a silent thread adds "· 1 offline" in amber to the state and a
-  // hollow amber ring on its own row, so amber means "offline" only.
+  // One state, one colour on every card: a silent thread shows only on its own row, with the hollow
+  // amber ring and "Offline" (r/baduk, parent, 2026-11-16: "Working · 1 offline" was two states).
   const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
@@ -2673,7 +2673,7 @@ function accountCard(a) {
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${stAt ? minHtml(st, stAt) : esc(st)}${ncN ? ` · <span class="ncw">${ncN} offline</span>` : ''}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc([seen, ncN ? `${ncN} offline` : ''].filter(Boolean).join(' · '))}">${stAt ? minHtml(st, stAt) : esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${usage}
     ${conn}
     ${stNote && !sub ? `<div class="asub"><div class="sub snote">${esc(stNote)}</div></div>` : ''}
