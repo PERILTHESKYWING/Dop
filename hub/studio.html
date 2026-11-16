@@ -695,7 +695,7 @@ function setStatus() {
   $('fullBox').hidden = !(S.id && m && m.rev > 0 && m.stage === 'sample');
   updateButtons();
   if (!S.id && S.demoPick && S.projects?.length) { dot.className = 'dot'; $('statusText').textContent = 'Built-in demo. Pick one of your stories above to go back to it.'; return; }
-  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story, made with code (shapes and paths) by Claude, no image generator. Press “New story” and your Claude team writes your own and makes every frame the same way.'; return; }
+  if (!S.id) { dot.className = 'dot'; $('statusText').textContent = 'You are watching the demo story. Press “New story” and your Claude team writes your own and makes every frame in code.'; return; }
   if (!m) return;
   dot.className = 'dot ' + (S.waiting ? 'busy' : 'live');
   const by = m.rev ? `Revision ${m.rev}${m.by ? ` by ${esc(m.by)}` : ''}, ${ago(m.updatedAt)}` : 'No drawing yet';

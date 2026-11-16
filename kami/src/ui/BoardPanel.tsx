@@ -127,7 +127,7 @@ const UNDER_DESKTOP = 46;
 const UNDER_PHONE = 40;
 
 const TABS = [
-  { id: 'trend', label: 'Win chance', short: 'Chance', icon: 'trend' },
+  { id: 'trend', label: 'Win chance', short: 'Win %', icon: 'trend' },
   { id: 'blunder', label: 'Mistakes', short: 'Mistakes', icon: 'blunder' },
   { id: 'performance', label: 'Strength', short: 'Strength', icon: 'performance' },
 ] as const;

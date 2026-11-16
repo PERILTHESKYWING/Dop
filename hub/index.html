@@ -1713,6 +1713,8 @@ function fitSteps() {
     let lo = 1, hi = words.length - 1;
     const fits = (n) => { el.textContent = words.slice(0, n).join(' ').replace(/[\s,;:·–-]+$/, '') + '…'; return line.scrollWidth <= w; };
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (fits(mid)) lo = mid; else hi = mid - 1; }
+    // Never end on a code name ("usage.at…" read as a word cut in half: all 10 critics, 2026-11-16).
+    while (lo > 1 && /[._()`/=]/.test(words[lo - 1])) lo--;
     fits(lo);
   }
 }
