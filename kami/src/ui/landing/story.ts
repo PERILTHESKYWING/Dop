@@ -96,7 +96,7 @@ export const CHAPTERS: Chapter[] = [
   { id: 'ask', rail: 'Ask', title: TAGLINE },
   { id: 'reading', rail: 'Reading', title: 'It reads before it answers.' },
   { id: 'next', rail: 'Next moves', title: 'See what happens next.' },
-  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: `Black’s best chance: the right side, around ${FINAL.cands[0].at}.` },
+  { id: 'ahead', rail: 'Who is ahead', title: 'Who is ahead?', lead: `White, by about ${LEAD} points.`, text: `Black’s best chance: the right side, around ${FINAL.cands[0].at}. The squares are only the points KataGo already gives a side; White’s lead also counts komi (${DEMO.komi}).` },
   { id: 'review', rail: 'Game review', title: 'Find where a game turned.', text: 'Load a game. The graph shows where it turned.' },
   { id: 'start', rail: 'Start', title: 'Ask about your own game.', text: 'Free. No sign-up. Runs in your browser.' },
 ];
