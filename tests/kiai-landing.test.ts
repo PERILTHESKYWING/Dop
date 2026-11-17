@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEMO, FINAL } from '../kami/src/ui/landing/data';
-import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, PLAY_LEAD, WHAT, LAST_PICK, LEAD, LINE, locOf, PICK, PICKS, PLAY, pointsIn, READ_ROWS, READS, SCORE, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
+import { ASK, BLACK_WINS, CHAPTERS, COLOPHON, FIRST_PICK, GROUP, HOW, PLAY_LEAD, WHAT, LAST_PICK, LEAD, LINE, locOf, PICK, PICKS, PLAY, pointsIn, PROOF, QUICK, QUICK_MAX, READ_ROWS, READS, SCORE, WORDS, TURN, TURN_FROM, TURN_TO } from '../kami/src/ui/landing/story';
 import { WINRATE_FROM_SCORE } from '../src/lib/engine/models';
 
 // The landing's words are a plain rewording of Kiai's recorded answers; every point and number
@@ -100,6 +100,17 @@ describe('Kiai landing copy', () => {
     expect(HOW).toMatch(/works without it/);
     expect(HOW).toMatch(/No AI images/);
     expect(HOW).not.toMatch(/gemini|google|openai|gpt|claude/i);
+  });
+
+  it('labels each position count, and gives the quick read’s cap, never one device’s count', () => {
+    // the recorded quick read stays within the cap the landing names
+    expect(QUICK.visits).toBeLessThanOrEqual(QUICK_MAX);
+    expect(QUICK_MAX).toBe(320);
+    expect(PROOF).toBe(`KataGo’s long read (${PLAY.visits.toLocaleString('en-US')} positions) picks ${PICK}; the app’s quick read (up to ${QUICK_MAX} positions) picks ${QUICK.at}.`);
+    // no capital after a semicolon, no button name in the sentence, no model named
+    expect(PROOF).not.toMatch(/; [A-Z]/);
+    expect(WORDS).toBe('No language model unless you turn one on.');
+    expect(`${PROOF} ${WORDS}`).not.toMatch(/gemini|google|openai|gpt|claude/i);
   });
 
   it('shows the line Kiai gave with its pick', () => {

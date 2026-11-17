@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
-import { inlineArrow, placeTip, revealBy, sentenceEnd, snapTop, type Box } from '../lib/tipPlace';
+import { inlineArrow, linesBelow, placeTip, revealBy, sentenceEnd, snapTop, type Box } from '../lib/tipPlace';
 
 /** A Chinese term and its pinyin, one unit that never breaks between them ("碰 pèng"). */
 function ZhName({ zh, py }: { zh: string; py: string }) {
@@ -240,8 +240,11 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       t.style.setProperty('--arrow', `${inlineArrow(line.left, line.right, c.left, c.width)}px`);
       // the pointer only when the card is right under the term's line: after a longer sentence it
       // would point at another word (the term keeps its tint, and the card's title names it)
-      if (c.top - line.bottom > 16) t.dataset.far = '';
+      // (the host is this component's own element, not React's: its class is safe to set)
+      const far = c.top - line.bottom > 16;
+      if (far) t.dataset.far = '';
       else delete t.dataset.far;
+      slot.classList.toggle('far', far);
     }
     return undo;
   });
@@ -284,14 +287,20 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     if (!slot || !el || !t || !pane) return;
     const p = pane.getBoundingClientRect();
     const c = t.getBoundingClientRect();
-    // only the card itself: the tapped line stays where it was when the card fits above the pane's
-    // foot, and the chat scrolls just enough when it would go under the composer (perf critic,
-    // 2026-11-11: it scrolled 67 px to show the line after the card too)
-    const target = c.bottom;
+    // the card and two whole lines of the answer under it: the tapped line stays where it was when
+    // that fits above the pane's foot, and the chat scrolls just enough when it would go under the
+    // composer (Chinese 5d, perf, parent, 2026-11-17: one line under the card read as the answer's
+    // end; perf critic, 2026-11-11: no further than that)
+    // (a range's rects include each whole paragraph's box too: only line-sized ones are lines)
+    const lineOnly = (r: Box) => r.bottom > r.top && r.bottom - r.top < 40;
+    const msg = el.closest('.msg.kami');
+    const below: Box[] = msg ? [...messageLines(msg).filter(lineOnly), ...[...msg.querySelectorAll('.words-by, .facts > summary')].map((x) => x.getBoundingClientRect() as Box)] : [];
+    const target = linesBelow(c.bottom, below, 2);
     const termTop = el.getClientRects()[0]?.top ?? el.getBoundingClientRect().top;
-    // ...with the pane's top edge between rows, never through the header, a chip or a line
+    // ...with the pane's top edge between rows, never through the header, a chip or a line (a
+    // paragraph's box is no row: it made the scroll back off to the paragraph's top)
     const rows: Box[] = [...pane.querySelectorAll('.msg.user, .msg.kami > .who, .read-row, .msg-tools, .tags, .facts > summary, .rich .pt, .rich .chip')].map((x) => x.getBoundingClientRect() as Box);
-    for (const m of pane.querySelectorAll('.msg.kami')) rows.push(...messageLines(m));
+    for (const m of pane.querySelectorAll('.msg.kami')) rows.push(...messageLines(m).filter(lineOnly));
     const by = snapTop(revealBy(target, p.bottom, termTop, p.top, 4), p.top, rows.filter((r) => r.bottom > r.top), Math.floor(termTop - p.top));
     if (by) pane.scrollTop += by;
   }, [slot]);

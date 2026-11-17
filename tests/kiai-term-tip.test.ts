@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inlineArrow, placeTip, revealBy, revealTarget, sentenceEnd, snapTop } from '../kami/src/lib/tipPlace';
+import { inlineArrow, linesBelow, placeTip, revealBy, revealTarget, sentenceEnd, snapTop } from '../kami/src/lib/tipPlace';
 
 const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
 
@@ -111,6 +111,17 @@ describe('the reveal scroll never stops through a row', () => {
   it('a scroll that ends between rows stays', () => {
     expect(snapTop(30, 530, rows, 60)).toBe(30);
     expect(snapTop(0, 530, rows, 60)).toBe(0);
+  });
+});
+
+describe('the reveal keeps two whole answer lines under a pinned card', () => {
+  it('merges a line’s words and chips into one line, and counts lines under the card only', () => {
+    const rects = [box(16, 600, 100, 24), box(16, 708, 120, 24), box(140, 706, 30, 28), box(16, 732, 300, 24), box(16, 756, 200, 24)];
+    expect(linesBelow(700, rects, 2)).toBe(756);
+  });
+  it('the last line there is, or the card when nothing follows', () => {
+    expect(linesBelow(700, [box(16, 708, 120, 24)], 2)).toBe(732);
+    expect(linesBelow(700, [box(16, 600, 120, 24)], 2)).toBe(700);
   });
 });
 

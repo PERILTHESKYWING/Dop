@@ -43,9 +43,11 @@ export function ReadingChart({ step }: { step: number }) {
   const changed = best === PICKS.then.at;
   return (
     <div className="l-chart l-reading">
-      <p className="l-count" aria-label={`${fmt(r.visits)} positions read`}>
+      {/* "in one read": one search growing, apart from the first screen's long read (3,270
+          positions in 20 reads) and the app's quick read (HN, r/baduk, generalist, 2026-11-17) */}
+      <p className="l-count" aria-label={`${fmt(r.visits)} positions in one read`}>
         <b>{fmt(count)}</b>
-        <span>positions read</span>
+        <span>positions in one read</span>
       </p>
       <p className="l-chart-head">How long it looked at each point</p>
       <ul aria-label="How long KataGo looked at each point">
