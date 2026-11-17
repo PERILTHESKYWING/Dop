@@ -117,3 +117,29 @@ export function snapTop(by: number, paneTop: number, rows: readonly Box[], maxBy
   }
   return b;
 }
+
+/** Marks that end a sentence; a clause's ";" or ":" does not (the sentence goes on). */
+const STOPS = '.!?…';
+/** What may close a sentence right after its mark: a bracket or a quote ("…wins.)"). */
+const CLOSERS = ')]”’"\'»';
+
+/**
+ * Where the sentence that `text` is in the middle of ends: the index just after its mark (and
+ * any closing bracket or quote), or -1 when it runs to the end of `text`. A mark counts only
+ * before a space or the end of the text, so "0.9" or "Q4.5" is no end, and not before a lowercase
+ * word, so "e.g. the" or "vs. a" goes on. The pinned term card opens there (Term.tsx), so the
+ * sentence the reader is in is never split (perf, designer, generalist, parent, 2026-11-16).
+ */
+export function sentenceEnd(text: string, from = 0): number {
+  for (let i = Math.max(0, from); i < text.length; i++) {
+    if (!STOPS.includes(text[i])) continue;
+    let j = i + 1;
+    while (j < text.length && STOPS.includes(text[j])) j++; // "?!" or "..."
+    while (j < text.length && CLOSERS.includes(text[j])) j++;
+    if (j < text.length && !/\s/.test(text[j])) continue;
+    const next = text.slice(j).match(/\S/)?.[0];
+    if (next && /\p{Ll}/u.test(next)) continue;
+    return j;
+  }
+  return -1;
+}

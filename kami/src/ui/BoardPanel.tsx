@@ -543,16 +543,20 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // A phone names them in short words with no icons, one segmented set, there from the first
   // paint (off until a game is loaded or while a line is shown), so the players' row never changes
   // width (seven critics, 2026-11-11: three bare icons, the triangle read as an error)
+  // A phone's are three toggle buttons, each drawn as a quiet outlined pill, pressed (tinted) while
+  // its graph is open (designer, generalist, artist, 2026-11-16: they read as plain text with no
+  // selected state); a desktop's stay a tab strip.
   const tabsOff = n === 0 || (phone && !!preview);
   const tabs = (
-    <div className="bp-tabs" role="tablist" aria-label="Game graphs">
+    <div className="bp-tabs" role={phone ? 'group' : 'tablist'} aria-label="Game graphs">
       {TABS.map((t) => (
         <button
           key={t.id}
           type="button"
-          role="tab"
+          role={phone ? undefined : 'tab'}
           aria-label={t.label}
-          aria-selected={tab === t.id}
+          aria-selected={phone ? undefined : tab === t.id}
+          aria-pressed={phone ? tab === t.id : undefined}
           disabled={tabsOff}
           className={tab === t.id ? 'on' : ''}
           title={tab === t.id ? `Close ${t.label}` : t.label}

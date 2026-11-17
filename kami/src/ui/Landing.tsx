@@ -267,14 +267,14 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
                 <b className="l-at">{PICK}</b>
                 {ASK.a.slice(ASK.a.indexOf(`${PICK}:`) + PICK.length)}
                 {/* the claim's proof under it, and what shorter reads preferred (story.ts PROOF) */}
-                {PROOF && (
-                  <span className="l-proof">
-                    {PROOF}
-                    {/* a phone says who writes the words in the proof's last line, so the hero board keeps its height */}
-                    <span className="l-words-short"> No language model by default.</span>
-                  </span>
-                )}
-                <span className="l-proof l-words-by">{WORDS}</span>
+                {/* who writes the words runs on in the proof's last line: one grey footnote, not two
+                    (designer, generalist, r/baduk, 2026-11-16); a phone says it shorter, so the hero
+                    board keeps its height */}
+                <span className="l-proof">
+                  {PROOF && `${PROOF} `}
+                  <span className="l-words-by">{WORDS}</span>
+                  <span className="l-words-short">No language model by default.</span>
+                </span>
               </span>
             </p>
           </div>

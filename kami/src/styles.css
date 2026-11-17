@@ -1135,10 +1135,10 @@ kbd {
   margin-top: 4px;
   color: var(--ink-2);
 }
-/* A phone's card in the chat: a block right under the term's line (Term.tsx), in the text's flow,
-   so the lines after it move down and none is covered. The same card as the floating one, without
-   the shadow it needs to sit over text; the host's top padding holds the pointer. After a
-   paragraph (the term on its last line) it takes half the paragraph's gap. */
+/* A pinned card in the chat: a block after the end of the term's sentence (Term.tsx), in the
+   text's flow, so the sentence is never split, the lines after it move down and none is covered.
+   The same card as the floating one, without the shadow it needs to sit over text; the host's top
+   padding holds the pointer. After a paragraph it takes half the paragraph's gap. */
 .term-slot {
   display: block;
   margin: 0 0 8px;
@@ -1160,6 +1160,10 @@ li > .term-slot.after {
 }
 .term-tip.inline.pinned {
   padding-right: 42px;
+}
+/* a card after a longer sentence: no pointer, it would point at another word (Term.tsx) */
+.term-tip.inline[data-far]::before {
+  display: none;
 }
 /* a finger's × on the phone card: 36 px, its ring inside the card */
 .term-tip.inline .term-close {
@@ -3326,30 +3330,46 @@ li > .term-slot.after {
     text-align: left;
     white-space: nowrap;
   }
-  /* the players' row: one segmented set of short names, "Win % · Mistakes · Strength" ("Chance" alone
-     read as luck: ten critics, 2026-11-16; "Win chance" does not fit beside the players at 390 px);
-     each drawn 26 px, tapped 44 px (a11y) */
+  /* the players' row: three short names, "Win % · Mistakes · Strength" ("Chance" alone read as luck:
+     ten critics, 2026-11-16; "Win chance" does not fit beside the players at 390 px), each a quiet
+     outlined pill on the card's paper, so they read as buttons (designer, generalist, artist,
+     2026-11-16); the open graph's pill is tinted seal red with a red edge (aria-pressed). Each drawn
+     26 px, tapped 44 px (a11y); flat, no shadow. */
   .bp-head .bp-tabs {
     flex: none;
-    gap: 0;
-    padding: 2px;
+    gap: 2px;
+    padding: 0;
     margin-left: auto;
+    background: none;
   }
   .bp-head .bp-tabs button {
     height: 26px;
-    padding: 0 6px;
+    padding: 0 5px;
     font-size: 12px;
     color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--line-strong);
     border-radius: 7px;
     position: relative;
   }
   .bp-head .bp-tabs button::before {
     content: '';
     position: absolute;
-    inset: -9px 0;
+    inset: -9px -1px;
+  }
+  .bp-head .bp-tabs button:active {
+    background: var(--press);
+  }
+  .bp-head .bp-tabs button.on {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+    color: var(--accent);
+    box-shadow: none;
   }
   .bp-head .bp-tabs button:disabled {
     color: var(--muted);
+    background: none;
+    border-color: var(--line);
   }
   .menu-pop {
     min-width: 250px;

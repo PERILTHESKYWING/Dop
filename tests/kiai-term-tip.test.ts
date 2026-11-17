@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inlineArrow, placeTip, revealBy, revealTarget, snapTop } from '../kami/src/lib/tipPlace';
+import { inlineArrow, placeTip, revealBy, revealTarget, sentenceEnd, snapTop } from '../kami/src/lib/tipPlace';
 
 const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
 
@@ -111,5 +111,28 @@ describe('the reveal scroll never stops through a row', () => {
   it('a scroll that ends between rows stays', () => {
     expect(snapTop(30, 530, rows, 60)).toBe(30);
     expect(snapTop(0, 530, rows, 60)).toBe(0);
+  });
+});
+
+describe('a pinned card opens after the term’s sentence (Term.tsx findPlace)', () => {
+  it('after the sentence’s mark, before the next sentence', () => {
+    const t = ' is a move that touches. Q10 is next.';
+    expect(t.slice(0, sentenceEnd(t))).toBe(' is a move that touches.');
+  });
+  it('never at a clause’s ; or : (the sentence goes on)', () => {
+    const t = ' here; White answers: R11. Then';
+    expect(t.slice(0, sentenceEnd(t))).toBe(' here; White answers: R11.');
+  });
+  it('not inside a number, nor before a lowercase word', () => {
+    expect(sentenceEnd(' loses 0.9 points')).toBe(-1);
+    expect(sentenceEnd(' e.g. the cut. Next')).toBe(14);
+  });
+  it('takes a closing bracket or quote with the mark, and "?!" whole', () => {
+    expect(sentenceEnd(' (it wins.) Next')).toBe(11);
+    expect(sentenceEnd(' why?! Next')).toBe(6);
+  });
+  it('-1 when the sentence runs to the end of the paragraph; the end itself counts', () => {
+    expect(sentenceEnd(' and it runs on')).toBe(-1);
+    expect(sentenceEnd(' the end.')).toBe(9);
   });
 });
