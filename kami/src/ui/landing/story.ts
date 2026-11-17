@@ -3,6 +3,9 @@
  * taken from the recorded engine data (demo.json, see data.ts) by code, and the words are a
  * plain rewording of Kiai's own recorded answers; tests/kiai-landing.test.ts checks both.
  */
+import { budgetFor } from '../../../../src/lib/coach/explain/budgets';
+import type { ModelId } from '../../../../src/lib/coach/explain/types';
+import { DEFAULT_LEVEL, levelById } from '../../lib/levels';
 import { answer, DEMO, FINAL, loc, SWINGS, type Answer } from './data';
 
 const COORD = /\b([A-HJ-T](?:1[0-9]|[1-9]))\b/g;
@@ -44,25 +47,38 @@ export const LEVEL_PICKS = LEVEL_ORDER.map((depth) => {
 export const QUICK = LEVEL_PICKS[0];
 
 /**
- * The first screen's answer says how deep it read, and what the app's own first answer to the
- * same position says (r/baduk and generalist critics, 2026-11-06: the landing said Q9 while the
- * app's quick read said Q10). "A long read: KataGo, 3,270 positions. The app's quick read (288
- * positions) picks Q10; Read longer moves it to Q9." No level name, and no stops in between, so
- * it stays 3 lines at 390 px and the phone hero board is not cut (five critics,
- * 2026-11-09: "Kiai's ultraGO" read as unexplained branding). Every figure and point is the recorded answers' own ("picked": recorded once,
- * with the bundled network; a faster device's quick read may read further).
+ * Most positions the app's quick read (its default level, Low) may read: its budget's reads times
+ * its visits (budgets.ts; 2 x 160 = 320). A device reads fewer when the time cap comes first: the
+ * recorded answer read 288, a 2-core cloud box 222-229, so the landing gives the cap, never one
+ * device's count (HN, r/baduk, generalist, 2026-11-17: the landing said 288, the app 228).
  */
-export const PROOF = `A long read: KataGo, ${n(PLAY.visits)} positions.${
-  QUICK.at !== PICK ? ` The app’s quick read (${n(QUICK.visits)} positions) picks ${QUICK.at}; Read longer moves it to ${PICK}.` : ''
-}`;
+const quickLevel = levelById(DEFAULT_LEVEL);
+const quickBudget = budgetFor(quickLevel.pick as ModelId, quickLevel.thinking);
+export const QUICK_MAX = quickBudget.reads * quickBudget.visits;
 
 /**
- * Who writes the app's words, under the hero's proof line (artist, HN, 2026-11-11). True by the
- * code: the default level (Low) and every level but ultraGO and Local word the answer with Kiai's
- * own engine text (levels.ts, writer.ts); a language model writes only when the reader picks one.
- * The model is never named (XIAO's rule).
+ * The first screen's answer says how deep it read, and what the app's own first answer to the
+ * same position picks (r/baduk and generalist critics, 2026-11-06: the landing said Q9 while the
+ * app's quick read said Q10): "KataGo's long read (3,270 positions) picks Q9; the app's quick read
+ * (up to 320 positions) picks Q10." Each count carries its own label (the reading chapter's
+ * 2,048 is "in one read"), no level name (five critics, 2026-11-09), and no claim about a level
+ * the recording does not have ("Read longer" asks at High; only Low, Medium, Max and ultraGO were
+ * recorded). Short enough that, with WORDS, it stays 4 lines at 390 px and the phone hero board
+ * keeps its height.
  */
-export const WORDS = 'Kiai writes the words from KataGo’s numbers; a language model only if you turn one on.';
+export const PROOF =
+  QUICK.at !== PICK
+    ? `KataGo’s long read (${n(PLAY.visits)} positions) picks ${PICK}; the app’s quick read (up to ${n(QUICK_MAX)} positions) picks ${QUICK.at}.`
+    : `A long read: KataGo, ${n(PLAY.visits)} positions.`;
+
+/**
+ * Who writes the app's words, run on after the hero's proof line, the same sentence on a phone and
+ * a desktop (artist, HN, designer, generalist, 2026-11-17). True by the code: the default level
+ * (Low) and every level but ultraGO and Local word the answer with Kiai's own engine text
+ * (levels.ts, writer.ts); a language model writes only when the reader picks one. The model is
+ * never named (XIAO's rule).
+ */
+export const WORDS = 'No language model unless you turn one on.';
 
 /** The line of play Kiai showed with its pick. */
 export const LINE: string[] = PLAY.variations.find((v) => v.moves[0] === PICK)?.moves.filter((m) => m !== 'pass') ?? [];
@@ -80,7 +96,7 @@ export const WHAT = 'The open-source Go engine, running in your browser.';
 // (no line break inside the name)
 export const COLOPHON = 'Made by a professional Go player. The engine: KataGo, open source, by David\u00a0J.\u00a0Wu.';
 /** What does what, said once on the last screen (the language model is never named: XIAO's rule). */
-export const HOW = 'A language model writes the words from KataGo’s numbers and adds no analysis of its own; Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
+export const HOW = 'Kiai writes the words from KataGo’s numbers. A language model is optional, off by default, and adds no analysis of its own; Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
 
 export interface Chapter {
   id: string;

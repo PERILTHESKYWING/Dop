@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import type { GlossaryEntry } from '../../../src/lib/coach/glossary';
 import { termCard } from '../lib/terms';
-import { inlineArrow, placeTip, revealBy, snapTop, type Box } from '../lib/tipPlace';
+import { inlineArrow, linesBelow, placeTip, revealBy, sentenceEnd, snapTop, type Box } from '../lib/tipPlace';
 
 /** A Chinese term and its pinyin, one unit that never breaks between them ("碰 pèng"). */
 function ZhName({ zh, py }: { zh: string; py: string }) {
@@ -37,81 +37,52 @@ function blockOf(el: HTMLElement, stop: Element): HTMLElement {
 /** Elements a card must never open inside (a tap on the card would act on them). */
 const WHOLE = '.term, .pt, button, a, .chip, .tag, .kg-fig';
 
-/** Marks that end a sentence or a clause, where a card may open in the text. */
-const ENDS = '.!?;:';
-
 /**
- * Puts an in-chat card's `host` right under the term: after the end of the term's sentence or
- * clause when that is on the term's line or the next one (designer and pro teacher, 2026-11-06:
- * "at" / "R11." no longer split from their sentence), else at the start of the next line, where
- * the line already wrapped. The lines before stay as they were and the text after moves down
- * whole. A text node may be split there. On the paragraph's last line the host goes after the
- * paragraph (inside a list item, at its end).
+ * Puts a pinned card's `host` after the end of the sentence the term is in (perf, designer,
+ * generalist, parent, 2026-11-16: a card under the tapped line split the sentence being read),
+ * else after the paragraph (inside a list item, at its end). Every line up to the sentence's end
+ * stays exactly where it was, and the text after it moves down whole. The place is found from the
+ * text alone (sentenceEnd), with no layout read, so a tap opens the card at once. A text node may
+ * be split there; a chip, a term or a figure is never cut.
  *
- * findPlace measures (it reads the position of each character after the term, up to the next
- * line) and says where; applyPlace puts the host there and returns the undo: the host out and
- * the split text joined again, exactly as React drew it. The caller undoes before every one of
- * its renders commits (a layout effect's cleanup runs in the commit's DOM pass, at the term,
- * before React touches the text after it), so React only ever changes its own DOM.
+ * applyPlace puts the host there and returns the undo: the host out and the split text joined
+ * again, exactly as React drew it. The caller undoes before every one of its renders commits (a
+ * layout effect's cleanup runs in the commit's DOM pass, at the term, before React touches the
+ * text after it), so React only ever changes its own DOM.
  */
 type Place =
   | { at: 'split'; node: Text; offset: number }
-  | { at: 'before' | 'after'; node: Node }
+  | { at: 'after'; node: Node }
   | { at: 'end'; node: Element }
   | { at: 'afterBlock'; node: Element };
 
 function findPlace(el: HTMLElement, block: HTMLElement): Place {
-  const rects = el.getClientRects();
-  const last = rects[rects.length - 1] ?? el.getBoundingClientRect();
-  const below = last.top + last.height / 2;
-  const putAt = (node: Text, at: number): Place => (at >= (node.nodeValue ?? '').length ? { at: 'after', node } : { at: 'split', node, offset: at });
-  if (block !== el) {
-    const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-    const range = document.createRange();
-    let nextTop: number | null = null;
-    let lineStart: { node: Text; at: number } | null = null;
-    let end: { node: Text; at: number } | null = null;
-    scan: for (let n = walk.nextNode() as Text | null; n; n = walk.nextNode() as Text | null) {
-      if (el.contains(n) || !(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
-      const whole = n.parentElement?.closest(WHOLE);
-      const inWhole = !!whole && block.contains(whole);
-      const text = n.nodeValue ?? '';
-      for (let i = 0; i < text.length; i++) {
-        if (/\s/.test(text[i])) continue;
-        range.setStart(n, i);
-        range.setEnd(n, i + 1);
-        const r = range.getBoundingClientRect();
-        if (!r.height) continue;
-        if (nextTop === null && r.top > below) {
-          nextTop = r.top;
-          lineStart = { node: n, at: i };
-        } else if (nextTop !== null && r.top > nextTop + r.height / 2) break scan; // past the next line
-        // a sentence's or clause's end: a mark followed by a space or the end of this text ("0.9" is not one)
-        if (!inWhole && ENDS.includes(text[i]) && (i + 1 === text.length || /\s/.test(text[i + 1]))) {
-          end = { node: n, at: i + 1 };
-          break scan;
-        }
-      }
-    }
-    if (end) return putAt(end.node, end.at);
-    if (lineStart) {
-      const first = lineStart.node;
-      const whole = first.parentElement?.closest(WHOLE);
-      if (whole && block.contains(whole)) {
-        // the next line starts inside a chip or a term: the card goes before it when it starts
-        // that line, else after it
-        return { at: (whole.getClientRects()[0]?.top ?? 0) > below ? 'before' : 'after', node: whole };
-      }
-      if (lineStart.at === 0) {
-        // before the outermost element this text starts (a span, a <strong>), never inside it
-        let start: Node = first;
-        while (start.parentNode && start.parentNode !== block && start.parentNode.firstChild === start) start = start.parentNode;
-        return { at: 'before', node: start };
-      }
-      return putAt(first, lineStart.at);
-    }
+  const whole: Place = block.tagName === 'LI' ? { at: 'end', node: block } : { at: 'afterBlock', node: block };
+  if (block === el) return whole;
+  // the block's text after the term, each text node's start in it
+  const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const segs: { node: Text; start: number }[] = [];
+  let flat = '';
+  for (let n = walk.nextNode() as Text | null; n; n = walk.nextNode() as Text | null) {
+    if (el.contains(n) || !(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+    const unit = n.parentElement?.closest(WHOLE);
+    const text = n.nodeValue ?? '';
+    segs.push({ node: n, start: flat.length });
+    // a chip, a term or a figure is one unit: no sentence ends inside it ("Q4.5"), and it starts
+    // a word as a capital would ("...wins. Q10 is...")
+    flat += unit && block.contains(unit) ? text.replace(/\S/g, 'X') : text;
   }
-  return block.tagName === 'LI' ? { at: 'end', node: block } : { at: 'afterBlock', node: block };
+  const end = sentenceEnd(flat);
+  // the sentence runs to the paragraph's end, or only a space follows its mark: after the paragraph
+  if (end < 0 || !flat.slice(end).trim()) return whole;
+  let k = segs.length - 1;
+  while (k > 0 && segs[k].start >= end) k--;
+  const { node, start } = segs[k];
+  if (end - start < (node.nodeValue ?? '').length) return { at: 'split', node, offset: end - start };
+  // the mark ends its text: after the outermost element that text ends (a <strong>), never inside it
+  let after: Node = node;
+  while (after.parentNode && after.parentNode !== block && after.parentNode.lastChild === after) after = after.parentNode;
+  return { at: 'after', node: after };
 }
 
 /** A place found for this block is still there: its node is in the block (or is the block) as React left it. */
@@ -136,8 +107,7 @@ function applyPlace(host: HTMLElement, p: Place): () => void {
       }
     };
   }
-  if (p.at === 'before') p.node.parentNode?.insertBefore(host, p.node);
-  else if (p.at === 'end') p.node.appendChild(host);
+  if (p.at === 'end') p.node.appendChild(host);
   else (p.node as ChildNode).after(host);
   return () => host.remove();
 }
@@ -187,9 +157,10 @@ function chatKeep(term: HTMLElement): (Box & { weight?: number })[] {
  * One card everywhere: the title, the Chinese and Japanese names on their own line, the
  * definition, a pointer at the term, and × when pinned. Where it goes:
  * - pinned in the chat, and on a phone also when shown by keyboard focus: inside the text, a
- *   block right under the term's line, so the text after it moves down and no answer line or
- *   KataGo's numbers row is covered (critics, 2026-11-05 and 11-06). The chat moves only to show
- *   the card and the line after it, never past the term.
+ *   block after the end of the term's sentence (or its paragraph), so the sentence being read is
+ *   never split, the text after it moves down and no answer line or KataGo's numbers row is
+ *   covered (critics, 2026-11-05, 11-06 and 11-16). The chat moves only to show the card, never
+ *   past the term.
  * - a desktop's hover or focus, and the note under the board: floating as a tooltip just under
  *   the term's line, or over it when under would cover KataGo's numbers or there is no room (a
  *   phone's board note prefers over, so the answer stays clear); never half over a button,
@@ -267,6 +238,13 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
       const line = lines[lines.length - 1] ?? el.getBoundingClientRect();
       const c = t.getBoundingClientRect();
       t.style.setProperty('--arrow', `${inlineArrow(line.left, line.right, c.left, c.width)}px`);
+      // the pointer only when the card is right under the term's line: after a longer sentence it
+      // would point at another word (the term keeps its tint, and the card's title names it)
+      // (the host is this component's own element, not React's: its class is safe to set)
+      const far = c.top - line.bottom > 16;
+      if (far) t.dataset.far = '';
+      else delete t.dataset.far;
+      slot.classList.toggle('far', far);
     }
     return undo;
   });
@@ -309,14 +287,20 @@ export function Term({ entry, children }: { entry: GlossaryEntry; children: Reac
     if (!slot || !el || !t || !pane) return;
     const p = pane.getBoundingClientRect();
     const c = t.getBoundingClientRect();
-    // only the card itself: the tapped line stays where it was when the card fits above the pane's
-    // foot, and the chat scrolls just enough when it would go under the composer (perf critic,
-    // 2026-11-11: it scrolled 67 px to show the line after the card too)
-    const target = c.bottom;
+    // the card and two whole lines of the answer under it: the tapped line stays where it was when
+    // that fits above the pane's foot, and the chat scrolls just enough when it would go under the
+    // composer (Chinese 5d, perf, parent, 2026-11-17: one line under the card read as the answer's
+    // end; perf critic, 2026-11-11: no further than that)
+    // (a range's rects include each whole paragraph's box too: only line-sized ones are lines)
+    const lineOnly = (r: Box) => r.bottom > r.top && r.bottom - r.top < 40;
+    const msg = el.closest('.msg.kami');
+    const below: Box[] = msg ? [...messageLines(msg).filter(lineOnly), ...[...msg.querySelectorAll('.words-by, .facts > summary')].map((x) => x.getBoundingClientRect() as Box)] : [];
+    const target = linesBelow(c.bottom, below, 2);
     const termTop = el.getClientRects()[0]?.top ?? el.getBoundingClientRect().top;
-    // ...with the pane's top edge between rows, never through the header, a chip or a line
+    // ...with the pane's top edge between rows, never through the header, a chip or a line (a
+    // paragraph's box is no row: it made the scroll back off to the paragraph's top)
     const rows: Box[] = [...pane.querySelectorAll('.msg.user, .msg.kami > .who, .read-row, .msg-tools, .tags, .facts > summary, .rich .pt, .rich .chip')].map((x) => x.getBoundingClientRect() as Box);
-    for (const m of pane.querySelectorAll('.msg.kami')) rows.push(...messageLines(m));
+    for (const m of pane.querySelectorAll('.msg.kami')) rows.push(...messageLines(m).filter(lineOnly));
     const by = snapTop(revealBy(target, p.bottom, termTop, p.top, 4), p.top, rows.filter((r) => r.bottom > r.top), Math.floor(termTop - p.top));
     if (by) pane.scrollTop += by;
   }, [slot]);

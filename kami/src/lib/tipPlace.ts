@@ -117,3 +117,45 @@ export function snapTop(by: number, paneTop: number, rows: readonly Box[], maxBy
   }
   return b;
 }
+
+/** Marks that end a sentence; a clause's ";" or ":" does not (the sentence goes on). */
+const STOPS = '.!?…';
+/** What may close a sentence right after its mark: a bracket or a quote ("…wins.)"). */
+const CLOSERS = ')]”’"\'»';
+
+/**
+ * Where the sentence that `text` is in the middle of ends: the index just after its mark (and
+ * any closing bracket or quote), or -1 when it runs to the end of `text`. A mark counts only
+ * before a space or the end of the text, so "0.9" or "Q4.5" is no end, and not before a lowercase
+ * word, so "e.g. the" or "vs. a" goes on. The pinned term card opens there (Term.tsx), so the
+ * sentence the reader is in is never split (perf, designer, generalist, parent, 2026-11-16).
+ */
+export function sentenceEnd(text: string, from = 0): number {
+  for (let i = Math.max(0, from); i < text.length; i++) {
+    if (!STOPS.includes(text[i])) continue;
+    let j = i + 1;
+    while (j < text.length && STOPS.includes(text[j])) j++; // "?!" or "..."
+    while (j < text.length && CLOSERS.includes(text[j])) j++;
+    if (j < text.length && !/\s/.test(text[j])) continue;
+    const next = text.slice(j).match(/\S/)?.[0];
+    if (next && /\p{Ll}/u.test(next)) continue;
+    return j;
+  }
+  return -1;
+}
+
+/**
+ * How far down the chat must show once a pinned card opens in the text: the bottom of the `n`th
+ * whole line under the card (Chinese 5d, perf, parent, 2026-11-17: with one line under it the
+ * answer read as ending there), or the last line there is, or the card. `rects` are the text's
+ * boxes on screen, several to a line (words, coordinates, terms), merged here into lines.
+ */
+export function linesBelow(cardBottom: number, rects: readonly Box[], n = 2): number {
+  const rows: Box[] = [];
+  for (const r of rects.filter((x) => x.bottom > x.top && x.top >= cardBottom - 1).sort((a, b) => a.top - b.top)) {
+    const last = rows[rows.length - 1];
+    if (last && (r.top + r.bottom) / 2 < last.bottom) last.bottom = Math.max(last.bottom, r.bottom);
+    else rows.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  }
+  return rows.length ? rows[Math.min(n, rows.length) - 1].bottom : cardBottom;
+}

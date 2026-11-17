@@ -50,14 +50,14 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #342d26; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #342d26; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
 /* Over a background picture the sidebar goes back to frosted glass, so the wood tokens fall back to plain ones. */
@@ -208,6 +208,9 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
 :root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
 :root .aname .nm { font-size: 18px; font-weight: 500; }
 :root .track { background: var(--chip); }
+/* The empty part of a usage bar needs an edge that shows on the card (3:1 or more; the chip alone is 1.1:1): a 1 px
+   inset line in the grey text tone, so no new colour. */
+:root .track { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--soft) 70%, var(--panel)); }
 
 /* compose Options popup, sheets, Look sheet */
 :root .pop { border-radius: 10px; }
@@ -624,11 +627,11 @@ a.opt { color: inherit; text-decoration: none; }
 /* The live "working" line stays in view above the composer while the thread scrolls; a hairline
    and a short fade show that messages pass under it. */
 .feed > .thinking { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); }
-.feed > .thinking::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+.feed > .thinking::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: calc(48px + var(--room, 0px)); background: var(--bg); pointer-events: none; }
 /* Activity: the working line, then the current step and the last few actions with their ages. Pinned
    like the working line; plain type, no motion; ages in tabular figures in one narrow column. */
 .feed > .activity { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); display: grid; gap: 4px; }
-.feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+.feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: calc(48px + var(--room, 0px)); background: var(--bg); pointer-events: none; }
 .activity .thinking { padding-right: 96px; }
 .activity.min .thinking { padding-right: 128px; }
 .act-tog { position: absolute; top: 3px; right: 0; min-height: 30px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--soft); font-size: 14px; font-weight: 500; }
@@ -683,7 +686,7 @@ a.opt { color: inherit; text-decoration: none; }
 .tcard:hover { background: var(--sel); border-color: var(--faint); transform: translateY(-1px); }
 .tcard .ttl { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tcard .meta { grid-column: 2; display: flex; gap: 8px; align-items: center; font-size: 14px; flex-wrap: wrap; }
-.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 14px; font-weight: 500; color: var(--green); }
+.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 15px; font-weight: 500; color: var(--green); }
 
 /* empty project chat */
 .hello { margin: auto; text-align: center; max-width: 560px; padding: 24px 8px; display: grid; gap: 14px; justify-items: center; }
@@ -2097,18 +2100,117 @@ let ftbRun = 0, ftbOpen = false;
 function feedToBottom(f, open = false) {
   let h = -1, n = 0;
   const run = ++ftbRun;
-  if (open) { f.style.paddingBottom = ''; ftbOpen = true; }
+  if (open) { endRoom(f, 0); ftbOpen = true; }
   const go = () => {
     if (run !== ftbRun) return;
-    if (f.scrollHeight === h || n++ > 5) { if (ftbOpen) { ftbOpen = false; if (!taskInView(f)) lineOnTop(f); } return; }
+    if (f.scrollHeight === h || n++ > 5) { if (ftbOpen) { ftbOpen = false; fitWhenSet(f); } feedEnd = endOf(f); return; }
     h = f.scrollHeight; f.scrollTop = h; requestAnimationFrame(go);
   };
   go();
 }
+// The pinned live panel (the working line or the Activity block) sits on the feed's bottom edge, so a view
+// that ends up short of its end puts the newest message under it: a taller panel, a taller compose box or the
+// phone keyboard (a smaller feed), late fonts. While the reader is at or near the end (within the band under
+// the panel, so the panel is still in its place), a resize keeps the same distance from the end. feedEnd is
+// that distance, read from the last scroll (before the resize), or -1 when the reader is further up.
+const PIN_BAND = 48;
+let feedEnd = 0;
+const endOf = (f) => { const d = f.scrollHeight - f.scrollTop - f.clientHeight; return d <= PIN_BAND ? Math.max(0, d) : -1; };
+// Only a real move counts: a scroll event can also come after a resize, which must not overwrite feedEnd.
+let feedTop = 0;
+$('feed').addEventListener('scroll', (e) => { const f = e.currentTarget; if (f.scrollTop !== feedTop) { feedTop = f.scrollTop; feedEnd = endOf(f); } }, { passive: true });
+let pinNode = null, pinRoom = 0, padSoon = 0;
+// Tab focus and scrollIntoView keep a focused message clear of the panel: scroll-padding of the panel's
+// height, set a little later (focus is never that quick) so it costs nothing in the frames that open a thread.
+const pinPad = () => {
+  padSoon = 0;
+  const f = $('feed'), pad = pinNode?.isConnected ? `${Math.ceil(pinNode.offsetHeight) + 16}px` : '';
+  if (f.style.scrollPaddingBottom !== pad) f.style.scrollPaddingBottom = pad;
+};
+const pinRO = window.ResizeObserver ? new ResizeObserver(() => {
+  padSoon ||= setTimeout(pinPad, 150);
+  // While a view opens, feedToBottom is already taking it to its end.
+  if (feedEnd < 0 || ftbOpen) return;
+  const f = $('feed'), to = f.scrollHeight - f.clientHeight - feedEnd;
+  if (Math.abs(f.scrollTop - to) >= 1) { f.scrollTop = to; feedTop = f.scrollTop; }
+}) : null;
+pinRO?.observe($('feed'));
+function watchPin(f) {
+  const p = f.querySelector(':scope > .activity, :scope > .thinking');
+  if (p === pinNode || !pinRO) return;
+  if (pinNode) pinRO.unobserve(pinNode);
+  pinNode = p;
+  if (p) { pinRO.observe(p); if (pinRoom) p.style.setProperty('--room', `${pinRoom}px`); } else padSoon ||= setTimeout(pinPad, 150);
+}
+// Keyboard focus that lands in the pinned panel shows it in its own place, right after the newest message
+// (Tabbing through the messages first can leave the view higher up, with the panel over the newest one),
+// with the top edge on a whole card as when the thread opened. After the browser's own focus scroll.
+$('feed').addEventListener('focusin', (e) => {
+  const f = e.currentTarget;
+  if (!pinNode?.contains(e.target) || !e.target.matches(':focus-visible')) return;
+  requestAnimationFrame(() => { if (endOf(f) < 0 || f.scrollHeight - f.scrollTop - f.clientHeight < 1) { f.scrollTop = f.scrollHeight; openFit(f); } });
+});
+// The empty space under the last item that a view can move up into without anything passing under the
+// pinned panel: the feed's bottom padding, or the band under the panel minus that padding (the panel sticks
+// at the padding edge, so it slides down only that far).
+function endSlack(f, fr) {
+  const last = f.lastElementChild;
+  const s = fr.bottom - last.getBoundingClientRect().bottom;
+  return last.matches('.activity, .thinking') ? s - (parseFloat(getComputedStyle(f).paddingBottom) || 0) : s;
+}
+// Room at the end of a just-opened view (see openFit). With the pinned panel it lengthens the band under the
+// panel (--room, which a redrawn panel keeps, see watchPin): the band is out of flow, so only it is laid out
+// again, not the whole feed, and the panel rides up with the messages, nothing passes under it. With no panel
+// it is bottom padding. 0 takes it away: when the view opens again, or when a new post arrives.
+function endRoom(f, d, pin = f.querySelector(':scope > .activity, :scope > .thinking')) {
+  if (!d) { f.style.paddingBottom = ''; if (pinRoom && pin) pin.style.removeProperty('--room'); pinRoom = 0; return; }
+  if (pin) { pinRoom = d; pin.style.setProperty('--room', `${d}px`); }
+  else f.style.paddingBottom = `calc(${getComputedStyle(f).paddingBottom} + ${d}px)`;
+  f.scrollTop = f.scrollHeight;
+}
+// A font the new view uses for the first time (bold, say) can still be loading when the view reaches its end,
+// and its swap moves every line above the end: measure the top edge once it has come, if nobody has scrolled.
+function fitWhenSet(f) {
+  if (document.fonts?.status !== 'loading') return openFit(f);
+  const run = ftbRun, at = feedScrollAt, view = sel;
+  document.fonts.ready.then(() => { if (run === ftbRun && at === feedScrollAt && view === sel && feedEnd === 0) openFit(f); });
+}
+// A view opens at its end, which can leave the card at the top edge cut under the header (a Handover card
+// with its top edge missing). The newest message stays whole above the pinned panel, so there are two ways
+// to start on a whole card: move up into the empty space under the last item (endSlack) to bring the card in
+// whole, up to a padding under the edge; or add a little room at the end (endRoom) so the card moves out and
+// the next one starts there. The first is used when it fits. Otherwise a short thread with no panel shows its
+// task card whole as before (the rest is one short scroll away); else the room is added when it is small; a
+// card too big for that starts on a whole text line.
+// Only the card at the top edge and the last item are measured, once per open.
+function openFit(f) {
+  if (!f.scrollTop) return;
+  // Every measure first (one layout), then a single write.
+  const fr = f.getBoundingClientRect(), edge = fr.top;
+  const el = document.elementFromPoint(fr.left + fr.width / 2, edge + 1);
+  const card = el && el !== f && f.contains(el) ? el.closest('#feed > *') : null;
+  const pin = f.querySelector(':scope > .activity, :scope > .thinking');
+  if (!card || card === pin) return;
+  const r = card.getBoundingClientRect(), cut = edge - r.top;
+  if (cut <= 1) return;
+  const cs = getComputedStyle(f), pad = parseFloat(cs.paddingTop) || 0;
+  const last = f.lastElementChild, lb = last.getBoundingClientRect().bottom;
+  const slack = Math.floor(fr.bottom - lb - (last === pin ? parseFloat(cs.paddingBottom) || 0 : 0));
+  const pv = card.previousElementSibling, above = pv ? r.top - pv.getBoundingClientRect().bottom : pad;
+  // Brought in: up to a padding under the edge, but never so far that the card before it shows a sliver
+  // (a follow-on message sits only 6 px under the one before).
+  const pull = Math.min(Math.ceil(cut + Math.min(pad, Math.max(0, above - 1))), slack);
+  if (pull >= cut + 1 && f.scrollTop >= pull) { f.scrollTop -= pull; return; }
+  if (!pin && taskInView(f)) return;
+  // Moved out: its bottom (and any line of it) goes above the edge; the next card keeps its own gap below.
+  const out = card.nextElementSibling === pin ? Infinity : Math.max(0, Math.ceil(r.bottom - edge));
+  if (out <= Math.min(96, f.clientHeight * 0.2)) return endRoom(f, out, pin);
+  lineOnTop(f);
+}
 // A long thread opens at its end, which can leave a text line cut in half under the header. If the
 // empty space under the last item (feed padding, or the band under the pinned "working" line) can take
-// it, the view moves up just enough to show that line whole; otherwise the feed gets that much extra
-// bottom space and the line scrolls fully out. Either way the view starts on a whole line and nothing
+// it, the view moves up just enough to show that line whole; otherwise the end gets that much extra
+// room (endRoom) and the line scrolls fully out. Either way the view starts on a whole line and nothing
 // at the bottom is cut. Only the one message at the top edge is measured, once per open.
 function lineOnTop(f) {
   if (!f.scrollTop) return;
@@ -2124,11 +2226,10 @@ function lineOnTop(f) {
   }
   if (!bottom) return;
   const hidden = Math.ceil(fr.top - top) + 3, shown = Math.ceil(bottom - fr.top) + 1;
-  const slack = fr.bottom - f.lastElementChild.getBoundingClientRect().bottom;
+  const slack = endSlack(f, fr);
   if (hidden <= slack) { f.scrollTop -= hidden; return; }
   if (shown > 48) return;
-  f.style.paddingBottom = `calc(${getComputedStyle(f).paddingBottom} + ${shown}px)`;
-  f.scrollTop = f.scrollHeight;
+  endRoom(f, shown);
 }
 function taskInView(f) {
   const card = f.querySelector('.task');
@@ -2264,8 +2365,12 @@ function renderFeed() {
   if (added) for (const x of added) for (const n of x.nodes) if (n.nodeType === 1) { hydrateImgs(n); hydrateThumbs(n); }
   // A view that just opened goes to its end; an open one follows only when something new arrived.
   if (feed.dataset.sel !== String(sel)) feedToBottom(feed, true);
-  else if (stick && added && !filling) feedToBottom(feed);
+  else if (stick && added && !filling) {
+    if (added.some((x) => typeof x.k === 'number' || String(x.k).startsWith('tmp'))) endRoom(feed, 0);
+    feedToBottom(feed);
+  }
   feed.dataset.sel = String(sel);
+  watchPin(feed);
   if (added) warmFeed();
   if (fresh && feedEarly[sel] > (feedFill[sel] ?? 0)) fillFeed();
   renderTools(t);
@@ -2420,7 +2525,10 @@ function renderTools(t) {
     <button class="send" type="submit" aria-label="Send" title="Send (Enter)" id="sendBtn" ${sendingNow ? 'disabled aria-busy="true"' : ''}>${icon('arrow-up', 20)}</button>`;
   const tools = $('tools');
   if (tools.dataset.html !== html) { tools.innerHTML = html; tools.dataset.html = html; }
-  $('text').placeholder = t ? `Reply in ${t.title}` : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?';
+  // A thread's box says only "Reply…" (the title is already in the header); a screen reader still hears which thread.
+  const ph = t ? 'Reply…' : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?', al = t ? `Reply in ${t.title}` : ph;
+  if ($('text').placeholder !== ph) $('text').placeholder = ph;
+  if ($('text').getAttribute('aria-label') !== al) $('text').setAttribute('aria-label', al);
   // The box shows this view's draft (also when it kept focus through a thread switch).
   const ta = $('text');
   if (document.activeElement !== ta || ta.dataset.sel !== String(sel)) { ta.value = drafts[sel] || ''; ta.dataset.sel = String(sel); grow(); }
@@ -2656,8 +2764,8 @@ function activityOf(a) {
 }
 function accountCard(a) {
   const [cls0, st0, stNote, stAt, ncN] = acctState(a);
-  // "Working" is green on every card; a silent thread adds "· 1 offline" in amber to the state and a
-  // hollow amber ring on its own row, so amber means "offline" only.
+  // One state, one colour on every card: a silent thread shows only on its own row, with the hollow
+  // amber ring and "Offline" (r/baduk, parent, 2026-11-16: "Working · 1 offline" was two states).
   const cls = cls0, st = st0;
   const u = a.usage;
   const has = u && (u.five_hour_pct != null || u.seven_day_pct != null);
@@ -2673,7 +2781,7 @@ function accountCard(a) {
   const seen = a.lastSeen ? `Last seen ${since(a.lastSeen)}` : '';
   const usage = has ? useLine(u) : needsLink && !a.oldLink ? '' : `<div class="nouse-row">${noUse}</div>`;
   return `<div class="acard ${a.low ? 'low' : ''}">
-    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc(seen)}">${stAt ? minHtml(st, stAt) : esc(st)}${ncN ? ` · <span class="ncw">${ncN} offline</span>` : ''}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
+    <div class="atop">${av(a.name)}<div class="aname"><div class="nmrow"><span class="nm" title="${esc(a.name)}">${esc(a.name)}</span><span class="plan">${esc(a.plan)}</span></div></div><span class="state ${cls}" title="${esc([seen, ncN ? `${ncN} offline` : ''].filter(Boolean).join(' · '))}">${stAt ? minHtml(st, stAt) : esc(st)}</span><button type="button" class="btn small quiet more" data-pop="amenu:${esc(a.name)}" aria-label="More for ${esc(a.name)}" title="Connect, edit, usage">${icon('ellipsis', 16)}</button></div>
     ${usage}
     ${conn}
     ${stNote && !sub ? `<div class="asub"><div class="sub snote">${esc(stNote)}</div></div>` : ''}

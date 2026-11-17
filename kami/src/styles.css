@@ -1135,10 +1135,10 @@ kbd {
   margin-top: 4px;
   color: var(--ink-2);
 }
-/* A phone's card in the chat: a block right under the term's line (Term.tsx), in the text's flow,
-   so the lines after it move down and none is covered. The same card as the floating one, without
-   the shadow it needs to sit over text; the host's top padding holds the pointer. After a
-   paragraph (the term on its last line) it takes half the paragraph's gap. */
+/* A pinned card in the chat: a block after the end of the term's sentence (Term.tsx), in the
+   text's flow, so the sentence is never split, the lines after it move down and none is covered.
+   The same card as the floating one, without the shadow it needs to sit over text; the host's top
+   padding holds the pointer. After a paragraph it takes half the paragraph's gap. */
 .term-slot {
   display: block;
   margin: 0 0 8px;
@@ -1160,6 +1160,13 @@ li > .term-slot.after {
 }
 .term-tip.inline.pinned {
   padding-right: 42px;
+}
+/* a card after a longer sentence: no pointer, it would point at another word (Term.tsx) */
+.term-tip.inline[data-far]::before {
+  display: none;
+}
+.term-slot.far {
+  padding-top: 2px;
 }
 /* a finger's × on the phone card: 36 px, its ring inside the card */
 .term-tip.inline .term-close {
@@ -3297,6 +3304,18 @@ li > .term-slot.after {
     width: calc(100vw - 16px);
     font-size: 15px;
   }
+  /* a phone's pinned card in the answer, a little more compact, so two answer lines show under it
+     above the message box (Chinese 5d, perf, parent, 2026-11-17) */
+  .term-tip.inline {
+    padding: 7px 12px 8px;
+    line-height: 1.38;
+  }
+  .term-tip.inline.pinned {
+    padding-right: 40px;
+  }
+  .term-tip.inline .term-tip-text {
+    margin-top: 2px;
+  }
   /* the step buttons and the graph buttons, a little tighter; a step button is 32 px to the eye
      and 44 px tall to a finger (a11y, 2026-11-11) */
   .step-btn {
@@ -3326,20 +3345,26 @@ li > .term-slot.after {
     text-align: left;
     white-space: nowrap;
   }
-  /* the players' row: one segmented set of short names, "Win % · Mistakes · Strength" ("Chance" alone
-     read as luck: ten critics, 2026-11-16; "Win chance" does not fit beside the players at 390 px);
-     each drawn 26 px, tapped 44 px (a11y) */
+  /* the players' row: the graphs as one segmented control, "Win % · Mistakes · Strength" ("Chance"
+     alone read as luck: ten critics, 2026-11-16; "Win chance" does not fit beside the players at
+     390 px): a quiet tinted track, the names plain text on it, the open graph's filled in ink
+     (aria-pressed). Three outlined pills crowded the row and made a third look beside the player
+     chip and the gear (designer, artist, generalist, parent, 2026-11-17). The track is the row's
+     30 px, each name drawn 26 px and tapped 44 px (a11y); flat, no shadow. */
   .bp-head .bp-tabs {
     flex: none;
     gap: 0;
     padding: 2px;
-    margin-left: auto;
+    /* 8 px or more clear of the gear and of "White" (designer, 2026-11-17) */
+    margin: 0 2px 0 auto;
+    border-radius: 9px;
+    background: var(--press);
   }
   .bp-head .bp-tabs button {
     height: 26px;
     padding: 0 6px;
     font-size: 12px;
-    color: var(--ink);
+    color: var(--ink-2);
     border-radius: 7px;
     position: relative;
   }
@@ -3347,6 +3372,11 @@ li > .term-slot.after {
     content: '';
     position: absolute;
     inset: -9px 0;
+  }
+  .bp-head .bp-tabs button.on {
+    background: var(--ink);
+    color: var(--bg);
+    box-shadow: none;
   }
   .bp-head .bp-tabs button:disabled {
     color: var(--muted);
