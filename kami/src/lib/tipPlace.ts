@@ -143,3 +143,19 @@ export function sentenceEnd(text: string, from = 0): number {
   }
   return -1;
 }
+
+/**
+ * How far down the chat must show once a pinned card opens in the text: the bottom of the `n`th
+ * whole line under the card (Chinese 5d, perf, parent, 2026-11-17: with one line under it the
+ * answer read as ending there), or the last line there is, or the card. `rects` are the text's
+ * boxes on screen, several to a line (words, coordinates, terms), merged here into lines.
+ */
+export function linesBelow(cardBottom: number, rects: readonly Box[], n = 2): number {
+  const rows: Box[] = [];
+  for (const r of rects.filter((x) => x.bottom > x.top && x.top >= cardBottom - 1).sort((a, b) => a.top - b.top)) {
+    const last = rows[rows.length - 1];
+    if (last && (r.top + r.bottom) / 2 < last.bottom) last.bottom = Math.max(last.bottom, r.bottom);
+    else rows.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  }
+  return rows.length ? rows[Math.min(n, rows.length) - 1].bottom : cardBottom;
+}

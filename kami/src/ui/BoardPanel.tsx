@@ -127,9 +127,10 @@ const UNDER_DESKTOP = 46;
 const UNDER_PHONE = 40;
 
 const TABS = [
-  { id: 'trend', label: 'Win chance', short: 'Win %', icon: 'trend' },
-  { id: 'blunder', label: 'Mistakes', short: 'Mistakes', icon: 'blunder' },
-  { id: 'performance', label: 'Strength', short: 'Strength', icon: 'performance' },
+  // one name on every width: "Win %" ("Chance" alone read as luck; the desktop said "Win chance" while the phone said "Win %": pro teacher, Chinese 5d, 2026-11-17)
+  { id: 'trend', label: 'Win %', icon: 'trend' },
+  { id: 'blunder', label: 'Mistakes', icon: 'blunder' },
+  { id: 'performance', label: 'Strength', icon: 'performance' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 const SIZES = [19, 13, 9];
@@ -175,7 +176,7 @@ function Switch({ on, onChange, label, icon }: { on: boolean; onChange: (v: bool
 /**
  * The board column: the players along the top with the gear, a thin eval bar, the board as
  * big as the column allows (it grows when the column is dragged wider), the move slider, the
- * step buttons, and the game's graphs (Win chance, Mistakes, Strength). Everything else (best moves,
+ * step buttons, and the game's graphs (Win %, Mistakes, Strength). Everything else (best moves,
  * territory, pass, undo, loading a game, a new board) sits behind the gear.
  */
 export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPreview, onSgfText, onSgfFile, onSettings, answered = false, answerReads }: Props) {
@@ -543,9 +544,10 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
   // A phone names them in short words with no icons, one segmented set, there from the first
   // paint (off until a game is loaded or while a line is shown), so the players' row never changes
   // width (seven critics, 2026-11-11: three bare icons, the triangle read as an error)
-  // A phone's are three toggle buttons, each drawn as a quiet outlined pill, pressed (tinted) while
-  // its graph is open (designer, generalist, artist, 2026-11-16: they read as plain text with no
-  // selected state); a desktop's stay a tab strip.
+  // A phone's are one segmented control of three toggle buttons on a quiet track, the open graph's
+  // filled in ink (aria-pressed; designer, generalist, artist, parent, 2026-11-16/17: plain text
+  // with no selected state, then three outlined pills that crowded the row); a desktop's stay a
+  // tab strip.
   const tabsOff = n === 0 || (phone && !!preview);
   const tabs = (
     <div className="bp-tabs" role={phone ? 'group' : 'tablist'} aria-label="Game graphs">
@@ -554,7 +556,6 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           key={t.id}
           type="button"
           role={phone ? undefined : 'tab'}
-          aria-label={t.label}
           aria-selected={phone ? undefined : tab === t.id}
           aria-pressed={phone ? tab === t.id : undefined}
           disabled={tabsOff}
@@ -563,7 +564,7 @@ export function BoardPanel({ board, preview, onBoard, onPlay, onUndo, onClearPre
           onClick={() => setTab(tab === t.id ? null : t.id)}
         >
           {!phone && <Icon name={t.icon} size={16} />}
-          <span>{phone ? t.short : t.label}</span>
+          <span>{t.label}</span>
         </button>
       ))}
     </div>

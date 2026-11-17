@@ -996,19 +996,3 @@ html.kiai-landing {
   font-variant-numeric: lining-nums tabular-nums;
   text-wrap: pretty;
 }
-/* who writes the words, run on in the proof's last line (one footnote: designer, generalist,
-   r/baduk, 2026-11-16) */
-.l-words-short {
-  display: none;
-}
-
-/* phone: the shorter words, so the hero board keeps its height (parent, 2026-11-11); after the
-   base rules so it wins */
-@media (max-width: 860px), (max-aspect-ratio: 9/10) {
-  .l-words-by {
-    display: none;
-  }
-  .l-words-short {
-    display: inline;
-  }
-}

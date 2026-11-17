@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { moveStats, stoneNote } from '../kami/src/lib/moveCaption';
 import { DEMO } from '../kami/src/ui/landing/data';
 import { FINAL, loc } from '../kami/src/ui/landing/data';
-import { LEVEL_PICKS, PICK, pointsIn, PROOF, QUICK } from '../kami/src/ui/landing/story';
+import { LEVEL_PICKS, PICK, pointsIn, PROOF, QUICK, QUICK_MAX } from '../kami/src/ui/landing/story';
 import { DEFAULT_LEVEL } from '../kami/src/lib/levels';
 import { TERM_NAMES, termCard } from '../kami/src/lib/terms';
 import { GLOSSARY } from '../src/lib/coach/glossary';
@@ -38,17 +38,18 @@ describe('the landing hero’s proof beside its pick', () => {
   it('says how deep the shown answer read, from the recorded answer', () => {
     const ultra = rec('ultraGO');
     expect(PICK).toBe(ultra.variations[0].moves[0]);
-    expect(PROOF.startsWith(`A long read: KataGo, ${ultra.visits.toLocaleString('en-US')} positions.`)).toBe(true);
+    expect(PROOF.startsWith(`KataGo’s long read (${ultra.visits.toLocaleString('en-US')} positions) picks ${PICK};`)).toBe(true);
     expect(PROOF).not.toMatch(/ultraGO/);
   });
-  // r/baduk and generalist critics, 2026-11-06: the landing said Q9, the app's quick read Q10
-  it('names the app’s own quick read of the same position, and how the pick changed as it read longer', () => {
+  // r/baduk and generalist critics, 2026-11-06: the landing said Q9, the app's quick read Q10;
+  // HN, r/baduk, generalist, 2026-11-17: the landing said 288, the app 228 (a device's count varies)
+  it('names the app’s own quick read of the same position, with its cap, not one device’s count', () => {
     const low = rec('Low');
     expect(QUICK).toEqual({ depth: 'Low', at: low.variations[0].moves[0], visits: low.visits, reads: low.reads });
     expect(DEFAULT_LEVEL).toBe('low');
     expect(LEVEL_PICKS.map((p) => p.at)).toEqual(['Low', 'Medium', 'Max', 'ultraGO'].map((d) => rec(d).variations[0].moves[0]));
-    expect(PROOF).toContain(`The app’s quick read (${low.visits.toLocaleString('en-US')} positions) picks ${QUICK.at};`);
-    expect(PROOF.endsWith(`Read longer moves it to ${PICK}.`)).toBe(true);
+    expect(PROOF.endsWith(`the app’s quick read (up to ${QUICK_MAX} positions) picks ${QUICK.at}.`)).toBe(true);
+    expect(low.visits).toBeLessThanOrEqual(QUICK_MAX);
     // every point it names is a recorded pick
     for (const p of pointsIn(PROOF)) expect(LEVEL_PICKS.map((x) => x.at)).toContain(p);
   });
