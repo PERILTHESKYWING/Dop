@@ -96,7 +96,7 @@ export const WHAT = 'The open-source Go engine, running in your browser.';
 // (no line break inside the name)
 export const COLOPHON = 'Made by a professional Go player. The engine: KataGo, open source, by David\u00a0J.\u00a0Wu.';
 /** What does what, said once on the last screen (the language model is never named: XIAO's rule). */
-export const HOW = 'A language model writes the words from KataGo’s numbers and adds no analysis of its own; Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
+export const HOW = 'Kiai writes the words from KataGo’s numbers. A language model is optional, off by default, and adds no analysis of its own; Kiai works without it. No AI images: Yuji Syuku lettering, a board drawn in code.';
 
 export interface Chapter {
   id: string;

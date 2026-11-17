@@ -96,7 +96,8 @@ describe('Kiai landing copy', () => {
     expect(all).not.toMatch(/offline|leaves your device|AI-powered|smart|assistant|chatbot|coach/i);
     // what does what: KataGo reads, a language model (never named) only words it, and it is optional
     expect(COLOPHON).toMatch(/^Made by a professional Go player\./);
-    expect(HOW).toMatch(/writes the words from KataGo’s numbers and adds no analysis of its own/);
+    expect(HOW).toMatch(/writes the words from KataGo’s numbers/);
+    expect(HOW).toMatch(/off by default, and adds no analysis of its own/);
     expect(HOW).toMatch(/works without it/);
     expect(HOW).toMatch(/No AI images/);
     expect(HOW).not.toMatch(/gemini|google|openai|gpt|claude/i);
