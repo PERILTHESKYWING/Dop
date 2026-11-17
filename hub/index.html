@@ -50,14 +50,14 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
     --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
     --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+    --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #342d26; --sel: #322a22; --chip: #2f2821;
     --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 }
 :root[data-theme="dark"], :root[data-bg="night"] { --bg: #1d1915; --panel: #27221c; --line: #3b332a; --line-2: #54483a; --ink: #f6efe4; --soft: #cdbfab; --faint: #a39480;
   --kaya: #4a3520; --kaya-2: #5a4128; --kaya-ink: #f8e9cf; --kaya-line: #6b4f31; --kaya-amber: #ffc46b; --kaya-green: #8fe0b0;
   --stone: #f3efe7; --on-stone: #1b1712; --stone-edge: #b9b1a3;
     --nt: #ddd5c7; --on-nt: #1b1712; --nt-edge: #9d9384; --nt-hi: #e8e1d5;
-  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #4a3520; --sel: #322a22; --chip: #2f2821;
+  --green: #67c992; --on-green: #0d2416; --amber: #f0b44e; --amber-text: #f0b44e; --on-amber: #241500; --red: #f08070; --me: #342d26; --sel: #322a22; --chip: #2f2821;
   --shadow: 0 8px 28px rgba(0, 0, 0, .5); --clay-hi: rgb(235, 159, 127); color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
 /* Over a background picture the sidebar goes back to frosted glass, so the wood tokens fall back to plain ones. */
@@ -208,6 +208,9 @@ try { const p = localStorage.getItem('hubpw'); if (p && !localStorage.getItem('h
 :root .acard { background: var(--panel); border-color: var(--line); box-shadow: none; border-radius: 10px; }
 :root .aname .nm { font-size: 18px; font-weight: 500; }
 :root .track { background: var(--chip); }
+/* The empty part of a usage bar needs an edge that shows on the card (3:1 or more; the chip alone is 1.1:1): a 1 px
+   inset line in the grey text tone, so no new colour. */
+:root .track { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--soft) 70%, var(--panel)); }
 
 /* compose Options popup, sheets, Look sheet */
 :root .pop { border-radius: 10px; }
@@ -624,11 +627,11 @@ a.opt { color: inherit; text-decoration: none; }
 /* The live "working" line stays in view above the composer while the thread scrolls; a hairline
    and a short fade show that messages pass under it. */
 .feed > .thinking { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); }
-.feed > .thinking::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+.feed > .thinking::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: calc(48px + var(--room, 0px)); background: var(--bg); pointer-events: none; }
 /* Activity: the working line, then the current step and the last few actions with their ages. Pinned
    like the working line; plain type, no motion; ages in tabular figures in one narrow column. */
 .feed > .activity { position: sticky; bottom: 0; z-index: 1; background: var(--bg); padding-top: 8px; border-top: 1px solid var(--line); box-shadow: 0 -14px 10px -6px var(--bg); display: grid; gap: 4px; }
-.feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 48px; background: var(--bg); pointer-events: none; }
+.feed > .activity::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: calc(48px + var(--room, 0px)); background: var(--bg); pointer-events: none; }
 .activity .thinking { padding-right: 96px; }
 .activity.min .thinking { padding-right: 128px; }
 .act-tog { position: absolute; top: 3px; right: 0; min-height: 30px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--soft); font-size: 14px; font-weight: 500; }
@@ -683,7 +686,7 @@ a.opt { color: inherit; text-decoration: none; }
 .tcard:hover { background: var(--sel); border-color: var(--faint); transform: translateY(-1px); }
 .tcard .ttl { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tcard .meta { grid-column: 2; display: flex; gap: 8px; align-items: center; font-size: 14px; flex-wrap: wrap; }
-.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 14px; font-weight: 500; color: var(--green); }
+.tcard .go { grid-row: 1 / span 2; grid-column: 3; font-size: 15px; font-weight: 500; color: var(--green); }
 
 /* empty project chat */
 .hello { margin: auto; text-align: center; max-width: 560px; padding: 24px 8px; display: grid; gap: 14px; justify-items: center; }
@@ -2137,7 +2140,7 @@ function watchPin(f) {
   if (p === pinNode || !pinRO) return;
   if (pinNode) pinRO.unobserve(pinNode);
   pinNode = p;
-  if (p) { pinRO.observe(p); if (pinRoom) p.style.marginTop = `${pinRoom}px`; } else padSoon ||= setTimeout(pinPad, 150);
+  if (p) { pinRO.observe(p); if (pinRoom) p.style.setProperty('--room', `${pinRoom}px`); } else padSoon ||= setTimeout(pinPad, 150);
 }
 // Keyboard focus that lands in the pinned panel shows it in its own place, right after the newest message
 // (Tabbing through the messages first can leave the view higher up, with the panel over the newest one),
@@ -2155,14 +2158,13 @@ function endSlack(f, fr) {
   const s = fr.bottom - last.getBoundingClientRect().bottom;
   return last.matches('.activity, .thinking') ? s - (parseFloat(getComputedStyle(f).paddingBottom) || 0) : s;
 }
-// Room at the end of a just-opened view (see openFit): above the pinned panel (a margin that a redrawn panel
-// keeps, see watchPin), so the panel stays on the composer and nothing passes under it (bottom padding would
-// only fill the band under the panel); with no panel, as bottom padding. 0 takes it away: when the view opens
-// again, or when a new post arrives (the room would then sit between that post and the panel).
-function endRoom(f, d) {
-  const p = f.querySelector(':scope > .activity, :scope > .thinking');
-  if (!d) { f.style.paddingBottom = ''; if (pinRoom && p) p.style.marginTop = ''; pinRoom = 0; return; }
-  if (p) { pinRoom = d; p.style.marginTop = `${d}px`; }
+// Room at the end of a just-opened view (see openFit). With the pinned panel it lengthens the band under the
+// panel (--room, which a redrawn panel keeps, see watchPin): the band is out of flow, so only it is laid out
+// again, not the whole feed, and the panel rides up with the messages, nothing passes under it. With no panel
+// it is bottom padding. 0 takes it away: when the view opens again, or when a new post arrives.
+function endRoom(f, d, pin = f.querySelector(':scope > .activity, :scope > .thinking')) {
+  if (!d) { f.style.paddingBottom = ''; if (pinRoom && pin) pin.style.removeProperty('--room'); pinRoom = 0; return; }
+  if (pin) { pinRoom = d; pin.style.setProperty('--room', `${d}px`); }
   else f.style.paddingBottom = `calc(${getComputedStyle(f).paddingBottom} + ${d}px)`;
   f.scrollTop = f.scrollHeight;
 }
@@ -2183,6 +2185,7 @@ function fitWhenSet(f) {
 // Only the card at the top edge and the last item are measured, once per open.
 function openFit(f) {
   if (!f.scrollTop) return;
+  // Every measure first (one layout), then a single write.
   const fr = f.getBoundingClientRect(), edge = fr.top;
   const el = document.elementFromPoint(fr.left + fr.width / 2, edge + 1);
   const card = el && el !== f && f.contains(el) ? el.closest('#feed > *') : null;
@@ -2190,17 +2193,18 @@ function openFit(f) {
   if (!card || card === pin) return;
   const r = card.getBoundingClientRect(), cut = edge - r.top;
   if (cut <= 1) return;
-  const pad = parseFloat(getComputedStyle(f).paddingTop) || 0;
-  const slack = Math.floor(endSlack(f, fr));
+  const cs = getComputedStyle(f), pad = parseFloat(cs.paddingTop) || 0;
+  const last = f.lastElementChild, lb = last.getBoundingClientRect().bottom;
+  const slack = Math.floor(fr.bottom - lb - (last === pin ? parseFloat(cs.paddingBottom) || 0 : 0));
+  const pv = card.previousElementSibling, above = pv ? r.top - pv.getBoundingClientRect().bottom : pad;
   // Brought in: up to a padding under the edge, but never so far that the card before it shows a sliver
   // (a follow-on message sits only 6 px under the one before).
-  const pv = card.previousElementSibling, above = pv ? r.top - pv.getBoundingClientRect().bottom : pad;
   const pull = Math.min(Math.ceil(cut + Math.min(pad, Math.max(0, above - 1))), slack);
   if (pull >= cut + 1 && f.scrollTop >= pull) { f.scrollTop -= pull; return; }
-  if (taskInView(f)) return;
+  if (!pin && taskInView(f)) return;
   // Moved out: its bottom (and any line of it) goes above the edge; the next card keeps its own gap below.
   const out = card.nextElementSibling === pin ? Infinity : Math.max(0, Math.ceil(r.bottom - edge));
-  if (out <= Math.min(96, f.clientHeight * 0.2)) return endRoom(f, out);
+  if (out <= Math.min(96, f.clientHeight * 0.2)) return endRoom(f, out, pin);
   lineOnTop(f);
 }
 // A long thread opens at its end, which can leave a text line cut in half under the header. If the
@@ -2521,7 +2525,10 @@ function renderTools(t) {
     <button class="send" type="submit" aria-label="Send" title="Send (Enter)" id="sendBtn" ${sendingNow ? 'disabled aria-busy="true"' : ''}>${icon('arrow-up', 20)}</button>`;
   const tools = $('tools');
   if (tools.dataset.html !== html) { tools.innerHTML = html; tools.dataset.html = html; }
-  $('text').placeholder = t ? `Reply in ${t.title}` : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?';
+  // A thread's box says only "Reply…" (the title is already in the header); a screen reader still hears which thread.
+  const ph = t ? 'Reply…' : sel === NEW_CHAT ? 'Ask an agent anything' : 'What should the team do?', al = t ? `Reply in ${t.title}` : ph;
+  if ($('text').placeholder !== ph) $('text').placeholder = ph;
+  if ($('text').getAttribute('aria-label') !== al) $('text').setAttribute('aria-label', al);
   // The box shows this view's draft (also when it kept focus through a thread switch).
   const ta = $('text');
   if (document.activeElement !== ta || ta.dataset.sel !== String(sel)) { ta.value = drafts[sel] || ''; ta.dataset.sel = String(sel); grow(); }
